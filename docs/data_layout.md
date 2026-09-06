@@ -105,3 +105,11 @@ flagged as having fewer than 3 people; on inspection every one contained a match
 with players simply small, low-contrast or spread wide. Tier-2 person counting is the planned
 ambiguity resolver, and it will be least reliable in exactly the conditions where Tier-1 is also
 weakest. Worth measuring rather than assuming.
+
+## Conditions the dataset does not cover
+
+`lighting` (day/night) is the only condition axis. There is **no weather field and no rain
+footage** - every frame is dry. Any claim about robustness to precipitation is therefore
+unsupported, and the weather ideas in `IDEAS.md` cannot start until such footage exists.
+Rain must arrive *crossed with occupancy* - rain-with-play and rain-without-play both
+present - or it will reproduce the day/night confound in a new variable.

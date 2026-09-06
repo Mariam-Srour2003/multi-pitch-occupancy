@@ -653,6 +653,14 @@ polish is not worth thesis marks.
 
 ---
 
+## Ideas not yet in the plan
+
+See **[docs/IDEAS.md](docs/IDEAS.md)** - weather detection as an *explanation* for a verdict
+(rain turns an apparent no-show into a legitimate cancellation, which is the cheapest
+available improvement to anomaly precision), synthetic rain augmentation, conditions
+recorded alongside every verdict, transition-aware evidence selection, and a preprocessing
+sweep. Each entry carries its own stop condition.
+
 ## Extensions backlog (only if ahead of schedule, in this order)
 
 1. DINOv3 integration + quantisation study *(cheap, high visibility)*
