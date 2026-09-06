@@ -79,22 +79,26 @@ tagged with the question it answers. Fix that first — it is what turns a build
 *Weeks 1–2 · ~40 h · feeds M1*
 
 ### 0.A Version control & safety
-- [ ] **WP0-T1 Git init.** Commit everything except `data/*.mp4`, `data/dataset/`, HF caches, `*.pkl`
-      (use `.gitignore`; reference large data by manifest). *Accept:* clean `git status`, first commit.
+- [x] **WP0-T1 Git init.** Repo on GitHub (`multi-pitch-occupancy`, private) with the pilot
+      preserved on its own branch. `.gitignore` anchors `/data/` to the root - unanchored it also
+      swallowed the `src/pitch_occupancy/data/` package.
 - [ ] **WP0-T8 ★ Backup policy documented.** Formalise 0.2 into `docs/backup.md`: what is backed up,
       where, how often, and the last verified restore date. Re-verify monthly.
-- [ ] **WP0-T9 ★ Environment pinning.** Freeze exact versions (`pip freeze` → `requirements.lock.txt`),
-      record Python version, OS, CPU model. *Accept:* a fresh machine can reproduce the environment.
+- [x] **WP0-T9 ★ Environment pinning.** `uv.lock` + `.python-version` committed. torch pinned to
+      the **CPU wheel index** on every platform, so a CUDA build cannot silently invalidate a
+      reported latency. scikit-learn and scipy pinned to 1.8.0 / 1.16.3: Windows Smart App Control
+      blocks the newer builds' native extensions outright on this machine.
 
 ### 0.B Data plumbing
-- [ ] **WP0-T2 Dataset manifest.** `tools/build_manifest.py` → `data/dataset/manifest.csv`, columns:
-      `file, class4, class3, venue, camera, slot_date, slot_time, t_s, source(regular|motion),
-      labeled_by(human|assisted), lighting(day|night)`. *Accept:* 1,296 rows, zero missing fields.
-  - [ ] ★ Add columns `slot_id` (venue×date×start — the grouping key used everywhere) and
-        `quality` (set by WP3-T5) and `split_role` (train/val/test/FINAL, set once by WP0-T4).
-- [ ] **WP0-T3 Taxonomy layer.** `engine/taxonomy.py`: `to_class3(label4)`, class lists, display
-      names. Wire into `benchmark.py` (`--classes 3|4`, default 3) and `slot_aggregator.py`.
-      *Accept:* pilot benchmark reruns with `--classes 3` and reproduces ≥ pilot accuracy.
+- [x] **WP0-T2 Dataset manifest.** `pitch_occupancy/data/manifest.py`, `uv run pitch manifest`.
+      **1,692 rows over 9 venues**, handling both slot recordings and clip frames. The class folder
+      is authoritative; `labels.csv` supplies provenance only, so the 238 bulk-filed frames are
+      marked `labeled_by=bulk` rather than counted as hand-labelled.
+  - [x] ★ `slot_id`, `quality` and `split_role` columns added. `slot_id` deliberately omits the
+        camera: both cameras of a pitch see the same scene at the same moment.
+- [x] **WP0-T3 Taxonomy layer.** `pitch_occupancy/data/taxonomy.py` - 4 folders in, 3 reporting
+      classes out, with a test that fails if the two-into-C3 collapse is ever made one-to-one and
+      the 4-class ablation quietly disappears.
 - [x] **WP0-T4 Split module.** `pitch_occupancy/data/splits.py`: `grouped_split`,
       `leave_one_group_out`, `temporal_split`, and a deliberately leaky `random_split` kept only
       as H1's control arm. Materialised to `results/splits/`, referenced by name, never
@@ -106,19 +110,20 @@ tagged with the question it answers. Fix that first — it is what turns a build
         **On the current data it fires immediately:** the honest grouped split yields a test set
         that is 99% ACTIVE_PLAY with C3 absent, while the leaky random split looks clean. That
         contrast is H1's evidence, and it is now produced by the tooling rather than asserted.
-- [ ] **WP0-T5 Feature cache.** `engine/feature_cache.py`: embed every manifest image once per
-      backbone → `data/cache/<backbone>.npz`, keyed by file path + preprocessing hash.
-      *Accept:* second run of the same backbone takes seconds, identical metrics.
+- [x] **WP0-T5 Feature cache.** `data/feature_cache.py` + `vision/backbones.py`,
+      `uv run pitch cache`. Pooling is explicit and **stamped**; `load_cache` refuses anything not
+      mean-pooled, so the pilot's `pooler_output` bug cannot recur silently. Preprocessing
+      fingerprint refuses cross-preprocessing comparison; uncached frames are dropped and reported,
+      never zero-filled.
 
 ### 0.C Measurement & bookkeeping
-- [ ] **WP0-T6 Stats utilities.** `engine/stats.py`: bootstrap 95% CI (accuracy & macro-F1,
-      n=10,000), paired McNemar, slot-level paired bootstrap. *Accept:* unit tests vs hand-computed
-      toy examples.
-  - [ ] ★ Add **multiple-comparison correction** (Holm–Bonferroni). WP4+WP5 run dozens of pairwise
-        tests; uncorrected `p < 0.05` across that many comparisons is not a real claim, and an
-        examiner who knows statistics will say so.
-  - [ ] ★ Add **effect size** alongside every p-value (accuracy delta with CI, Cohen's g for
-        McNemar). "Significant but 0.3% better" is a finding, and you want to be the one who says it.
+- [x] **WP0-T6 Stats utilities.** `evaluation/stats.py` + `evaluation/metrics.py`. Bootstrap CIs,
+      metric-level bootstrap for macro-F1, paired bootstrap for slot level, McNemar with an exact
+      binomial regime for small discordant counts, Cohen's g, Holm-Bonferroni. Metrics name
+      zero-support classes as **absent** rather than folding an undefined F1 into the headline.
+  - [x] ★ Holm-Bonferroni implemented and applied in the H1/H2 experiment.
+  - [x] ★ Effect size beside every p-value. Already earning its keep: H2's clock-rule gap is
+        significant at p_holm 1.2e-07 and negligible in size (0.007 macro-F1).
 - [ ] **WP0-T10 ★ Latency-measurement harness.** `tools/bench_latency.py`: discard warm-up runs,
       N≥50 reps, report **median and p95** (not mean), declare thread count, pin CPU affinity,
       measure with nothing else running. The pilot's ms/frame numbers were probably measured
@@ -126,8 +131,8 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [ ] ★ **Concurrency test, not multiplication.** Measure 20 cameras *actually running
         concurrently*, not `20 × single-frame latency`. Memory-bandwidth contention on a Mini-PC
         makes those two numbers different, and the honest one is the one you must report.
-- [ ] **WP0-T7 Experiment log.** Create `results/EXPERIMENT_LOG.md`; backfill pilot entries.
-      Every experiment: date, task id, command, seed, data version, result file, one-line finding.
+- [x] **WP0-T7 Experiment log.** `results/EXPERIMENT_LOG.md`, pilot backfilled, appended
+      automatically by every experiment script.
 - [ ] **WP0-T11 ★ Reproduction script.** `make reproduce` (or `tools/reproduce_all.py`) that
       regenerates **every table and figure** in the thesis from the manifest + cached features.
       *Accept:* runs clean from scratch. Doubles as insurance against the laptop-sleep risk, since
@@ -188,9 +193,10 @@ tagged with the question it answers. Fix that first — it is what turns a build
 *Weeks 3–9 · ~150 h · M2 gate · **the critical path — protect this package***
 
 ### 2.A Know what you're missing
-- [ ] **WP2-T1 Coverage tracker.** `tools/coverage_report.py`: per-(class × lighting × venue) tally
-      → `results/coverage.md`, empty cells highlighted. *Accept:* `C3 × night = 0` visibly.
-  - [ ] ★ Add a **slot-count row** to the report, not only frame counts (see 2.B).
+- [x] **WP2-T1 Coverage tracker.** `uv run pitch coverage` -> `results/coverage.md`. Absent cells
+      render as `-` rather than `0`, and a **concentration table** reports each class's largest
+      venue and lighting share - the check that predicts a degenerate split before one is built.
+      It currently reads EMPTY 100% venue_01 / 98% day.
 
 ### 2.B The collection request
 - [ ] **WP2-T2 [H] Collection request doc** → `thesis/data_requests.md`. Ask for:
@@ -305,11 +311,14 @@ tagged with the question it answers. Fix that first — it is what turns a build
         extra run on cached features. **(RQ3)**
   - [ ] ★ Report **mean ± std over ≥5 grouped splits**, not one split. A single split's number is a
         sample of size one, and reviewers treat it as such.
-- [ ] **WP4-T10 ★ Trivial-baseline floor.** Before claiming deep backbones are needed, run:
-      majority class · mean ROI pixel intensity + logistic regression · colour histogram + HOG ·
-      frame-differencing motion energy. Cheap (hours, on cached data). **If a colour histogram gets
-      95%, your entire model comparison is measuring the wrong thing and you need to know that in
-      week 10, not at the defence.** Whatever the result, it becomes a strong first table. **(RQ7)**
+- [x] **WP4-T10 ★ Trivial-baseline floor — done, and it fired.** `experiments/h1_h2_baseline_floor.py`.
+      Under the random split a **16-bin colour histogram beat ConvNeXtV2 on macro-F1** (0.686 vs
+      0.657); under the grouped split the **clock rule came within 0.007** of it using no pixels at
+      all. The comparison was indeed measuring the wrong thing — established in week 1, not at the
+      defence. **(RQ7)**
+  - [x] ★ The complement: `experiments/h3_cross_venue_recall.py` shows the clock rule collapsing to
+        0.219 play-recall on unseen venues while ConvNeXtV2 and DINOv2 hold at 0.910 / 0.930. The
+        evaluation was uninformative; the models were not the problem. **(RQ3, RQ7)**
 - [ ] **WP4-T2 Label-efficiency curves.** Training sizes {10, 25, 50, 100, 300, 1000, all} × 5 seeds
       × 4 models; zero-shot OpenCLIP as the 0-label horizontal line. *Accept:*
       `results/label_efficiency.csv` + `results/figs/label_curve.png`. **(RQ1, RQ2)**
