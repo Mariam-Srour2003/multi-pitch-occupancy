@@ -23,3 +23,11 @@ dinov2,clipvenue_g_netting,1548,30,1.0,,,,
 dinov2,clipvenue_h_teal_pitch,1560,18,0.6667,,,,
 dinov2,clipvenue_i_outdoor_trees,1560,18,0.8889,,,,
 dinov2,MEAN_ACROSS_FOLDS,,,0.9297,0.8345,0.9932,0.6667,True
+vit,clipvenue_a_blue_barrier,1410,168,1.0,,,,
+vit,clipvenue_d_indoor_dome,1560,18,1.0,,,,
+vit,clipvenue_e_pink_boards,1560,18,1.0,,,,
+vit,clipvenue_f_outdoor_bldg,1566,12,0.5833,,,,
+vit,clipvenue_g_netting,1548,30,1.0,,,,
+vit,clipvenue_h_teal_pitch,1560,18,0.5,,,,
+vit,clipvenue_i_outdoor_trees,1560,18,1.0,,,,
+vit,MEAN_ACROSS_FOLDS,,,0.869,0.7143,1.0,0.5,False

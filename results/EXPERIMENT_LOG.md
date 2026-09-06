@@ -41,45 +41,57 @@ flagged as having <3 people contained a match in progress.
 
 ---
 
-## 2026-09-06 · H1 / H2 — baseline floor and split leakage
+## 2026-09-06 - H1 / H2 - baseline floor and split leakage
 
-`uv run python experiments/h1_h2_baseline_floor.py` · seed 42 · 2,000 CI resamples
-→ `results/h1_h2_baseline_floor.csv`
+`uv run python experiments/h1_h2_baseline_floor.py` | seed 42 | 2,000 CI resamples
+-> `results/h1_h2_baseline_floor.csv`
 
-*Partial run: ConvNeXtV2 only; ViT and DINOv2 caches still building.*
+> **Correction.** An earlier entry recorded H2 as "confirmed, emphatically" from a partial
+> run in which only the ConvNeXtV2 cache existed. With ViT and DINOv2 included the
+> conclusion reverses: the gap is measured against the *best* probe, and the best probe is
+> no longer ConvNeXtV2. The partial result was not wrong about ConvNeXtV2; it was wrong to
+> be called H2. Recorded rather than edited away.
 
 | split | model | accuracy | macro-F1 [95% CI] |
 |---|---|---|---|
-| random | **cheap_histogram** | 0.9594 | **0.6855** [0.665, 0.974] |
+| random | vit | 0.9949 | **0.9960** [0.987, 1.000] |
+| random | cheap_histogram | 0.9594 | 0.6855 [0.665, 0.974] |
 | random | convnextv2 | 0.9873 | 0.6573 [0.649, 0.997] |
+| random | dinov2 | 0.9873 | 0.6573 [0.649, 0.997] |
 | random | clock_rule | 0.9162 | 0.6050 [0.587, 0.931] |
 | random | majority | 0.6954 | 0.2735 |
+| grouped | dinov2 | 0.9846 | **0.5794** [0.494, 0.721] |
 | grouped | convnextv2 | 0.9901 | 0.4975 [0.496, 0.499] |
-| grouped | **clock_rule** | 0.9636 | **0.4907** [0.487, 0.494] |
+| grouped | vit | 0.9901 | 0.4975 [0.496, 0.499] |
+| grouped | clock_rule | 0.9636 | 0.4907 [0.488, 0.494] |
 | grouped | majority | 0.0099 | 0.0098 |
 
-**H2 — confirmed, emphatically.**
+**H2 - refuted as pre-registered, but only just, and only by one model.** The registered
+form was "within 2 macro-F1 points of the best frozen-backbone probe". On the grouped
+split the clock rule sits 8.9 points behind DINOv2 (p_holm 0.0037, g 0.31), so H2 fails.
 
-- Under the random split a **16-bin colour histogram beats ConvNeXtV2 on macro-F1**
-  (0.686 vs 0.657). A feature that cannot represent "are there people on the pitch" wins.
-- Under the grouped split the **clock rule is 0.007 macro-F1 behind ConvNeXtV2** — well
-  inside H2's pre-registered 2-point margin, using no image data whatsoever. McNemar calls
-  the difference significant (p_holm ≈ 1.2e-07), and that is exactly why effect size is
-  reported beside it: significant, and negligible.
+What survives is narrower and still uncomfortable:
 
-**H1 — directionally confirmed, but not cleanly attributable.** ConvNeXtV2's macro-F1 falls
-0.66 → 0.50 from random to grouped. Part of that is the leakage H1 predicts; part is that
-the grouped test set is 99% single-class, so macro-F1 is near-degenerate by construction.
-The two causes cannot be separated on this data, and the thesis must say so rather than
-quote the drop as a pure leakage figure.
+- The clock rule is **0.007 macro-F1** behind ConvNeXtV2 *and* ViT on the grouped split,
+  using no image data at all. Only DINOv2 clears the trivial floor by a meaningful margin,
+  and ConvNeXtV2 vs DINOv2 is itself not significant (p_holm 0.25).
+- A colour histogram beats ConvNeXtV2 and DINOv2 on macro-F1 under the random split
+  (0.686 vs 0.657).
+- The clock rule reaches **96.4% accuracy** on the grouped split. Accuracy on this data
+  remains uninformative regardless of which model wins.
 
-**Also worth noting:** `majority` scores 0.0099 on the grouped split. Training rows are
-mostly EMPTY (the morning recording), test rows almost entirely ACTIVE_PLAY, so predicting
-the training majority is wrong ~99% of the time. A vivid illustration of how degenerate
-that split is.
+**ViT's 0.996 on the random split is an artifact, not a result.** C3 contributes roughly
+one frame to that test set, so classifying it correctly hands ViT a perfect F1 on a
+three-frame class and lifts the macro average far above the others. Macro-F1 is unstable
+to the point of meaninglessness at that support. Do not quote this number without the
+caveat, and prefer the per-class table.
 
-`cheap_intensity` scores below `majority` on accuracy because balanced class weights on a
-single feature push it to over-predict rare classes — behaving as intended, not a bug.
+**H1 - directionally confirmed, not cleanly attributable.** Macro-F1 falls from random to
+grouped for every model. Part is the leakage H1 predicts; part is that the grouped test
+set is 99% single-class. The two cannot be separated on this data.
+
+`majority` scoring 0.0099 on the grouped split illustrates the degeneracy: training rows
+are mostly EMPTY, test rows almost entirely ACTIVE_PLAY.
 
 ---
 
@@ -88,35 +100,40 @@ single feature push it to over-predict rare classes — behaving as intended, no
 `uv run python experiments/h3_cross_venue_recall.py` | seed 42 | 7 held-out venue folds
 -> `results/h3_cross_venue_recall.csv`
 
-*Partial: ViT cache still building.*
-
 | model | mean play-recall [95% CI] | worst fold | target 0.90 |
 |---|---|---|---|
-| clock_rule | **0.219** [0.029, 0.505] | 0.000 | fails |
-| convnextv2 | **0.910** [0.821, 0.986] | 0.722 | meets |
 | dinov2 | **0.930** [0.834, 0.993] | 0.667 | meets |
+| convnextv2 | **0.910** [0.821, 0.986] | 0.722 | meets |
+| vit | 0.869 [0.714, 1.000] | 0.500 | below |
+| clock_rule | **0.219** [0.029, 0.505] | 0.000 | fails |
 
-**H3 confirmed for the frozen backbones, and this is the finding that answers H2.**
+**H3 confirmed for DINOv2 and ConvNeXtV2, not for ViT.**
 
-H2 showed a clock rule matching ConvNeXtV2 *within* the confounded venue. H3 shows what
-happens when the confound is removed: on venues never seen in training the clock rule
-collapses to 0.22 mean recall - zero on four of seven folds - while the same frozen
-backbones hold at 0.91 and 0.93.
+The clock rule collapses to 0.219 - zero recall on four of seven venues - while the frozen
+backbones hold above 0.86. Whatever the trivial baselines are exploiting inside venue_01,
+it does not survive a change of venue, and the deep features do.
 
-Read together the two results say something the pilot could not: **the deep features are
-genuinely detecting play rather than lighting; it was the evaluation that could not tell
-the difference.** The pilot's 98-99% was uninformative, but the models underneath it were
-not the problem. That distinction is the thesis's central methodological argument, and it
-is now backed by two pre-registered experiments pointing opposite ways.
+**The headline finding: the evaluation protocol inverts the model ranking.**
 
-Caveats to carry into the write-up:
+| protocol | 1st | 2nd | 3rd |
+|---|---|---|---|
+| random split (leaky) | **vit** 0.996 | convnextv2 / dinov2 0.657 | - |
+| grouped split | **dinov2** 0.579 | convnextv2 / vit 0.498 | - |
+| cross-venue recall | **dinov2** 0.930 | convnextv2 0.910 | vit 0.869 |
 
-- Fold sizes are small - five of seven venues contribute 12-30 frames - so the CIs are
-  wide and the mean is an unweighted average over folds, giving tiny venues equal weight.
-  Report the per-fold distribution, not just the mean.
-- Recall on one class only. Nothing here says whether an *empty* pitch is recognised at an
-  unseen venue; there is no data for that (see the pre-registration's "not answerable").
-- Both models are weakest on `clipvenue_h_teal_pitch` (0.72 / 0.67), which is one of the
-  two venue groups flagged `confidence=low` in `configs/clip_venues.csv`. If that group is
-  actually two facilities, this fold is measuring something other than it claims - worth
-  resolving before the number is quoted.
+ViT is first under the leaky protocol and last under the honest one. This is the textbook
+signature of a supervised ImageNet backbone fitting scene appearance, against a
+self-supervised backbone (DINOv2) whose features transfer; and the pilot's protocol ranked
+them backwards. It is a far stronger argument for leakage-free evaluation than a bare
+accuracy drop, because a reader can see a decision being made wrongly, not just a number
+moving.
+
+Caveats for the write-up:
+
+- Folds are small: five of seven venues contribute 12-30 frames, so CIs are wide and the
+  fold mean is unweighted, giving tiny venues equal weight. Report the per-fold spread.
+- Recall on one class only. Nothing here says whether an empty pitch is recognised at an
+  unseen venue - there is no data for that.
+- Both leading models are weakest on `clipvenue_h_teal_pitch` (0.72 / 0.67), one of the two
+  venue groups still flagged `confidence=low`. Resolve that grouping before quoting the
+  worst-fold figures.
