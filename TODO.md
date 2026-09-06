@@ -213,8 +213,16 @@ tagged with the question it answers. Fix that first — it is what turns a build
       *Accept:* ≥ 30 real slots labelled before WP5-T1 reports headline numbers.
 
 ### 2.C Ingest & quality
-- [ ] **WP2-T3 Ingest loop (per batch).** `extract_frames.py` (extend with `--venue`, `--pitch`) →
-      contact sheets → label → update manifest → `coverage_report.py`.
+- [x] **WP2-T3 Ingest loop — clips batch done.** `uv run pitch extract-clips` → 396 frames from
+      66 clips (6 per clip, middle 80%), venue assigned from `configs/clip_venues.csv`, lighting
+      **measured from pixels** because clip filenames carry no timestamp. Metadata lands in a
+      sidecar (`data/interim/clip_frames.csv`) that the manifest joins on. Manifest now holds
+      **1,692 frames over 9 venues**; ACTIVE_PLAY's confound warning has cleared. Filed as
+      `labeled_by=bulk` — verified per frame with YOLO plus visual review of the outliers, not
+      hand-labelled one by one.
+  - [ ] **[H] Spot-check the 396 clip frames** before they back a headline number. They are in
+        `data/processed/2_playing/` as `clip_*.jpg`.
+- [ ] **WP2-T3b Ingest loop for future batches.** Same path for any further footage.
 - [ ] **WP2-T4 De-duplication.** Perceptual-hash near-duplicate pass; drop near-identical
       consecutive frames within a class. *Accept:* duplicate rate reported per batch.
 - [ ] **WP2-T5 Double-labelling & κ.** 10% sample → second annotator, blind → `tools/kappa.py`

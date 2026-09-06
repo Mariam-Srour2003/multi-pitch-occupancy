@@ -78,3 +78,30 @@ from lighting to venue, because `1_empty` still comes from a single camera-slot.
 conditions — above all, *full-length* recordings rather than highlight clips. A complete slot
 naturally contains the empty periods before and after play, and is also the only thing that can
 supply slot-level ground truth for STAN (WP5-T1), which highlight clips cannot.
+
+## After extracting the clips (2026-09-06)
+
+`uv run pitch extract-clips` samples 6 frames from the middle 80% of each clip — 396 frames —
+which were verified as active play and filed into `2_playing` with `labeled_by=bulk`. The
+manifest now holds **1,692 frames across 9 venues**.
+
+What changed, and what did not:
+
+- **ACTIVE_PLAY is no longer confounded.** It now spans 9 venues and both lighting conditions
+  (222 day / 970 night), and its confound warning has cleared.
+- **EMPTY is unchanged**: 494 frames, 98% from one morning recording at one venue. Its warning
+  still fires, and always will with this footage.
+- **Leave-one-venue-out is now viable for one question only.** Each of the 7 development
+  clip-venues yields a fold whose test side is 100% ACTIVE_PLAY — which is precisely H3
+  (cross-venue play recall), and the "class absent from test" warning on those folds is expected
+  rather than a defect. The `venue_01` fold is degenerate in the opposite direction: it would
+  train on 282 clip frames containing no EMPTY at all, then test on all 494 EMPTY frames. Exclude
+  it from H3.
+
+### A finding worth carrying into WP4
+
+YOLOv8n **under-counts people on hazy, distant, fisheye footage**. Eight extracted frames were
+flagged as having fewer than 3 people; on inspection every one contained a match in progress,
+with players simply small, low-contrast or spread wide. Tier-2 person counting is the planned
+ambiguity resolver, and it will be least reliable in exactly the conditions where Tier-1 is also
+weakest. Worth measuring rather than assuming.

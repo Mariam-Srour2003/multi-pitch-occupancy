@@ -32,6 +32,10 @@ FRAME_RE = re.compile(
     r"^slot_(?P<d>\d{8})_(?P<t>\d{4})_(?P<cam>cam[A-Z])_t(?P<sec>\d{6})(?P<motion>_m)?\.jpg$"
 )
 
+#: Frames extracted from highlight clips. Their filenames cannot carry venue, lighting or
+#: a recording time, so those come from the sidecar written by ``data.extract``.
+CLIP_FRAME_RE = re.compile(r"^clip_(?P<code>c[a-z]+)_(?P<clip>\d+)_t(?P<ms>\d{6})\.jpg$")
+
 #: Hours (local) from which a slot counts as floodlit rather than daylight. A crude but
 #: explicit rule - override per venue in configs/ once seasons and latitudes vary.
 NIGHT_FROM_HOUR = 19
@@ -61,12 +65,17 @@ def _lighting_for(t: time) -> str:
 
 
 def _parse_frame_name(name: str) -> dict[str, object] | None:
+    if CLIP_FRAME_RE.match(name):
+        # metadata lives in the sidecar, not the filename
+        return {"kind": "clip"}
+
     m = FRAME_RE.match(name)
     if m is None:
         return None
     d = date(int(m["d"][:4]), int(m["d"][4:6]), int(m["d"][6:8]))
     t = time(int(m["t"][:2]), int(m["t"][2:4]))
     return {
+        "kind": "slot",
         "camera": m["cam"],
         "slot_date": d.isoformat(),
         "slot_time": t.strftime("%H:%M"),
@@ -94,6 +103,7 @@ def build_manifest(
     dataset_dir: Path | None = None,
     *,
     venue: str = "venue_01",
+    sidecar: Path | None = None,
 ) -> tuple[list[ManifestRow], list[str]]:
     """Scan the class folders and build manifest rows.
 
@@ -106,6 +116,11 @@ def build_manifest(
 
         dataset_dir = settings.dataset_dir
     labelled = _read_label_provenance(dataset_dir)
+
+    # cv2 is only needed to *create* the sidecar, not to read it, so this stays light
+    from pitch_occupancy.data.extract import read_sidecar
+
+    clip_meta = read_sidecar(sidecar)
 
     rows: list[ManifestRow] = []
     problems: list[str] = []
@@ -131,6 +146,36 @@ def build_manifest(
                 problems.append(
                     f"label mismatch for {rel}: folder={class4.value} labels.csv={recorded}"
                 )
+
+            if parsed["kind"] == "clip":
+                meta = clip_meta.get(frame.name)
+                if meta is None:
+                    problems.append(
+                        f"{rel}: clip frame with no sidecar entry - re-run extraction, "
+                        f"or it cannot be assigned to a venue"
+                    )
+                    continue
+                rows.append(
+                    ManifestRow(
+                        file=rel,
+                        class4=class4.value,
+                        class3=to_class3(class4).value,
+                        venue=meta.venue,
+                        # each clip is one continuous scene: its frames are correlated and
+                        # must never straddle a split boundary, so the clip is the group.
+                        camera=f"{meta.venue_code}_{meta.clip_id}",
+                        slot_date="",  # unknown - clip filenames encode only the export
+                        slot_time="",
+                        slot_id=f"{meta.venue}__clip_{meta.clip_id}",
+                        t_s=meta.t_ms // 1000,
+                        source="clip",
+                        labeled_by="human" if recorded is not None else "bulk",
+                        lighting=meta.lighting,
+                        quality="unknown",
+                        split_role="",
+                    )
+                )
+                continue
 
             # The camera tag matches how configs/cameras.json is keyed: per slot, not
             # globally, because the A/B <-> physical view mapping is not stable across

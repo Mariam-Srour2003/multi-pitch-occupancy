@@ -45,6 +45,30 @@ def info() -> None:
         typer.echo(f"  [{mark}] {label:<14} {path}")
 
 
+@app.command("extract-clips")
+def extract_clips_cmd(
+    per_clip: int = typer.Option(6, help="Frames sampled from each clip's middle 80%."),
+    clips_dir: Path | None = typer.Option(None, help="Defaults to the 2026-09-04 batch."),
+) -> None:
+    """Extract frames from the highlight clips and write the metadata sidecar (WP2-T3)."""
+    from pitch_occupancy.data.extract import (
+        extract_clip_frames,
+        load_clip_venues,
+        write_sidecar,
+    )
+
+    src = clips_dir or (settings.raw_dir / "highlights_2026-09-04")
+    out = settings.interim_dir / "frames" / "clips"
+    rows = extract_clip_frames(src, out, venues=load_clip_venues(), per_clip=per_clip)
+    path = write_sidecar(rows)
+    typer.echo(f"{len(rows)} frames from {len({r.clip_id for r in rows})} clips -> {out}")
+    typer.echo(f"sidecar -> {path}")
+    typer.secho(
+        "\nThese are not labelled yet. Review them before filing into a class folder.",
+        fg=typer.colors.YELLOW,
+    )
+
+
 @app.command("manifest")
 def build_manifest_cmd(
     venue: str = typer.Option("venue_01", help="Venue tag for the frames being indexed."),
@@ -65,7 +89,11 @@ def build_manifest_cmd(
         raise typer.Exit(1)
 
     typer.echo(f"{len(rows)} frames indexed\n")
-    typer.echo(cross_tab(rows, "class3", "slot_id"))
+    # venue, not slot_id: with clips extracted there are 60+ slot groups and the table
+    # becomes unreadable. Venue is also the axis that matters for leave-one-venue-out.
+    typer.echo(cross_tab(rows, "class3", "venue"))
+    typer.echo("")
+    typer.echo(cross_tab(rows, "class3", "lighting"))
     typer.echo("")
     typer.echo(cross_tab(rows, "class3", "labeled_by"))
 
