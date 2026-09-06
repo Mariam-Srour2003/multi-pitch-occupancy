@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     source_type: SourceType = SourceType.VIDEO_SIM
     sample_interval_s: int = 60
 
+    #: DINOv2 rather than the pilot's ConvNeXtV2. Latency measurement showed no backbone is
+    #: close to the sampling budget (20 cameras in 2.5-5.7 s of a 60 s cycle), so speed does
+    #: not discriminate and the choice falls to accuracy under leakage-free evaluation,
+    #: where DINOv2 leads. See thesis/rq_matrix.md, RQ2.
+    default_model_key: str = "dinov2"
+
     # paths - see docs/data_layout.md for what belongs in each
     data_dir: Path = DATA_DIR
     results_dir: Path = RESULTS_DIR
