@@ -1,0 +1,348 @@
+"""Render the preprocessing-search results as a standalone page (WP3-T8).
+
+The search writes `results/preprocess_search.json`; this turns it into a page you can open
+or publish. Regenerate it whenever the search advances - the data is embedded, so the page
+is self-contained and needs no server.
+
+    uv run python experiments/preprocess_search.py --limit 500
+    uv run python experiments/make_search_viewer.py
+
+Design note: the page is a tool, so it is built to be *scanned*, not read. A configuration
+that raises recall by making the model readier to say PLAY is not an improvement - every
+cross-venue test set here is 100% ACTIVE_PLAY - so the false-play control sits beside every
+recall figure, and any row that gains recall while also raising false-play is marked rather
+than ranked.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+DATA = ROOT / "results" / "preprocess_search.json"
+OUT = ROOT / "results" / "preprocess_search.html"
+
+TEMPLATE = """<title>Preprocessing Switch Search</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+:root {
+  color-scheme: light;
+  --ground:#f6f8f7; --surface:#ffffff; --surface-2:#eef2f1; --line:#dde4e2;
+  --ink:#111817; --ink-2:#4d5c5a; --ink-3:#788785;
+  --accent:#0d6d78; --accent-soft:#d7ebed;
+  --up:#2c7a52; --up-soft:#d8ecdf; --down:#a8512f; --down-soft:#f3e0d7;
+  --warn:#8a6d1f; --warn-soft:#f5ead0;
+  --radius:10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground:#0e1414; --surface:#161e1e; --surface-2:#1d2726; --line:#2b3736;
+    --ink:#eaf1ef; --ink-2:#a3b2af; --ink-3:#7b8a88;
+    --accent:#4fb3bf; --accent-soft:#12363a;
+    --up:#5cb884; --up-soft:#153327; --down:#d98a63; --down-soft:#332016;
+    --warn:#cfae57; --warn-soft:#2f2814;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground:#0e1414; --surface:#161e1e; --surface-2:#1d2726; --line:#2b3736;
+  --ink:#eaf1ef; --ink-2:#a3b2af; --ink-3:#7b8a88;
+  --accent:#4fb3bf; --accent-soft:#12363a;
+  --up:#5cb884; --up-soft:#153327; --down:#d98a63; --down-soft:#332016;
+  --warn:#cfae57; --warn-soft:#2f2814;
+}
+* { box-sizing: border-box; }
+body {
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:Archivo, ui-sans-serif, system-ui, sans-serif;
+  font-size:15px; line-height:1.55;
+}
+.wrap { max-width:1140px; margin:0 auto; padding:40px 24px 72px; }
+header { border-bottom:2px solid var(--ink); padding-bottom:20px; margin-bottom:28px; }
+.eyebrow {
+  font-family:'JetBrains Mono', ui-monospace, monospace; font-size:11px; font-weight:500;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin:0 0 10px;
+}
+h1 { font-size:clamp(28px,4vw,40px); line-height:1.1; margin:0 0 12px; font-weight:700;
+     letter-spacing:-.02em; text-wrap:balance; }
+.lede { margin:0; max-width:66ch; color:var(--ink-2); font-size:16px; }
+.meta {
+  font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--ink-3);
+  margin-top:14px; display:flex; flex-wrap:wrap; gap:6px 18px;
+}
+h2 { font-size:19px; margin:0 0 4px; font-weight:600; letter-spacing:-.01em; }
+.sub { color:var(--ink-2); font-size:13.5px; margin:0 0 16px; max-width:70ch; }
+section { margin-top:38px; }
+
+.tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:22px; }
+.tab {
+  font:600 13px/1 Archivo, sans-serif; padding:9px 15px; border-radius:999px;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink-2); cursor:pointer;
+}
+.tab[aria-selected="true"] { background:var(--ink); border-color:var(--ink); color:var(--ground); }
+.tab:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+.headline {
+  background:var(--surface); border:1px solid var(--line); border-left:4px solid var(--accent);
+  border-radius:var(--radius); padding:20px 22px; display:grid; gap:18px;
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+}
+.stat .k {
+  font-family:'JetBrains Mono', monospace; font-size:10.5px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--ink-3); margin-bottom:5px;
+}
+.stat .v { font-family:'JetBrains Mono', monospace; font-size:25px; font-weight:700;
+           font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+.stat .n { font-size:12px; color:var(--ink-2); margin-top:3px; }
+.recipe {
+  grid-column:1/-1; border-top:1px solid var(--line); padding-top:14px;
+  font-family:'JetBrains Mono', monospace; font-size:13px; color:var(--ink);
+  display:flex; flex-wrap:wrap; gap:7px; align-items:center;
+}
+.chip {
+  background:var(--accent-soft); color:var(--accent); border-radius:5px;
+  padding:3px 9px; font-size:12px; font-weight:500;
+}
+.chip.off { background:var(--surface-2); color:var(--ink-3); }
+
+.scroll { overflow-x:auto; border:1px solid var(--line); border-radius:var(--radius);
+          background:var(--surface); }
+table { border-collapse:collapse; width:100%; min-width:720px; }
+th {
+  font-family:'JetBrains Mono', monospace; font-size:10.5px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink-3); text-align:left; font-weight:500;
+  padding:12px 14px; border-bottom:1px solid var(--line); white-space:nowrap;
+  background:var(--surface-2);
+}
+td { padding:10px 14px; border-bottom:1px solid var(--line); font-size:13.5px; }
+tbody tr:last-child td { border-bottom:none; }
+tbody tr:hover { background:var(--surface-2); }
+.sw { font-family:'JetBrains Mono', monospace; font-size:12.5px; }
+.num { font-family:'JetBrains Mono', monospace; font-variant-numeric:tabular-nums;
+       text-align:right; white-space:nowrap; }
+
+/* delta encoded as a diverging bar, so direction reads before the number does */
+.delta { display:flex; align-items:center; gap:9px; justify-content:flex-end; }
+.bar { position:relative; width:104px; height:9px; background:var(--surface-2);
+       border-radius:2px; flex:none; }
+.bar i { position:absolute; top:0; bottom:0; border-radius:2px; }
+.bar .mid { position:absolute; left:50%; top:-2px; bottom:-2px; width:1px;
+            background:var(--line); }
+.up i { background:var(--up); } .down i { background:var(--down); }
+.dv { min-width:58px; font-weight:600; }
+.up .dv { color:var(--up); } .down .dv { color:var(--ink-3); }
+
+.tag {
+  display:inline-block; font-family:'JetBrains Mono', monospace; font-size:10.5px;
+  font-weight:500; letter-spacing:.05em; padding:2px 7px; border-radius:4px;
+}
+.tag.best { background:var(--up-soft); color:var(--up); }
+.tag.base { background:var(--surface-2); color:var(--ink-3); }
+.tag.susp { background:var(--warn-soft); color:var(--warn); }
+
+.note {
+  background:var(--surface-2); border-radius:var(--radius); padding:16px 18px;
+  font-size:13.5px; color:var(--ink-2); max-width:74ch;
+}
+.note strong { color:var(--ink); }
+.empty { padding:26px; color:var(--ink-2); font-size:14px; }
+code { font-family:'JetBrains Mono', monospace; font-size:12.5px;
+       background:var(--surface-2); padding:1px 5px; border-radius:4px; }
+@media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
+</style>
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">WP3-T8 &middot; preprocessing search</p>
+  <h1>Which preprocessing actually transfers</h1>
+  <p class="lede">Greedy search over preprocessing switches, scored on <strong>cross-venue
+  play recall</strong> &mdash; performance at facilities the model never trained on. In-venue
+  accuracy is not used: the dataset&rsquo;s class/scene confound makes it unable to separate
+  recognising football from recognising a place.</p>
+  <div class="meta" id="meta"></div>
+</header>
+
+<section>
+  <h2>Best configuration found</h2>
+  <p class="sub">Switches are adopted one at a time; the search stops when nothing improves.</p>
+  <div class="tabs" id="tabs" role="tablist"></div>
+  <div class="headline" id="headline"></div>
+</section>
+
+<section>
+  <h2>Every configuration tried</h2>
+  <p class="sub">Ranked by cross-venue recall. The bar shows the change against the untouched
+  baseline. <strong>False-play</strong> is the guard: it counts genuine empty pitches called
+  &ldquo;playing&rdquo;. A row that gains recall while raising false-play has shifted its
+  decision boundary rather than seen better, and is flagged instead of ranked.</p>
+  <div class="scroll"><table>
+    <thead><tr>
+      <th>Configuration</th><th class="num">Recall</th><th class="num">vs baseline</th>
+      <th class="num">Worst fold</th><th class="num">False-play</th><th>Round</th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>Why these switches</h2>
+  <p class="sub">Each is a hypothesis about what does <em>not</em> travel between venues.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Switch</th><th>Hypothesis</th></tr></thead>
+    <tbody id="why"></tbody>
+  </table></div>
+</section>
+
+<section>
+  <div class="note">
+    <p style="margin:0 0 10px"><strong>The switches interact, which is why this is a search
+    and not a table.</strong> Measured separately on DINOv2, grayscale gained +0.022 and a
+    centre crop +0.038 &mdash; but applied together they scored 0.061 <em>below</em> the
+    untouched baseline, with the worst fold falling from 0.99 to 0.67. Removing information
+    has a floor, so the best set cannot be read off one-at-a-time results.</p>
+    <p style="margin:0">Greedy search is used because each candidate needs a fresh embedding
+    pass over the dataset. It can still miss a pair that only helps jointly; run
+    <code>--pairs</code> for an exhaustive pass over the survivors.</p>
+  </div>
+</section>
+</div>
+
+<script>
+const DATA = __DATA__;
+const WHY = __WHY__;
+
+const fmt = (v, d = 4) => v == null || Number.isNaN(v) ? "\\u2014" : v.toFixed(d);
+const models = [...new Set(DATA.evaluations.map(e => e.model))].sort();
+let active = models[0];
+
+document.getElementById("meta").innerHTML = [
+  `${DATA.evaluations.length} evaluations`,
+  `${models.length} model${models.length === 1 ? "" : "s"}`,
+  DATA.generated ? `generated ${DATA.generated.slice(0, 16).replace("T", " ")} UTC` : "",
+].filter(Boolean).map(t => `<span>${t}</span>`).join("");
+
+const tabs = document.getElementById("tabs");
+models.forEach(m => {
+  const b = document.createElement("button");
+  b.className = "tab"; b.textContent = m; b.setAttribute("role", "tab");
+  b.onclick = () => { active = m; render(); };
+  tabs.appendChild(b);
+});
+
+function baselineOf(rows) { return rows.find(r => r.label === "baseline"); }
+
+function render() {
+  [...tabs.children].forEach(b =>
+    b.setAttribute("aria-selected", String(b.textContent === active)));
+
+  const rows = DATA.evaluations.filter(e => e.model === active);
+  const base = baselineOf(rows);
+  const best = DATA.best && DATA.best[active];
+  const head = document.getElementById("headline");
+
+  if (!rows.length) {
+    head.innerHTML = '<p class="empty">No evaluations yet for this model.</p>';
+    document.getElementById("rows").innerHTML =
+      '<tr><td colspan="6" class="empty">Run the search, then regenerate this page.</td></tr>';
+    return;
+  }
+
+  const top = best || rows.slice().sort((a, b) => b.play_recall - a.play_recall)[0];
+  const gain = base ? top.play_recall - base.play_recall : null;
+  const chips = (top.describe && top.describe !== "baseline")
+    ? top.describe.split(" ").map(s => `<span class="chip">${s}</span>`).join("")
+    : '<span class="chip off">no switch improved on the baseline</span>';
+
+  head.innerHTML = `
+    <div class="stat"><div class="k">Cross-venue recall</div>
+      <div class="v">${fmt(top.play_recall)}</div>
+      <div class="n">${gain == null ? "" : (gain >= 0 ? "+" : "") + fmt(gain) + " vs baseline"}</div></div>
+    <div class="stat"><div class="k">Worst venue fold</div>
+      <div class="v">${fmt(top.worst_fold, 3)}</div>
+      <div class="n">the fold that carries the caveat</div></div>
+    <div class="stat"><div class="k">False-play</div>
+      <div class="v">${fmt(top.false_play)}</div>
+      <div class="n">empty pitches called &ldquo;playing&rdquo;</div></div>
+    <div class="recipe"><span style="color:var(--ink-3)">recipe:</span>${chips}</div>`;
+
+  const sorted = rows.slice().sort((a, b) => b.play_recall - a.play_recall);
+  document.getElementById("rows").innerHTML = sorted.map(r => {
+    const d = base ? r.play_recall - base.play_recall : 0;
+    const cls = d >= 0 ? "up" : "down";
+    const w = Math.min(Math.abs(d) / 0.12, 1) * 50;
+    const bar = `<span class="bar"><span class="mid"></span><i style="${
+      d >= 0 ? `left:50%;width:${w}%` : `right:50%;width:${w}%`}"></i></span>`;
+    // gained recall but also raised false alarms -> boundary shift, not better sight
+    const gamed = base && d > 0.002 && r.false_play > base.false_play + 0.001;
+    let tag = "";
+    if (r.label === "baseline") tag = '<span class="tag base">baseline</span>';
+    else if (best && r.hash === best.hash) tag = '<span class="tag best">adopted</span>';
+    if (gamed) tag += ' <span class="tag susp">boundary shift</span>';
+    return `<tr>
+      <td class="sw">${r.label} ${tag}</td>
+      <td class="num">${fmt(r.play_recall)}</td>
+      <td class="num"><span class="delta ${cls}">${bar}<span class="dv">${
+        d >= 0 ? "+" : ""}${fmt(d, 3)}</span></span></td>
+      <td class="num">${fmt(r.worst_fold, 3)}</td>
+      <td class="num">${fmt(r.false_play)}</td>
+      <td class="num" style="text-align:left;color:var(--ink-3)">${r.round}</td>
+    </tr>`;
+  }).join("");
+}
+
+document.getElementById("why").innerHTML = Object.entries(WHY)
+  .map(([k, v]) => `<tr><td class="sw" style="white-space:nowrap">${k}</td>
+    <td style="color:var(--ink-2)">${v}</td></tr>`).join("");
+
+render();
+</script>
+"""
+
+WHY = {
+    "undistort": "The footage is heavily fisheye and the lens differs between venues, so "
+                 "geometry is itself a venue cue. Straightening it should make a pitch look "
+                 "more like a pitch and less like <em>that</em> pitch.",
+    "roi": "Mask to the pitch polygon. A blind centre crop &mdash; a much cruder stand-in "
+           "&mdash; was the best single variant measured, so the border is carrying stands, "
+           "sky and adjacent pitches that do not travel.",
+    "centre_crop": "Keep only the middle of the frame. The measured proxy for ROI masking.",
+    "top_crop": "Discard the top only. More targeted than a symmetric crop: sky, stands and "
+                "neighbouring pitches sit above the horizon; the pitch does not.",
+    "letterbox": "Aspect-preserving resize. Worth about +0.03 recall over a squashing resize "
+                 "on this fisheye footage &mdash; turning it off tests whether that holds.",
+    "per_image_standardise": "Z-score each frame, removing the global brightness and contrast "
+                             "offset that separates a daylight morning from a floodlit night "
+                             "&mdash; i.e. attacking the day/night confound head-on.",
+    "clahe": "Local contrast equalisation for the dark and hazy frames.",
+    "gamma": "Brighten or darken. Night frames are dark; a lift may expose players who are "
+             "otherwise lost in the floodlight falloff.",
+    "saturation": "Scale colour. Full desaturation helped alone but broke when combined with "
+                  "cropping, so this is a dial: partial may sit above the information floor "
+                  "where zero does not.",
+    "denoise": "Edge-preserving smoothing. Night footage is noisy, and noise is not signal "
+               "&mdash; but a plain blur costs recall, so this tests whether selective "
+               "smoothing keeps what blur destroys.",
+    "sharpen": "Unsharp mask, countering the softness fisheye lenses show away from centre.",
+}
+
+
+def main() -> None:
+    if not DATA.exists():
+        raise SystemExit(f"no search results at {DATA} - run experiments/preprocess_search.py")
+    payload = json.loads(DATA.read_text(encoding="utf-8"))
+    html = (
+        TEMPLATE
+        .replace("__DATA__", json.dumps(payload))
+        .replace("__WHY__", json.dumps(WHY))
+    )
+    OUT.write_text(html, encoding="utf-8")
+    n = len(payload.get("evaluations", []))
+    print(f"wrote {OUT.relative_to(ROOT)} ({n} evaluations)")
+
+
+if __name__ == "__main__":
+    main()

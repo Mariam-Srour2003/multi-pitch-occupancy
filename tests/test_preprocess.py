@@ -97,9 +97,11 @@ def test_auto_clahe_engages_only_below_the_threshold() -> None:
 
 
 def test_grayscale_removes_colour_but_keeps_three_channels() -> None:
+    """`grayscale` became `saturation=0.0` - a dial, because full desaturation helped
+    alone but broke when combined with cropping."""
     img = np.zeros((60, 60, 3), np.uint8)
     img[:, :, 2] = 200  # pure red
-    out = preprocess(img, PreprocessConfig(grayscale=True, letterbox=False))
+    out = preprocess(img, PreprocessConfig(saturation=0.0, letterbox=False))
     assert out.shape[2] == 3
     assert out[:, :, 0].std() == 0
     assert np.allclose(out[:, :, 0], out[:, :, 2])  # channels identical == no colour left
@@ -133,7 +135,7 @@ def test_output_is_always_the_requested_size(wide) -> None:
         PreprocessConfig(),
         PreprocessConfig(letterbox=False),
         PreprocessConfig(size=384),
-        PreprocessConfig(grayscale=True, blur_sigma=3.0, centre_crop=0.7),
+        PreprocessConfig(saturation=0.0, blur_sigma=3.0, centre_crop=0.7),
     ):
         assert preprocess(wide, cfg).shape == (cfg.size, cfg.size, 3)
 
@@ -147,4 +149,4 @@ def test_config_dict_captures_every_switch_that_changes_output() -> None:
     """The cache is keyed on this dict; a switch missing from it would let two
     different preprocessings share one cache entry."""
     keys = set(PreprocessConfig().as_dict())
-    assert {"roi", "letterbox", "clahe", "grayscale", "blur_sigma", "centre_crop", "size"} <= keys
+    assert {"roi", "letterbox", "clahe", "saturation", "blur_sigma", "centre_crop", "size"} <= keys
