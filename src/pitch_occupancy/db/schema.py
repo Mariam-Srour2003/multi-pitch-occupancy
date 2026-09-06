@@ -126,11 +126,18 @@ CREATE INDEX IF NOT EXISTS idx_recon_anomaly ON reconciliations(anomaly);
 """
 
 
-def connect(path: Path | str) -> sqlite3.Connection:
-    """Open a connection with foreign keys on and rows accessible by name."""
+def connect(path: Path | str, *, same_thread: bool = True) -> sqlite3.Connection:
+    """Open a connection with foreign keys on and rows accessible by name.
+
+    Args:
+        same_thread: sqlite3 binds a connection to its creating thread by default. The API
+            opens one connection per request, inside the thread that serves it, so the
+            default holds there. Pass ``False`` only to share a connection deliberately -
+            a test client running the app on another thread, for instance.
+    """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(p))
+    conn = sqlite3.connect(str(p), check_same_thread=same_thread)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn

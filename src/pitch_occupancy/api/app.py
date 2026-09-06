@@ -20,6 +20,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from pitch_occupancy import __version__
+from pitch_occupancy.api.routes import router
 from pitch_occupancy.config import settings
 
 app = FastAPI(
@@ -27,6 +28,7 @@ app = FastAPI(
     version=__version__,
     summary="Occupancy verdicts and booking reconciliation for multi-pitch facilities",
 )
+app.include_router(router)
 
 
 class Health(BaseModel):
