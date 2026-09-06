@@ -41,8 +41,9 @@ external clock you don't control.
         reading; two groups (`clipvenue_g_netting`, `clipvenue_h_teal_pitch`) are marked
         `confidence=low` in the CSV. If two of my "venues" are really one facility, the
         leave-one-venue-out result is optimistic — worth ten minutes of your eyes.
-  - [ ] Enforce the lock in code once `engine/splits.py` exists (WP0-T4): every split function
-        must *refuse* to return FINAL rows, rather than relying on discipline over six months.
+  - [x] Lock enforced in code (WP0-T4). Every split strategy drops locked-venue rows; reaching
+        them requires `final_test_rows(..., i_have_finished_all_development=True)`, which is
+        deliberately awkward and greppable — one call site, at the end.
 - [x] **0.5 ★ Analysis plan pre-registered.** `thesis/preregistration.md` — six hypotheses with
       primary metric, test, correction and decision rule; standing rules (macro-F1 leads, CIs on
       everything, Holm correction, effect sizes, report either direction); an explicit
@@ -94,14 +95,17 @@ tagged with the question it answers. Fix that first — it is what turns a build
 - [ ] **WP0-T3 Taxonomy layer.** `engine/taxonomy.py`: `to_class3(label4)`, class lists, display
       names. Wire into `benchmark.py` (`--classes 3|4`, default 3) and `slot_aggregator.py`.
       *Accept:* pilot benchmark reruns with `--classes 3` and reproduces ≥ pilot accuracy.
-- [ ] **WP0-T4 Split module.** `engine/splits.py`: `grouped_split(group=venue×date×slot)`,
-      `leave_one_group_out`, legacy random split (for the leakage-comparison experiment only).
-      Splits **materialised to CSV** in `results/splits/`, referenced by name, never re-randomised
-      silently. *Accept:* unit test proves no group appears on both sides.
-  - [ ] ★ Add `temporal_split` (train on earlier dates, test on later) — the plan lists concept
-        drift as a risk but never measures it. This makes it measurable for free.
-  - [ ] ★ Emit `FINAL_TESTSET.csv` here (see 0.4) and have every other split function *refuse* to
-        include those rows. Enforce it in code, not in discipline.
+- [x] **WP0-T4 Split module.** `pitch_occupancy/data/splits.py`: `grouped_split`,
+      `leave_one_group_out`, `temporal_split`, and a deliberately leaky `random_split` kept only
+      as H1's control arm. Materialised to `results/splits/`, referenced by name, never
+      re-randomised. 16 tests.
+  - [x] ★ `temporal_split` added — drift was listed as a risk but never measured.
+  - [x] ★ Final-venue lock enforced in code, not discipline (see 0.4).
+  - [x] ★ `check_split()` reports what would make results misleading: group overlap, duplicate
+        frames, a class present in train but absent from test, and a near-single-class test set.
+        **On the current data it fires immediately:** the honest grouped split yields a test set
+        that is 99% ACTIVE_PLAY with C3 absent, while the leaky random split looks clean. That
+        contrast is H1's evidence, and it is now produced by the tooling rather than asserted.
 - [ ] **WP0-T5 Feature cache.** `engine/feature_cache.py`: embed every manifest image once per
       backbone → `data/cache/<backbone>.npz`, keyed by file path + preprocessing hash.
       *Accept:* second run of the same backbone takes seconds, identical metrics.
