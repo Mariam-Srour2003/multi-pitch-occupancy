@@ -124,7 +124,13 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [x] ★ Holm-Bonferroni implemented and applied in the H1/H2 experiment.
   - [x] ★ Effect size beside every p-value. Already earning its keep: H2's clock-rule gap is
         significant at p_holm 1.2e-07 and negligible in size (0.007 macro-F1).
-- [ ] **WP0-T10 ★ Latency-measurement harness.** `tools/bench_latency.py`: discard warm-up runs,
+- [x] **WP0-T10 ★ Latency-measurement harness — done and run.** `evaluation/latency.py`.
+      Median/p95, warm-up discarded, threads recorded. **All three backbones fit the 60 s
+      cycle with 10-24x headroom**, so latency is *not* the binding constraint and the model
+      choice falls to accuracy. Concurrency proved *faster* than naive 20x extrapolation, the
+      opposite of the expectation the harness was built to test.
+- [ ] **WP0-T10b Repeat on the target Mini-PC** (WP7-T1). Nothing above settles deployment.
+- [ ] ~~WP0-T10 original~~ `tools/bench_latency.py`: discard warm-up runs,
       N≥50 reps, report **median and p95** (not mean), declare thread count, pin CPU affinity,
       measure with nothing else running. The pilot's ms/frame numbers were probably measured
       casually — the whole "20–30 cameras on one Mini-PC" claim rests on them.
@@ -277,11 +283,15 @@ tagged with the question it answers. Fix that first — it is what turns a build
 - [ ] **WP3-T1 [H] ROI polygons.** Run `tools/draw_roi.py` for every camera view (current 4 + each
       new venue camera). *Accept:* a polygon per camera tag in `config/cameras.json`; masked previews
       visually correct.
-- [ ] **WP3-T2 Letterbox resize.** Aspect-preserving, replaces naive thumbnail. *Accept:* unit test —
+- [x] **WP3-T2 Letterbox resize.** Aspect-preserving with grey padding, tested against the
+      squashing it replaces.
+- [ ] ~~WP3-T2 original~~ Aspect-preserving, replaces naive thumbnail. *Accept:* unit test —
       224×224, no distortion, grey padding.
 - [ ] **WP3-T3 Photometric normalisation audit.** Verify each model's HF processor stats are applied;
       document per model in `protocol.md`. *Accept:* table in protocol.md.
-- [ ] **WP3-T4 Low-light / fog branch.** RMS contrast on ROI; below threshold → CLAHE/gamma variant;
+- [x] **WP3-T4 Low-light / fog branch.** CLAHE on the LAB lightness channel, `on|off|auto`
+      gated on RMS contrast.
+- [ ] ~~WP3-T4 original~~ RMS contrast on ROI; below threshold → CLAHE/gamma variant;
       expose `clahe on|off|auto`. *Accept:* toggleable; before/after visuals saved.
 - [ ] **WP3-T5 Quality filter & camera health.** Over/under-exposure, Laplacian-variance blur,
       lens-dirt proxy (persistent contrast drop vs the camera's own 7-day baseline) → `quality=bad`
@@ -336,7 +346,12 @@ tagged with the question it answers. Fix that first — it is what turns a build
       level) for every headline pair. *Accept:* every claim carries CI + p-value columns.
   - [ ] ★ Apply the Holm–Bonferroni correction from WP0-T6 and say so in the caption.
   - [ ] ★ Report effect sizes next to p-values.
-- [ ] **WP4-T5 Calibration study.** Reliability diagrams + ECE per model; temperature scaling fitted
+- [x] **WP4-T5 Calibration — built, answer blocked.** `evaluation/calibration.py` (ECE,
+      reliability bins, temperature scaling, risk-coverage), 16 tests. The run produces
+      "99% precision at 0% review", which is an artifact of the 99% single-class test set.
+      A boundary warning caught DINOv2's temperature pinning at the grid floor. **No further
+      engineering unblocks this** — it needs a test set with a real class mix.
+- [ ] ~~WP4-T5 original~~ Reliability diagrams + ECE per model; temperature scaling fitted
       on validation (within training venues only); effect on REVIEW-band volume. *Accept:*
       `results/calibration.csv` + figures; calibrated heads saved with `temperature` in the pkl.
 - [ ] **WP4-T6 Error taxonomy & explainability.** Categorise every grouped-split misclassification by
@@ -452,7 +467,11 @@ tagged with the question it answers. Fix that first — it is what turns a build
       `bookings(field_id, date, start, end, customer_ref, status, entered_by, source)`; CSV importer
       first, SQL/REST stubs behind one interface. **READ-ONLY — never write to client systems.**
       *Accept:* sample CSV imports; unit tests.
-- [ ] **WP6-T5 Reconciliation job.** `engine/reconcile.py`: join slot_evaluations × bookings on
+- [x] **WP6-T5 Reconciliation.** `slots/reconcile.py`, 16 tests. REVIEW never becomes an
+      anomaly; low-confidence slots are downgraded before any rule runs; anomalies are **per
+      field, never per person** (`entered_by` never reaches the output — asserted by test),
+      which settles WP1-T4 in code. Validated end-to-end on both real slots.
+- [ ] ~~WP6-T5 original~~ `engine/reconcile.py`: join slot_evaluations × bookings on
       (field, date, slot) → typed anomalies: `NO_SHOW_OR_OVERRECORDED`, `PLAYED_NOT_RECORDED`,
       `UNBOOKED_USAGE`, `BLOCKED_SLOT_SOLD`; REVIEW routes to an inspector, never a hard anomaly.
       Low-confidence / low-contrast slots → REVIEW, so the audit never over-accuses on poor footage.
@@ -522,7 +541,10 @@ tagged with the question it answers. Fix that first — it is what turns a build
       final consistency pass an afternoon instead of a week.
 
 ### 8.B Figures
-- [ ] **WP8-T2 Figure set.** Label-efficiency curve · leakage comparison bar · ablation tables ·
+- [x] **WP8-T2 Figure set — three done.** `results/figs/`: label-efficiency curve,
+      ranking-inversion slope chart, cross-venue per-fold recall. Regenerated from the CSVs,
+      validated palette, PNG + PDF.
+- [ ] **WP8-T2b Remaining figures.** Label-efficiency curve · leakage comparison bar · ablation tables ·
       reliability diagrams · XAI overlays · reconciliation matrix with real (blurred) evidence.
   - [ ] ★ Risk–coverage / REVIEW-rate curve (WP4-T9).
   - [ ] ★ Trivial-baseline floor chart (WP4-T10).
