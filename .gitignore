@@ -32,7 +32,10 @@ results/sheets/
 *.jpg
 *.jpeg
 *.png
+# ...but generated figures ARE the output and belong in the repo. This rule targets
+# dataset frames and evidence images, not results/figs.
 !docs/**/*.png
+!results/figs/*.png
 
 # ---------------------------------------------------------------------------
 # Python
