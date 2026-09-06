@@ -45,6 +45,27 @@ def info() -> None:
         typer.echo(f"  [{mark}] {label:<14} {path}")
 
 
+@app.command("coverage")
+def coverage_cmd(
+    out: Path | None = typer.Option(None, help="Defaults to results/coverage.md."),
+) -> None:
+    """Report which cells of the class × lighting × venue matrix are empty (WP2-T1)."""
+    from pitch_occupancy.data.coverage import empty_cells, render_report
+    from pitch_occupancy.data.manifest import read_manifest
+
+    rows = read_manifest(settings.dataset_dir / "manifest.csv")
+    report = render_report(rows)
+    target = out or (settings.results_dir / "coverage.md")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(report, encoding="utf-8")
+
+    typer.echo(report)
+    gaps = empty_cells(rows)
+    if gaps:
+        typer.secho(f"\n{len(gaps)} empty cell(s) in the collection matrix.", fg=typer.colors.YELLOW)
+    typer.echo(f"wrote {target}")
+
+
 @app.command("cache")
 def build_cache_cmd(
     backbones: list[str] = typer.Argument(None, help="Defaults to all registered backbones."),
