@@ -339,3 +339,70 @@ Note the sample count: 59 and 60 minutes. **These two slots are the entire real-
 corpus**, and STAN needs roughly thirty.
 
 - 2026-09-06 | end-to-end slots | `python experiments/end_to_end_slots.py` | `end_to_end_slots.csv` | 2 real slots, ground-truth labels
+
+---
+
+## 2026-09-06 - Input ablation: what is the model actually reading?
+
+`uv run python experiments/input_ablation.py` | DINOv2 | 7 held-out venue folds
+-> `results/input_ablation.csv`
+
+Information is removed from the input and the cross-venue play-recall is re-measured.
+
+| variant | what it removes | play-recall | delta | worst fold |
+|---|---|---|---|---|
+| crop50 | outer 50% border | **0.998** | +0.039 | 0.988 |
+| grayscale | all colour | **0.982** | +0.023 | 0.917 |
+| full | nothing | 0.960 | - | 0.800 |
+| blur4 | fine detail (sigma 4px) | 0.929 | -0.030 | 0.589 |
+| blur8 | almost all object detail | **0.840** | -0.120 | 0.583 |
+
+**The bias control, run first.** Every clip-venue test set is 100% ACTIVE_PLAY, so recall
+alone cannot separate "better at seeing play" from "more willing to say play" - any variant
+that shifts the decision boundary toward PLAY scores higher for free. Checking how often
+each variant calls a genuine EMPTY frame PLAY:
+
+| variant | play-recall | false-play on EMPTY |
+|---|---|---|
+| full | 0.960 | 0.000 |
+| grayscale | 0.982 | 0.000 |
+| crop50 | 0.998 | 0.000 |
+| blur4 | 0.929 | 0.002 |
+| blur8 | 0.840 | 0.004 |
+
+No variant becomes more willing to say PLAY, so the gains are not a boundary shift.
+**Caveat: those EMPTY frames sit in each fold's training set** - venue_01 is always in
+train for a clip-venue fold - so this is an in-sample control. It rules out gross bias,
+not a subtle one. A clean version needs held-out empties, which needs empties from a
+second venue.
+
+### What it says
+
+**The model is reading people, not scenery.** Blurring costs 0.12 recall, and at sigma 8
+on a 224px input no individual is discernible. If the prediction rested on scene
+composition - turf, floodlights, stand geometry - blur would leave it intact. It does not.
+This is the direct answer to the worry H2 raised and the strongest evidence yet that the
+frozen features do the actual task.
+
+**Colour and the background periphery are net distractions.** Discarding all colour
+*improves* cross-venue recall, and so does throwing away the outer half of the frame. Both
+carry venue identity - turf hue, floodlight cast, stands, sky, adjacent pitches - and none
+of it transfers. The model is better off without them.
+
+Two consequences:
+
+1. **ROI masking (WP3-T1) is now predicted to help, not merely to be tidy.** `crop50` is a
+   crude proxy for it and gains 0.04 recall with the worst fold rising 0.80 -> 0.99.
+   Hand-drawn polygons should do better than a blind centre crop.
+2. **Grayscale is worth testing as a production setting**, not just a diagnostic. It costs
+   nothing and removes a shortcut the model would otherwise lean on.
+
+### An incidental finding
+
+`full` scores 0.960 here against DINOv2's 0.930 in H3. The difference is preprocessing:
+this run letterboxes to 224 before the HuggingFace processor, while the H3 cache passed the
+raw image straight to it. **Aspect-preserving letterboxing is worth ~0.03 recall** on this
+heavily fisheye footage - the processor's default resize distorts, and distortion is
+already the hard part here.
+
+- 2026-09-06 | input ablation | `python experiments/input_ablation.py` | `input_ablation.csv` | 5 variants x 7 folds, dinov2
