@@ -24,6 +24,7 @@ from pitch_occupancy import __version__
 from pitch_occupancy.api.dashboard import dashboard_response
 from pitch_occupancy.api.thesis_site import page as thesis_page
 from pitch_occupancy.api.routes import router
+from pitch_occupancy.api.search_control import router as search_router
 from pitch_occupancy.config import settings
 
 app = FastAPI(
@@ -32,6 +33,7 @@ app = FastAPI(
     summary="Occupancy verdicts and booking reconciliation for multi-pitch facilities",
 )
 app.include_router(router)
+app.include_router(search_router)
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)

@@ -19,6 +19,7 @@ from pathlib import Path
 from pitch_occupancy.api.markdown import render
 from pitch_occupancy.api.models_view import STYLES as MODEL_STYLES
 from pitch_occupancy.api.models_view import render as render_models
+from pitch_occupancy.api.search_panel import PANEL_HTML, PANEL_SCRIPT, PANEL_STYLES
 
 ROOT = Path(__file__).resolve().parents[3]
 RESULTS = ROOT / "results"
@@ -127,13 +128,17 @@ def page() -> str:
         "every cross-venue test set is entirely active play, so recall can be bought by "
         "saying &ldquo;playing&rdquo; more often.</p>"
         "<h2>Zero-shot prompt search</h2>" + _prompt_summary() +
-        "<h2>Preprocessing search</h2>" + _search_summary() +
+        "<h2>Preprocessing search</h2>"
+        "<p>Run it here. Each candidate needs a fresh embedding pass, so a full-size run "
+        "takes a few hours - it keeps going if you close the tab.</p>"
+        + PANEL_HTML +
         "</div></section>"
     )
     return (_shell()
             .replace("__TABS__", '<button data-view="models">Models</button>' + tabs)
             .replace("__VIEWS__", models + views + searches)
-            .replace("__MODEL_STYLES__", MODEL_STYLES))
+            .replace("__MODEL_STYLES__", MODEL_STYLES + PANEL_STYLES)
+            .replace("__PANEL_SCRIPT__", PANEL_SCRIPT))
 
 
 SHELL = """<!doctype html>
@@ -240,5 +245,6 @@ window.addEventListener("hashchange", () => {
   const h = location.hash.slice(1);
   if (ids.includes(h)) show(h);
 });
+__PANEL_SCRIPT__
 </script></body></html>
 """
