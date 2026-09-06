@@ -17,6 +17,8 @@ from functools import lru_cache
 from pathlib import Path
 
 from pitch_occupancy.api.markdown import render
+from pitch_occupancy.api.models_view import STYLES as MODEL_STYLES
+from pitch_occupancy.api.models_view import render as render_models
 
 ROOT = Path(__file__).resolve().parents[3]
 RESULTS = ROOT / "results"
@@ -114,6 +116,10 @@ def page() -> str:
         f'<section class="view" data-view="{k}" hidden><div class="doc">{_doc(path)}</div></section>'
         for k, (_, path) in DOCUMENTS.items()
     )
+    models = (
+        '<section class="view" data-view="models" hidden><div class="doc">'
+        + render_models() + "</div></section>"
+    )
     searches = (
         '<section class="view" data-view="searches" hidden><div class="doc">'
         "<h1>Configuration searches</h1>"
@@ -124,7 +130,10 @@ def page() -> str:
         "<h2>Preprocessing search</h2>" + _search_summary() +
         "</div></section>"
     )
-    return _shell().replace("__TABS__", tabs).replace("__VIEWS__", views + searches)
+    return (_shell()
+            .replace("__TABS__", '<button data-view="models">Models</button>' + tabs)
+            .replace("__VIEWS__", models + views + searches)
+            .replace("__MODEL_STYLES__", MODEL_STYLES))
 
 
 SHELL = """<!doctype html>
@@ -201,6 +210,7 @@ code{font-family:'JetBrains Mono',monospace;font-size:12.5px;background:var(--su
 pre code{background:none;padding:0}
 .missing{color:var(--ink-3);font-style:italic}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+__MODEL_STYLES__
 </style></head><body>
 
 <nav><div class="navin">

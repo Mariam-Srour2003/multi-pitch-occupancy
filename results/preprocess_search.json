@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-06T17:56:47+00:00",
+  "generated": "2026-09-06T18:08:53+00:00",
   "evaluations": [
     {
       "model": "convnextv2",
@@ -55,6 +55,90 @@
       "seconds": 276.0,
       "play_recall": 0.9396,
       "worst_fold": 0.75,
+      "false_play": 0.0
+    },
+    {
+      "model": "convnextv2",
+      "n_frames": 1578,
+      "hash": "ae0c74e2f591",
+      "label": "undistort=0.3",
+      "round": 1,
+      "config": {
+        "size": 224,
+        "undistort": 0.3,
+        "roi": false,
+        "centre_crop": 1.0,
+        "top_crop": 0.0,
+        "letterbox": true,
+        "per_image_standardise": false,
+        "clahe": "off",
+        "clahe_contrast_below": 40.0,
+        "gamma": 1.0,
+        "saturation": 1.0,
+        "denoise": 0.0,
+        "sharpen": 0.0,
+        "blur_sigma": 0.0
+      },
+      "describe": "undistort=0.3",
+      "seconds": 238.7,
+      "play_recall": 0.8651,
+      "worst_fold": 0.1667,
+      "false_play": 0.0
+    },
+    {
+      "model": "convnextv2",
+      "n_frames": 1578,
+      "hash": "a5abd62d48c3",
+      "label": "centre_crop=0.5",
+      "round": 1,
+      "config": {
+        "size": 224,
+        "undistort": 0.0,
+        "roi": false,
+        "centre_crop": 0.5,
+        "top_crop": 0.0,
+        "letterbox": true,
+        "per_image_standardise": false,
+        "clahe": "off",
+        "clahe_contrast_below": 40.0,
+        "gamma": 1.0,
+        "saturation": 1.0,
+        "denoise": 0.0,
+        "sharpen": 0.0,
+        "blur_sigma": 0.0
+      },
+      "describe": "centre_crop=0.5",
+      "seconds": 248.7,
+      "play_recall": 0.9552,
+      "worst_fold": 0.7222,
+      "false_play": 0.0
+    },
+    {
+      "model": "convnextv2",
+      "n_frames": 1578,
+      "hash": "f4ef48bad0c2",
+      "label": "centre_crop=0.7",
+      "round": 1,
+      "config": {
+        "size": 224,
+        "undistort": 0.0,
+        "roi": false,
+        "centre_crop": 0.7,
+        "top_crop": 0.0,
+        "letterbox": true,
+        "per_image_standardise": false,
+        "clahe": "off",
+        "clahe_contrast_below": 40.0,
+        "gamma": 1.0,
+        "saturation": 1.0,
+        "denoise": 0.0,
+        "sharpen": 0.0,
+        "blur_sigma": 0.0
+      },
+      "describe": "centre_crop=0.7",
+      "seconds": 238.5,
+      "play_recall": 0.9563,
+      "worst_fold": 0.7778,
       "false_play": 0.0
     }
   ],

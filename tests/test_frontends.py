@@ -140,3 +140,43 @@ def test_the_real_experiment_log_renders(client) -> None:
     out = render(log.read_text(encoding="utf-8"))
     assert out.count("<h2>") > 3
     assert "<table>" in out
+
+
+# --- the models view --------------------------------------------------------
+
+
+def test_models_view_leads_with_a_recommendation(client) -> None:
+    """A table of numbers does not answer "which one should I use"."""
+    html = client.get("/").text
+    assert 'data-view="models"' in html
+    assert "Use this one" in html
+
+
+def test_models_view_ranks_each_protocol_separately(client) -> None:
+    from pitch_occupancy.api.models_view import render as render_models
+
+    out = render_models()
+    assert out.count('class="strip"') == 3  # random, grouped, cross-venue
+
+
+def test_models_view_flags_a_ranking_inversion(client) -> None:
+    """The finding is that the protocol reverses the decision - it must not need a reader
+    to reconstruct that from three separate tables."""
+    from pitch_occupancy.api.models_view import render as render_models
+
+    assert "reverses the decision" in render_models()
+
+
+def test_models_view_survives_missing_results(monkeypatch, tmp_path) -> None:
+    """An absent CSV should read as absent, never as a stale or invented number."""
+    from pitch_occupancy.api import models_view
+
+    monkeypatch.setattr(models_view, "RESULTS", tmp_path)
+    out = models_view.render()
+    assert "No model results yet" in out
+
+
+def test_models_view_marks_the_clock_rule_as_using_no_pixels(client) -> None:
+    from pitch_occupancy.api.models_view import render as render_models
+
+    assert "never the pixels" in render_models()
