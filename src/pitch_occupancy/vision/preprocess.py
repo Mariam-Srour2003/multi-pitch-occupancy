@@ -112,13 +112,17 @@ def preprocess(
     if cfg.clahe == "on" or (cfg.clahe == "auto" and rms_contrast(img) < cfg.clahe_contrast_below):
         img = apply_clahe(img)
 
-    if cfg.blur_sigma > 0:
-        k = max(3, int(cfg.blur_sigma * 6) | 1)  # odd kernel covering +/-3 sigma
-        img = cv2.GaussianBlur(img, (k, k), cfg.blur_sigma)
-
     if cfg.grayscale:
         img = cv2.cvtColor(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
 
-    if cfg.letterbox:
-        return letterbox(img, cfg.size)
-    return cv2.resize(img, (cfg.size, cfg.size), interpolation=cv2.INTER_AREA)
+    out = letterbox(img, cfg.size) if cfg.letterbox else cv2.resize(
+        img, (cfg.size, cfg.size), interpolation=cv2.INTER_AREA
+    )
+
+    # Blur last, at output resolution. `blur_sigma` is therefore in *model-input* pixels,
+    # which is both the meaningful unit ("how much detail does the model lose") and orders
+    # of magnitude cheaper than convolving a large kernel across a 1080p frame first.
+    if cfg.blur_sigma > 0:
+        k = max(3, int(cfg.blur_sigma * 6) | 1)  # odd kernel spanning +/-3 sigma
+        out = cv2.GaussianBlur(out, (k, k), cfg.blur_sigma)
+    return out

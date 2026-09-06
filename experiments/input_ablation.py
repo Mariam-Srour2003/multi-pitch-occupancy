@@ -9,11 +9,11 @@ survives:
 |---|---|---|
 | `full` | nothing | the baseline |
 | `grayscale` | colour - turf hue, floodlight cast, kit colours | shape, texture, people |
-| `blur8` | fine detail; people become smudges | scene layout, lighting, geometry |
-| `blur16` | almost all object detail | the gross composition of the scene |
+| `blur4` | fine detail; people become smudges | scene layout, lighting, geometry |
+| `blur8` | almost all object detail | the gross composition of the scene |
 | `crop50` | the outer border - stands, sky, adjacent pitches | the central pitch area |
 
-The logic is a dissociation. **If accuracy survives `blur16`, the model cannot be
+The logic is a dissociation. **If accuracy survives `blur8`, the model cannot be
 recognising people** - at that scale nobody is visible - so it must be reading the scene.
 If it collapses, the prediction depended on the objects in the frame.
 
@@ -54,8 +54,8 @@ BACKBONE = "dinov2"  # the strongest generaliser from H3
 VARIANTS = {
     "full": PreprocessConfig(),
     "grayscale": PreprocessConfig(grayscale=True),
+    "blur4": PreprocessConfig(blur_sigma=4.0),
     "blur8": PreprocessConfig(blur_sigma=8.0),
-    "blur16": PreprocessConfig(blur_sigma=16.0),
     "crop50": PreprocessConfig(centre_crop=0.5),
 }
 
