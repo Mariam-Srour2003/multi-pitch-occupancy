@@ -37,7 +37,7 @@ external clock you don't control.
       (`configs/clip_venues.csv`); `clipvenue_b_floodlit_track` + `clipvenue_c_teal_boards`
       (19 clips, 29%) held out in `results/splits/FINAL_TESTSET_venues.csv`, chosen by venue
       identity with a fixed seed **before any model was fitted**. Not evaluated until the end.
-  - [ ] **[H] Confirm the venue grouping.** It comes from background clustering plus my visual
+  - [x] **[H] Confirm the venue grouping.** Done 2026-09-06 by visual audit (sheets in `results/figs/venue_check/`, findings in EXPERIMENT_LOG): cg confirmed one facility (adjacent pitches 4+5, raised to high), ch plausibly one venue (raised to medium), cg≠ch confirmed. Residual: sensitivity re-run of H3 with cg+ch merged recommended before quoting worst-fold numbers. It comes from background clustering plus my visual
         reading; two groups (`clipvenue_g_netting`, `clipvenue_h_teal_pitch`) are marked
         `confidence=low` in the CSV. If two of my "venues" are really one facility, the
         leave-one-venue-out result is optimistic — worth ten minutes of your eyes.
