@@ -17,7 +17,7 @@ Updated 2026-09-06.
 | RQ3 | How does leakage-free, multi-venue evaluation change apparent performance? | **answered** |
 | RQ4 | Can slot aggregation + booking reconciliation detect record discrepancies? | not started |
 | RQ5 | Do purpose-built lightweight architectures beat single-backbone probes? | not started |
-| RQ6 | Precision / REVIEW-rate trade-off and its operating point? | not started |
+| RQ6 | Precision / REVIEW-rate trade-off and its operating point? | **blocked by data** |
 | RQ7 | Do deep backbones earn their cost over trivial baselines? | **answered** |
 
 ---
@@ -83,8 +83,18 @@ reported as preliminary on synthesised sequences.
 
 ## RQ6 - precision / REVIEW-rate trade-off
 
-No evidence yet. Needs calibration (WP4-T5) then the risk-coverage sweep (WP4-T9). Both are
-cheap on cached features - this is the nearest unstarted RQ.
+| evidence | file | finding |
+|---|---|---|
+| Calibration + risk-coverage | `rq6_calibration.csv`, `rq6_risk_coverage.csv` | apparent "99% precision at 0% review" - an artifact |
+
+**Machinery built and tested; the answer is blocked by the same degenerate split.** With a
+test set that is 99% one class, a 99% precision target is met before confidence is
+consulted, so the risk-coverage curve has nothing to trade against. Temperature scaling
+fitted on the morning recording and applied to night footage made two of three models
+worse, and DINOv2's temperature pinned to the grid floor - caught by the boundary warning
+rather than reported as a fitted parameter.
+
+`evaluation/calibration.py` is ready. It needs a test set with a real class mix.
 
 ## RQ7 - do deep backbones earn their cost?
 
@@ -110,6 +120,7 @@ None. Every experiment run so far answers RQ1, RQ2, RQ3 or RQ7.
 
 ## Coverage gaps to close, in cost order
 
-1. **RQ6** - calibration + risk-coverage. Cheap, cached features, no new data.
+1. **RQ6** - code complete; blocked on a non-degenerate test set, i.e. empty pitches at
+   more than one venue. No further engineering will unblock it.
 2. **RQ4** - reconciliation. Needs a booking export and adjudicated slots (human).
 3. **RQ5** - STAN. Needs ~30 real labelled slots, which the current footage cannot supply.

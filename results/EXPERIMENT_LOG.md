@@ -234,3 +234,75 @@ are compressed and should be read as relative, not absolute.
 - 2026-09-06 | label efficiency | `python experiments/label_efficiency.py` | `label_efficiency.csv` | 7 sizes x 5 seeds
 
 - 2026-09-06 | label efficiency | `python experiments/label_efficiency.py` | `label_efficiency.csv` | 7 sizes x 5 seeds
+
+---
+
+## 2026-09-06 - RQ6: calibration and risk-coverage - MACHINERY BUILT, ANSWER BLOCKED
+
+`uv run python experiments/rq6_calibration_riskcoverage.py` | seed 42
+-> `results/rq6_calibration.csv`, `results/rq6_risk_coverage.csv`
+
+| model | accuracy | T | ECE raw | ECE calibrated | 99% precision at |
+|---|---|---|---|---|---|
+| convnextv2 | 0.9901 | 0.95 | 0.0096 | 0.0097 | 100% coverage, 0% review |
+| dinov2 | 0.9857 | **0.05** | 0.0064 | 0.0148 | 97.9% coverage, 2.1% review |
+| vit | 0.9901 | 1.30 | 0.0087 | 0.0075 | 100% coverage, 0% review |
+
+**These numbers are not usable, and the experiment is reported for the reason it fails.**
+
+The headline reads "99% precision at zero human review", which would be a remarkable
+operational result. It is an artifact. Four tells, three of them caught by the tooling:
+
+1. **The test set is 99% single-class.** Predicting ACTIVE_PLAY constantly scores ~0.99, so
+   a 99% precision target is met before confidence is consulted at all. The risk-coverage
+   curve is flat because there is nothing for it to trade against.
+2. **DINOv2's temperature pinned to the grid floor at 0.05**, and `fit_temperature` raised
+   the boundary warning added for exactly this case. A temperature at the edge means the
+   optimum lies outside the grid, which here means the calibration slice does not resemble
+   the evaluation data - it is drawn from the morning recording while the test side is
+   night footage and clips.
+3. **Calibration made two of three models worse.** Temperature scaling fitted on one
+   distribution and applied to another is not calibration, it is noise.
+4. **ConvNeXtV2 puts all 907 test frames in a single reliability bin** (0.9-1.0). ECE over
+   one bin measures almost nothing.
+
+**Conclusion: RQ6 is unanswerable on this data**, for the same reason as the three-class
+questions - the only honest split is degenerate. The `calibration.py` module is built,
+tested (16 tests) and ready; it needs a test set with a real class mix, which needs empty
+pitches from more than one venue.
+
+Worth keeping as a methods contribution regardless: the boundary warning turned a
+plausible-looking temperature of 0.05 into a visible failure. Without it, a fitted
+parameter would have been reported as though it meant something.
+
+- 2026-09-06 | RQ6 | `python experiments/rq6_calibration_riskcoverage.py` | seed 42 | `rq6_calibration.csv`, `rq6_risk_coverage.csv`
+
+---
+
+## 2026-09-06 · Venue-grouping audit (closes the `confidence=low` flags)
+
+Visual audit of the two low-confidence groups in `configs/clip_venues.csv`, one middle frame
+per clip plus cross-comparison against every other venue group. Comparison sheets saved to
+`results/figs/venue_check/` (group_cg, group_ch, reference_all, zoom_pairs, cg_vs_ch_day).
+
+- **`clipvenue_g_netting` — confirmed one facility (raised low → high).** The pitch-4 camera
+  (`cg_1788518144607`) sees the neighbouring pitch's "5" sign in-frame, and
+  `cg_1788518055948` is that pitch 5. Identical numbered blue tarps, yellow-padded corner
+  poles, white diamond netting, floodlights, hillside backdrop. Multiple pitches, one venue —
+  grouping is correct and conservative for leave-one-venue-out.
+- **`clipvenue_h_teal_pitch` — plausibly one venue (raised low → medium).** Night pair is one
+  camera/one match; the day clip matches on distinctive furniture (blue tarp with teal top
+  cap, fine teal mesh) and the same shanty-hillside backdrop. Kept grouped.
+- **Cross-group check: cg ≠ ch.** Direct high-res comparison of the ambiguous day members:
+  different fencing systems (heavy white netting + posters + chain-link vs tarp + fine mesh),
+  different skylines (roof-deck building vs shanty hill + crane), different floodlight styles.
+  No two of the nine venue groups appear to be the same facility, so leave-one-venue-out is
+  not optimistic on this account.
+- **Residual caveat / cheap insurance:** `ch` is the worst H3 fold for both leading models
+  (0.72 / 0.67 play-recall). A sensitivity re-run of H3 with cg+ch merged into a single fold
+  would make the worst-fold claim unchallengeable; recommended before quoting worst-fold
+  numbers in the thesis.
+
+- 2026-09-06 | venue audit | visual, sheets in `results/figs/venue_check/` | `configs/clip_venues.csv` | cg low→high, ch low→medium
+
+- 2026-09-06 | RQ6 | `python experiments/rq6_calibration_riskcoverage.py` | seed 42 | `rq6_calibration.csv`, `rq6_risk_coverage.csv`
