@@ -1,0 +1,23 @@
+{
+  "best": {
+    "n_templates": 1,
+    "desc_EMPTY": "an empty football pitch with nobody on it",
+    "desc_ACTIVE_PLAY": "people playing football on a pitch",
+    "desc_MAINTENANCE_NON_SPORTING": "maintenance machinery on an artificial turf field",
+    "play_recall": 0.9883,
+    "worst_fold": 0.918,
+    "false_play": 0.0,
+    "balanced": 0.9883
+  },
+  "best_by_recall": {
+    "n_templates": 5,
+    "desc_EMPTY": "an empty football pitch with nobody on it",
+    "desc_ACTIVE_PLAY": "footballers running on an artificial turf pitch",
+    "desc_MAINTENANCE_NON_SPORTING": "maintenance machinery on an artificial turf field",
+    "play_recall": 1.0,
+    "worst_fold": 1.0,
+    "false_play": 0.0256,
+    "balanced": 0.9744
+  },
+  "n_evaluated": 375
+}

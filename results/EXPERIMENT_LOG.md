@@ -514,3 +514,63 @@ stacking grayscale on top should not be assumed to help.
 Caveat unchanged from the single-variant run: the false-play control uses EMPTY frames
 that sit in each fold's training set, since venue_01 is always in train for a clip-venue
 fold. It rules out gross bias, not a subtle one.
+
+- 2026-09-06 | zero-shot prompt search | `python experiments/prompt_search.py` | `prompt_search.csv` | 375 prompt sets
+
+---
+
+## 2026-09-06 - Zero-shot prompt search: no labels beats every trained probe
+
+`uv run python experiments/prompt_search.py --limit 600` | CLIP ViT-B/32 (LAION-2B)
+-> `results/prompt_search.csv`, `results/prompt_search_best.json` | 375 prompt sets
+
+Exhaustive over 125 descriptor combinations x 3 template-ensemble sizes. Affordable
+because images are embedded once and a prompt set is a few short strings - the opposite
+cost profile to the preprocessing search.
+
+| approach | labels needed | cross-venue play recall | false-play |
+|---|---|---|---|
+| **CLIP zero-shot, searched prompt** | **0** | **0.988** | **0.000** |
+| DINOv2 + trained probe | ~1,500 | 0.930 | 0.000 |
+| ConvNeXtV2 + trained probe | ~1,500 | 0.910 | 0.000 |
+| ViT + trained probe | ~1,500 | 0.869 | 0.000 |
+| CLIP zero-shot, pilot's single prompt | 0 | (75.8% in-venue accuracy) | - |
+
+Best prompt: **"people playing football on a pitch"**, one template ("a photo of {}").
+Elaborate template ensembles did not help - the top set uses a single template, and the
+descriptor carries the discrimination.
+
+**This is a genuinely large result for the onboarding question.** RQ1 asks what a new
+client site costs. For active-play detection the answer is now *no labels at all*: a
+well-chosen prompt transfers to seven unseen venues better than a probe trained on 1,500
+labelled frames. The label-efficiency curve said 10-25 labels beat the zero-label clock
+rule; this says the right zero-label method beats the fully-labelled probe.
+
+### The caveat, which is not small
+
+**The prompt was selected on the same venues it is scored on.** 375 candidates were
+evaluated against these seven development folds and the best was reported - that is
+selection on the evaluation data, and 375 tries is a great deal of freedom. The number is
+a *development* result and must not be quoted as clean generalisation.
+
+The locked final venues (`clipvenue_b_floodlit_track`, `clipvenue_c_teal_boards`) were
+excluded throughout, so the honest confirmation is available: evaluate this one prompt on
+them, once, at the end. Until then the claim is "a searchable prompt space contains sets
+this good", not "this prompt achieves 0.988 on unseen venues".
+
+### The false-play control earned its place again
+
+Ranking on recall alone would have chosen a different prompt: 1.000 recall with 0.0256
+false-play, against the balanced winner's 0.988 with 0.000. The higher-recall prompt is
+simply readier to say PLAY, and on a test set that is 100% ACTIVE_PLAY that is free. The
+`balanced` score (recall minus false-play) is what ranks the table.
+
+### Also worth recording
+
+`get_image_features` in transformers 5.x returns a `BaseModelOutputWithPooling`, and the
+embedding is its `pooler_output` - the same attribute name that produced the pilot's false
+38%. It is **not** the same thing: there it was a randomly initialised head on a plain ViT,
+here it is CLIP's trained projection (512-d = `projection_dim`, against a 768-d hidden
+state). Verified functionally before use rather than by name: a real ACTIVE_PLAY frame
+scores 0.296 against "people playing football", 0.062 against "a plate of spaghetti" and
+-0.011 against "a cat on a sofa".

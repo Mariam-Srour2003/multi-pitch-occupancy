@@ -1,0 +1,376 @@
+n_templates,desc_EMPTY,desc_ACTIVE_PLAY,desc_MAINTENANCE_NON_SPORTING,play_recall,worst_fold,false_play,balanced
+1,an empty football pitch with nobody on it,people playing football on a pitch,maintenance machinery on an artificial turf field,0.9883,0.918,0.0,0.9883
+5,an empty football pitch with nobody on it,footballers running on an artificial turf pitch,maintenance machinery on an artificial turf field,1.0,1.0,0.0256,0.9744
+1,an empty football pitch with nobody on it,footballers running on an artificial turf pitch,workers in high-visibility vests on a sports field,0.9714,0.8,0.0,0.9714
+1,an empty football pitch with nobody on it,footballers running on an artificial turf pitch,maintenance machinery on an artificial turf field,0.9714,0.8,0.0,0.9714
+3,an empty football pitch with nobody on it,footballers running on an artificial turf pitch,maintenance machinery on an artificial turf field,1.0,1.0,0.0308,0.9692
+1,a vacant football field with no players,several people playing soccer on a floodlit pitch,workers in high-visibility vests on a sports field,1.0,1.0,0.0359,0.9641
+1,a vacant football field with no players,several people playing soccer on a floodlit pitch,maintenance machinery on an artificial turf field,0.9859,0.9016,0.0256,0.9603
+5,an empty football pitch with nobody on it,footballers running on an artificial turf pitch,workers in high-visibility vests on a sports field,1.0,1.0,0.041,0.959
+1,an unused artificial turf field,people playing football on a pitch,workers in high-visibility vests on a sports field,0.9836,0.8852,0.0256,0.958
+1,an unused artificial turf field,people playing football on a pitch,maintenance machinery on an artificial turf field,0.9836,0.8852,0.0256,0.958
+1,an unused artificial turf field,footballers running on an artificial turf pitch,workers in high-visibility vests on a sports field,0.9977,0.9836,0.041,0.9566
+1,an unused artificial turf field,footballers running on an artificial turf pitch,maintenance machinery on an artificial turf field,0.9977,0.9836,0.041,0.9566
+1,an empty green sports field at night,several people playing soccer on a floodlit pitch,maintenance machinery on an artificial turf field,0.9813,0.8689,0.0256,0.9556
+5,a vacant football field with no players,several people playing soccer on a floodlit pitch,maintenance machinery on an artificial turf field,0.9813,0.8689,0.0256,0.9556
+3,an unused artificial turf field,people playing football on a pitch,workers in high-visibility vests on a sports field,0.9859,0.9016,0.0308,0.9552
+3,an unused artificial turf field,people playing football on a pitch,maintenance machinery on an artificial turf field,0.9859,0.9016,0.0308,0.9552
+3,a vacant football field with no players,several people playing soccer on a floodlit pitch,maintenance machinery on an artificial turf field,0.9789,0.8525,0.0256,0.9533
+5,an empty green sports field at night,several people playing soccer on a floodlit pitch,maintenance machinery on an artificial turf field,0.9789,0.8525,0.0256,0.9533
+3,an empty green sports field at night,several people playing soccer on a floodlit pitch,maintenance machinery on an artificial turf field,0.9766,0.8361,0.0256,0.9509
+3,an unused artificial turf field,footballers running on an artificial turf pitch,workers in high-visibility vests on a sports field,0.9953,0.9672,0.0462,0.9492
+3,an unused artificial turf field,footballers running on an artificial turf pitch,maintenance machinery on an artificial turf field,0.9953,0.9672,0.0462,0.9492
+3,a vacant football field with no players,several people playing soccer on a floodlit pitch,workers in high-visibility vests on a sports field,0.9724,0.8889,0.0256,0.9468
+5,a vacant football field with no players,several people playing soccer on a floodlit pitch,workers in high-visibility vests on a sports field,0.9748,0.8889,0.0308,0.944
+5,an unused artificial turf field,people playing football on a pitch,workers in high-visibility vests on a sports field,0.9883,0.918,0.0462,0.9421
+5,an unused artificial turf field,people playing football on a pitch,maintenance machinery on an artificial turf field,0.9883,0.918,0.0462,0.9421
+3,an unused artificial turf field,people playing football on a pitch,groundstaff maintaining a football pitch,0.9679,0.8525,0.0308,0.9372
+1,an empty green sports field at night,people playing football on a pitch,maintenance machinery on an artificial turf field,0.9859,0.9016,0.0513,0.9347
+1,an empty football pitch with nobody on it,people playing football on a pitch,workers in high-visibility vests on a sports field,0.9906,0.9344,0.0564,0.9342
+1,an empty football pitch with nobody on it,several people playing soccer on a floodlit pitch,workers in high-visibility vests on a sports field,0.9574,0.8,0.0256,0.9317
+5,an unused artificial turf field,people playing football on a pitch,groundstaff maintaining a football pitch,0.9726,0.8852,0.041,0.9316
+1,an empty football pitch with nobody on it,several people playing soccer on a floodlit pitch,maintenance machinery on an artificial turf field,0.9527,0.8,0.0256,0.9271
+5,an unused artificial turf field,footballers running on an artificial turf pitch,workers in high-visibility vests on a sports field,0.9977,0.9836,0.0718,0.9259
+5,an unused artificial turf field,footballers running on an artificial turf pitch,maintenance machinery on an artificial turf field,0.9977,0.9836,0.0718,0.9259
+3,an unused artificial turf field,footballers running on an artificial turf pitch,groundstaff maintaining a football pitch,0.9558,0.8,0.0308,0.925
+1,an unused artificial turf field,several people playing soccer on a floodlit pitch,workers in high-visibility vests on a sports field,0.9504,0.8,0.0256,0.9247
+1,an unused artificial turf field,several people playing soccer on a floodlit pitch,maintenance machinery on an artificial turf field,0.9504,0.8,0.0256,0.9247
+5,an empty football pitch with nobody on it,several people playing soccer on a floodlit pitch,maintenance machinery on an artificial turf field,0.9504,0.8,0.0256,0.9247
+3,an empty football pitch with nobody on it,several people playing soccer on a floodlit pitch,maintenance machinery on an artificial turf field,0.948,0.8,0.0256,0.9224
+1,a vacant football field with no players,people playing football on a pitch,maintenance machinery on an artificial turf field,0.993,0.9508,0.0718,0.9212
+5,an empty football pitch with nobody on it,footballers running on an artificial turf pitch,groundstaff maintaining a football pitch,0.9604,0.8,0.041,0.9194
+5,an unused artificial turf field,several people playing soccer on a floodlit pitch,maintenance machinery on an artificial turf field,0.941,0.7869,0.0256,0.9153
+5,an empty football pitch with nobody on it,several people playing soccer on a floodlit pitch,workers in high-visibility vests on a sports field,0.9368,0.8,0.0256,0.9112
+3,an empty football pitch with nobody on it,several people playing soccer on a floodlit pitch,workers in high-visibility vests on a sports field,0.9345,0.8,0.0256,0.9088
+3,an unused artificial turf field,several people playing soccer on a floodlit pitch,maintenance machinery on an artificial turf field,0.9316,0.7213,0.0256,0.906
+1,an unused artificial turf field,people playing football on a pitch,"a person standing on a pitch, not playing",0.9304,0.7692,0.0256,0.9048
+5,an unused artificial turf field,several people playing soccer on a floodlit pitch,workers in high-visibility vests on a sports field,0.9204,0.7541,0.0256,0.8948
+5,an unused artificial turf field,footballers running on an artificial turf pitch,groundstaff maintaining a football pitch,0.9581,0.8,0.0667,0.8914
+3,an unused artificial turf field,several people playing soccer on a floodlit pitch,workers in high-visibility vests on a sports field,0.9111,0.6885,0.0256,0.8854
+3,an unused artificial turf field,people playing football on a pitch,a few people walking across an empty pitch,0.9097,0.625,0.0308,0.8789
+1,an unused artificial turf field,people playing football on a pitch,groundstaff maintaining a football pitch,0.9041,0.6923,0.0256,0.8784
+1,an empty football pitch with nobody on it,people playing football on a pitch,"a person standing on a pitch, not playing",0.9304,0.7692,0.0564,0.874
+5,"a deserted five-a-side pitch, no people",a five-a-side football match in progress,groundstaff maintaining a football pitch,0.8726,0.7869,0.0,0.8726
+5,"a deserted five-a-side pitch, no people",a five-a-side football match in progress,workers in high-visibility vests on a sports field,0.8726,0.7869,0.0,0.8726
+5,"a deserted five-a-side pitch, no people",a five-a-side football match in progress,maintenance machinery on an artificial turf field,0.8726,0.7869,0.0,0.8726
+3,an empty football pitch with nobody on it,footballers running on an artificial turf pitch,workers in high-visibility vests on a sports field,1.0,1.0,0.1282,0.8718
+5,"a deserted five-a-side pitch, no people",a five-a-side football match in progress,"a person standing on a pitch, not playing",0.8616,0.7692,0.0,0.8616
+5,"a deserted five-a-side pitch, no people",a five-a-side football match in progress,a few people walking across an empty pitch,0.8616,0.7692,0.0,0.8616
+1,a vacant football field with no players,several people playing soccer on a floodlit pitch,groundstaff maintaining a football pitch,0.8761,0.6667,0.0256,0.8504
+5,a vacant football field with no players,several people playing soccer on a floodlit pitch,groundstaff maintaining a football pitch,0.8761,0.6667,0.0256,0.8504
+1,an empty football pitch with nobody on it,people playing football on a pitch,groundstaff maintaining a football pitch,0.9064,0.6923,0.0564,0.85
+3,a vacant football field with no players,several people playing soccer on a floodlit pitch,groundstaff maintaining a football pitch,0.8714,0.6667,0.0256,0.8457
+5,an empty football pitch with nobody on it,several people playing soccer on a floodlit pitch,groundstaff maintaining a football pitch,0.8714,0.6667,0.0256,0.8457
+5,an empty green sports field at night,several people playing soccer on a floodlit pitch,groundstaff maintaining a football pitch,0.8714,0.6667,0.0256,0.8457
+1,an empty football pitch with nobody on it,several people playing soccer on a floodlit pitch,groundstaff maintaining a football pitch,0.869,0.6667,0.0256,0.8434
+1,an empty green sports field at night,several people playing soccer on a floodlit pitch,groundstaff maintaining a football pitch,0.869,0.6667,0.0256,0.8434
+1,an empty football pitch with nobody on it,footballers running on an artificial turf pitch,groundstaff maintaining a football pitch,0.8418,0.4,0.0,0.8418
+1,an unused artificial turf field,several people playing soccer on a floodlit pitch,groundstaff maintaining a football pitch,0.8667,0.6667,0.0256,0.8411
+3,an empty football pitch with nobody on it,several people playing soccer on a floodlit pitch,groundstaff maintaining a football pitch,0.8667,0.6667,0.0256,0.8411
+3,an empty green sports field at night,several people playing soccer on a floodlit pitch,groundstaff maintaining a football pitch,0.8667,0.6667,0.0256,0.8411
+5,an empty football pitch with nobody on it,a group of players competing in a soccer game,maintenance machinery on an artificial turf field,0.8408,0.6,0.0,0.8408
+5,a vacant football field with no players,a group of players competing in a soccer game,maintenance machinery on an artificial turf field,0.8408,0.6,0.0,0.8408
+3,"a deserted five-a-side pitch, no people",a five-a-side football match in progress,groundstaff maintaining a football pitch,0.84,0.6,0.0,0.84
+3,"a deserted five-a-side pitch, no people",a five-a-side football match in progress,workers in high-visibility vests on a sports field,0.84,0.6,0.0,0.84
+3,"a deserted five-a-side pitch, no people",a five-a-side football match in progress,maintenance machinery on an artificial turf field,0.84,0.6,0.0,0.84
+3,"a deserted five-a-side pitch, no people",a five-a-side football match in progress,a few people walking across an empty pitch,0.84,0.6,0.0,0.84
+5,an unused artificial turf field,several people playing soccer on a floodlit pitch,groundstaff maintaining a football pitch,0.862,0.6667,0.0256,0.8364
+1,an empty football pitch with nobody on it,footballers running on an artificial turf pitch,"a person standing on a pitch, not playing",0.8352,0.2,0.0,0.8352
+5,an empty green sports field at night,several people playing soccer on a floodlit pitch,workers in high-visibility vests on a sports field,0.9677,0.8852,0.1333,0.8344
+3,an empty football pitch with nobody on it,footballers running on an artificial turf pitch,groundstaff maintaining a football pitch,0.9604,0.8,0.1282,0.8322
+1,an unused artificial turf field,footballers running on an artificial turf pitch,groundstaff maintaining a football pitch,0.8394,0.4,0.0103,0.8292
+3,an unused artificial turf field,several people playing soccer on a floodlit pitch,groundstaff maintaining a football pitch,0.8527,0.6557,0.0256,0.827
+3,"a deserted five-a-side pitch, no people",a five-a-side football match in progress,"a person standing on a pitch, not playing",0.8267,0.6,0.0,0.8267
+1,"a deserted five-a-side pitch, no people",a five-a-side football match in progress,workers in high-visibility vests on a sports field,0.822,0.6,0.0,0.822
+1,"a deserted five-a-side pitch, no people",a five-a-side football match in progress,"a person standing on a pitch, not playing",0.822,0.6,0.0,0.822
+1,"a deserted five-a-side pitch, no people",a five-a-side football match in progress,maintenance machinery on an artificial turf field,0.822,0.6,0.0,0.822
+1,an empty green sports field at night,several people playing soccer on a floodlit pitch,workers in high-visibility vests on a sports field,0.9859,0.9016,0.1641,0.8218
+5,an unused artificial turf field,a group of players competing in a soccer game,maintenance machinery on an artificial turf field,0.8181,0.5574,0.0,0.8181
+1,an unused artificial turf field,footballers running on an artificial turf pitch,"a person standing on a pitch, not playing",0.8328,0.2,0.0154,0.8174
+3,an empty green sports field at night,several people playing soccer on a floodlit pitch,workers in high-visibility vests on a sports field,0.9654,0.8689,0.1487,0.8167
+5,an empty football pitch with nobody on it,footballers running on an artificial turf pitch,"a person standing on a pitch, not playing",0.8527,0.4,0.041,0.8117
+1,"a deserted five-a-side pitch, no people",a five-a-side football match in progress,groundstaff maintaining a football pitch,0.811,0.6,0.0,0.811
+1,"a deserted five-a-side pitch, no people",a five-a-side football match in progress,a few people walking across an empty pitch,0.811,0.6,0.0,0.811
+3,an empty football pitch with nobody on it,a group of players competing in a soccer game,maintenance machinery on an artificial turf field,0.8096,0.6,0.0,0.8096
+3,a vacant football field with no players,a group of players competing in a soccer game,maintenance machinery on an artificial turf field,0.8096,0.6,0.0,0.8096
+3,an unused artificial turf field,people playing football on a pitch,"a person standing on a pitch, not playing",0.835,0.5,0.0256,0.8093
+5,an unused artificial turf field,footballers running on an artificial turf pitch,"a person standing on a pitch, not playing",0.8504,0.4,0.0462,0.8043
+3,an unused artificial turf field,footballers running on an artificial turf pitch,"a person standing on a pitch, not playing",0.8195,0.2,0.0205,0.799
+3,an unused artificial turf field,a group of players competing in a soccer game,maintenance machinery on an artificial turf field,0.7979,0.541,0.0,0.7979
+5,a vacant football field with no players,a group of players competing in a soccer game,workers in high-visibility vests on a sports field,0.7879,0.6,0.0,0.7879
+5,an empty green sports field at night,a group of players competing in a soccer game,maintenance machinery on an artificial turf field,0.7766,0.2,0.0,0.7766
+3,an empty green sports field at night,a group of players competing in a soccer game,maintenance machinery on an artificial turf field,0.7763,0.4,0.0,0.7763
+5,an empty football pitch with nobody on it,a group of players competing in a soccer game,workers in high-visibility vests on a sports field,0.7762,0.541,0.0,0.7762
+1,a vacant football field with no players,a group of players competing in a soccer game,maintenance machinery on an artificial turf field,0.7761,0.5902,0.0,0.7761
+1,a vacant football field with no players,a group of players competing in a soccer game,workers in high-visibility vests on a sports field,0.7746,0.6,0.0,0.7746
+1,an empty football pitch with nobody on it,a group of players competing in a soccer game,maintenance machinery on an artificial turf field,0.7737,0.5738,0.0,0.7737
+3,an unused artificial turf field,footballers running on an artificial turf pitch,a few people walking across an empty pitch,0.7939,0.0,0.0205,0.7733
+5,an unused artificial turf field,people playing football on a pitch,"a person standing on a pitch, not playing",0.8171,0.375,0.0462,0.771
+5,an unused artificial turf field,people playing football on a pitch,a few people walking across an empty pitch,0.8063,0.5,0.041,0.7652
+3,an empty football pitch with nobody on it,people playing football on a pitch,maintenance machinery on an artificial turf field,0.993,0.9508,0.2359,0.7571
+1,a vacant football field with no players,footballers running on an artificial turf pitch,groundstaff maintaining a football pitch,0.8418,0.4,0.0872,0.7546
+5,an unused artificial turf field,a group of players competing in a soccer game,workers in high-visibility vests on a sports field,0.7472,0.4918,0.0,0.7472
+3,a vacant football field with no players,a group of players competing in a soccer game,workers in high-visibility vests on a sports field,0.7456,0.4615,0.0,0.7456
+5,an empty football pitch with nobody on it,footballers running on an artificial turf pitch,a few people walking across an empty pitch,0.7747,0.0,0.0359,0.7388
+3,an empty green sports field at night,people playing football on a pitch,maintenance machinery on an artificial turf field,0.9906,0.9344,0.2564,0.7342
+3,an empty football pitch with nobody on it,a group of players competing in a soccer game,workers in high-visibility vests on a sports field,0.7338,0.4615,0.0,0.7338
+1,an empty football pitch with nobody on it,a group of players competing in a soccer game,workers in high-visibility vests on a sports field,0.7293,0.4918,0.0,0.7293
+1,an unused artificial turf field,a group of players competing in a soccer game,maintenance machinery on an artificial turf field,0.7288,0.459,0.0,0.7288
+5,an unused artificial turf field,footballers running on an artificial turf pitch,a few people walking across an empty pitch,0.7724,0.0,0.0462,0.7262
+3,an unused artificial turf field,a group of players competing in a soccer game,workers in high-visibility vests on a sports field,0.7182,0.3846,0.0,0.7182
+3,a vacant football field with no players,people playing football on a pitch,maintenance machinery on an artificial turf field,0.993,0.9508,0.2821,0.7109
+1,an empty green sports field at night,a group of players competing in a soccer game,maintenance machinery on an artificial turf field,0.7049,0.2,0.0,0.7049
+1,an unused artificial turf field,a group of players competing in a soccer game,workers in high-visibility vests on a sports field,0.7021,0.4262,0.0,0.7021
+3,an empty football pitch with nobody on it,footballers running on an artificial turf pitch,"a person standing on a pitch, not playing",0.8242,0.2,0.1282,0.696
+3,an empty football pitch with nobody on it,a group of players competing in a soccer game,groundstaff maintaining a football pitch,0.6936,0.4615,0.0,0.6936
+3,a vacant football field with no players,a group of players competing in a soccer game,groundstaff maintaining a football pitch,0.6936,0.4615,0.0,0.6936
+5,an empty football pitch with nobody on it,a group of players competing in a soccer game,groundstaff maintaining a football pitch,0.6936,0.4615,0.0,0.6936
+5,a vacant football field with no players,a group of players competing in a soccer game,groundstaff maintaining a football pitch,0.6936,0.4615,0.0,0.6936
+5,an unused artificial turf field,a group of players competing in a soccer game,groundstaff maintaining a football pitch,0.6866,0.4615,0.0,0.6866
+3,an unused artificial turf field,a group of players competing in a soccer game,groundstaff maintaining a football pitch,0.6842,0.4615,0.0,0.6842
+3,an empty football pitch with nobody on it,footballers running on an artificial turf pitch,a few people walking across an empty pitch,0.7985,0.0,0.1282,0.6703
+1,an empty green sports field at night,a group of players competing in a soccer game,workers in high-visibility vests on a sports field,0.6698,0.2,0.0,0.6698
+1,an unused artificial turf field,people playing football on a pitch,a few people walking across an empty pitch,0.6809,0.125,0.0154,0.6655
+1,a vacant football field with no players,several people playing soccer on a floodlit pitch,"a person standing on a pitch, not playing",0.6867,0.3333,0.0256,0.6611
+3,an empty green sports field at night,a group of players competing in a soccer game,groundstaff maintaining a football pitch,0.6627,0.4,0.0051,0.6576
+1,a vacant football field with no players,footballers running on an artificial turf pitch,maintenance machinery on an artificial turf field,1.0,1.0,0.3436,0.6564
+1,an empty football pitch with nobody on it,several people playing soccer on a floodlit pitch,"a person standing on a pitch, not playing",0.6773,0.3333,0.0256,0.6517
+1,an unused artificial turf field,several people playing soccer on a floodlit pitch,"a person standing on a pitch, not playing",0.675,0.3333,0.0256,0.6494
+1,an empty green sports field at night,several people playing soccer on a floodlit pitch,"a person standing on a pitch, not playing",0.675,0.3333,0.0256,0.6494
+1,an empty football pitch with nobody on it,footballers running on an artificial turf pitch,a few people walking across an empty pitch,0.6445,0.0,0.0,0.6445
+5,an empty football pitch with nobody on it,people playing football on a pitch,maintenance machinery on an artificial turf field,0.993,0.9508,0.3487,0.6443
+1,an unused artificial turf field,footballers running on an artificial turf pitch,a few people walking across an empty pitch,0.6421,0.0,0.0103,0.6319
+5,an empty green sports field at night,a group of players competing in a soccer game,groundstaff maintaining a football pitch,0.6318,0.2,0.0,0.6318
+1,an empty green sports field at night,footballers running on an artificial turf pitch,maintenance machinery on an artificial turf field,0.9096,0.4,0.2821,0.6276
+1,an empty football pitch with nobody on it,people playing football on a pitch,a few people walking across an empty pitch,0.6809,0.125,0.0564,0.6245
+1,an empty green sports field at night,footballers running on an artificial turf pitch,a few people walking across an empty pitch,0.6398,0.0,0.0667,0.5731
+1,a vacant football field with no players,footballers running on an artificial turf pitch,a few people walking across an empty pitch,0.6445,0.0,0.0769,0.5675
+1,a vacant football field with no players,footballers running on an artificial turf pitch,"a person standing on a pitch, not playing",0.8352,0.2,0.2769,0.5582
+5,an empty green sports field at night,people playing football on a pitch,maintenance machinery on an artificial turf field,0.9906,0.9344,0.4359,0.5547
+5,an empty football pitch with nobody on it,people playing football on a pitch,workers in high-visibility vests on a sports field,0.9953,0.9672,0.4513,0.544
+3,an empty football pitch with nobody on it,people playing football on a pitch,workers in high-visibility vests on a sports field,0.9953,0.9672,0.4564,0.5389
+3,a vacant football field with no players,several people playing soccer on a floodlit pitch,"a person standing on a pitch, not playing",0.5593,0.1111,0.0256,0.5337
+3,an empty football pitch with nobody on it,several people playing soccer on a floodlit pitch,"a person standing on a pitch, not playing",0.557,0.1111,0.0256,0.5313
+3,an empty green sports field at night,several people playing soccer on a floodlit pitch,"a person standing on a pitch, not playing",0.557,0.1111,0.0256,0.5313
+5,a vacant football field with no players,several people playing soccer on a floodlit pitch,"a person standing on a pitch, not playing",0.5546,0.1111,0.0256,0.529
+5,an empty football pitch with nobody on it,people playing football on a pitch,groundstaff maintaining a football pitch,0.9796,0.9231,0.4513,0.5284
+5,an empty football pitch with nobody on it,several people playing soccer on a floodlit pitch,"a person standing on a pitch, not playing",0.5523,0.1111,0.0256,0.5267
+5,an empty green sports field at night,several people playing soccer on a floodlit pitch,"a person standing on a pitch, not playing",0.5523,0.1111,0.0256,0.5267
+1,a vacant football field with no players,people playing football on a pitch,"a person standing on a pitch, not playing",0.9398,0.7692,0.4154,0.5244
+3,a vacant football field with no players,footballers running on an artificial turf pitch,maintenance machinery on an artificial turf field,1.0,1.0,0.4769,0.5231
+5,a vacant football field with no players,people playing football on a pitch,maintenance machinery on an artificial turf field,0.993,0.9508,0.4718,0.5212
+3,an empty football pitch with nobody on it,people playing football on a pitch,groundstaff maintaining a football pitch,0.9773,0.918,0.4564,0.5209
+5,an unused artificial turf field,several people playing soccer on a floodlit pitch,"a person standing on a pitch, not playing",0.5453,0.1111,0.0256,0.5196
+3,an unused artificial turf field,several people playing soccer on a floodlit pitch,"a person standing on a pitch, not playing",0.5429,0.1111,0.0256,0.5173
+5,"a deserted five-a-side pitch, no people",footballers running on an artificial turf pitch,workers in high-visibility vests on a sports field,0.5114,0.0,0.0,0.5114
+5,"a deserted five-a-side pitch, no people",footballers running on an artificial turf pitch,maintenance machinery on an artificial turf field,0.5114,0.0,0.0,0.5114
+5,"a deserted five-a-side pitch, no people",people playing football on a pitch,workers in high-visibility vests on a sports field,0.5092,0.0,0.0,0.5092
+5,"a deserted five-a-side pitch, no people",people playing football on a pitch,maintenance machinery on an artificial turf field,0.5092,0.0,0.0,0.5092
+1,"a deserted five-a-side pitch, no people",people playing football on a pitch,workers in high-visibility vests on a sports field,0.5081,0.0,0.0,0.5081
+1,"a deserted five-a-side pitch, no people",people playing football on a pitch,"a person standing on a pitch, not playing",0.5081,0.0,0.0,0.5081
+1,"a deserted five-a-side pitch, no people",people playing football on a pitch,maintenance machinery on an artificial turf field,0.5081,0.0,0.0,0.5081
+5,"a deserted five-a-side pitch, no people",people playing football on a pitch,"a person standing on a pitch, not playing",0.5069,0.0,0.0,0.5069
+1,a vacant football field with no players,people playing football on a pitch,groundstaff maintaining a football pitch,0.9158,0.6923,0.4103,0.5055
+5,"a deserted five-a-side pitch, no people",footballers running on an artificial turf pitch,groundstaff maintaining a football pitch,0.5004,0.0,0.0,0.5004
+1,"a deserted five-a-side pitch, no people",people playing football on a pitch,groundstaff maintaining a football pitch,0.4971,0.0,0.0,0.4971
+5,"a deserted five-a-side pitch, no people",people playing football on a pitch,groundstaff maintaining a football pitch,0.4959,0.0,0.0,0.4959
+1,an empty green sports field at night,people playing football on a pitch,workers in high-visibility vests on a sports field,0.9883,0.918,0.4974,0.4909
+3,"a deserted five-a-side pitch, no people",footballers running on an artificial turf pitch,workers in high-visibility vests on a sports field,0.4888,0.0,0.0,0.4888
+3,"a deserted five-a-side pitch, no people",footballers running on an artificial turf pitch,maintenance machinery on an artificial turf field,0.4888,0.0,0.0,0.4888
+5,an empty green sports field at night,people playing football on a pitch,groundstaff maintaining a football pitch,0.9796,0.9231,0.4923,0.4873
+1,"a deserted five-a-side pitch, no people",footballers running on an artificial turf pitch,workers in high-visibility vests on a sports field,0.4865,0.0,0.0,0.4865
+1,"a deserted five-a-side pitch, no people",footballers running on an artificial turf pitch,maintenance machinery on an artificial turf field,0.4865,0.0,0.0,0.4865
+1,an empty football pitch with nobody on it,a group of players competing in a soccer game,groundstaff maintaining a football pitch,0.4864,0.0,0.0,0.4864
+1,a vacant football field with no players,a group of players competing in a soccer game,groundstaff maintaining a football pitch,0.4864,0.0,0.0,0.4864
+3,an empty green sports field at night,people playing football on a pitch,groundstaff maintaining a football pitch,0.9773,0.918,0.4923,0.485
+1,an empty green sports field at night,a group of players competing in a soccer game,groundstaff maintaining a football pitch,0.4841,0.0,0.0,0.4841
+5,"a deserted five-a-side pitch, no people",footballers running on an artificial turf pitch,"a person standing on a pitch, not playing",0.4828,0.0,0.0,0.4828
+3,"a deserted five-a-side pitch, no people",people playing football on a pitch,workers in high-visibility vests on a sports field,0.4824,0.0,0.0,0.4824
+3,"a deserted five-a-side pitch, no people",people playing football on a pitch,maintenance machinery on an artificial turf field,0.4824,0.0,0.0,0.4824
+3,an empty football pitch with nobody on it,several people playing soccer on a floodlit pitch,a few people walking across an empty pitch,0.5058,0.0,0.0256,0.4802
+3,an unused artificial turf field,several people playing soccer on a floodlit pitch,a few people walking across an empty pitch,0.5058,0.0,0.0256,0.4802
+3,an empty green sports field at night,several people playing soccer on a floodlit pitch,a few people walking across an empty pitch,0.5058,0.0,0.0256,0.4802
+3,a vacant football field with no players,several people playing soccer on a floodlit pitch,a few people walking across an empty pitch,0.5058,0.0,0.0256,0.4802
+3,"a deserted five-a-side pitch, no people",people playing football on a pitch,"a person standing on a pitch, not playing",0.48,0.0,0.0,0.48
+3,"a deserted five-a-side pitch, no people",footballers running on an artificial turf pitch,groundstaff maintaining a football pitch,0.4778,0.0,0.0,0.4778
+5,"a deserted five-a-side pitch, no people",footballers running on an artificial turf pitch,a few people walking across an empty pitch,0.4766,0.0,0.0,0.4766
+1,"a deserted five-a-side pitch, no people",footballers running on an artificial turf pitch,groundstaff maintaining a football pitch,0.4755,0.0,0.0,0.4755
+5,"a deserted five-a-side pitch, no people",people playing football on a pitch,a few people walking across an empty pitch,0.4697,0.0,0.0,0.4697
+3,"a deserted five-a-side pitch, no people",people playing football on a pitch,groundstaff maintaining a football pitch,0.469,0.0,0.0,0.469
+3,"a deserted five-a-side pitch, no people",people playing football on a pitch,a few people walking across an empty pitch,0.469,0.0,0.0,0.469
+1,an unused artificial turf field,a group of players competing in a soccer game,groundstaff maintaining a football pitch,0.4662,0.0,0.0,0.4662
+5,a vacant football field with no players,footballers running on an artificial turf pitch,maintenance machinery on an artificial turf field,1.0,1.0,0.5385,0.4615
+5,a vacant football field with no players,people playing football on a pitch,groundstaff maintaining a football pitch,0.9843,0.9231,0.5231,0.4613
+3,"a deserted five-a-side pitch, no people",footballers running on an artificial turf pitch,"a person standing on a pitch, not playing",0.4603,0.0,0.0,0.4603
+1,an empty green sports field at night,people playing football on a pitch,"a person standing on a pitch, not playing",0.9304,0.7692,0.4718,0.4586
+1,"a deserted five-a-side pitch, no people",footballers running on an artificial turf pitch,"a person standing on a pitch, not playing",0.4579,0.0,0.0,0.4579
+1,a vacant football field with no players,footballers running on an artificial turf pitch,workers in high-visibility vests on a sports field,1.0,1.0,0.5436,0.4564
+3,an empty football pitch with nobody on it,people playing football on a pitch,a few people walking across an empty pitch,0.912,0.625,0.4564,0.4556
+1,an empty football pitch with nobody on it,several people playing soccer on a floodlit pitch,a few people walking across an empty pitch,0.4811,0.0,0.0256,0.4555
+1,an unused artificial turf field,several people playing soccer on a floodlit pitch,a few people walking across an empty pitch,0.4811,0.0,0.0256,0.4555
+1,an empty green sports field at night,several people playing soccer on a floodlit pitch,a few people walking across an empty pitch,0.4811,0.0,0.0256,0.4555
+1,a vacant football field with no players,several people playing soccer on a floodlit pitch,a few people walking across an empty pitch,0.4811,0.0,0.0256,0.4555
+3,"a deserted five-a-side pitch, no people",footballers running on an artificial turf pitch,a few people walking across an empty pitch,0.454,0.0,0.0,0.454
+3,a vacant football field with no players,people playing football on a pitch,groundstaff maintaining a football pitch,0.982,0.9231,0.5282,0.4538
+3,an empty green sports field at night,footballers running on an artificial turf pitch,maintenance machinery on an artificial turf field,0.9119,0.4,0.4615,0.4504
+1,"a deserted five-a-side pitch, no people",people playing football on a pitch,a few people walking across an empty pitch,0.448,0.0,0.0,0.448
+3,an empty green sports field at night,people playing football on a pitch,a few people walking across an empty pitch,0.912,0.625,0.4667,0.4454
+1,an empty green sports field at night,people playing football on a pitch,groundstaff maintaining a football pitch,0.9064,0.6923,0.4667,0.4397
+1,"a deserted five-a-side pitch, no people",several people playing soccer on a floodlit pitch,workers in high-visibility vests on a sports field,0.4387,0.0,0.0,0.4387
+1,"a deserted five-a-side pitch, no people",several people playing soccer on a floodlit pitch,"a person standing on a pitch, not playing",0.4387,0.0,0.0,0.4387
+1,"a deserted five-a-side pitch, no people",several people playing soccer on a floodlit pitch,maintenance machinery on an artificial turf field,0.4387,0.0,0.0,0.4387
+1,"a deserted five-a-side pitch, no people",several people playing soccer on a floodlit pitch,groundstaff maintaining a football pitch,0.4277,0.0,0.0,0.4277
+3,a vacant football field with no players,people playing football on a pitch,a few people walking across an empty pitch,0.912,0.625,0.4923,0.4197
+5,an empty football pitch with nobody on it,several people playing soccer on a floodlit pitch,a few people walking across an empty pitch,0.4385,0.0,0.0256,0.4129
+5,an unused artificial turf field,several people playing soccer on a floodlit pitch,a few people walking across an empty pitch,0.4385,0.0,0.0256,0.4129
+5,an empty green sports field at night,several people playing soccer on a floodlit pitch,a few people walking across an empty pitch,0.4385,0.0,0.0256,0.4129
+5,a vacant football field with no players,several people playing soccer on a floodlit pitch,a few people walking across an empty pitch,0.4385,0.0,0.0256,0.4129
+3,a vacant football field with no players,a group of players competing in a soccer game,"a person standing on a pitch, not playing",0.4071,0.0,0.0,0.4071
+3,an empty football pitch with nobody on it,a group of players competing in a soccer game,"a person standing on a pitch, not playing",0.4048,0.0,0.0,0.4048
+5,a vacant football field with no players,a group of players competing in a soccer game,"a person standing on a pitch, not playing",0.3999,0.0,0.0,0.3999
+5,an empty football pitch with nobody on it,a group of players competing in a soccer game,"a person standing on a pitch, not playing",0.3975,0.0,0.0,0.3975
+3,an unused artificial turf field,a group of players competing in a soccer game,"a person standing on a pitch, not playing",0.3954,0.0,0.0,0.3954
+5,an empty green sports field at night,a group of players competing in a soccer game,workers in high-visibility vests on a sports field,0.7174,0.2,0.3231,0.3943
+5,an unused artificial turf field,a group of players competing in a soccer game,"a person standing on a pitch, not playing",0.3905,0.0,0.0,0.3905
+5,an empty green sports field at night,footballers running on an artificial turf pitch,maintenance machinery on an artificial turf field,0.9119,0.4,0.5231,0.3889
+1,"a deserted five-a-side pitch, no people",footballers running on an artificial turf pitch,a few people walking across an empty pitch,0.3883,0.0,0.0,0.3883
+1,"a deserted five-a-side pitch, no people",several people playing soccer on a floodlit pitch,a few people walking across an empty pitch,0.3851,0.0,0.0,0.3851
+3,an empty football pitch with nobody on it,people playing football on a pitch,"a person standing on a pitch, not playing",0.8397,0.5,0.4564,0.3832
+3,an empty green sports field at night,a group of players competing in a soccer game,"a person standing on a pitch, not playing",0.3762,0.0,0.0,0.3762
+3,an empty football pitch with nobody on it,a group of players competing in a soccer game,a few people walking across an empty pitch,0.3728,0.0984,0.0,0.3728
+3,an unused artificial turf field,a group of players competing in a soccer game,a few people walking across an empty pitch,0.3728,0.0984,0.0,0.3728
+3,a vacant football field with no players,a group of players competing in a soccer game,a few people walking across an empty pitch,0.3728,0.0984,0.0,0.3728
+5,an empty football pitch with nobody on it,people playing football on a pitch,"a person standing on a pitch, not playing",0.8218,0.375,0.4513,0.3705
+3,an empty green sports field at night,people playing football on a pitch,"a person standing on a pitch, not playing",0.8397,0.5,0.4718,0.3679
+1,a vacant football field with no players,a group of players competing in a soccer game,"a person standing on a pitch, not playing",0.3666,0.0,0.0,0.3666
+5,an empty green sports field at night,a group of players competing in a soccer game,"a person standing on a pitch, not playing",0.3666,0.0,0.0,0.3666
+1,an unused artificial turf field,a five-a-side football match in progress,workers in high-visibility vests on a sports field,0.9953,0.9672,0.6308,0.3645
+1,an unused artificial turf field,a five-a-side football match in progress,"a person standing on a pitch, not playing",0.9953,0.9672,0.6308,0.3645
+1,an unused artificial turf field,a five-a-side football match in progress,maintenance machinery on an artificial turf field,0.9953,0.9672,0.6308,0.3645
+1,an empty football pitch with nobody on it,a group of players competing in a soccer game,"a person standing on a pitch, not playing",0.3596,0.0,0.0,0.3596
+1,an empty green sports field at night,footballers running on an artificial turf pitch,groundstaff maintaining a football pitch,0.8371,0.4,0.4821,0.355
+5,an empty football pitch with nobody on it,people playing football on a pitch,a few people walking across an empty pitch,0.8063,0.5,0.4513,0.355
+1,an unused artificial turf field,a five-a-side football match in progress,groundstaff maintaining a football pitch,0.9843,0.9231,0.6308,0.3536
+1,an unused artificial turf field,a group of players competing in a soccer game,"a person standing on a pitch, not playing",0.3526,0.0,0.0,0.3526
+1,an empty green sports field at night,a group of players competing in a soccer game,"a person standing on a pitch, not playing",0.3526,0.0,0.0,0.3526
+3,a vacant football field with no players,people playing football on a pitch,"a person standing on a pitch, not playing",0.8443,0.5,0.4923,0.352
+1,an unused artificial turf field,a five-a-side football match in progress,a few people walking across an empty pitch,0.982,0.9231,0.6308,0.3512
+5,an empty green sports field at night,people playing football on a pitch,"a person standing on a pitch, not playing",0.8218,0.375,0.4718,0.35
+3,an unused artificial turf field,a five-a-side football match in progress,groundstaff maintaining a football pitch,0.9953,0.9672,0.6462,0.3492
+3,an unused artificial turf field,a five-a-side football match in progress,workers in high-visibility vests on a sports field,0.9953,0.9672,0.6462,0.3492
+3,an unused artificial turf field,a five-a-side football match in progress,maintenance machinery on an artificial turf field,0.9953,0.9672,0.6462,0.3492
+3,an unused artificial turf field,a five-a-side football match in progress,a few people walking across an empty pitch,0.993,0.9508,0.6462,0.3468
+3,an empty green sports field at night,a group of players competing in a soccer game,a few people walking across an empty pitch,0.3442,0.0984,0.0,0.3442
+5,a vacant football field with no players,footballers running on an artificial turf pitch,"a person standing on a pitch, not playing",0.8527,0.4,0.5128,0.3399
+5,an empty green sports field at night,people playing football on a pitch,a few people walking across an empty pitch,0.8063,0.5,0.4667,0.3396
+5,a vacant football field with no players,people playing football on a pitch,"a person standing on a pitch, not playing",0.8265,0.375,0.4974,0.329
+3,"a deserted five-a-side pitch, no people",several people playing soccer on a floodlit pitch,maintenance machinery on an artificial turf field,0.3287,0.0,0.0,0.3287
+5,"a deserted five-a-side pitch, no people",several people playing soccer on a floodlit pitch,maintenance machinery on an artificial turf field,0.3287,0.0,0.0,0.3287
+3,an unused artificial turf field,a five-a-side football match in progress,"a person standing on a pitch, not playing",0.971,0.8462,0.6462,0.3248
+3,"a deserted five-a-side pitch, no people",several people playing soccer on a floodlit pitch,workers in high-visibility vests on a sports field,0.324,0.0,0.0,0.324
+5,"a deserted five-a-side pitch, no people",several people playing soccer on a floodlit pitch,workers in high-visibility vests on a sports field,0.324,0.0,0.0,0.324
+3,"a deserted five-a-side pitch, no people",several people playing soccer on a floodlit pitch,"a person standing on a pitch, not playing",0.3177,0.0,0.0,0.3177
+5,"a deserted five-a-side pitch, no people",several people playing soccer on a floodlit pitch,groundstaff maintaining a football pitch,0.3177,0.0,0.0,0.3177
+3,"a deserted five-a-side pitch, no people",several people playing soccer on a floodlit pitch,groundstaff maintaining a football pitch,0.3153,0.0,0.0,0.3153
+5,"a deserted five-a-side pitch, no people",several people playing soccer on a floodlit pitch,"a person standing on a pitch, not playing",0.3153,0.0,0.0,0.3153
+5,a vacant football field with no players,people playing football on a pitch,a few people walking across an empty pitch,0.8063,0.5,0.4923,0.314
+3,"a deserted five-a-side pitch, no people",several people playing soccer on a floodlit pitch,a few people walking across an empty pitch,0.306,0.0,0.0,0.306
+5,"a deserted five-a-side pitch, no people",several people playing soccer on a floodlit pitch,a few people walking across an empty pitch,0.3036,0.0,0.0,0.3036
+5,a vacant football field with no players,footballers running on an artificial turf pitch,workers in high-visibility vests on a sports field,1.0,1.0,0.6974,0.3026
+1,a vacant football field with no players,people playing football on a pitch,a few people walking across an empty pitch,0.6809,0.125,0.3949,0.286
+1,an empty football pitch with nobody on it,a five-a-side football match in progress,maintenance machinery on an artificial turf field,0.9977,0.9836,0.7179,0.2797
+3,an empty green sports field at night,people playing football on a pitch,workers in high-visibility vests on a sports field,0.993,0.9508,0.7231,0.2699
+5,a vacant football field with no players,footballers running on an artificial turf pitch,groundstaff maintaining a football pitch,0.9604,0.8,0.6923,0.2681
+3,an empty green sports field at night,a group of players competing in a soccer game,workers in high-visibility vests on a sports field,0.7037,0.3846,0.4359,0.2678
+5,a vacant football field with no players,footballers running on an artificial turf pitch,a few people walking across an empty pitch,0.7747,0.0,0.5333,0.2414
+5,an empty green sports field at night,people playing football on a pitch,workers in high-visibility vests on a sports field,0.993,0.9508,0.759,0.234
+1,an empty green sports field at night,people playing football on a pitch,a few people walking across an empty pitch,0.6785,0.125,0.4564,0.2221
+3,a vacant football field with no players,footballers running on an artificial turf pitch,workers in high-visibility vests on a sports field,1.0,1.0,0.7795,0.2205
+1,an empty football pitch with nobody on it,a five-a-side football match in progress,workers in high-visibility vests on a sports field,0.9977,0.9836,0.7795,0.2182
+1,an empty football pitch with nobody on it,a five-a-side football match in progress,"a person standing on a pitch, not playing",0.9977,0.9836,0.7795,0.2182
+5,an unused artificial turf field,a five-a-side football match in progress,groundstaff maintaining a football pitch,0.9953,0.9672,0.7795,0.2158
+5,an unused artificial turf field,a five-a-side football match in progress,workers in high-visibility vests on a sports field,0.9953,0.9672,0.7795,0.2158
+5,an unused artificial turf field,a five-a-side football match in progress,maintenance machinery on an artificial turf field,0.9953,0.9672,0.7795,0.2158
+1,an empty football pitch with nobody on it,a five-a-side football match in progress,groundstaff maintaining a football pitch,0.9867,0.9231,0.7795,0.2072
+1,an empty football pitch with nobody on it,a five-a-side football match in progress,a few people walking across an empty pitch,0.9843,0.9231,0.7795,0.2048
+5,an unused artificial turf field,a five-a-side football match in progress,a few people walking across an empty pitch,0.982,0.9231,0.7795,0.2025
+5,an unused artificial turf field,a five-a-side football match in progress,"a person standing on a pitch, not playing",0.9733,0.8462,0.7795,0.1939
+3,a vacant football field with no players,footballers running on an artificial turf pitch,groundstaff maintaining a football pitch,0.9604,0.8,0.7744,0.1861
+3,"a deserted five-a-side pitch, no people",a group of players competing in a soccer game,maintenance machinery on an artificial turf field,0.1836,0.0,0.0,0.1836
+5,"a deserted five-a-side pitch, no people",a group of players competing in a soccer game,maintenance machinery on an artificial turf field,0.1836,0.0,0.0,0.1836
+3,"a deserted five-a-side pitch, no people",a group of players competing in a soccer game,groundstaff maintaining a football pitch,0.1813,0.0,0.0,0.1813
+5,"a deserted five-a-side pitch, no people",a group of players competing in a soccer game,groundstaff maintaining a football pitch,0.1813,0.0,0.0,0.1813
+5,"a deserted five-a-side pitch, no people",a group of players competing in a soccer game,workers in high-visibility vests on a sports field,0.1813,0.0,0.0,0.1813
+3,"a deserted five-a-side pitch, no people",a group of players competing in a soccer game,workers in high-visibility vests on a sports field,0.179,0.0,0.0,0.179
+1,a vacant football field with no players,people playing football on a pitch,workers in high-visibility vests on a sports field,1.0,1.0,0.8256,0.1744
+5,an empty football pitch with nobody on it,a group of players competing in a soccer game,a few people walking across an empty pitch,0.1735,0.0,0.0,0.1735
+5,an unused artificial turf field,a group of players competing in a soccer game,a few people walking across an empty pitch,0.1735,0.0,0.0,0.1735
+5,an empty green sports field at night,a group of players competing in a soccer game,a few people walking across an empty pitch,0.1735,0.0,0.0,0.1735
+5,a vacant football field with no players,a group of players competing in a soccer game,a few people walking across an empty pitch,0.1735,0.0,0.0,0.1735
+5,an empty green sports field at night,footballers running on an artificial turf pitch,a few people walking across an empty pitch,0.7724,0.0,0.6,0.1724
+5,"a deserted five-a-side pitch, no people",a group of players competing in a soccer game,"a person standing on a pitch, not playing",0.1703,0.0,0.0,0.1703
+1,"a deserted five-a-side pitch, no people",a group of players competing in a soccer game,groundstaff maintaining a football pitch,0.1607,0.0,0.0,0.1607
+1,"a deserted five-a-side pitch, no people",a group of players competing in a soccer game,workers in high-visibility vests on a sports field,0.1607,0.0,0.0,0.1607
+1,"a deserted five-a-side pitch, no people",a group of players competing in a soccer game,maintenance machinery on an artificial turf field,0.1607,0.0,0.0,0.1607
+3,"a deserted five-a-side pitch, no people",a group of players competing in a soccer game,"a person standing on a pitch, not playing",0.1593,0.0,0.0,0.1593
+1,an empty green sports field at night,footballers running on an artificial turf pitch,"a person standing on a pitch, not playing",0.8305,0.2,0.6718,0.1587
+1,"a deserted five-a-side pitch, no people",a group of players competing in a soccer game,"a person standing on a pitch, not playing",0.1498,0.0,0.0,0.1498
+3,a vacant football field with no players,footballers running on an artificial turf pitch,"a person standing on a pitch, not playing",0.8242,0.2,0.6769,0.1473
+3,"a deserted five-a-side pitch, no people",a group of players competing in a soccer game,a few people walking across an empty pitch,0.1388,0.0,0.0,0.1388
+5,"a deserted five-a-side pitch, no people",a group of players competing in a soccer game,a few people walking across an empty pitch,0.1079,0.0,0.0,0.1079
+1,an empty football pitch with nobody on it,a group of players competing in a soccer game,a few people walking across an empty pitch,0.0873,0.0,0.0,0.0873
+1,"a deserted five-a-side pitch, no people",a group of players competing in a soccer game,a few people walking across an empty pitch,0.0873,0.0,0.0,0.0873
+1,an unused artificial turf field,a group of players competing in a soccer game,a few people walking across an empty pitch,0.0873,0.0,0.0,0.0873
+1,an empty green sports field at night,a group of players competing in a soccer game,a few people walking across an empty pitch,0.0873,0.0,0.0,0.0873
+1,a vacant football field with no players,a group of players competing in a soccer game,a few people walking across an empty pitch,0.0873,0.0,0.0,0.0873
+3,an empty football pitch with nobody on it,a five-a-side football match in progress,maintenance machinery on an artificial turf field,1.0,1.0,0.9231,0.0769
+3,a vacant football field with no players,a five-a-side football match in progress,maintenance machinery on an artificial turf field,1.0,1.0,0.9282,0.0718
+3,an empty green sports field at night,a five-a-side football match in progress,maintenance machinery on an artificial turf field,0.9977,0.9836,0.9282,0.0695
+1,a vacant football field with no players,a five-a-side football match in progress,maintenance machinery on an artificial turf field,1.0,1.0,0.9385,0.0615
+1,an empty green sports field at night,a five-a-side football match in progress,maintenance machinery on an artificial turf field,0.9953,0.9672,0.9385,0.0569
+1,an empty green sports field at night,footballers running on an artificial turf pitch,workers in high-visibility vests on a sports field,0.9096,0.4,0.8564,0.0532
+5,an empty green sports field at night,footballers running on an artificial turf pitch,"a person standing on a pitch, not playing",0.8504,0.4,0.8,0.0504
+3,a vacant football field with no players,footballers running on an artificial turf pitch,a few people walking across an empty pitch,0.7985,0.0,0.759,0.0396
+3,a vacant football field with no players,people playing football on a pitch,workers in high-visibility vests on a sports field,1.0,1.0,0.9846,0.0154
+3,an empty football pitch with nobody on it,a five-a-side football match in progress,groundstaff maintaining a football pitch,1.0,1.0,0.9949,0.0051
+3,an empty football pitch with nobody on it,a five-a-side football match in progress,workers in high-visibility vests on a sports field,1.0,1.0,0.9949,0.0051
+5,an empty football pitch with nobody on it,a five-a-side football match in progress,groundstaff maintaining a football pitch,1.0,1.0,0.9949,0.0051
+5,an empty football pitch with nobody on it,a five-a-side football match in progress,workers in high-visibility vests on a sports field,1.0,1.0,0.9949,0.0051
+5,an empty football pitch with nobody on it,a five-a-side football match in progress,maintenance machinery on an artificial turf field,1.0,1.0,0.9949,0.0051
+3,an empty football pitch with nobody on it,a five-a-side football match in progress,a few people walking across an empty pitch,0.9977,0.9836,0.9949,0.0028
+1,a vacant football field with no players,a five-a-side football match in progress,workers in high-visibility vests on a sports field,1.0,1.0,1.0,0.0
+1,a vacant football field with no players,a five-a-side football match in progress,"a person standing on a pitch, not playing",1.0,1.0,1.0,0.0
+3,a vacant football field with no players,a five-a-side football match in progress,groundstaff maintaining a football pitch,1.0,1.0,1.0,0.0
+3,a vacant football field with no players,a five-a-side football match in progress,workers in high-visibility vests on a sports field,1.0,1.0,1.0,0.0
+5,a vacant football field with no players,people playing football on a pitch,workers in high-visibility vests on a sports field,1.0,1.0,1.0,0.0
+5,a vacant football field with no players,a five-a-side football match in progress,groundstaff maintaining a football pitch,1.0,1.0,1.0,0.0
+5,a vacant football field with no players,a five-a-side football match in progress,workers in high-visibility vests on a sports field,1.0,1.0,1.0,0.0
+5,a vacant football field with no players,a five-a-side football match in progress,maintenance machinery on an artificial turf field,1.0,1.0,1.0,0.0
+3,an empty green sports field at night,a five-a-side football match in progress,groundstaff maintaining a football pitch,0.9977,0.9836,1.0,-0.0023
+3,an empty green sports field at night,a five-a-side football match in progress,workers in high-visibility vests on a sports field,0.9977,0.9836,1.0,-0.0023
+3,a vacant football field with no players,a five-a-side football match in progress,a few people walking across an empty pitch,0.9977,0.9836,1.0,-0.0023
+5,an empty green sports field at night,a five-a-side football match in progress,groundstaff maintaining a football pitch,0.9977,0.9836,1.0,-0.0023
+5,an empty green sports field at night,a five-a-side football match in progress,workers in high-visibility vests on a sports field,0.9977,0.9836,1.0,-0.0023
+5,an empty green sports field at night,a five-a-side football match in progress,maintenance machinery on an artificial turf field,0.9977,0.9836,1.0,-0.0023
+1,an empty green sports field at night,a five-a-side football match in progress,workers in high-visibility vests on a sports field,0.9953,0.9672,1.0,-0.0047
+1,an empty green sports field at night,a five-a-side football match in progress,"a person standing on a pitch, not playing",0.9953,0.9672,1.0,-0.0047
+3,an empty green sports field at night,a five-a-side football match in progress,a few people walking across an empty pitch,0.9953,0.9672,1.0,-0.0047
+5,an empty football pitch with nobody on it,a five-a-side football match in progress,a few people walking across an empty pitch,0.9867,0.9231,0.9949,-0.0082
+1,a vacant football field with no players,a five-a-side football match in progress,groundstaff maintaining a football pitch,0.989,0.9231,1.0,-0.011
+1,a vacant football field with no players,a five-a-side football match in progress,a few people walking across an empty pitch,0.9867,0.9231,1.0,-0.0133
+5,a vacant football field with no players,a five-a-side football match in progress,a few people walking across an empty pitch,0.9867,0.9231,1.0,-0.0133
+1,an empty green sports field at night,a five-a-side football match in progress,groundstaff maintaining a football pitch,0.9843,0.9231,1.0,-0.0157
+5,an empty green sports field at night,a five-a-side football match in progress,a few people walking across an empty pitch,0.9843,0.9231,1.0,-0.0157
+5,an empty football pitch with nobody on it,a five-a-side football match in progress,"a person standing on a pitch, not playing",0.978,0.8462,0.9949,-0.0168
+1,an empty green sports field at night,a five-a-side football match in progress,a few people walking across an empty pitch,0.982,0.9231,1.0,-0.018
+3,an empty football pitch with nobody on it,a five-a-side football match in progress,"a person standing on a pitch, not playing",0.9757,0.8462,0.9949,-0.0192
+5,a vacant football field with no players,a five-a-side football match in progress,"a person standing on a pitch, not playing",0.978,0.8462,1.0,-0.022
+3,a vacant football field with no players,a five-a-side football match in progress,"a person standing on a pitch, not playing",0.9757,0.8462,1.0,-0.0243
+5,an empty green sports field at night,a five-a-side football match in progress,"a person standing on a pitch, not playing",0.9757,0.8462,1.0,-0.0243
+3,an empty green sports field at night,a five-a-side football match in progress,"a person standing on a pitch, not playing",0.9733,0.8462,1.0,-0.0267
+3,an empty green sports field at night,footballers running on an artificial turf pitch,"a person standing on a pitch, not playing",0.8218,0.2,0.8769,-0.0551
+3,an empty green sports field at night,footballers running on an artificial turf pitch,workers in high-visibility vests on a sports field,0.9119,0.4,0.9744,-0.0624
+5,an empty green sports field at night,footballers running on an artificial turf pitch,workers in high-visibility vests on a sports field,0.9119,0.4,0.9744,-0.0624
+5,an empty green sports field at night,footballers running on an artificial turf pitch,groundstaff maintaining a football pitch,0.901,0.4,0.9692,-0.0683
+3,an empty green sports field at night,footballers running on an artificial turf pitch,groundstaff maintaining a football pitch,0.901,0.4,0.9744,-0.0734
+3,an empty green sports field at night,footballers running on an artificial turf pitch,a few people walking across an empty pitch,0.7962,0.0,0.9385,-0.1423
