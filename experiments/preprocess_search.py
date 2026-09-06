@@ -35,6 +35,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import time
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -131,6 +132,32 @@ def candidates(base: PreprocessConfig, used: set[str]) -> list[tuple[str, Prepro
     return out
 
 
+class SearchLock:
+    """A crude lock file, because concurrent searches silently corrupt the results.
+
+    `save_state` rewrites the whole file, so two runs overwrite each other's entries and
+    the survivor is a mixture. That happened: three searches ran at once - two subsampled,
+    one full-size - and the resulting state held evaluations scored on different frame
+    counts, indistinguishable from one another.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    def __enter__(self) -> "SearchLock":
+        if self.path.exists():
+            pid = self.path.read_text(encoding="utf-8").strip()
+            raise SystemExit(
+                f"another search already holds {self.path.name} (pid {pid}). "
+                f"Stop it first, or delete the lock if it is stale."
+            )
+        self.path.write_text(str(os.getpid()), encoding="utf-8")
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.path.unlink(missing_ok=True)
+
+
 def load_state() -> dict:
     if OUT_JSON.exists():
         return json.loads(OUT_JSON.read_text(encoding="utf-8"))
@@ -192,8 +219,19 @@ def main() -> int:
         return 0
 
     state = load_state()
-    done = {(e["model"], e["hash"]) for e in state["evaluations"]}
+    prior = {e.get("n_frames") for e in state["evaluations"] if e.get("n_frames")}
+    if prior and prior != {len(rows)}:
+        raise SystemExit(
+            f"{OUT_JSON.name} holds evaluations scored on {sorted(prior)} frames, but this "
+            f"run uses {len(rows)}. Scores from different frame counts are not comparable. "
+            f"Move the existing file aside and start fresh."
+        )
 
+    with SearchLock(RESULTS / ".preprocess_search.lock"):
+        return _search(args, rows, folds, state)
+
+
+def _search(args, rows, folds, state: dict) -> int:
     for backbone in args.models:
         print(f"\n{'=' * 60}\n{backbone}\n{'=' * 60}")
         base = PreprocessConfig()
@@ -202,7 +240,9 @@ def main() -> int:
         def evaluate(cfg: PreprocessConfig, label: str, round_no: int) -> dict:
             h = config_hash(cfg)
             cached = next(
-                (e for e in state["evaluations"] if e["model"] == backbone and e["hash"] == h),
+                (e for e in state["evaluations"]
+                 if e["model"] == backbone and e["hash"] == h
+                 and e.get("n_frames") == len(rows)),
                 None,
             )
             if cached:
@@ -211,6 +251,7 @@ def main() -> int:
             metrics = score(rows, embed(rows, cfg, backbone), folds)
             entry = {
                 "model": backbone,
+                "n_frames": len(rows),  # mixing frame counts makes results incomparable
                 "hash": h,
                 "label": label,
                 "round": round_no,
