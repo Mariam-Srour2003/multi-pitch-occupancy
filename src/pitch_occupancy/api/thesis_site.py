@@ -16,7 +16,9 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-from pitch_occupancy.api.diagrams import DIAGRAM_STYLES, blocked_questions, confound_matrix, pipeline, protocols
+from pitch_occupancy.api.diagrams import (
+    DIAGRAM_STYLES, blocked_questions, confound_matrix, pipeline, protocols, schema,
+)
 from pitch_occupancy.api.markdown import render
 from pitch_occupancy.api.models_view import STYLES as MODEL_STYLES
 from pitch_occupancy.api.models_view import render as render_models
@@ -33,6 +35,7 @@ DOCUMENTS = {
     "prereg": ("Pre-registration", THESIS / "preregistration.md"),
     "questions": ("Questions", THESIS / "rq_matrix.md"),
     "dataset": ("Dataset", DOCS / "data_layout.md"),
+    "database": ("Database", DOCS / "DATABASE.md"),
     "code": ("Code", DOCS / "CODEBASE.md"),
     "ideas": ("Ideas", DOCS / "IDEAS.md"),
     "ethics": ("Ethics", THESIS / "ethics.md"),
@@ -45,6 +48,7 @@ LEADS = {
     "findings": lambda: protocols() + pipeline(),
     "dataset": confound_matrix,
     "questions": blocked_questions,
+    "database": schema,
 }
 
 

@@ -186,7 +186,7 @@ def test_models_view_marks_the_clock_rule_as_using_no_pixels(client) -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["confound_matrix", "blocked_questions", "pipeline", "protocols"]
+    "name", ["confound_matrix", "blocked_questions", "pipeline", "protocols", "schema"]
 )
 def test_every_diagram_stays_inside_its_viewbox(name) -> None:
     """Content drawn past the viewBox is clipped, and clipping is invisible in code."""
@@ -204,7 +204,7 @@ def test_every_diagram_stays_inside_its_viewbox(name) -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["confound_matrix", "blocked_questions", "pipeline", "protocols"]
+    "name", ["confound_matrix", "blocked_questions", "pipeline", "protocols", "schema"]
 )
 def test_every_diagram_is_captioned_and_labelled(name) -> None:
     """A diagram nobody can read is worse than a sentence."""
@@ -243,3 +243,29 @@ def test_diagrams_lead_the_tabs_they_explain(client) -> None:
     html = client.get("/").text
     assert html.count("<svg") >= 4
     assert html.count("<figcaption>") >= 4
+
+
+def test_schema_diagram_shows_live_row_counts() -> None:
+    """A schema picture that does not match the database is worse than none."""
+    from pitch_occupancy.api.diagrams import DB_PATH, schema
+
+    if not DB_PATH.exists():
+        pytest.skip("no database seeded")
+    svg = schema()
+    assert "frame_samples" in svg
+    assert "rows</text>" in svg
+
+
+def test_schema_diagram_survives_a_missing_database(monkeypatch, tmp_path) -> None:
+    from pitch_occupancy.api import diagrams
+
+    monkeypatch.setattr(diagrams, "DB_PATH", tmp_path / "absent.db")
+    svg = diagrams.schema()
+    assert "frame_samples" in svg  # structure still drawn
+    assert "rows</text>" not in svg  # but no counts invented
+
+
+def test_database_tab_is_present(client) -> None:
+    html = client.get("/").text
+    assert 'data-view="database"' in html
+    assert "Database" in html

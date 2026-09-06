@@ -18,7 +18,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 MANIFEST = ROOT / "data" / "processed" / "manifest.csv"
 
-__all__ = ["confound_matrix", "blocked_questions", "pipeline", "protocols", "DIAGRAM_STYLES"]
+__all__ = ["confound_matrix", "blocked_questions", "pipeline", "protocols", "schema",
+           "DIAGRAM_STYLES"]
 
 DIAGRAM_STYLES = """
 figure{margin:20px 0}
@@ -246,4 +247,91 @@ def protocols() -> str:
 <figcaption>The protocols disagree because they partition differently, not because one is
 noisier. Shuffling puts frames sampled seconds apart on both sides; holding out whole
 venues is the only cut that asks whether the model transfers.</figcaption>
+</figure>"""
+
+
+DB_PATH = ROOT / "data" / "db" / "pitch_monitor.db"
+
+
+def _table_counts() -> dict[str, int]:
+    """Live row counts, so the diagram shows the database that exists."""
+    if not DB_PATH.exists():
+        return {}
+    import sqlite3
+
+    try:
+        conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+        names = [
+            r[0] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name NOT LIKE 'sqlite_%'"
+            )
+        ]
+        return {n: conn.execute(f"SELECT COUNT(*) FROM {n}").fetchone()[0] for n in names}
+    except sqlite3.Error:
+        return {}
+    finally:
+        try:
+            conn.close()
+        except (NameError, sqlite3.Error):
+            pass
+
+
+def schema() -> str:
+    """The three layers a verdict has to connect, and the rows joining them.
+
+    The claim: an auditable verdict needs the estate it came from, the observations behind
+    it, and the record it disagreed with - and the schema exists to keep those linked.
+    Drawn in layers because the layering is the argument; an entity-relationship sketch of
+    the same tables would show the joins and hide the reason for them.
+    """
+    counts = _table_counts()
+
+    def box(x, y, w, name, sub, *, accent=False):
+        n = counts.get(name)
+        fill = 'fill="var(--accent)" opacity="0.1"' if accent else 'class="dg-box"'
+        stroke = ' stroke="var(--accent)" stroke-width="1.4"' if accent else ""
+        badge = (
+            f'<text class="dg-s" x="{x + w - 12}" y="{y + 20}" text-anchor="end">{n} rows</text>'
+            if n is not None else ""
+        )
+        return (
+            f'<rect x="{x}" y="{y}" width="{w}" height="46" rx="7" {fill}{stroke}/>'
+            f'<text class="dg-t" x="{x + 13}" y="{y + 21}">{name}</text>'
+            f'<text class="dg-s" x="{x + 13}" y="{y + 36}">{sub}</text>{badge}'
+        )
+
+    lanes = [
+        (34, "the estate", [("venues", "facility", 150), ("fields", "a pitch", 150),
+                            ("cameras", "two per field", 178)]),
+        (140, "what was observed", [("rental_slots", "the schedule", 178),
+                                    ("frame_samples", "one row per camera-minute", 300)]),
+        (246, "what was decided", [("slot_evaluations", "verdict + override", 246),
+                                   ("bookings", "what records claim", 232)]),
+        (352, "what disagreed", [("reconciliations", "typed anomalies", 246)]),
+    ]
+    body, w = "", 860
+    for y, lane, boxes in lanes:
+        body += f'<text class="dg-s" x="20" y="{y + 27}">{lane}</text>'
+        x = 176
+        for name, sub, bw in boxes:
+            body += box(x, y, bw, name, sub, accent=name in ("frame_samples", "reconciliations"))
+            x += bw + 22
+    links = "".join(
+        f'<path class="dg-line" d="M {x} {y1} L {x} {y2}" marker-end="url(#ar3)"/>'
+        for x, y1, y2 in ((250, 80, 140), (400, 186, 246), (300, 292, 352))
+    )
+    h = 424
+    return f"""<figure>
+<svg viewBox="0 0 {w} {h}" role="img"
+  aria-label="Database schema in four layers: the physical estate, the observations, the
+  decisions and bookings, and the reconciliation outcomes.">
+  <defs><marker id="ar3" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7"
+    orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor" opacity="0.55"/></marker></defs>
+  {body}{links}
+  <text class="dg-s" x="20" y="{h - 12}">row counts are live from the seeded database</text>
+</svg>
+<figcaption>The schema exists to keep a verdict connected to its evidence. The highlighted
+tables are the two that make it auditable: every sampled minute behind a decision, and every
+disagreement with the booking record.</figcaption>
 </figure>"""
