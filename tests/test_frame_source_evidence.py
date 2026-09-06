@@ -167,8 +167,10 @@ def test_discovers_and_pairs_slot_recordings(tmp_path: Path) -> None:
         (tmp_path / name).write_bytes(b"")
     slots = discover_slots(tmp_path)
     assert set(slots) == {"slot_20260711_1000", "slot_20260712_2030"}
-    assert set(slots["slot_20260711_1000"]) == {"camA", "camB"}
-    assert set(slots["slot_20260712_2030"]) == {"camA"}
+    # file0/file1, not camA/camB - the `(1)` suffix flips between recording days, so it
+    # identifies a file, never a physical camera. See test_camera_id.py.
+    assert set(slots["slot_20260711_1000"]) == {"file0", "file1"}
+    assert set(slots["slot_20260712_2030"]) == {"file0"}
 
 
 def test_unrecognised_filenames_are_ignored(tmp_path: Path) -> None:

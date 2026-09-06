@@ -152,11 +152,18 @@ class RTSPSource(FrameSource):
 
 
 def discover_slots(directory: Path) -> dict[str, dict[str, Path]]:
-    """Group recordings into ``slot_id -> {camera_id: path}``.
+    """Group recordings into ``slot_id -> {file_key: path}``.
 
-    The export convention marks the second camera of a slot with a ``(1)`` suffix; the A/B
-    to physical-view mapping is *not* stable across days, so cameras are keyed per slot
-    rather than globally.
+    Keys are ``file0`` / ``file1``, **not** ``camA`` / ``camB``. The export marks a slot's
+    second recording with a ``(1)`` suffix, but that suffix does not identify a physical
+    camera: measured on the venue_01 recordings, ``file0`` of the morning slot matches
+    ``file1`` of the evening slot (view similarity 0.88) and not its own-suffix counterpart
+    (0.70). The mapping flips between days.
+
+    Naming these ``camA``/``camB`` would therefore be wrong on one day in two - and wrong
+    invisibly, because fusion still yields a plausible verdict from swapped halves. To
+    resolve real camera identity, describe each recording with
+    :func:`pitch_occupancy.vision.camera_id.describe_view` and match it against references.
     """
     slots: dict[str, dict[str, Path]] = {}
     for path in sorted(directory.glob("*.mp4")):
@@ -164,6 +171,6 @@ def discover_slots(directory: Path) -> dict[str, dict[str, Path]]:
         if not m:
             continue
         slot_id = f"slot_{m['d'].replace('-', '')}_{m['t'].replace('-', '')}"
-        camera = "camB" if "(1)" in path.stem else "camA"
-        slots.setdefault(slot_id, {})[camera] = path
+        file_key = "file1" if "(1)" in path.stem else "file0"
+        slots.setdefault(slot_id, {})[file_key] = path
     return slots

@@ -440,3 +440,38 @@ Two honest notes for the write-up:
 - The `ch`-alone fold recall (0.667 for DINOv2 in the main run) vs `ch`-within-merged
   (~0.875) differs by ~4 frames on an 18-frame fold — small-n noise territory. Another
   reason the per-fold table, not the worst single fold, should carry the claim.
+
+---
+
+## 2026-09-06 - Camera identity: the `(1)` suffix flips between days (confirmed)
+
+`src/pitch_occupancy/vision/camera_id.py` | measured on the four venue_01 recordings
+
+The review-session notes warned that the `(1)` filename suffix does not map to a stable
+physical camera. Measured with a lighting-invariant view descriptor - median background,
+CLAHE, gradient magnitude, downscaled and L2-normalised - it is confirmed:
+
+| pair | similarity | |
+|---|---|---|
+| `day_base` <-> `night_(1)` | **0.883** | same physical view |
+| `day_(1)` <-> `night_base` | **0.878** | same physical view |
+| `day_(1)` <-> `day_base` | 0.758 | two halves, same day |
+| `day_base` <-> `night_base` | 0.700 | two halves, different days |
+| `day_(1)` <-> `night_(1)` | 0.578 | two halves, different days |
+| `night_(1)` <-> `night_base` | 0.537 | two halves, same night |
+
+Same-view-across-days (0.878-0.883) separates cleanly from different-view (0.537-0.758),
+so the descriptor survives the day/night change that would defeat raw pixel matching.
+
+**This was a live latent bug.** `discover_slots()` assigned `camB` from the suffix alone,
+which is correct on one recording day and wrong on the other. Nothing would have raised:
+swapped halves still fuse into a plausible verdict, and the maximum-activity fusion rule is
+symmetric, so the error only surfaces once per-camera behaviour matters - ROI polygons,
+camera-health baselines, or any claim about which half play occurred on.
+
+Fixed by refusing to claim what the filename cannot support: `discover_slots()` now returns
+`file0`/`file1`, and physical identity comes from matching view descriptors against
+references. `match_cameras()` assigns greedily over the full similarity matrix so each
+reference is used once - a per-recording argmax could hand both halves of a pitch to the
+same camera - and leaves a poor match unassigned rather than forcing it, because an obvious
+gap beats a silently swapped half.
