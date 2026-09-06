@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-06T16:47:51+00:00",
+  "generated": "2026-09-06T16:52:00+00:00",
   "evaluations": [
     {
       "model": "convnextv2",
@@ -23,7 +23,7 @@
         "blur_sigma": 0.0
       },
       "describe": "baseline",
-      "seconds": 3.3,
+      "seconds": 65.0,
       "play_recall": 0.9484,
       "worst_fold": 0.75,
       "false_play": 0.0
@@ -50,7 +50,7 @@
         "blur_sigma": 0.0
       },
       "describe": "undistort=0.15",
-      "seconds": 1.3,
+      "seconds": 72.8,
       "play_recall": 0.9484,
       "worst_fold": 0.75,
       "false_play": 0.0
@@ -77,9 +77,36 @@
         "blur_sigma": 0.0
       },
       "describe": "undistort=0.3",
-      "seconds": 1.1,
+      "seconds": 72.4,
       "play_recall": 0.8852,
       "worst_fold": 0.5714,
+      "false_play": 0.0
+    },
+    {
+      "model": "convnextv2",
+      "hash": "4e6fe11d1e94",
+      "label": "roi=True",
+      "round": 1,
+      "config": {
+        "size": 224,
+        "undistort": 0.0,
+        "roi": true,
+        "centre_crop": 1.0,
+        "top_crop": 0.0,
+        "letterbox": true,
+        "per_image_standardise": false,
+        "clahe": "off",
+        "clahe_contrast_below": 40.0,
+        "gamma": 1.0,
+        "saturation": 1.0,
+        "denoise": 0.0,
+        "sharpen": 0.0,
+        "blur_sigma": 0.0
+      },
+      "describe": "roi=True",
+      "seconds": 59.6,
+      "play_recall": 0.9484,
+      "worst_fold": 0.75,
       "false_play": 0.0
     },
     {
@@ -104,7 +131,7 @@
         "blur_sigma": 0.0
       },
       "describe": "centre_crop=0.5",
-      "seconds": 1.6,
+      "seconds": 58.3,
       "play_recall": 0.9133,
       "worst_fold": 0.6786,
       "false_play": 0.0
@@ -131,7 +158,7 @@
         "blur_sigma": 0.0
       },
       "describe": "centre_crop=0.7",
-      "seconds": 1.2,
+      "seconds": 59.0,
       "play_recall": 0.9643,
       "worst_fold": 0.75,
       "false_play": 0.0
@@ -158,7 +185,7 @@
         "blur_sigma": 0.0
       },
       "describe": "top_crop=0.2",
-      "seconds": 93.7,
+      "seconds": 72.1,
       "play_recall": 1.0,
       "worst_fold": 1.0,
       "false_play": 0.0
@@ -185,7 +212,7 @@
         "blur_sigma": 0.0
       },
       "describe": "top_crop=0.35",
-      "seconds": 84.5,
+      "seconds": 84.6,
       "play_recall": 0.9345,
       "worst_fold": 0.6667,
       "false_play": 0.0
@@ -212,7 +239,7 @@
         "blur_sigma": 0.0
       },
       "describe": "letterbox=False",
-      "seconds": 93.8,
+      "seconds": 86.5,
       "play_recall": 0.7917,
       "worst_fold": 0.375,
       "false_play": 0.0
@@ -239,7 +266,7 @@
         "blur_sigma": 0.0
       },
       "describe": "per_image_standardise=True",
-      "seconds": 163.8,
+      "seconds": 161.2,
       "play_recall": 0.9949,
       "worst_fold": 0.9643,
       "false_play": 0.0
@@ -266,7 +293,7 @@
         "blur_sigma": 0.0
       },
       "describe": "clahe=on",
-      "seconds": 103.1,
+      "seconds": 116.4,
       "play_recall": 0.9841,
       "worst_fold": 0.8889,
       "false_play": 0.0
@@ -293,7 +320,7 @@
         "blur_sigma": 0.0
       },
       "describe": "clahe=auto",
-      "seconds": 122.4,
+      "seconds": 108.9,
       "play_recall": 0.9765,
       "worst_fold": 0.8889,
       "false_play": 0.0
@@ -320,9 +347,90 @@
         "blur_sigma": 0.0
       },
       "describe": "gamma=0.7",
-      "seconds": 103.5,
+      "seconds": 115.7,
       "play_recall": 0.9841,
       "worst_fold": 0.8889,
+      "false_play": 0.0
+    },
+    {
+      "model": "convnextv2",
+      "hash": "b6d1f25499e0",
+      "label": "gamma=1.4",
+      "round": 1,
+      "config": {
+        "size": 224,
+        "undistort": 0.0,
+        "roi": false,
+        "centre_crop": 1.0,
+        "top_crop": 0.0,
+        "letterbox": true,
+        "per_image_standardise": false,
+        "clahe": "off",
+        "clahe_contrast_below": 40.0,
+        "gamma": 1.4,
+        "saturation": 1.0,
+        "denoise": 0.0,
+        "sharpen": 0.0,
+        "blur_sigma": 0.0
+      },
+      "describe": "gamma=1.4",
+      "seconds": 92.6,
+      "play_recall": 0.9643,
+      "worst_fold": 0.75,
+      "false_play": 0.0
+    },
+    {
+      "model": "convnextv2",
+      "hash": "77d75335572e",
+      "label": "saturation=0.0",
+      "round": 1,
+      "config": {
+        "size": 224,
+        "undistort": 0.0,
+        "roi": false,
+        "centre_crop": 1.0,
+        "top_crop": 0.0,
+        "letterbox": true,
+        "per_image_standardise": false,
+        "clahe": "off",
+        "clahe_contrast_below": 40.0,
+        "gamma": 1.0,
+        "saturation": 0.0,
+        "denoise": 0.0,
+        "sharpen": 0.0,
+        "blur_sigma": 0.0
+      },
+      "describe": "saturation=0.0",
+      "seconds": 88.9,
+      "play_recall": 0.8146,
+      "worst_fold": 0.2857,
+      "false_play": 0.0
+    },
+    {
+      "model": "convnextv2",
+      "hash": "410fda2c48ba",
+      "label": "saturation=0.5",
+      "round": 1,
+      "config": {
+        "size": 224,
+        "undistort": 0.0,
+        "roi": false,
+        "centre_crop": 1.0,
+        "top_crop": 0.0,
+        "letterbox": true,
+        "per_image_standardise": false,
+        "clahe": "off",
+        "clahe_contrast_below": 40.0,
+        "gamma": 1.0,
+        "saturation": 0.5,
+        "denoise": 0.0,
+        "sharpen": 0.0,
+        "blur_sigma": 0.0
+      },
+      "describe": "saturation=0.5",
+      "seconds": 118.0,
+      "play_recall": 0.9643,
+      "worst_fold": 0.75,
       "false_play": 0.0
     }
   ],

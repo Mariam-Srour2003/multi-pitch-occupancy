@@ -41,6 +41,8 @@ results/sheets/
 # and the audit becomes an unsupported claim.
 !results/figs/venue_check/
 !results/figs/venue_check/*.jpg
+# the search viewer is generated output, like the figures
+!results/*.html
 
 # ---------------------------------------------------------------------------
 # Python
