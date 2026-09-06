@@ -57,21 +57,21 @@ external clock you don't control.
 The RQs exist in the thesis-plan docx but were dropped from `SUPER_PLAN.md`, and no experiment is
 tagged with the question it answers. Fix that first — it is what turns a build log into a thesis.
 
-- [ ] **1.1 Copy RQ1–RQ5 into `SUPER_PLAN.md` §0.5** verbatim from the thesis-plan docx §1.3.
-- [ ] **1.2 ★ Build an RQ traceability matrix** → `thesis/rq_matrix.md`: one row per experiment
-      (`WPx-Ty`), columns = RQ answered · hypothesis · primary metric · test · result file · figure ·
-      thesis section. Every experiment must map to at least one RQ. **Anything that maps to no RQ is
-      either a missing RQ or scope you should cut** — this matrix is the cheapest scope-control tool
-      you have.
-- [ ] **1.3 ★ Add RQ6 (recommended).** The current five RQs never ask the *operational* question a
+- [x] **1.1 RQ1-RQ5 copied into `SUPER_PLAN.md` §0.5**, with RQ6 and RQ7 added.
+- [x] **1.2 ★ RQ traceability matrix** → `thesis/rq_matrix.md`. RQ1, RQ2, RQ3 and RQ7 now have
+      evidence; RQ4, RQ5 and RQ6 are open. No experiment is unmapped. **It already earned its
+      keep: RQ2's answer overturns the pilot's production choice** — latency is not the binding
+      constraint, so the pick falls to accuracy under honest evaluation, which is DINOv2.
+- [x] **1.3 ★ RQ6 added.** The current five RQs never ask the *operational* question a
       facility manager actually cares about: *"How much human review must be budgeted to reach a
       given verdict reliability?"* Phrase as: **RQ6 — What is the achievable trade-off between
       automated-verdict precision and REVIEW rate, and where is the operating point that maximises
       recovered revenue per hour of human review?** This is answered by WP4-T9 and WP6-T10 below and
       is one of the more publishable angles in the whole project.
-- [ ] **1.4 ★ Add RQ7 (recommended).** *Do deep frozen backbones actually earn their cost over
-      trivial baselines on this task?* Answered by WP4-T10. Sounds like a small question; it is the
-      first thing a sharp examiner will ask.
+- [x] **1.4 ★ RQ7 added — and answered.** Conditionally: *within* a confounded venue the deep
+      backbones do **not** earn their cost (a clock rule matches two of three; a colour histogram
+      beats them). *Across* venues they emphatically do. Exactly the question a sharp examiner
+      asks first, now with a two-sided answer.
 
 ---
 
