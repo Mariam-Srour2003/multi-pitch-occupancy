@@ -80,3 +80,6 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    "slow: touches a real backbone or real footage; excluded from the fast loop",
+]

@@ -45,6 +45,39 @@ def info() -> None:
         typer.echo(f"  [{mark}] {label:<14} {path}")
 
 
+@app.command("cache")
+def build_cache_cmd(
+    backbones: list[str] = typer.Argument(None, help="Defaults to all registered backbones."),
+    batch_size: int = typer.Option(16, help="Frames per forward pass."),
+    threads: int = typer.Option(0, help="torch CPU threads; 0 leaves the default."),
+) -> None:
+    """Embed every manifest frame once per backbone into data/cache (WP0-T5)."""
+    import time
+
+    import torch
+
+    from pitch_occupancy.data.feature_cache import build_cache
+    from pitch_occupancy.data.manifest import read_manifest
+    from pitch_occupancy.vision.backbones import BACKBONES
+
+    if threads:
+        torch.set_num_threads(threads)
+    rows = read_manifest(settings.dataset_dir / "manifest.csv")
+    chosen = backbones or sorted(BACKBONES)
+    typer.echo(f"{len(rows)} frames x {len(chosen)} backbone(s)\n")
+
+    for key in chosen:
+        t0 = time.perf_counter()
+        cached = build_cache(
+            rows, key, settings.dataset_dir, settings.feature_cache_dir, batch_size=batch_size
+        )
+        dt = time.perf_counter() - t0
+        typer.echo(
+            f"  {key:<12} {len(cached):>5} x {cached.dim:<5} "
+            f"{dt:>6.0f}s  ({dt / max(len(cached), 1) * 1000:.0f} ms/frame)"
+        )
+
+
 @app.command("extract-clips")
 def extract_clips_cmd(
     per_clip: int = typer.Option(6, help="Frames sampled from each clip's middle 80%."),
