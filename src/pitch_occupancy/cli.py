@@ -45,6 +45,22 @@ def info() -> None:
         typer.echo(f"  [{mark}] {label:<14} {path}")
 
 
+@app.command("seed")
+def seed_cmd() -> None:
+    """Fill the database from the real recorded slots, so the dashboard has data (WP6)."""
+    from pitch_occupancy.db.seed import seed
+
+    verdicts = seed()
+    if not verdicts:
+        typer.secho("no slot recordings found in the manifest", fg=typer.colors.RED)
+        raise typer.Exit(1)
+    for slot, status in sorted(verdicts.items()):
+        typer.echo(f"  {slot:<32} {status}")
+    typer.echo("")
+    typer.echo(f"wrote {settings.db_path}")
+    typer.secho("open http://127.0.0.1:8000/ after `pitch serve`", fg=typer.colors.GREEN)
+
+
 @app.command("coverage")
 def coverage_cmd(
     out: Path | None = typer.Option(None, help="Defaults to results/coverage.md."),
