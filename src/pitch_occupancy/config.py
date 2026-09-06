@@ -48,12 +48,15 @@ class Settings(BaseSettings):
     source_type: SourceType = SourceType.VIDEO_SIM
     sample_interval_s: int = 60
 
-    # paths
+    # paths - see docs/data_layout.md for what belongs in each
     data_dir: Path = DATA_DIR
     results_dir: Path = RESULTS_DIR
-    dataset_dir: Path = DATA_DIR / "dataset"
+    raw_dir: Path = DATA_DIR / "raw"  # immutable source footage
+    interim_dir: Path = DATA_DIR / "interim"  # extracted, not yet labelled
+    dataset_dir: Path = DATA_DIR / "processed"  # the labelled dataset
+    reference_dir: Path = DATA_DIR / "reference"  # annotated screenshots
     db_path: Path = DATA_DIR / "db" / "pitch_monitor.db"
-    evidence_dir: Path = DATA_DIR / "evidence_cache"
+    evidence_dir: Path = DATA_DIR / "evidence"
     feature_cache_dir: Path = DATA_DIR / "cache"
 
     # slot aggregation baseline (see docstring)

@@ -34,10 +34,12 @@ def info() -> None:
     typer.echo(f"  random seed   : {settings.random_seed}")
     typer.echo("")
     for label, path in (
-        ("data", settings.data_dir),
-        ("dataset", settings.dataset_dir),
-        ("results", settings.results_dir),
+        ("raw footage", settings.raw_dir),
+        ("interim", settings.interim_dir),
+        ("processed", settings.dataset_dir),
+        ("reference", settings.reference_dir),
         ("feature cache", settings.feature_cache_dir),
+        ("results", settings.results_dir),
     ):
         mark = "ok     " if path.exists() else "missing"
         typer.echo(f"  [{mark}] {label:<14} {path}")
