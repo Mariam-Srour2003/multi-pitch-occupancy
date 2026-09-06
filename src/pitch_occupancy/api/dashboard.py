@@ -56,7 +56,8 @@ header{border-bottom:1px solid var(--line);background:var(--surface)}
   gap:14px;flex-wrap:wrap}
 .brand{font-weight:700;letter-spacing:-.01em}.brand span{color:var(--accent)}
 .hin .sub{color:var(--ink-3);font-size:13px}
-.hin a{margin-left:auto;color:var(--accent);font-size:13px;text-decoration:none}
+.hin a{color:var(--accent);font-size:13px;text-decoration:none}
+.hin a:first-of-type{margin-left:auto}
 main{max-width:1080px;margin:0 auto;padding:26px 24px 70px}
 h2{font-size:17px;margin:30px 0 4px;font-weight:600;letter-spacing:-.01em}
 .sub2{color:var(--ink-2);font-size:13px;margin:0 0 14px}
@@ -117,7 +118,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 <header><div class="hin">
   <div class="brand">Pitch Occupancy<span>.</span></div>
   <div class="sub">Operator dashboard</div>
-  <a href="/docs">API docs &rarr;</a>
+  <a href="/">&larr; Thesis</a><a href="/docs" style="margin-left:14px">API docs &rarr;</a>
 </div></header>
 
 <main>
