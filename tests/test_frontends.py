@@ -180,3 +180,66 @@ def test_models_view_marks_the_clock_rule_as_using_no_pixels(client) -> None:
     from pitch_occupancy.api.models_view import render as render_models
 
     assert "never the pixels" in render_models()
+
+
+# --- diagrams ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "name", ["confound_matrix", "blocked_questions", "pipeline", "protocols"]
+)
+def test_every_diagram_stays_inside_its_viewbox(name) -> None:
+    """Content drawn past the viewBox is clipped, and clipping is invisible in code."""
+    from pitch_occupancy.api import diagrams
+
+    svg = getattr(diagrams, name)()
+    if not svg:
+        pytest.skip("diagram needs data that is not present")
+    vb = [float(x) for x in re.search(r'viewBox="([^"]+)"', svg).group(1).split()]
+    rects = re.findall(r'x="([-\d.]+)"[^>]*width="([-\d.]+)"', svg)
+    rightmost = max((float(x) + float(w) for x, w in rects), default=0.0)
+    lowest = max((float(m) for m in re.findall(r'y="([-\d.]+)"', svg)), default=0.0)
+    assert rightmost <= vb[2], f"{name} draws to x={rightmost} past {vb[2]}"
+    assert lowest <= vb[3], f"{name} draws to y={lowest} past {vb[3]}"
+
+
+@pytest.mark.parametrize(
+    "name", ["confound_matrix", "blocked_questions", "pipeline", "protocols"]
+)
+def test_every_diagram_is_captioned_and_labelled(name) -> None:
+    """A diagram nobody can read is worse than a sentence."""
+    from pitch_occupancy.api import diagrams
+
+    svg = getattr(diagrams, name)()
+    if not svg:
+        pytest.skip("diagram needs data that is not present")
+    assert 'role="img"' in svg
+    assert "aria-label=" in svg
+    assert "<figcaption>" in svg
+    assert svg.count("<svg") == svg.count("</svg>") == 1
+
+
+def test_confound_diagram_reads_the_real_manifest() -> None:
+    """It must show the dataset's actual shape, not an illustration of it."""
+    from pitch_occupancy.api.diagrams import MANIFEST, confound_matrix
+
+    if not MANIFEST.exists():
+        pytest.skip("no manifest")
+    svg = confound_matrix()
+    # per-cell counts, not class totals - the split across lighting is the whole finding
+    assert ">485<" in svg  # empty, daylight
+    assert ">9<" in svg  # empty, floodlit - the near-absent cell
+    assert ">970<" in svg  # active play, floodlit
+
+
+def test_confound_diagram_degrades_when_there_is_no_manifest(monkeypatch, tmp_path) -> None:
+    from pitch_occupancy.api import diagrams
+
+    monkeypatch.setattr(diagrams, "MANIFEST", tmp_path / "absent.csv")
+    assert diagrams.confound_matrix() == ""
+
+
+def test_diagrams_lead_the_tabs_they_explain(client) -> None:
+    html = client.get("/").text
+    assert html.count("<svg") >= 4
+    assert html.count("<figcaption>") >= 4

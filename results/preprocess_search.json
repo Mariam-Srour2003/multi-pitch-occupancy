@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-06T18:29:02+00:00",
+  "generated": "2026-09-06T18:32:54+00:00",
   "evaluations": [
     {
       "model": "convnextv2",
@@ -278,6 +278,34 @@
       "describe": "clahe=on",
       "seconds": 222.6,
       "play_recall": 0.9348,
+      "worst_fold": 0.7222,
+      "false_play": 0.0
+    },
+    {
+      "model": "convnextv2",
+      "n_frames": 1578,
+      "hash": "c24f1ca3fd02",
+      "label": "clahe=auto",
+      "round": 1,
+      "config": {
+        "size": 224,
+        "undistort": 0.0,
+        "roi": false,
+        "centre_crop": 1.0,
+        "top_crop": 0.0,
+        "letterbox": true,
+        "per_image_standardise": false,
+        "clahe": "auto",
+        "clahe_contrast_below": 40.0,
+        "gamma": 1.0,
+        "saturation": 1.0,
+        "denoise": 0.0,
+        "sharpen": 0.0,
+        "blur_sigma": 0.0
+      },
+      "describe": "clahe=auto",
+      "seconds": 232.4,
+      "play_recall": 0.9561,
       "worst_fold": 0.7222,
       "false_play": 0.0
     }

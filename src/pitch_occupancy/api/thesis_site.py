@@ -16,6 +16,7 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
+from pitch_occupancy.api.diagrams import DIAGRAM_STYLES, blocked_questions, confound_matrix, pipeline, protocols
 from pitch_occupancy.api.markdown import render
 from pitch_occupancy.api.models_view import STYLES as MODEL_STYLES
 from pitch_occupancy.api.models_view import render as render_models
@@ -38,10 +39,20 @@ DOCUMENTS = {
 }
 
 
-def _doc(path: Path) -> str:
+#: A diagram opens the tab it explains, and the document follows as the detail. Each shows
+#: a mechanism the prose can only assert - so the reader sees it before reading about it.
+LEADS = {
+    "findings": lambda: protocols() + pipeline(),
+    "dataset": confound_matrix,
+    "questions": blocked_questions,
+}
+
+
+def _doc(path: Path, key: str = "") -> str:
+    lead = LEADS[key]() if key in LEADS else ""
     if not path.exists():
-        return f"<p class='missing'>Not generated yet: <code>{path.name}</code></p>"
-    return render(path.read_text(encoding="utf-8"))
+        return lead + f"<p class='missing'>Not generated yet: <code>{path.name}</code></p>"
+    return lead + render(path.read_text(encoding="utf-8"))
 
 
 def _csv(name: str) -> list[dict]:
@@ -114,7 +125,7 @@ def page() -> str:
         f'<button data-view="{k}">{label}</button>' for k, (label, _) in DOCUMENTS.items()
     )
     views = "".join(
-        f'<section class="view" data-view="{k}" hidden><div class="doc">{_doc(path)}</div></section>'
+        f'<section class="view" data-view="{k}" hidden><div class="doc">{_doc(path, k)}</div></section>'
         for k, (_, path) in DOCUMENTS.items()
     )
     models = (
@@ -137,7 +148,7 @@ def page() -> str:
     return (_shell()
             .replace("__TABS__", '<button data-view="models">Models</button>' + tabs)
             .replace("__VIEWS__", models + views + searches)
-            .replace("__MODEL_STYLES__", MODEL_STYLES + PANEL_STYLES)
+            .replace("__MODEL_STYLES__", MODEL_STYLES + PANEL_STYLES + DIAGRAM_STYLES)
             .replace("__PANEL_SCRIPT__", PANEL_SCRIPT))
 
 
