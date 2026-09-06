@@ -1,0 +1,4 @@
+backbone,hf_id,threads,single_median_ms,single_p95_ms,single_mean_ms,concurrent_streams,concurrent_median_ms,concurrent_p95_ms,round_wall_s,naive_extrapolation_s,cycle_headroom_x,fits_60s_cycle
+convnextv2,facebook/convnextv2-tiny-22k-224,4,150.9,165.8,151.5,20,2388.1,2446.6,2.47,3.02,24.27,True
+dinov2,facebook/dinov2-base,4,418.3,448.6,420.9,20,5501.8,5696.9,5.68,8.37,10.56,True
+vit,google/vit-base-patch16-224,4,303.3,345.7,306.5,20,4361.5,4444.5,4.49,6.07,13.36,True

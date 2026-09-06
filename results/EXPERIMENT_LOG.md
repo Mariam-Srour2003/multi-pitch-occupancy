@@ -137,3 +137,48 @@ Caveats for the write-up:
 - Both leading models are weakest on `clipvenue_h_teal_pitch` (0.72 / 0.67), one of the two
   venue groups still flagged `confidence=low`. Resolve that grouping before quoting the
   worst-fold figures.
+
+---
+
+## 2026-09-06 - Efficiency: per-frame latency and 20-camera throughput
+
+`uv run python experiments/efficiency_latency.py` -> `results/efficiency_latency.csv`
+Development laptop (AMD Zen 3, 4 torch threads), **not** the target Mini-PC.
+
+| backbone | single median | single p95 | 20 cameras, measured | naive 20x | cycle headroom |
+|---|---|---|---|---|---|
+| convnextv2 | 150.9 ms | 165.8 ms | **2.5 s** | 3.0 s | 24.3x |
+| vit | 303.3 ms | 345.7 ms | **4.5 s** | 6.1 s | 13.4x |
+| dinov2 | 418.3 ms | 448.6 ms | **5.7 s** | 8.4 s | 10.6x |
+
+**All three fit the 60-second sampling cycle with room to spare.** Even DINOv2 - the most
+accurate on the honest protocols and the slowest here - uses under 10% of the cycle for 20
+cameras. The CPU-only, one-frame-per-minute design is not latency-constrained on this
+hardware, and the model choice can be made on accuracy rather than speed.
+
+**Concurrency helped rather than hurt, contrary to the expectation this harness was built
+to test.** Every backbone ran 20 streams *faster* than 20x its single-frame median
+(ConvNeXtV2 2.5 s against 3.0 s extrapolated). At 4 threads, overlapping the Python and
+I/O portions of each call outweighs memory-bandwidth contention. The prediction that
+naive multiplication would flatter the system was wrong in direction, which is exactly why
+it was measured rather than assumed - and on a many-core Mini-PC the balance may tip the
+other way, so WP7-T1 must repeat this rather than reuse these numbers.
+
+**The pilot's pooling bug appeared in the log, live.** Loading ViT prints:
+
+```
+pooler.dense.bias   | MISSING |
+pooler.dense.weight | MISSING |
+- MISSING: those params were newly initialized because missing from the checkpoint.
+```
+
+That is the randomly-initialised pooler which produced the pilot's false 38%. The current
+code never reads `pooler_output` - it mean-pools `last_hidden_state` and stamps every cache
+with `pooling="mean"` - so the warning is harmless here. Worth quoting in the thesis: the
+hazard is not hypothetical, the library announces it on every load, and it is still easy
+to walk past.
+
+Caveat: this is a 4-thread AMD laptop. The deployment claim is only settled by WP7-T1 on
+the actual Intel Mini-PC.
+
+- 2026-09-06 | efficiency | `python experiments/efficiency_latency.py` | `efficiency_latency.csv` | dev laptop, 4 threads
