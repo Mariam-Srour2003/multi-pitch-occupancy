@@ -104,6 +104,18 @@ published figure.
 
 ---
 
+## Where the code is
+
+**`main` holds only the planning documents.** All 39 commits of code sit on a stacked chain
+of feature branches; the tip has everything:
+
+```bash
+git checkout feat/prompt-search
+```
+
+**[docs/CODEBASE.md](docs/CODEBASE.md)** is the reference: what each branch contains, what
+every module does, and how to run all of it.
+
 ## Getting started
 
 Python 3.12, managed with [uv](https://docs.astral.sh/uv/). CPU only — no GPU is used anywhere,

@@ -1,0 +1,285 @@
+# Codebase and branch reference
+
+What exists, where it lives, what each file does, and how to run it.
+
+---
+
+## Read this first: nothing is merged to `main`
+
+`main` holds **only the planning documents**. Every line of code sits on a chain of feature
+branches, each built on the one before, with the newest work at the tip.
+
+```
+main                     PLAN.md · SUPER_PLAN.md · TODO.md · README.md · 2 .docx · .gitignore · requirements.txt
+  └── setup/project-scaffold
+        └── feat/dataset-manifest
+              └── ... 25 more branches, each stacked on the last ...
+                    └── feat/prompt-search      <- the tip: everything is here
+```
+
+**The tip branch (`feat/prompt-search`) contains the whole project** — 39 commits, 35 source
+modules, 13 experiment scripts, 19 test files, 283 passing tests.
+
+To get the working code:
+
+```bash
+git checkout feat/prompt-search
+```
+
+Because the branches are stacked rather than parallel, they cannot be merged independently —
+each contains all its ancestors. To bring everything into `main` at once:
+
+```bash
+git checkout main && git merge feat/prompt-search
+```
+
+To review the work in stages instead, open pull requests in branch order; each diff will show
+only its own commits.
+
+---
+
+## Branches, in the order they were created
+
+| # | Branch | Commits | What it contains |
+|---|---|---|---|
+| — | `main` | 2 | Planning documents only |
+| — | `pilot/model-selection` | 2 | The **original pilot**, preserved. The bake-off code that chose the four models, plus a full run guide in its own README. Not an ancestor of the others — it branches from the first commit. |
+| 1 | `setup/project-scaffold` | 1 | uv project, `src/` layout, FastAPI skeleton, CPU-pinned torch |
+| 2 | `feat/dataset-manifest` | 4 | Manifest, `data/` restructure, ethics + pre-registration, leakage-guarded splits |
+| 3 | `feat/clip-frame-extraction` | 1 | 396 frames extracted from the 66 highlight clips |
+| 4 | `feat/feature-cache` | 1 | Frozen backbones and the embedding cache |
+| 5 | `feat/evaluation-stats` | 1 | Metrics and significance testing |
+| 6 | `feat/trivial-baselines` | 1 | Baseline floors (majority, clock rule, cheap features) + linear probe |
+| 7 | `exp/h1-h2-baseline-floor` | 1 | **Experiment**: split leakage and the trivial-baseline floor |
+| 8 | `feat/coverage-report` | 1 | Class × lighting × venue coverage matrix |
+| 9 | `exp/h3-cross-venue` | 1 | **Experiment**: cross-venue play recall |
+| 10 | `docs/progress-update` | 1 | Checklist update; corrected the partial H2 claim |
+| 11 | `feat/latency-harness` | 2 | Latency measurement + 20-camera concurrency |
+| 12 | `exp/label-efficiency` | 1 | **Experiment**: macro-F1 against labelling budget |
+| 13 | `feat/thesis-figures` | 2 | Three thesis figures, regenerated from CSVs |
+| 14 | `docs/rq-traceability` | 1 | Experiment → research-question matrix |
+| 15 | `exp/rq6-calibration-riskcoverage` | 1 | Calibration + risk-coverage; **reported as blocked** |
+| 16 | `feat/preprocessing` | 1 | The preprocessing pipeline + input-ablation diagnostic |
+| 17 | `feat/slot-pipeline` | 2 | Fusion, aggregation, reconciliation; validated end-to-end |
+| 18 | `docs/status-after-wp3-wp6` | 1 | Checklist update |
+| 19 | `feat/database` | 2 | SQLite schema and evidence store; blur-ordering fix |
+| 20 | `feat/dashboard-api` | 1 | Dashboard and audit endpoints |
+| 21 | `feat/frame-source-evidence` | 3 | Frame sources, evidence selection, scheduler; folded in the review session's audit |
+| 22 | `feat/camera-identification` | 1 | Identify cameras by view rather than filename suffix |
+| 23 | `exp/preprocessing-recommendation` | 3 | Reproduction pipeline, combined-variant result, ideas backlog |
+| 24 | `feat/preprocess-search` | 1 | Searchable preprocessing space + greedy search |
+| 25 | `feat/prompt-search` | 3 | **Tip.** Zero-shot prompt search, search viewer, small-fold guard |
+
+### What was actually found on the experiment branches
+
+- **`exp/h1-h2-baseline-floor`** — a 16-bin colour histogram beat ConvNeXtV2 on macro-F1
+  under a random split; the clock rule came within 0.007 under a grouped split. The
+  evaluation was measuring the dataset, not the models.
+- **`exp/h3-cross-venue`** — across unseen venues the clock rule collapses to 0.219 while the
+  frozen backbones hold above 0.86. Combined with H2: the evaluation was uninformative, the
+  models were not the problem.
+- **`exp/label-efficiency`** — the curves are **not monotone**. ConvNeXtV2 peaks at 100 labels
+  and is worse with all 671. Balanced subsampling accidentally de-confounds.
+- **`exp/rq6-calibration-riskcoverage`** — machinery built and tested; the answer is blocked
+  by the degenerate test set, and the entry says so rather than reporting an artifact.
+- **`feat/preprocessing`** (input ablation) — blurring costs 0.12 recall, so the model reads
+  *people*, not scenery. Colour and the frame border are net distractions.
+- **`exp/preprocessing-recommendation`** — grayscale + crop together score *below* baseline.
+  Removing information has a floor.
+- **`feat/prompt-search`** — a searched zero-shot prompt reaches 0.988 cross-venue recall
+  with **zero labels**, above every trained probe. Development-grade: the prompt was selected
+  on the same folds it is scored on.
+
+Every finding, with its caveats, is in `results/EXPERIMENT_LOG.md`.
+
+---
+
+## The library — `src/pitch_occupancy/`
+
+Installed as a package, so imports resolve identically in tests, notebooks, experiments and
+on the Mini-PC.
+
+### Top level
+
+| File | What it does |
+|---|---|
+| `config.py` | Paths and runtime settings via pydantic-settings (`PITCH_*` env vars or `.env`). Holds the aggregation thresholds and `default_model_key = "dinov2"`. |
+| `cli.py` | The `pitch` command: `info`, `coverage`, `cache`, `extract-clips`, `manifest`, `serve`. |
+| `frame_source.py` | Where frames come from — `VideoSlotSource` (replay), `RTSPSource` (live), and `discover_slots()`. A failed read returns `None`, never a substituted frame. |
+| `worker.py` | The scheduler's slot loop: sample → classify → fuse → aggregate → evidence. Classifier is injected. |
+
+### `data/` — dataset plumbing
+
+| File | What it does |
+|---|---|
+| `taxonomy.py` | The 4 labelling folders → 3 reporting classes mapping, and `SlotStatus`. |
+| `manifest.py` | Builds `manifest.csv` — one row per frame with venue, camera, slot, lighting, provenance. Handles both slot recordings and clip frames. `confound_warnings()` flags any class concentrated in one venue or lighting condition. |
+| `extract.py` | Frame extraction from highlight clips, with a sidecar carrying venue and measured lighting. |
+| `splits.py` | `grouped_split`, `leave_one_group_out`, `temporal_split`, and a deliberately leaky `random_split` kept only as H1's control. **Enforces the final-venue lock.** `check_split()` reports what would make results misleading. |
+| `feature_cache.py` | Embed once per backbone, reuse forever. Refuses caches built with different pooling or preprocessing. |
+| `coverage.py` | The class × lighting × venue matrix, and the concentration table that predicts a degenerate split. |
+
+### `vision/` — preprocessing and classification
+
+| File | What it does |
+|---|---|
+| `preprocess.py` | **The single preprocessing path**, shared by experiments and the live pipeline. Ten searchable switches; `SWITCHES` defines the search space. |
+| `backbones.py` | Frozen feature extractors (ConvNeXtV2, ViT, DINOv2). **Mean pooling, always**, with a stamp that is asserted on load. |
+| `heads.py` | `LinearProbe`, plus the baseline floors `MajorityClass` and `ClockRule` — all behind one interface so a rule that reads the clock and a probe on DINOv2 features go into the same table. |
+| `cheap_features.py` | Mean intensity and colour histogram — the deliberately weak floors. |
+| `camera_id.py` | Identify a camera by *what it sees*. Lighting-invariant descriptor; the `(1)` filename suffix flips between recording days. |
+| `zeroshot.py` | CLIP prompt sets, templates and descriptors, and the class-direction encoding. |
+
+### `slots/` — from frames to a billing decision
+
+| File | What it does |
+|---|---|
+| `fusion.py` | Combines the two cameras of a pitch. Strongest activity wins; fusing zero cameras **raises** rather than returning EMPTY. |
+| `aggregate.py` | Ratios → USED / NOTUSED / REVIEW. Thresholds are tunable hyper-parameters, with `tune_thresholds()` so STAN must beat a *fitted* baseline. |
+| `evidence.py` | Picks the three images that justify a verdict — one per third of the slot, not the top three by confidence. |
+| `reconcile.py` | Verdicts vs booking records → typed anomalies. REVIEW never becomes an anomaly; anomalies are per field, never per person. |
+
+### `evaluation/` — how anything gets scored
+
+| File | What it does |
+|---|---|
+| `metrics.py` | Accuracy, per-class P/R/F1, macro-F1, balanced accuracy. Zero-support classes are **named as absent**, not averaged in. |
+| `stats.py` | Bootstrap CIs, paired bootstrap, McNemar (exact for small counts), Cohen's g, Holm–Bonferroni. |
+| `calibration.py` | ECE, reliability bins, temperature scaling, risk-coverage curves. Warns when a fitted temperature hits the grid boundary. |
+| `latency.py` | Median and p95 with warm-up discarded; concurrent throughput measured rather than extrapolated. |
+
+### `db/` and `api/`
+
+| File | What it does |
+|---|---|
+| `db/schema.py` | Eight tables. `cameras` is its own table, two rows per field. |
+| `db/store.py` | Writes a verdict and its samples in **one transaction** — no verdict without its evidence. Overrides keep both answers. |
+| `api/app.py` | FastAPI app, served by uvicorn. |
+| `api/routes.py` | Meters, slot list, evidence inspector, override, anomalies, field-day matrix. No inference in a request handler. |
+
+---
+
+## Experiments — `experiments/`
+
+Each writes a CSV to `results/` and appends to `EXPERIMENT_LOG.md`. None is imported by the
+library; the dependency points one way.
+
+| Script | Question |
+|---|---|
+| `h1_h2_baseline_floor.py` | Does the split leak, and do trivial baselines already do the job? |
+| `h3_cross_venue_recall.py` | Does play detection transfer to unseen venues? |
+| `h3_sensitivity_merged_venues.py` | Does H3 survive merging the two audited venues? |
+| `label_efficiency.py` | How many labels does a new site need? |
+| `rq6_calibration_riskcoverage.py` | How much human review buys a given reliability? |
+| `input_ablation.py` | What is the model actually reading? |
+| `preprocess_search.py` | Which preprocessing combination transfers best? |
+| `prompt_search.py` | How well can zero-shot do with no labels at all? |
+| `efficiency_latency.py` | Does one CPU serve 20 cameras in a 60-second cycle? |
+| `end_to_end_slots.py` | Is the decision layer correct on the real recorded slots? |
+| `make_figures.py` | Regenerate the thesis figures from the CSVs. |
+| `make_search_viewer.py` | Regenerate the search results page. |
+| `reproduce_all.py` | Run everything, in dependency order. |
+
+---
+
+## How to run it
+
+### Setup
+
+```bash
+git checkout feat/prompt-search     # the code lives here, not on main
+uv sync                             # creates .venv from uv.lock
+uv run pitch info                   # check paths resolve
+uv run pytest -q -m "not slow"      # 283 tests
+```
+
+`uv sync` pulls ~2 GB on first run. If it times out, raise the timeout and reduce
+concurrency — this has been needed on a slow connection:
+
+```bash
+UV_HTTP_TIMEOUT=900 UV_CONCURRENT_DOWNLOADS=2 uv sync
+```
+
+### The everyday commands
+
+```bash
+uv run pitch info                   # resolved config and whether paths exist
+uv run pitch manifest               # rebuild manifest.csv, print the confound warnings
+uv run pitch manifest --check       # report only, write nothing
+uv run pitch coverage               # class x lighting x venue matrix -> results/coverage.md
+uv run pitch extract-clips          # frames from the highlight clips
+uv run pitch cache                  # embed every frame per backbone (~25 min)
+uv run pitch serve --reload         # dashboard API on http://127.0.0.1:8000
+```
+
+`--help` works on every command.
+
+### Reproduce everything
+
+```bash
+uv run python experiments/reproduce_all.py --check   # what would run, what is stale
+uv run python experiments/reproduce_all.py           # run whatever is missing
+uv run python experiments/reproduce_all.py --only figures
+```
+
+Stages verify their own outputs and report **BLOCKED** rather than skipping when an input is
+missing. Everything is resumable — safe on a machine that sleeps.
+
+### Run one experiment
+
+```bash
+uv run python experiments/h1_h2_baseline_floor.py
+uv run python experiments/h3_cross_venue_recall.py
+uv run python experiments/prompt_search.py --limit 600
+uv run python experiments/preprocess_search.py --check    # cost estimate first
+uv run python experiments/preprocess_search.py            # full-size search (~3.5 h)
+uv run python experiments/make_figures.py
+```
+
+**Do not pass `--limit` to `preprocess_search` for a result you intend to quote.** Subsampling
+shrinks the venue folds until recall can only take a few values; the script warns when it
+happens, and `results/preprocess_search_500frame_UNTRUSTWORTHY.json` is what that looks like.
+
+### Serve the API
+
+```bash
+uv run pitch serve --reload
+# or: uv run uvicorn pitch_occupancy.api.app:app --reload
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/api/v1/meters
+```
+
+Interactive docs at `http://127.0.0.1:8000/docs`.
+
+---
+
+## Where results live
+
+| Path | What |
+|---|---|
+| `results/EXPERIMENT_LOG.md` | **Every finding, with caveats.** The document to read. |
+| `results/*.csv` | Raw numbers per experiment |
+| `results/figs/*.png,*.pdf` | Thesis figures |
+| `results/figs/venue_check/` | Evidence for the venue-grouping audit |
+| `results/splits/FINAL_TESTSET_venues.csv` | The locked final test venues |
+| `results/preprocess_search.html` | The search viewer (also published as an Artifact) |
+| `thesis/preregistration.md` | Hypotheses, fixed before the experiments ran |
+| `thesis/rq_matrix.md` | Which experiment answers which research question |
+| `thesis/ethics.md` | The ethics position and its consequences |
+| `docs/data_layout.md` | What is in `data/`, and what it does not cover |
+| `docs/IDEAS.md` | Ideas not in the plan, each with a stop condition |
+
+---
+
+## Things that will bite you
+
+1. **`data/` is not in git** and cannot be regenerated. It is still unbacked-up.
+2. **Long runs die when the laptop sleeps.** Everything expensive is resumable; use the
+   background and let it write incrementally.
+3. **Windows Smart App Control blocks newer scikit-learn/scipy builds** on this machine.
+   They are pinned to 1.8.0 / 1.16.3 in `pyproject.toml` for that reason — raising them needs
+   a check that the new build actually imports.
+4. **`.gitignore` has swallowed generated output twice** (`*.png` figures, `*.jpg` audit
+   sheets). Exceptions exist now; add one before writing new output into `results/`.
+5. **A subprocess exiting 0 has twice not meant success** here. `reproduce_all.py` verifies
+   its outputs for that reason.
