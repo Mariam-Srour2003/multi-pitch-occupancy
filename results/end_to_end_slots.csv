@@ -1,0 +1,5 @@
+slot,n_minutes,play_ratio,empty_ratio,verdict,booking_case,anomaly,severity
+venue_01_2026-07-11_1000,59,0.0169,0.9322,NOTUSED,"booked, staff say used",NO_SHOW_OR_OVERRECORDED,warning
+venue_01_2026-07-11_1000,59,0.0169,0.9322,NOTUSED,"booked, staff say unused",CONSISTENT,none
+venue_01_2026-07-12_2030,60,1.0,0.0,USED,"booked, staff say used",CONSISTENT,none
+venue_01_2026-07-12_2030,60,1.0,0.0,USED,not booked at all,UNBOOKED_USAGE,serious

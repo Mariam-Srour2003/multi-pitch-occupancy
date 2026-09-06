@@ -306,3 +306,36 @@ per clip plus cross-comparison against every other venue group. Comparison sheet
 - 2026-09-06 | venue audit | visual, sheets in `results/figs/venue_check/` | `configs/clip_venues.csv` | cg low→high, ch low→medium
 
 - 2026-09-06 | RQ6 | `python experiments/rq6_calibration_riskcoverage.py` | seed 42 | `rq6_calibration.csv`, `rq6_risk_coverage.csv`
+
+---
+
+## 2026-09-06 - End-to-end decision layer on the real slots
+
+`uv run python experiments/end_to_end_slots.py` -> `results/end_to_end_slots.csv`
+
+Per-minute states rebuilt from the labelled frames (each carries a camera tag and an
+offset in seconds), fused across the two cameras, aggregated, then reconciled against
+synthetic bookings.
+
+| slot | fused minutes | play | empty | verdict | expected |
+|---|---|---|---|---|---|
+| 2026-07-11 10:00 | 59 | 0.02 | 0.93 | **NOTUSED** | NOTUSED |
+| 2026-07-12 20:30 | 60 | 1.00 | 0.00 | **USED** | USED |
+
+Both correct. Reconciliation reaches the intended anomaly on each fixture: a morning slot
+recorded as used raises `NO_SHOW_OR_OVERRECORDED`; an unbooked evening slot with observed
+play raises `UNBOOKED_USAGE` at serious severity.
+
+**Run on ground-truth labels, not model output, deliberately.** The question is whether
+the decision layer is correct *given* correct perception. If fusion or aggregation were
+wrong, no classifier would rescue it, and folding model error into this run would hide
+that. Model-driven runs arrive with the scheduler (WP6-T2).
+
+The reconciliation result proves reachability, not precision. Measuring anomaly precision
+and recall needs adjudicated slots - which ones really were no-shows - and that is WP6-T11,
+still outstanding.
+
+Note the sample count: 59 and 60 minutes. **These two slots are the entire real-slot
+corpus**, and STAN needs roughly thirty.
+
+- 2026-09-06 | end-to-end slots | `python experiments/end_to_end_slots.py` | `end_to_end_slots.csv` | 2 real slots, ground-truth labels
