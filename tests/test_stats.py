@@ -1,0 +1,199 @@
+"""Statistics utilities checked against hand-computable cases.
+
+Every significance claim in the thesis passes through this module, so its failures would
+be invisible in the results and only surface under questioning at the defence."""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from pitch_occupancy.evaluation.metrics import confusion_matrix, evaluate
+from pitch_occupancy.evaluation.stats import (
+    bootstrap_ci,
+    bootstrap_metric_ci,
+    cohens_g,
+    holm_bonferroni,
+    mcnemar,
+    paired_bootstrap_diff,
+)
+
+# --- metrics ----------------------------------------------------------------
+
+A, B, C = "C1_EMPTY", "C2_ACTIVE_PLAY", "C3_MAINTENANCE_NON_SPORTING"
+
+
+def test_perfect_prediction() -> None:
+    r = evaluate([A, B, A, B], [A, B, A, B])
+    assert r.accuracy == 1.0
+    assert r.macro_f1 == 1.0
+
+
+def test_metrics_match_hand_computation() -> None:
+    #        pred A  pred B
+    # true A    2       1     -> recall 2/3
+    # true B    1       2     -> recall 2/3
+    y_true = [A, A, A, B, B, B]
+    y_pred = [A, A, B, A, B, B]
+    r = evaluate(y_true, y_pred)
+    assert r.accuracy == pytest.approx(4 / 6)
+    for s in r.per_class:
+        assert s.precision == pytest.approx(2 / 3)
+        assert s.recall == pytest.approx(2 / 3)
+        assert s.f1 == pytest.approx(2 / 3)
+    assert r.macro_f1 == pytest.approx(2 / 3)
+
+
+def test_absent_class_is_named_not_averaged_as_zero() -> None:
+    """C3 has 6 frames in the whole dataset; folding an undefined F1 into the macro
+    average as 0.0 would depress the headline for a reason unrelated to the model."""
+    r = evaluate([A, A, B, B], [A, A, B, B])
+    assert C in r.absent_classes
+    assert {s.label for s in r.per_class} == {A, B}
+    assert r.macro_f1 == 1.0
+
+
+def test_confusion_matrix_orientation() -> None:
+    cm = confusion_matrix([A, A, B], [A, B, B], classes=[A, B])
+    assert cm.tolist() == [[1, 1], [0, 1]]  # rows true, cols predicted
+
+
+def test_balanced_accuracy_ignores_class_imbalance() -> None:
+    """1000 of one class, 2 of another, majority-class predictor."""
+    y_true = [A] * 1000 + [B] * 2
+    y_pred = [A] * 1002
+    r = evaluate(y_true, y_pred)
+    assert r.accuracy > 0.99
+    assert r.balanced_accuracy == pytest.approx(0.5)
+
+
+# --- bootstrap --------------------------------------------------------------
+
+
+def test_bootstrap_ci_brackets_the_estimate() -> None:
+    ci = bootstrap_ci([1.0] * 80 + [0.0] * 20, resamples=2000)
+    assert ci.estimate == pytest.approx(0.8)
+    assert ci.low < 0.8 < ci.high
+
+
+def test_bootstrap_ci_is_deterministic_for_a_seed() -> None:
+    v = [1.0] * 50 + [0.0] * 50
+    assert bootstrap_ci(v, resamples=500, seed=7) == bootstrap_ci(v, resamples=500, seed=7)
+
+
+def test_ci_narrows_as_the_sample_grows() -> None:
+    small = bootstrap_ci([1.0] * 8 + [0.0] * 2, resamples=2000)
+    large = bootstrap_ci([1.0] * 800 + [0.0] * 200, resamples=2000)
+    assert (large.high - large.low) < (small.high - small.low)
+
+
+def test_bootstrap_on_empty_sample_raises() -> None:
+    with pytest.raises(ValueError, match="empty"):
+        bootstrap_ci([])
+
+
+def test_bootstrap_metric_ci_works_for_macro_f1() -> None:
+    y_true = [A] * 50 + [B] * 50
+    y_pred = [A] * 45 + [B] * 5 + [B] * 50
+    ci = bootstrap_metric_ci(y_true, y_pred, lambda t, p: evaluate(t, p).macro_f1, resamples=400)
+    assert 0.0 < ci.low <= ci.estimate <= ci.high <= 1.0
+
+
+def test_paired_bootstrap_detects_a_consistent_advantage() -> None:
+    a = np.array([True] * 60 + [False] * 40)
+    b = np.array([True] * 40 + [False] * 60)
+    ci = paired_bootstrap_diff(a, b, resamples=2000)
+    assert ci.estimate == pytest.approx(0.2)
+    assert ci.low > 0  # excludes zero -> a real difference
+
+
+def test_paired_bootstrap_rejects_misaligned_inputs() -> None:
+    with pytest.raises(ValueError, match="align"):
+        paired_bootstrap_diff([True, False], [True])
+
+
+# --- mcnemar ----------------------------------------------------------------
+
+
+def test_mcnemar_identical_models_cannot_be_distinguished() -> None:
+    r = mcnemar([True, False, True], [True, False, True])
+    assert r.n_discordant == 0
+    assert r.p_value == 1.0
+
+
+def test_mcnemar_counts_only_discordant_pairs() -> None:
+    a = [True, True, False, False]
+    b = [True, False, True, False]
+    r = mcnemar(a, b)
+    assert (r.n_only_a_correct, r.n_only_b_correct) == (1, 1)
+    assert r.n_discordant == 2
+
+
+def test_mcnemar_significant_when_one_model_dominates() -> None:
+    a = np.array([True] * 30 + [False] * 30)
+    b = np.array([False] * 30 + [False] * 30)
+    r = mcnemar(a, b)
+    assert r.p_value < 0.001
+    assert r.effect_size == pytest.approx(0.5)  # maximally lopsided
+
+
+def test_mcnemar_exact_and_approximate_regimes_agree() -> None:
+    a = np.array([True] * 18 + [False] * 6 + [True] * 100)
+    b = np.array([False] * 18 + [True] * 6 + [True] * 100)
+    exact = mcnemar(a, b, exact_below=100)
+    approx = mcnemar(a, b, exact_below=1)
+    assert exact.p_value == pytest.approx(approx.p_value, abs=0.05)
+
+
+def test_mcnemar_rejects_misaligned_inputs() -> None:
+    with pytest.raises(ValueError, match="align"):
+        mcnemar([True], [True, False])
+
+
+def test_cohens_g_is_zero_when_errors_are_symmetric() -> None:
+    assert cohens_g(10, 10) == 0.0
+    assert cohens_g(0, 0) == 0.0
+
+
+# --- multiple comparisons ---------------------------------------------------
+
+
+def test_holm_leaves_a_single_test_untouched() -> None:
+    adj, rej = holm_bonferroni([0.04])
+    assert adj == [pytest.approx(0.04)]
+    assert rej == [True]
+
+
+def test_holm_preserves_input_order() -> None:
+    adj, _ = holm_bonferroni([0.5, 0.001, 0.2])
+    assert adj[1] < adj[2] < adj[0]
+
+
+def test_holm_kills_the_borderline_result_in_a_large_family() -> None:
+    """Thirty comparisons with one 'significant' p=0.04 is the p-hacking pattern
+    the pre-registration commits to correcting for."""
+    p = [0.04] + [0.6] * 29
+    adj, rejected = holm_bonferroni(p)
+    assert adj[0] == pytest.approx(1.0)
+    assert not any(rejected)
+
+
+def test_holm_keeps_a_genuinely_strong_result() -> None:
+    adj, rejected = holm_bonferroni([1e-6] + [0.6] * 29)
+    assert rejected[0]
+    assert adj[0] < 0.05
+
+
+def test_holm_is_monotone() -> None:
+    p = sorted([0.001, 0.01, 0.02, 0.04, 0.3])
+    adj, _ = holm_bonferroni(p)
+    assert all(x <= y + 1e-12 for x, y in zip(adj, adj[1:], strict=False))
+
+
+def test_holm_never_exceeds_one() -> None:
+    adj, _ = holm_bonferroni([0.9] * 50)
+    assert max(adj) <= 1.0
+
+
+def test_holm_on_empty_family() -> None:
+    assert holm_bonferroni([]) == ([], [])
