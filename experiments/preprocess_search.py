@@ -57,6 +57,8 @@ RESULTS = ROOT / "results"
 OUT_JSON = RESULTS / "preprocess_search.json"
 SEED = 42
 PLAY = "C2_ACTIVE_PLAY"
+#: Below this many play frames a fold cannot rank configurations, only add noise.
+MIN_FOLD_PLAY = 10
 EMPTY = "C1_EMPTY"
 
 
@@ -162,6 +164,25 @@ def main() -> int:
     n_cand = sum(len(v) for v in SWITCHES.values())
     print(f"{len(rows)} frames | {len(folds)} venue folds | {len(args.models)} model(s)")
     print(f"{n_cand} candidate settings across {len(SWITCHES)} switches")
+
+    # A fold with a handful of play frames can only score a few discrete recall values, so
+    # the metric saturates and the search ranks noise. Subsampling is the usual cause.
+    play_per_fold = [
+        (f.name.split("__")[-1], sum(1 for r in f.test if r.class3 == PLAY)) for f in folds
+    ]
+    short = lambda name: name.replace("clipvenue_", "")  # noqa: E731
+    tiny = [(n, c) for n, c in play_per_fold if c < MIN_FOLD_PLAY]
+    print("  play frames per fold: "
+          + ", ".join(f"{short(n)}={c}" for n, c in play_per_fold))
+    if tiny:
+        listed = ", ".join(f"{short(n)}={c}" for n, c in tiny)
+        print()
+        print(f"  WARNING: {len(tiny)}/{len(folds)} folds have fewer than {MIN_FOLD_PLAY} "
+              f"play frames ({listed}).")
+        print("  Recall takes only a few discrete values there, the unweighted fold mean")
+        print("  over-weights them, and a result of 1.000 is mostly arithmetic.")
+        print("  Drop --limit for a ranking you can trust.")
+        print()
 
     if args.check:
         per = len(rows) * 0.15 / 60  # rough: ~150 ms/frame
