@@ -1,0 +1,9 @@
+model,family,split,n_train,n_test,accuracy,macro_f1,ms_per_frame,P_1_empty,R_1_empty,P_2_playing,R_2_playing,P_3_people_not_playing,R_3_people_not_playing,P_4_maintenance,R_4_maintenance
+google/vit-base-patch16-224,embed+head,random,1036,260,0.9923,0.6623,203.0,0.99,0.99,0.994,1.0,0.0,0.0,0.0,0.0
+facebook/dinov2-base,embed+head,random,1036,260,0.9846,0.6568,253.9,0.99,0.97,0.982,1.0,0.0,0.0,0.0,0.0
+facebook/convnextv2-tiny-22k-224,embed+head,random,1036,260,0.9808,0.654,102.4,0.99,0.96,0.976,1.0,0.0,0.0,0.0,0.0
+openai/clip-vit-base-patch32,zeroshot,random,0,260,0.6538,0.4269,212.0,0.544,0.566,0.74,0.712,0.0,0.0,0.0,0.0
+laion/CLIP-ViT-B-32-laion2B-s34B-b79K,zeroshot,random,0,260,0.7577,0.3866,246.8,0.71,0.667,0.903,0.819,0.0,0.0,0.0,0.0
+google/siglip2-base-patch16-224,zeroshot,random,0,260,0.3192,0.3011,1035.0,0.609,0.283,1.0,0.338,0.006,1.0,0.0,0.0
+openai/clip-vit-large-patch14,zeroshot,random,0,260,0.3538,0.25,1403.8,0.019,0.01,1.0,0.562,0.008,1.0,0.0,0.0
+google/vit-base-patch16-224,embed+head,random,1036,260,0.3808,0.1838,193.7,0.381,1.0,0.0,0.0,0.0,0.0,0.0,0.0
