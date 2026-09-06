@@ -475,3 +475,42 @@ references. `match_cameras()` assigns greedily over the full similarity matrix s
 reference is used once - a per-recording argmax could hand both halves of a pitch to the
 same camera - and leaves a poor match unassigned rather than forcing it, because an obvious
 gap beats a silently swapped half.
+
+- 2026-09-06 | input ablation | `python experiments/input_ablation.py` | `input_ablation.csv` | 6 variants x 7 folds, dinov2
+
+---
+
+## 2026-09-06 - Combined preprocessing: the removals do not compound
+
+`uv run python experiments/input_ablation.py` (variant `gray+crop50` added) | DINOv2
+
+| variant | play-recall | worst fold | delta | false-play on EMPTY |
+|---|---|---|---|---|
+| crop50 | **0.998** | 0.988 | +0.038 | 0.000 |
+| grayscale | **0.982** | 0.917 | +0.022 | 0.000 |
+| full | 0.960 | 0.800 | - | 0.000 |
+| **gray+crop50** | **0.899** | 0.667 | **-0.061** | 0.000 |
+
+**Removing both helps less than removing either - and is worse than removing neither.**
+Each on its own beats the baseline; together they fall 0.06 below it, and the worst fold
+drops from 0.99 (crop50) to 0.67.
+
+The false-play rate stays at zero throughout, so this is not the model turning
+conservative and refusing to say PLAY. It has genuinely lost the ability to recognise play
+at unseen venues.
+
+**Reading.** Colour and the frame border each carry two things: venue identity, which does
+not transfer, and part of the evidence for play. Removing one strips a shortcut and leaves
+enough signal. Removing both crosses an information floor - what remains is central,
+greyscale structure, and at 224px that is not enough to distinguish a pitch with players
+from one without at a venue never seen.
+
+So "remove more distractors" is not monotone, which is the useful result here and one that
+would not have been visible from the two single-variant runs. It also revises the
+production recommendation: **not grayscale plus ROI, but ROI alone.** `crop50` is a blind
+centre crop and is the best variant tested; hand-drawn polygons should beat it, and
+stacking grayscale on top should not be assumed to help.
+
+Caveat unchanged from the single-variant run: the false-play control uses EMPTY frames
+that sit in each fold's training set, since venue_01 is always in train for a clip-venue
+fold. It rules out gross bias, not a subtle one.
