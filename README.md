@@ -104,13 +104,50 @@ published figure.
 
 ---
 
-## Requirements
+## Getting started
 
-Python 3.12, CPU only.
+Python 3.12, managed with [uv](https://docs.astral.sh/uv/). CPU only — no GPU is used anywhere,
+and `pyproject.toml` pins torch to the CPU wheel index so a CUDA build can never slip into the
+lockfile and quietly invalidate the reported latencies.
 
 ```bash
-pip install -r requirements.txt
+uv sync                 # create the venv and install from uv.lock
+uv run pitch info       # show resolved config and check the expected paths exist
+uv run pytest           # run the test suite
 ```
+
+Serve the API and dashboard:
+
+```bash
+uv run pitch serve --reload
+# or directly:
+uv run uvicorn pitch_occupancy.api.app:app --reload
+```
+
+`uv.lock` and `.python-version` are committed deliberately: they are what lets another machine —
+or an examiner — reproduce the numbers.
+
+## Layout
+
+```
+src/pitch_occupancy/     the library: importable, testable, one code path
+├── config.py            paths and settings (env-driven, PITCH_* / .env)
+├── data/                manifest, splits, taxonomy, feature cache
+├── vision/              preprocessing, ROI, frozen backbones, heads
+├── slots/               two-camera fusion, aggregation, STAN, reconciliation
+├── evaluation/          metrics, statistics, calibration, latency
+├── db/                  SQLite schema and access
+├── api/                 FastAPI app — the only part uvicorn serves
+├── worker.py            the sampling scheduler
+└── cli.py               `pitch` command
+experiments/             one script per thesis experiment, results to results/
+configs/                 camera ROIs, slot schedule
+tests/
+```
+
+The pipeline is a scheduled batch process, not a web app: `worker.py` samples and classifies
+independently, and `api/` only reads what it wrote. Restarting the dashboard never interrupts
+sampling.
 
 Footage is not distributed with this repository — it shows identifiable people at a client
 facility. The dataset is referenced by manifest rather than stored in git.

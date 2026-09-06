@@ -2,7 +2,9 @@
 # Data — client footage and derived frames. NEVER commit these.
 # The dataset is referenced by data/dataset/manifest.csv (WP0-T2), not stored here.
 # ---------------------------------------------------------------------------
-data/
+# Leading slash matters: an unanchored "data/" would also swallow the
+# src/pitch_occupancy/data/ package.
+/data/
 *.mp4
 *.avi
 *.mkv
@@ -17,7 +19,7 @@ yolov8n.pt
 
 # Feature caches
 *.npz
-cache/
+/data/cache/
 
 # Databases
 *.db
@@ -49,6 +51,11 @@ env/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+htmlcov/
+
+# uv.lock and .python-version ARE committed - they are what makes the reported
+# latencies and accuracies reproducible on another machine. Do not ignore them.
 
 # ---------------------------------------------------------------------------
 # Editors / OS
