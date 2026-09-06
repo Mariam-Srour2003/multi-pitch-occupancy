@@ -31,7 +31,13 @@ from pitch_occupancy.data.taxonomy import Class3
 from pitch_occupancy.db.store import Sample
 from pitch_occupancy.frame_source import FrameSource
 from pitch_occupancy.slots.aggregate import SlotVerdict, Thresholds, aggregate_slot
-from pitch_occupancy.slots.evidence import EvidenceFrame, select_evidence
+from pitch_occupancy.slots.conditions import SlotConditions, summarise_conditions
+from pitch_occupancy.slots.evidence import (
+    EvidenceFrame,
+    Transition,
+    find_transitions,
+    select_evidence_around_transitions,
+)
 from pitch_occupancy.slots.fusion import fuse
 
 __all__ = ["Classifier", "SlotRun", "run_slot", "main"]
@@ -51,6 +57,8 @@ class SlotRun:
     evidence: list[EvidenceFrame]
     minutes_captured: int
     minutes_missed: int
+    conditions: SlotConditions | None = None
+    transitions: tuple[Transition, ...] = ()
 
     @property
     def capture_rate(self) -> float:
@@ -78,6 +86,7 @@ def run_slot(
     fused_states: list[Class3] = []
     fused_conf: list[float] = []
     evidence_rows: list[tuple[int, Class3, float, str | None]] = []
+    disagreements: list[bool] = []
     missed = 0
 
     for minute in range(source.n_minutes):
@@ -106,6 +115,7 @@ def run_slot(
         fused = fuse(observations)
         fused_states.append(fused.state)
         fused_conf.append(fused.confidence)
+        disagreements.append(fused.disagreed)
         evidence_rows.append((minute, fused.state, fused.confidence, None))
         if on_minute is not None:
             on_minute(minute, fused.state)
@@ -115,9 +125,20 @@ def run_slot(
         slot_id=slot_id,
         verdict=verdict,
         samples=samples,
-        evidence=select_evidence(evidence_rows, verdict.status),
+        # a slot that changed state is better explained by the moment it changed than by
+        # three frames from its thirds; thirds still apply when nothing changed
+        evidence=select_evidence_around_transitions(
+            evidence_rows, fused_states, verdict.status
+        ),
         minutes_captured=len(fused_states),
         minutes_missed=missed,
+        conditions=summarise_conditions(
+            minutes_expected=source.n_minutes,
+            confidences=fused_conf,
+            disagreements=disagreements,
+            cameras_seen=len({s.camera_id for s in samples}),
+        ),
+        transitions=tuple(find_transitions(fused_states)),
     )
 
 

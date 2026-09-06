@@ -24,7 +24,13 @@ from typing import Sequence
 
 from pitch_occupancy.data.taxonomy import Class3, SlotStatus
 
-__all__ = ["EvidenceFrame", "select_evidence", "STATUS_TARGET_CLASS"]
+__all__ = [
+    "EvidenceFrame",
+    "Transition",
+    "select_evidence",
+    "find_transitions",
+    "STATUS_TARGET_CLASS",
+]
 
 #: The class a verdict is claiming; evidence should show it where possible.
 STATUS_TARGET_CLASS: dict[SlotStatus, Class3 | None] = {
@@ -86,3 +92,97 @@ def select_evidence(
             )
         )
     return sorted(chosen, key=lambda e: e.minute_index)
+
+
+@dataclass(frozen=True, slots=True)
+class Transition:
+    """A sustained change of state within a slot."""
+
+    minute: int  # the first minute of the new state
+    before: Class3
+    after: Class3
+    stable_before: int  # consecutive minutes held before the change
+    stable_after: int  # consecutive minutes held after it
+
+    def describe(self) -> str:
+        return (
+            f"{self.before.name.lower().replace('_', ' ')} to "
+            f"{self.after.name.lower().replace('_', ' ')} at minute {self.minute}"
+        )
+
+
+def find_transitions(
+    states: Sequence[Class3 | str], *, min_stable: int = 5
+) -> list[Transition]:
+    """Points where the slot changed state and stayed changed.
+
+    ``min_stable`` minutes are required on both sides, which is what separates a match
+    ending from a player walking through frame. Without it every flicker is a transition
+    and the signal is worthless.
+
+    This is what makes an abandoned match distinguishable from a slot that was never used:
+    play for twenty minutes then empty for forty is a different event from empty
+    throughout, and only the transition tells them apart.
+    """
+    if not states:
+        return []
+    seq = [Class3(s) for s in states]
+
+    # collapse into runs, then keep only the boundaries where both sides are long enough
+    runs: list[tuple[Class3, int, int]] = []  # (state, start, length)
+    start = 0
+    for i in range(1, len(seq) + 1):
+        if i == len(seq) or seq[i] is not seq[start]:
+            runs.append((seq[start], start, i - start))
+            start = i
+
+    out: list[Transition] = []
+    for a, b in zip(runs, runs[1:], strict=False):
+        if a[2] >= min_stable and b[2] >= min_stable:
+            out.append(
+                Transition(minute=b[1], before=a[0], after=b[0],
+                           stable_before=a[2], stable_after=b[2])
+            )
+    return out
+
+
+def select_evidence_around_transitions(
+    samples: Sequence[tuple[int, Class3 | str, float, str | None]],
+    states: Sequence[Class3 | str],
+    status: SlotStatus,
+    *,
+    min_stable: int = 5,
+) -> list[EvidenceFrame]:
+    """Evidence chosen around a state change, falling back to thirds when there is none.
+
+    For a slot that changed - play starting late, stopping early, maintenance arriving -
+    "here is minute 20 and here is minute 22" settles a dispute far better than three
+    frames that all show the same thing. Thirds remain right for a uniform slot, so this
+    only takes over when a transition is actually found.
+    """
+    transitions = find_transitions(states, min_stable=min_stable)
+    if not transitions:
+        return select_evidence(samples, status)
+
+    rows = [(int(m), Class3(c), float(conf), p) for m, c, conf, p in samples]
+    if not rows:
+        return []
+    by_minute = {r[0]: r for r in rows}
+    # the largest change: the one a dispute would turn on
+    t = max(transitions, key=lambda x: min(x.stable_before, x.stable_after))
+
+    picks: list[tuple[int, int, bool]] = []  # (minute, third, is_backfill)
+    lo, hi = min(by_minute), max(by_minute)
+    for minute, third in ((max(lo, t.minute - 2), 0), (t.minute, 1), (min(hi, t.minute + 2), 2)):
+        if minute in by_minute:
+            picks.append((minute, third, False))
+
+    seen: set[int] = set()
+    out: list[EvidenceFrame] = []
+    for minute, third, backfill in picks:
+        if minute in seen:
+            continue
+        seen.add(minute)
+        _, cls, conf, path = by_minute[minute]
+        out.append(EvidenceFrame(minute, cls, conf, path, third, backfill))
+    return sorted(out, key=lambda e: e.minute_index)

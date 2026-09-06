@@ -91,11 +91,17 @@ is decoration.
 
 ---
 
-## 3. Every verdict should carry the conditions it was formed under
+## 3. Every verdict should carry the conditions it was formed under &mdash; BUILT
 
 **The idea.** Generalise the weather idea: attach an observed-conditions record to each
 slot evaluation - mean contrast, lighting, capture rate, person counts, weather once it
 exists - and surface it in the evidence inspector.
+
+**Built** in `slots/conditions.py`, produced by `run_slot` and covered by tests. A slot now
+carries capture rate, confidence distribution, camera disagreement rate, cameras seen,
+lighting and contrast, plus `concerns()` which turns them into plain-language reasons
+ordered by how much each undermines the verdict. `weather` is reserved and unset, so idea 1
+has somewhere to land.
 
 **Why.** `REVIEW` is currently a verdict with a sentence attached. An operator opening a
 REVIEW slot has to work out from three images why the system hesitated. If the record said
@@ -105,11 +111,17 @@ numbers are already computed and then thrown away.
 
 ---
 
-## 4. Evidence should show the moment a slot changed, not fixed thirds
+## 4. Evidence should show the moment a slot changed, not fixed thirds &mdash; BUILT
 
 **The idea.** Evidence selection currently takes the most confident frame from each third.
 Where a slot contains a **state transition** - play starting late, stopping early,
 maintenance arriving - the most informative frame is the one either side of the change.
+
+**Built** in `slots/evidence.py` as `find_transitions` and
+`select_evidence_around_transitions`, wired into `run_slot`. A change must hold for five
+minutes on both sides to count, which is what separates a match ending from a player
+walking through frame; thirds still apply when nothing changed. An abandoned match now
+reports "active play to empty at minute 22" and brackets its evidence around that minute.
 
 **Why.** For a disputed slot, "here is minute 20 and here is minute 22" settles the
 question far better than three frames that all show the same thing. Thirds remain the right
