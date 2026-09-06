@@ -182,3 +182,55 @@ Caveat: this is a 4-thread AMD laptop. The deployment claim is only settled by W
 the actual Intel Mini-PC.
 
 - 2026-09-06 | efficiency | `python experiments/efficiency_latency.py` | `efficiency_latency.csv` | dev laptop, 4 threads
+
+---
+
+## 2026-09-06 - Label efficiency: more labels made it worse
+
+`uv run python experiments/label_efficiency.py` | grouped split | 5 seeds per budget
+-> `results/label_efficiency.csv`
+
+Macro-F1 against training-set size, stratified subsampling, clock rule (0 labels) as the
+horizontal reference at **0.4907**.
+
+| labels | convnextv2 | dinov2 | vit |
+|---|---|---|---|
+| 10 | 0.514 +/- 0.047 | 0.376 +/- 0.075 | 0.517 +/- 0.071 |
+| 25 | 0.631 +/- 0.030 | 0.526 +/- 0.055 | 0.495 +/- 0.003 |
+| 50 | 0.610 +/- 0.083 | 0.593 +/- 0.020 | 0.516 +/- 0.041 |
+| 100 | **0.679** +/- 0.028 | 0.623 +/- 0.026 | 0.497 +/- 0.001 |
+| 300 | 0.554 +/- 0.071 | **0.691** +/- 0.032 | 0.496 +/- 0.001 |
+| 671 (all) | 0.498 | 0.579 | 0.498 |
+
+**The curves are not monotone - they peak and then fall.** ConvNeXtV2 is best at 100
+labels (0.679) and *worse with all 671* (0.498). DINOv2 peaks at 300 (0.691) and drops to
+0.579 on the full set. Using every available label is the worst option for both.
+
+This is not overfitting in the usual sense; a logistic head on frozen features does not
+overfit 671 examples. The explanation is the confound. The subsampler stratifies by class,
+so a 100-frame budget draws roughly balanced EMPTY and ACTIVE_PLAY. The full training pool
+does not: under the grouped split it is dominated by the morning recording, which is
+almost entirely EMPTY from one scene. Training on all of it teaches "this scene is empty";
+training on a balanced subset teaches something closer to the actual task.
+
+**Stratified subsampling is accidentally acting as a de-confounding intervention**, and it
+buys 0.18 macro-F1 over using everything. That is a usable finding for WP3-T7 (class
+balancing) - and a warning that "collect more of the same" would not have helped. More
+frames from the same two recordings would have deepened the confound, not diluted it.
+
+Practically, for onboarding a new site: **10-25 labels already beat the zero-label rule**
+for ConvNeXtV2, and 100 is near its best. The labelling cost of a new venue is tens of
+frames, not thousands - which is the answer RQ1/RQ2 wanted, even though the curve got
+there by an unexpected route.
+
+**ViT is flat at ~0.50 across every budget** - it never learns anything the clock rule did
+not already have. Consistent with H3, where it was the weakest generaliser, and with the
+ranking-inversion finding: its strong random-split number came from scene memorisation
+that no amount of balanced labelling repairs.
+
+Caveat: the test side of this grouped split is 99% single-class, so these macro-F1 values
+are compressed and should be read as relative, not absolute.
+
+- 2026-09-06 | label efficiency | `python experiments/label_efficiency.py` | `label_efficiency.csv` | 7 sizes x 5 seeds
+
+- 2026-09-06 | label efficiency | `python experiments/label_efficiency.py` | `label_efficiency.csv` | 7 sizes x 5 seeds
