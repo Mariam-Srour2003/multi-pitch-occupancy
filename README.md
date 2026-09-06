@@ -1,48 +1,116 @@
-# Pitch Occupancy System
+# Multi-Pitch Occupancy & Booking Verification
 
-See [PLAN.md](PLAN.md) for the full implementation plan.
+Low-bandwidth, CPU-only computer vision that audits how a network of synthetic 5-a-side football
+pitches is actually used — and reconciles what it sees against what the facility's booking records
+claim.
 
-## Phase 0 workflow (dataset building)
+Master's thesis project.
+
+---
+
+## The idea
+
+Rather than continuously decoding 20–30 video streams, the system samples **one frame per camera
+per minute**, classifies it as *empty*, *active play*, or *maintenance / non-sporting*, and
+aggregates a rental slot's worth of predictions into a verdict — `USED`, `NOTUSED`, or `REVIEW` —
+bound to three evidence images for one-click human audit.
+
+That cuts network load by roughly 99% (from ~60–90 Mbps to under 1 Mbps) and runs entirely on a
+single Intel Mini-PC with **no discrete GPU**. CPU-only is a design constraint of the thesis, not a
+limitation to be worked around.
+
+The operational payoff is reconciliation: the booking system holds what *should* have happened and
+what staff *recorded*; the cameras observe what *actually* happened. Cross-checking the three
+surfaces no-shows, unbooked usage, and data-entry errors — with a human confirming every anomaly.
+
+---
+
+## Status
+
+**Planning complete. Implementation starting.**
+
+The model-selection pilot is finished — it chose four models to build on and produced an end-to-end
+prototype. That work lives on its own branch and is not carried into `main`; the real system is
+built from scratch against the plan, with leakage-free evaluation from the start.
+
+| Branch | Contains |
+|---|---|
+| `main` | The thesis plan and the real implementation as it is built |
+| `pilot/model-selection` | The first-step bake-off that chose the models — code, results, and a full run guide in its own README |
+
+To read or re-run the pilot:
 
 ```bash
-# 1. Extract frames from the videos in data/ (1 per 15s + motion-mined extras)
-python tools/extract_frames.py
-
-# 2. Label them (keyboard: 1=empty 2=playing 3=people-not-playing 4=maintenance)
-python tools/label_tool.py --shuffle
-
-# 3. Draw the pitch ROI polygon for each camera view (excludes neighboring
-#    pitches, benches, parking from all inference)
-python tools/draw_roi.py
+git checkout pilot/model-selection
 ```
 
-## Phase 2 — model bake-off
+---
+
+## Planning documents
+
+| File | What it is |
+|---|---|
+| **[TODO.md](TODO.md)** | **The working checklist.** Every task, WP0→WP8, with milestone gates. Start here. |
+| [SUPER_PLAN.md](SUPER_PLAN.md) | Reference plan — research questions, architecture, hard-won gotchas |
+| [PLAN.md](PLAN.md) | The original engineering plan from the pilot phase, kept for history |
+| `Thesis_Plan_Multi-Pitch_Occupancy (4).docx` | Full thesis plan — abstract, related work, methodology, contributions |
+| `Thesis_Schedule_and_Effort_Plan.docx` | Companion schedule: work packages, effort, dependencies, gates |
+
+---
+
+## What the pilot established
+
+Seven models were benchmarked on 1,296 labelled frames from one venue. Four were carried forward:
+
+| Model | Role | Accuracy | ms/frame |
+|---|---|---|---|
+| ConvNeXtV2-Tiny + head | production lead | 98.1% | 102 |
+| ViT-Base + head | accuracy reference | 99.2% | 203 |
+| DINOv2-Base + head | robustness reference | 98.5% | 254 |
+| OpenCLIP B/32 | zero-shot cold-start baseline | 75.8% | 247 |
+
+Each is a **frozen** backbone with a small logistic-regression head that retrains in seconds on
+cached features. No fine-tuning, no GPU.
+
+**These are not thesis results.** They come from a same-scene random split on a single venue with
+two starved classes — a feasibility signal only. The main line of work replaces them with
+grouped and leave-one-venue-out splits, confidence intervals, and significance testing. Details in
+the pilot branch README.
+
+---
+
+## Beyond the benchmark
+
+Three purpose-built, edge-constrained modules are proposed and ablated against strong baselines,
+each keeping the backbones frozen and adding only small trainable parts:
+
+- **STAN** — a slot-temporal aggregation network that replaces hand-tuned ratio thresholds with a
+  learned, calibrated decision layer over the per-minute sequence.
+- **Gated multi-backbone fusion** — a tiny gate conditioned on cheap image statistics picks or
+  blends backbones per condition, with a conditional-compute variant that only invokes the heavier
+  backbone when the cheap one is uncertain.
+- **Context-aware multimodal head** — visual features fused with temporal and booking priors, with
+  booking-flag dropout so the audit can never simply trust the record it is meant to check.
+
+---
+
+## Ethics
+
+The system classifies **scene state, not identities**. No face recognition, no re-identification.
+Evidence images follow a defined retention policy and exist for audit only. Because reconciliation
+can implicate individual staff, a human stays in the loop for every anomaly — the system produces
+decision support and **never takes an automated financial action**. Faces are blurred in every
+published figure.
+
+---
+
+## Requirements
+
+Python 3.12, CPU only.
 
 ```bash
-# Zero-shot models (no training needed)
-python tools/benchmark.py --family zeroshot
-
-# Embedding backbones + logistic-regression head (needs labels)
-python tools/benchmark.py --family embed
-
-# Honest cross-lighting evaluation: train on the day slot, test on the night slot
-python tools/benchmark.py --family all --split slot
-
-# Quick pass on a subset
-python tools/benchmark.py --limit 200
+pip install -r requirements.txt
 ```
 
-Results accumulate in `results/leaderboard.csv` (sorted by macro-F1).
-Trained heads are saved as `results/head_<model>.pkl` for reuse by the engine.
-
-## Data layout
-
-```
-data/
-├── *.mp4                    # StatBox replay exports (2 cameras × 2 slots)
-├── ss data/                 # 14 annotated reference screenshots
-└── dataset/
-    ├── unlabeled/<camera_tag>/   # extracted frames awaiting labels
-    ├── 1_empty/ 2_playing/ 3_people_not_playing/ 4_maintenance/
-    └── labels.csv
-```
+Footage is not distributed with this repository — it shows identifiable people at a client
+facility. The dataset is referenced by manifest rather than stored in git.
