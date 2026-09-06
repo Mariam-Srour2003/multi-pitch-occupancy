@@ -233,7 +233,6 @@ are compressed and should be read as relative, not absolute.
 
 - 2026-09-06 | label efficiency | `python experiments/label_efficiency.py` | `label_efficiency.csv` | 7 sizes x 5 seeds
 
-- 2026-09-06 | label efficiency | `python experiments/label_efficiency.py` | `label_efficiency.csv` | 7 sizes x 5 seeds
 
 ---
 
@@ -406,3 +405,38 @@ heavily fisheye footage - the processor's default resize distorts, and distortio
 already the hard part here.
 
 - 2026-09-06 | input ablation | `python experiments/input_ablation.py` | `input_ablation.csv` | 5 variants x 7 folds, dinov2
+
+- 2026-09-06 | H3 sensitivity (cg+ch merged) | `python experiments/h3_sensitivity_merged_venues.py` | seed 42 | `h3_sensitivity_merged_venues.csv` | 6 folds x 4 models
+
+---
+
+## 2026-09-06 · H3 sensitivity: cg+ch merged into one fold (venue-audit insurance)
+
+`uv run python experiments/h3_sensitivity_merged_venues.py` | seed 42 | 6 folds
+-> `results/h3_sensitivity_merged_venues.csv`
+
+Pessimistic variant of H3: the two venues from the grouping audit
+(`clipvenue_g_netting`, `clipvenue_h_teal_pitch`) relabelled as ONE venue, so holding the
+pair out removes both from training. If they secretly were one facility, this is the
+honest fold; if they are two (the audit's conclusion), this is strictly harder than needed.
+
+| model | mean recall [95% CI] | worst fold | merged fold | target 0.90 |
+|---|---|---|---|---|
+| dinov2 | **0.967** [0.932, 0.993] | 0.889 | 0.958 | meets |
+| convnextv2 | **0.927** [0.843, 0.989] | 0.750 | 0.875 | meets |
+| vit | 0.903 [0.764, 1.000] | 0.583 | 0.833 | nominal only — CI spans the target |
+| clock_rule | 0.243 [0.021, 0.556] | 0.000 | 0.125 | fails |
+
+**H3 survives the pessimistic merge — the venue-grouping doubt cannot change the
+conclusion.** DINOv2 and ConvNeXtV2 meet the 0.90 target under both groupings; the clock
+rule collapses under both. The worst-fold caveat can now be quoted with confidence.
+
+Two honest notes for the write-up:
+
+- Means are higher than the main run (e.g. DINOv2 0.930 -> 0.967) mostly because merging
+  turns two small weak folds into one medium fold in an unweighted mean of fewer folds —
+  a fold-arithmetic effect, not a model improvement. Quote the main H3 numbers as primary
+  and this run as the robustness check, not the other way around.
+- The `ch`-alone fold recall (0.667 for DINOv2 in the main run) vs `ch`-within-merged
+  (~0.875) differs by ~4 frames on an 18-frame fold — small-n noise territory. Another
+  reason the per-fold table, not the worst single fold, should carry the claim.

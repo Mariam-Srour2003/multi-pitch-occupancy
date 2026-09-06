@@ -37,10 +37,18 @@ external clock you don't control.
       (`configs/clip_venues.csv`); `clipvenue_b_floodlit_track` + `clipvenue_c_teal_boards`
       (19 clips, 29%) held out in `results/splits/FINAL_TESTSET_venues.csv`, chosen by venue
       identity with a fixed seed **before any model was fitted**. Not evaluated until the end.
-  - [x] **[H] Confirm the venue grouping.** Done 2026-09-06 by visual audit (sheets in `results/figs/venue_check/`, findings in EXPERIMENT_LOG): cg confirmed one facility (adjacent pitches 4+5, raised to high), ch plausibly one venue (raised to medium), cg≠ch confirmed. Residual: sensitivity re-run of H3 with cg+ch merged recommended before quoting worst-fold numbers. It comes from background clustering plus my visual
-        reading; two groups (`clipvenue_g_netting`, `clipvenue_h_teal_pitch`) are marked
-        `confidence=low` in the CSV. If two of my "venues" are really one facility, the
-        leave-one-venue-out result is optimistic — worth ten minutes of your eyes.
+  - [x] **[H] Venue grouping confirmed** (2026-09-06, visual audit; sheets in
+        `results/figs/venue_check/`, findings in `EXPERIMENT_LOG.md`). `cg` is one facility
+        (adjacent pitches 4+5 — the pitch-4 camera sees pitch 5's sign in frame), raised to
+        `high`; `ch` plausibly one venue, raised to `medium`; `cg` and `ch` confirmed
+        *different* facilities, and no two of the nine groups are secretly one.
+  - [x] **Sensitivity check closed the residual doubt.**
+        `experiments/h3_sensitivity_merged_venues.py` reruns H3 with `cg`+`ch` merged into a
+        single fold — the pessimistic assumption. **H3 survives**: DINOv2 0.967
+        [0.932, 0.993], ConvNeXtV2 0.927 [0.843, 0.989], clock rule still collapses at
+        0.243. The grouping can no longer change the H3 conclusion, so the worst-fold
+        caveat is safe to quote. Main H3 stays the primary number; this is the robustness
+        check (the higher means are partly fold arithmetic — see the log).
   - [x] Lock enforced in code (WP0-T4). Every split strategy drops locked-venue rows; reaching
         them requires `final_test_rows(..., i_have_finished_all_development=True)`, which is
         deliberately awkward and greppable — one call site, at the end.

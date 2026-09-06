@@ -36,6 +36,11 @@ results/sheets/
 # dataset frames and evidence images, not results/figs.
 !docs/**/*.png
 !results/figs/*.png
+# Venue-audit evidence sheets are cited by EXPERIMENT_LOG and TODO 0.4 as the basis for
+# the grouping decision. Without this they are unreachable to anyone who clones the repo,
+# and the audit becomes an unsupported claim.
+!results/figs/venue_check/
+!results/figs/venue_check/*.jpg
 
 # ---------------------------------------------------------------------------
 # Python
