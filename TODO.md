@@ -16,28 +16,38 @@
 These five come before everything else because they either protect work already done or start an
 external clock you don't control.
 
-- [ ] **0.1 ★ [H][B] Ethics / data-protection clearance check.** Ask your supervisor *this week*
-      whether the programme requires ethics-board approval and/or a GDPR DPIA before further
-      footage collection. Two triggers make this likely: (a) systematic monitoring of a publicly
-      accessible area, (b) the reconciliation layer produces **per-staff-member discrepancy rates**
-      — that is workplace monitoring, and in many jurisdictions it needs a legal basis, worker
-      notification, and sometimes works-council consultation. **This can block WP2 entirely, so
-      resolve it before you collect one more frame.** Record the answer in `thesis/ethics.md`.
-- [ ] **0.2 ★ [B] Backup the data you already have.** 2.6 GB of video + 1,296 hand-labelled frames
-      exist in exactly one place right now. One disk failure ends the thesis. Do 3-2-1: local copy,
-      external drive, cloud. Verify the restore actually works, don't just trust the upload.
-- [ ] **0.3 [H][B] Send the footage request to the client** (WP2-T2). Longest external lead time of
-      anything in the plan. ★ **Critically: ask for a number of *distinct slots*, not hours of
-      video** — see the reasoning in WP2-T2 below. Every week you delay this delays M2 and M4.
-- [ ] **0.4 ★ [B] Lock a final test set now, before you look at it.** Choose a hold-out (ideally one
-      whole venue, or failing that one whole lighting regime × day) and write it to
-      `results/splits/FINAL_TESTSET.csv`. Do not evaluate on it during WP3/WP4/WP5 iteration — you
-      touch it once, at the end. Without this, dozens of ablation cycles quietly overfit your
-      reported numbers and you have no clean claim left.
-- [ ] **0.5 ★ Pre-register the analysis plan.** Before running any WP4/WP5 experiment, write
-      `thesis/preregistration.md`: hypotheses, primary metric per RQ, the statistical test for each,
-      the multiple-comparison correction, and the stopping rule. Commit it to git so it is
-      timestamped. Costs an hour; permanently kills the "did you p-hack this?" question at defence.
+- [x] **0.1 ★ Ethics — settled.** The facility operator supplied the footage and holds the approval
+      for its collection; the data is never published or shared. Recorded in `thesis/ethics.md`,
+      along with the consequences: **no dataset release** (so it comes out of the contributions
+      list, or becomes features-only), faces blurred in figures, retention enforced in code.
+      Two items remain open in that file: **(a)** one question to the supervisor confirming the
+      programme doesn't need its own sign-off for *research use* of operator-supplied footage;
+      **(b)** the WP1-T4 decision on per-staff reporting — recommendation is to report anomalies
+      **per field only**, which removes the workplace-monitoring exposure at no scientific cost.
+- [ ] **0.2 ★ [B] Back up `data/`.** Structure work is **finished**, so this is unblocked — do it
+      now. 4.2 GB. External drive **plus** a cloud folder (two places, not one), then open a file
+      from each copy to confirm the restore actually works.
+- [x] **0.3 Footage request — closed; working with what we have.** The 66 clips landed: ~9 venues,
+      day and night, all active play. Decision taken not to request more. The consequences are
+      pinned down in `thesis/preregistration.md` §"Not answerable" — cross-venue *three-class*
+      evaluation is impossible (no empty pitch exists outside venue_01), C3 stays unclaimable, and
+      STAN can only be reported as preliminary on synthesised sequences. Scope reduced deliberately
+      and documented, rather than discovered at the defence.
+- [x] **0.4 ★ Final test set locked.** 66 clips grouped into 9 venues
+      (`configs/clip_venues.csv`); `clipvenue_b_floodlit_track` + `clipvenue_c_teal_boards`
+      (19 clips, 29%) held out in `results/splits/FINAL_TESTSET_venues.csv`, chosen by venue
+      identity with a fixed seed **before any model was fitted**. Not evaluated until the end.
+  - [ ] **[H] Confirm the venue grouping.** It comes from background clustering plus my visual
+        reading; two groups (`clipvenue_g_netting`, `clipvenue_h_teal_pitch`) are marked
+        `confidence=low` in the CSV. If two of my "venues" are really one facility, the
+        leave-one-venue-out result is optimistic — worth ten minutes of your eyes.
+  - [ ] Enforce the lock in code once `engine/splits.py` exists (WP0-T4): every split function
+        must *refuse* to return FINAL rows, rather than relying on discipline over six months.
+- [x] **0.5 ★ Analysis plan pre-registered.** `thesis/preregistration.md` — six hypotheses with
+      primary metric, test, correction and decision rule; standing rules (macro-F1 leads, CIs on
+      everything, Holm correction, effect sizes, report either direction); an explicit
+      **"not answerable with this data"** section; and the locked test set with its amendment
+      disclosed. Committed and dated.
 
 ---
 
