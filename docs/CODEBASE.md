@@ -129,6 +129,7 @@ on the Mini-PC.
 | `cheap_features.py` | Mean intensity and colour histogram — the deliberately weak floors. |
 | `camera_id.py` | Identify a camera by *what it sees*. Lighting-invariant descriptor; the `(1)` filename suffix flips between recording days. |
 | `zeroshot.py` | CLIP prompt sets, templates and descriptors, and the class-direction encoding. |
+| `augment.py` | Train-time augmentation — the complement to `preprocess.py`. Preprocessing removes information permanently and has a floor; augmentation varies it and keeps every pixel at inference. Photometric jitter, synthetic fog and rain, night gamma, horizontal flip. **No rotations or warps** — the cameras are bolted down. Not wired into the experiments yet: augmenting means re-running the backbone per view, so the feature cache no longer applies. |
 
 ### `slots/` — from frames to a billing decision
 

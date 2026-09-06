@@ -307,6 +307,16 @@ tagged with the question it answers. Fix that first — it is what turns a build
 - [ ] **WP3-T6 Train-time augmentation.** Photometric jitter, synthetic fog (gaussian haze),
       night-gamma, horizontal flip. **No rotations/warps** — cameras are fixed. *Accept:* flag in
       benchmark; visual grid saved.
+  - [x] Module built: `vision/augment.py` — 9 effects, 5 presets, 18 property tests.
+  - [x] Visual grid saved: `experiments/augmentation_grid.py` → `results/figs/augmentation_grid.jpg`.
+        It earned its keep immediately: rain streak geometry was in absolute pixels, so it
+        rendered as white poles at 320×180 and would have been invisible hairlines at 1080p
+        after the resize to 224. Now every dimension is a fraction of frame height, pinned by
+        a test. **No shape/dtype check could have caught that** — only looking at it.
+  - [ ] Flag in benchmark — *deliberately not done yet.* Augmenting means a backbone forward
+        pass per view, so the feature cache every experiment relies on stops applying
+        (~8 min/model/epoch-equivalent vs seconds for a probe fit). This needs its own
+        extraction budget, not a switch. See `docs/IDEAS.md` #2.
 - [ ] **WP3-T7 Class balancing.** `class_weight='balanced'` + optional weighted sampling, default ON
       for 3-class runs. *Accept:* C3 recall improves on validation vs unweighted.
 - [ ] **WP3-T8 Preprocessing ablation (E-PRE).** Best model + grouped split; toggle

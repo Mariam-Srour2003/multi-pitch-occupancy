@@ -72,7 +72,7 @@ dataset on top of the occupancy one.
 
 ---
 
-## 2. Synthetic rain as training augmentation
+## 2. Synthetic rain as training augmentation &mdash; BUILT (untested)
 
 **The idea.** WP3-T6 already lists synthetic fog. Add rain: oriented motion-blurred streaks
 at varying density and angle, plus a slight contrast reduction and a wet-turf specular
@@ -85,9 +85,33 @@ anything at inference time**, so it cannot cross that floor. Where grayscale thr
 away permanently, colour jitter and synthetic rain leave the pixels intact and teach the
 model not to lean on them.
 
+**Built** in `vision/augment.py`: `AugmentConfig` (brightness, contrast, saturation, hue,
+gamma, noise, fog, rain, horizontal flip, each gated at probability `p`), `synthetic_fog`,
+`synthetic_rain`, and five presets - `none`, `colour`, `weather`, `light`, `full`. Covered
+by 16 property tests. Two design decisions are pinned by tests rather than left to comment:
+
+- **No rotations, warps or perspective changes.** The cameras are bolted to a post. A
+  rotated pitch is not a harder example, it is an impossible one.
+- **Horizontal flip is the one exception, deliberately.** It produces a mirror the camera
+  never sees, which is why it helps: it cannot change whether people are playing, but it
+  breaks memorisation of *this* pitch's layout - the exact failure the cross-venue
+  evaluation exists to catch.
+
+**Not yet measured, and the reason matters.** Everything downstream trains a linear probe on
+**cached** embeddings, one vector per frame. Augmentation happens before the backbone, so
+every augmented view needs its own forward pass - the cache stops being a cache. At the
+measured extraction rate that is roughly 8 minutes per model per epoch-equivalent of views,
+against seconds for a probe fit on cached features. So this is not a switch to flip inside
+the existing experiments; it needs its own extraction budget, which is why the module ships
+tested but unclaimed.
+
 **Cheap to validate.** Train on clean frames with and without synthetic rain, evaluate on
 whatever real rain footage exists. If synthetic rain does not improve real-rain recall, it
-is decoration.
+is decoration. Note the ordering trap: **there is no real rain footage** (see idea 1), so
+today synthetic rain can only be validated against synthetic rain, which proves nothing
+about weather and everything about the generator. The honest claim available now is the
+narrower one - whether `colour` jitter improves *cross-venue* recall, which needs no
+weather at all and is directly motivated by the ablation.
 
 ---
 
