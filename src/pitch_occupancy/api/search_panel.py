@@ -32,6 +32,18 @@ PANEL_STYLES = """
  font:500 12.5px Archivo,sans-serif;padding:8px 13px;border-radius:8px;cursor:pointer}
 .runbar .ghost:hover{border-color:var(--accent);color:var(--accent)}
 .runbar .state{margin-left:auto;font:500 12.5px 'JetBrains Mono',monospace;color:var(--ink-3)}
+.prog{background:var(--surface);border:1px solid var(--line);border-radius:11px;
+ padding:15px 18px;margin:14px 0}
+.prog .top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:11px}
+.prog .eta{font:700 21px 'JetBrains Mono',monospace;letter-spacing:-.02em;color:var(--ink)}
+.prog .of{font:500 12.5px 'JetBrains Mono',monospace;color:var(--ink-3);margin-left:auto}
+.ptrack{height:9px;border-radius:3px;background:var(--surface-2);overflow:hidden}
+.ptrack i{display:block;height:100%;background:var(--accent);border-radius:3px;
+ transition:width .4s ease}
+@media (prefers-reduced-motion:reduce){.ptrack i{transition:none}}
+.prog .meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12.5px;
+ color:var(--ink-3)}
+.prog .meta b{color:var(--ink-2);font-family:'JetBrains Mono',monospace;font-weight:600}
 .runbar .state.live{color:var(--accent)}
 .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);
  margin-right:6px;vertical-align:middle}
@@ -74,12 +86,14 @@ PANEL_HTML = """
   <button class="ghost" id="sClear">Clear results</button>
   <span class="state" id="sState"></span>
 </div>
+<div id="sProg"></div>
 <div id="sAlert"></div>
 <div id="sChart"></div>
 """
 
 PANEL_SCRIPT = """
 const sState = document.getElementById("sState");
+const sProg = document.getElementById("sProg");
 const sChart = document.getElementById("sChart");
 const sAlert = document.getElementById("sAlert");
 const sRun = document.getElementById("sRun");
@@ -139,7 +153,35 @@ function barChart(rows, baseline) {
   </div>`;
 }
 
+function dur(sec) {
+  if (sec == null) return "—";
+  const m = Math.round(sec / 60);
+  if (m < 60) return m + " min";
+  return Math.floor(m / 60) + "h " + String(m % 60).padStart(2, "0") + "m";
+}
+
+function renderProgress(s) {
+  if (!s.evaluations && !s.running) { sProg.innerHTML = ""; return; }
+  const pct = (s.progress * 100).toFixed(0);
+  sProg.innerHTML = `<div class="prog">
+    <div class="top">
+      ${s.running
+        ? `<span class="dot live"></span><span class="eta">${dur(s.eta_seconds)} left</span>`
+        : `<span class="eta">Finished</span>`}
+      <span class="of">${s.evaluations} of ~${s.expected} evaluations · ${pct}%</span>
+    </div>
+    <div class="ptrack"><i style="width:${pct}%"></i></div>
+    <div class="meta">
+      <span>elapsed <b>${dur(s.elapsed_seconds)}</b></span>
+      <span>per evaluation <b>${s.seconds_per_eval ? Math.round(s.seconds_per_eval) + "s" : "—"}</b></span>
+      <span>round <b>${s.rounds_done.length ? Math.max(...s.rounds_done) : 0}</b> of 3</span>
+      <span>frames <b>${s.n_frames.join(", ") || "—"}</b></span>
+    </div>
+  </div>`;
+}
+
 function renderSearch(s) {
+  renderProgress(s);
   sRun.disabled = s.running;
   sRun.textContent = s.running ? "Running\\u2026" : "Run search";
   sState.className = "state" + (s.running ? " live" : "");

@@ -137,3 +137,42 @@ def test_clear_refuses_while_running(env, client) -> None:
     search_control.LOCK.write_text("77")
     r = client.request("DELETE", "/api/v1/search/preprocess")
     assert r.status_code == 409
+
+
+# --- progress and eta -------------------------------------------------------
+
+
+def test_expected_evaluations_covers_the_greedy_rounds() -> None:
+    from pitch_occupancy.api.search_control import expected_evaluations
+    from pitch_occupancy.vision.preprocess import SWITCHES
+
+    one_round = sum(len(v) for v in SWITCHES.values())
+    assert expected_evaluations(1) == one_round + 1  # + baseline
+    assert expected_evaluations(3) > expected_evaluations(1)
+
+
+def test_eta_is_measured_from_this_run_not_assumed(env, client) -> None:
+    """Pace differs threefold between frame counts and again between backbones, so the
+    estimate has to come from the run's own timings."""
+    search_control.LOCK.write_text("1")
+    evals = [ev("baseline", 0.9), ev("a", 0.91), ev("b", 0.92)]
+    for e in evals:
+        e["seconds"] = 240.0
+    write_state(search_control.STATE, evals)
+    s = client.get("/api/v1/search/preprocess").json()
+    assert s["seconds_per_eval"] == 240.0
+    assert s["eta_seconds"] == pytest.approx((s["expected"] - 3) * 240.0)
+    assert 0 < s["progress"] < 1
+
+
+def test_no_eta_when_nothing_is_running(env, client) -> None:
+    write_state(search_control.STATE, [ev("baseline", 0.9)])
+    assert client.get("/api/v1/search/preprocess").json()["eta_seconds"] is None
+
+
+def test_progress_never_exceeds_one(env, client) -> None:
+    search_control.LOCK.write_text("1")
+    write_state(search_control.STATE, [ev(f"s{i}", 0.9) for i in range(300)])
+    s = client.get("/api/v1/search/preprocess").json()
+    assert s["progress"] == 1.0
+    assert s["eta_seconds"] == 0.0

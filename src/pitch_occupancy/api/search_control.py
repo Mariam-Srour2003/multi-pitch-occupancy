@@ -43,10 +43,33 @@ class StartRequest(BaseModel):
     )
 
 
+def expected_evaluations(rounds: int = 3) -> int:
+    """How many evaluations a greedy run of `rounds` rounds will need.
+
+    Round one tries every setting; each later round drops the switch just adopted. This is
+    an upper bound - the search stops early when a round improves on nothing.
+    """
+    from pitch_occupancy.vision.preprocess import SWITCHES
+
+    remaining = dict(SWITCHES)
+    total = 0
+    for _ in range(rounds):
+        if not remaining:
+            break
+        total += sum(len(v) for v in remaining.values())
+        remaining.pop(next(iter(remaining)))
+    return total + 1  # + the baseline
+
+
 class SearchStatus(BaseModel):
     running: bool
     pid: int | None = None
     evaluations: int = 0
+    expected: int = 0
+    progress: float = 0.0
+    seconds_per_eval: float | None = None
+    elapsed_seconds: float = 0.0
+    eta_seconds: float | None = None
     n_frames: list[int] = []
     rounds_done: list[int] = []
     baseline: float | None = None
@@ -95,6 +118,16 @@ def status() -> SearchStatus:
     baseline = next((e["play_recall"] for e in evals if e["label"] == "baseline"), None)
     ranked = sorted(evals, key=lambda e: -e["play_recall"])
 
+    # Pace is measured from this run rather than assumed: the same search is roughly three
+    # times slower on 1,578 frames than on 500, and slower again on a heavier backbone.
+    durations = sorted(e["seconds"] for e in evals if e.get("seconds"))
+    per_eval = durations[len(durations) // 2] if durations else None
+    expected = expected_evaluations()
+    elapsed = float(sum(durations))
+    eta = None
+    if running and per_eval and evals:
+        eta = max(0.0, (expected - len(evals)) * per_eval)
+
     warning = None
     if len(frames) > 1:
         warning = (
@@ -112,6 +145,11 @@ def status() -> SearchStatus:
         running=running,
         pid=pid,
         evaluations=len(evals),
+        expected=expected,
+        progress=round(min(len(evals) / expected, 1.0), 4) if expected else 0.0,
+        seconds_per_eval=round(per_eval, 1) if per_eval else None,
+        elapsed_seconds=round(elapsed, 1),
+        eta_seconds=round(eta, 1) if eta is not None else None,
         n_frames=frames,
         rounds_done=sorted({e["round"] for e in evals}),
         baseline=baseline,
