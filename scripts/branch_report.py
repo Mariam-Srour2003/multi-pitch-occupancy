@@ -144,6 +144,69 @@ git checkout main && git merge {tip}
 {END}"""
 
 
+TABLE_START = "<!-- branch-table:start -->"
+TABLE_END = "<!-- branch-table:end -->"
+
+
+def chain() -> list[str]:
+    """The stacked branches in the order they were built.
+
+    Ordered by how many commits each contains: because every branch sits on top of the last,
+    that count only ever grows, so it recovers the build order exactly - and unlike commit
+    dates it cannot be disturbed by a rebase or a clock.
+    """
+    ordered = sorted(
+        (b for b in branches() if b != "pilot/model-selection"),
+        key=lambda b: int(git("rev-list", "--count", b)),
+    )
+    return ordered
+
+
+def branch_table() -> str:
+    """One row per branch, described by its own commit subjects.
+
+    Generated rather than written, because the hand-maintained version went stale the moment
+    a branch was added and the test that noticed it became a chore rather than a signal. The
+    commit messages are the description: they were written when the work was fresh, and a
+    branch whose subjects do not explain it has a commit-message problem, not a table problem.
+    """
+    rows = [
+        "| # | Branch | Commits | What it contains |",
+        "|---|---|---|---|",
+        "| — | `pilot/model-selection` | 2 | The **original pilot**, preserved. The bake-off "
+        "that chose the four models, with its own run guide. Branches from the first commit "
+        "and is deliberately not an ancestor of the others. |",
+    ]
+    previous: str | None = None
+    step = 0
+    for branch in chain():
+        span = branch if previous is None else f"{previous}..{branch}"
+        subjects = [s for s in git("log", "--format=%s", span).splitlines() if s]
+        if branch == "main":
+            # main is the integration point, not a step in the chain. It carries no commits
+            # of its own - it is fast-forwarded to whatever the newest branch reached - so a
+            # row saying "0 commits" would read as though nothing were there.
+            rows.append(
+                "| — | `main` | all | **The integration branch.** Fast-forwarded to the tip "
+                "of the chain, so it contains every commit above. |"
+            )
+        else:
+            step += 1
+            rows.append(
+                f"| {step} | `{branch}` | {len(subjects)} | {' · '.join(subjects)} |"
+            )
+        previous = branch
+    return f"{TABLE_START}\n" + "\n".join(rows) + f"\n{TABLE_END}"
+
+
+def rewrite_table(text: str) -> str:
+    before, _, rest = text.partition(TABLE_START)
+    _, _, after = rest.partition(TABLE_END)
+    if not rest:
+        return text  # markers absent; the table is still hand-maintained
+    return before + branch_table() + after
+
+
 def rewrite(text: str) -> str:
     before, _, rest = text.partition(START)
     _, _, after = rest.partition(END)
@@ -165,7 +228,7 @@ def main() -> None:
     args = ap.parse_args()
 
     current = DOC.read_text(encoding="utf-8")
-    updated = rewrite(current)
+    updated = rewrite_table(rewrite(current))
     if args.write:
         DOC.write_text(updated, encoding="utf-8")
         print(f"rewrote the branch block in {DOC.relative_to(ROOT)}")

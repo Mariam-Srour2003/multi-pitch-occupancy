@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 
 from scripts.branch_report import (
-    DOC, block, branches, contains_everything, git, tip_branch,
+    DOC, block, branch_table, branches, chain, contains_everything, git, tip_branch,
 )
 
 # Roots a document may legitimately name besides the tip. `pilot/model-selection` branches
@@ -69,6 +69,22 @@ def test_every_branch_appears_in_the_branch_table() -> None:
     text = DOC.read_text(encoding="utf-8")
     missing = [b for b in branches() if f"`{b}`" not in text]
     assert not missing, f"branches absent from docs/CODEBASE.md: {missing}"
+
+
+def test_the_branch_table_is_generated_too() -> None:
+    """It is generated rather than written because the hand-maintained version went stale
+    the moment a branch was added, which turned the test above into a chore instead of a
+    signal - it fired three times in one session for no defect at all."""
+    assert branch_table() in DOC.read_text(encoding="utf-8"), (
+        "the branch table is stale; run scripts/branch_report.py --write"
+    )
+
+
+def test_the_chain_is_ordered_by_what_each_branch_contains() -> None:
+    """Ordered by commit count rather than date: the branches are stacked, so that count only
+    grows, and unlike a timestamp it survives a rebase or a wrong clock."""
+    counts = [int(git("rev-list", "--count", b)) for b in chain()]
+    assert counts == sorted(counts)
 
 
 def test_no_document_tells_a_reader_to_check_out_a_stale_branch() -> None:
