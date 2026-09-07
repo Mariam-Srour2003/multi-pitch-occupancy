@@ -32,7 +32,9 @@ reproduce the number it is extending has no business adding a new one.
 
 from __future__ import annotations
 
+import argparse
 import csv
+from pathlib import Path
 from datetime import datetime, timezone
 
 import numpy as np
@@ -47,6 +49,14 @@ PLAY, EMPTY = "C2_ACTIVE_PLAY", "C1_EMPTY"
 SEED = 42
 OUT = settings.results_dir / "logit_average_baseline.csv"
 PUBLISHED = settings.results_dir / "h3_cross_venue_recall.csv"
+
+#: Which cache family to read. The default is the published one, built from *raw* frames
+#: handed to the HF processor. `--cache-dir data/cache/geom_probe` reads the letterboxed
+#: caches the WP3-T3 probe built instead, and that matters here more than anywhere else:
+#: this experiment's second finding - that blending is disqualified because ConvNeXtV2
+#: destroys DINOv2's false-play advantage - rests entirely on ConvNeXtV2 scoring 0.9918,
+#: and under letterboxing it scores 0.0206. The premise may simply invert.
+CACHE_DIR = settings.feature_cache_dir
 
 CACHES = {
     "convnextv2": "convnextv2.npz",
@@ -72,7 +82,7 @@ def common_rows_and_features(rows):
     """
     loaded = {}
     for key, name in CACHES.items():
-        d = np.load(settings.feature_cache_dir / name, allow_pickle=True)
+        d = np.load(CACHE_DIR / name, allow_pickle=True)
         loaded[key] = ({str(f): i for i, f in enumerate(d["files"])}, d["features"])
 
     keep = [r for r in rows if all(r.file in idx for idx, _ in loaded.values())]
@@ -189,6 +199,23 @@ def published_means() -> dict[str, float]:
 
 
 def main() -> None:
+    global CACHE_DIR, OUT
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument(
+        "--cache-dir", type=Path, default=None,
+        help="feature cache family to read; default is the published raw-frame one",
+    )
+    ap.add_argument(
+        "--suffix", default="",
+        help="appended to the output filename, so two cache families do not overwrite",
+    )
+    args = ap.parse_args()
+    if args.cache_dir:
+        CACHE_DIR = args.cache_dir
+        print(f"reading caches from {CACHE_DIR}")
+    if args.suffix:
+        OUT = settings.results_dir / f"logit_average_baseline{args.suffix}.csv"
+
     rows = development_rows(read_manifest(settings.dataset_dir / "manifest.csv"))
     rows, X = common_rows_and_features(rows)
     print(f"development rows: {len(rows)}\n")
@@ -203,18 +230,31 @@ def main() -> None:
     oracle = float(np.mean([max(per_fold[k][f] for k in CACHES) for f in folds]))
     best_single = max(CACHES, key=lambda k: means[k])
 
-    print("\n=== reproduction check against the published H3 table ===")
-    ref = published_means()
-    ok = True
-    for k in CACHES:
-        want = ref.get(k)
-        agree = want is None or abs(means[k] - want) < 0.005
-        ok &= agree
-        print(f"  {k:<22} {means[k]:.4f}  published {want if want is None else f'{want:.4f}'}"
-              f"  {'ok' if agree else 'MISMATCH'}")
-    if not ok:
-        print("\nWARNING: a single-backbone mean does not reproduce the published CSV.")
-        print("Do not read the ensemble rows until that is explained.")
+    # Reproducing the published H3 table is only meaningful for the cache family that
+    # produced it. On a different family the numbers *should* differ - that is the point of
+    # running it there - so the check is skipped rather than reported as a failure, which
+    # would train the reader to ignore a warning that matters on the default path.
+    if CACHE_DIR == settings.feature_cache_dir:
+        print("\n=== reproduction check against the published H3 table ===")
+        ref = published_means()
+        ok = True
+        for k in CACHES:
+            want = ref.get(k)
+            agree = want is None or abs(means[k] - want) < 0.005
+            ok &= agree
+            print(f"  {k:<22} {means[k]:.4f}  published {want if want is None else f'{want:.4f}'}"
+                  f"  {'ok' if agree else 'MISMATCH'}")
+        if not ok:
+            print("\nWARNING: a single-backbone mean does not reproduce the published CSV.")
+            print("Do not read the ensemble rows until that is explained.")
+    else:
+        print(f"\n=== reproduction check skipped: reading {CACHE_DIR.name}, not the "
+              f"published cache family ===")
+        ref = published_means()
+        for k in CACHES:
+            want = ref.get(k)
+            shown = "-" if want is None else f"{want:.4f}"
+            print(f"  {k:<22} {means[k]:.4f}  (published raw-frame value {shown})")
 
     fp = false_play(rows, X)
     n_empty = int(fp.pop("_n", 0))
