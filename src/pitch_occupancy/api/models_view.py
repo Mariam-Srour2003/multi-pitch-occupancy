@@ -63,6 +63,11 @@ def collect() -> dict:
     sens = {r["model"]: r for r in _csv("h3_sensitivity_merged_venues.csv")
             if r["held_out_venue"] == "MEAN_ACROSS_FOLDS"}
     lat = {r["backbone"]: r for r in _csv("efficiency_latency.csv")}
+    # The column that reverses the ranking. Cross-venue recall is measured on folds that are
+    # 100% ACTIVE_PLAY, so it can be earned by answering "playing" to everything - and two of
+    # the three backbones very nearly do.
+    fp = {r["model"]: r for r in _csv("h3_with_false_play.csv")
+          if r["held_out_venue"] == "MEAN_ACROSS_FOLDS"}
     grouped = {r["model"]: r for r in h1h2 if r["split"].startswith("grouped")}
     random_ = {r["model"]: r for r in h1h2 if r["split"].startswith("random")}
 
@@ -81,18 +86,31 @@ def collect() -> dict:
             "cross": cross.get("play_recall"),
             "worst": cross.get("worst_fold"),
             "merged": sens.get(key, {}).get("play_recall"),
+            "false_play": fp.get(key, {}).get("false_play_rate"),
             "ms": lat.get(key, {}).get("single_median_ms"),
             "conc": lat.get(key, {}).get("round_wall_s"),
         })
     return {"rows": rows, "best_prompt": best_prompt}
 
 
-def _rank(rows: list[dict], field: str) -> dict[str, int]:
+def _rank(rows: list[dict], field: str, *, lower_is_better: bool = False) -> dict[str, int]:
     ranked = sorted(
         (r for r in rows if r["key"] in TRAINED and r.get(field)),
-        key=lambda r: -float(r[field]),
+        key=lambda r: (1 if lower_is_better else -1) * float(r[field]),
     )
     return {r["key"]: i + 1 for i, r in enumerate(ranked)}
+
+
+def _balanced(row: dict) -> float | None:
+    """Recall minus false-play.
+
+    Indicative rather than a single coherent metric, and the page says so: the two terms come
+    from different fits, because no cross-venue fold contains a single EMPTY frame to measure
+    false-play on. What makes the comparison fair is that every model faces the same pair.
+    """
+    if not row.get("cross") or row.get("false_play") in (None, ""):
+        return None
+    return float(row["cross"]) - float(row["false_play"])
 
 
 def render() -> str:
@@ -116,6 +134,7 @@ def render() -> str:
         "random split (leaky)": _rank(rows, "random"),
         "grouped split": _rank(rows, "grouped"),
         "cross-venue recall": _rank(rows, "cross"),
+        "false-play (lower is better)": _rank(rows, "false_play", lower_is_better=True),
     }
     winner = max(
         (r for r in trained if r.get("cross")), key=lambda r: float(r["cross"]), default=None
@@ -192,8 +211,34 @@ def render() -> str:
           <td class="cell">{_bar(cross, lo=0.0, hi=1.0, tone=tone)}
             <span class="cv">{_num(r['cross'])}</span></td>
           <td class="num">{_num(r['worst'])}</td>
+          <td class="num {'bad' if r.get('false_play') and float(r['false_play']) > 0.5 else ''}">{_num(r['false_play'])}</td>
+          <td class="num">{_num(_balanced(r))}</td>
           <td class="num">{_num(r['ms'], 0)}</td>
         </tr>"""
+
+    # --- the false-play inversion ---
+    worst_fp = max(
+        (r for r in trained if r.get("false_play")),
+        key=lambda r: float(r["false_play"]), default=None,
+    )
+    clock = next((r for r in rows if r["key"] == "clock_rule"), {})
+    false_play_note = ""
+    if worst_fp and clock.get("false_play"):
+        best_bal = max(
+            (r for r in trained if _balanced(r) is not None), key=_balanced, default=None
+        )
+        false_play_note = f"""<div class="callout warn">
+        <p><b>Cross-venue recall is measured on folds that contain no empty pitch at all</b>,
+        so it can be earned by answering &ldquo;playing&rdquo; to everything &mdash; and
+        {worst_fp['label']} very nearly does: it calls
+        <b>{float(worst_fp['false_play']):.1%}</b> of held-out empty frames a match. The
+        clock rule, the straw man that never looks at the image, calls
+        <b>{float(clock['false_play']):.1%}</b>.</p>
+        <p>Ranked on recall minus false-play the table inverts, and
+        <b>{best_bal['label']}</b> is the only backbone that survives it. The two terms come
+        from different fits &mdash; no cross-venue fold holds a single empty frame to measure
+        against &mdash; so read them side by side rather than as one number; every model
+        faces the identical pair.</p></div>"""
 
     # --- latency against the budget ---
     budget = 60.0
@@ -217,12 +262,17 @@ they are read in decides the answer.</p>
 <div class="strips">{strips}</div>
 {inversion_note}
 
+{false_play_note}
+
 <h2>Every score</h2>
 <p>Macro-F1 for the split protocols, play recall for cross-venue. Bars share one scale, so
-lengths are comparable down the column.</p>
+lengths are comparable down the column. <b>False-play</b> is how often a model calls a
+held-out empty pitch a match, and <b>balanced</b> is recall minus that.</p>
 <div class="scroll"><table>
   <thead><tr><th>Model</th><th class="num">Random split</th><th class="num">Grouped split</th>
-  <th>Cross-venue recall</th><th class="num">Worst fold</th><th class="num">ms/frame</th></tr></thead>
+  <th>Cross-venue recall</th><th class="num">Worst fold</th>
+  <th class="num">False-play</th><th class="num">Balanced</th>
+  <th class="num">ms/frame</th></tr></thead>
   <tbody>{body}</tbody>
 </table></div>
 <p class="foot">The clock rule uses no image data. It is competitive under both split
@@ -242,6 +292,7 @@ here settles the deployment claim.</p>
 
 
 STYLES = """
+td.bad{color:var(--warn);font-weight:600}
 .verdict{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);
  border-radius:11px;padding:19px 22px;margin:20px 0}
 .verdict .vk{font:500 10.5px 'JetBrains Mono',monospace;letter-spacing:.12em;

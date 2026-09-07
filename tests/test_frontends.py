@@ -153,10 +153,15 @@ def test_models_view_leads_with_a_recommendation(client) -> None:
 
 
 def test_models_view_ranks_each_protocol_separately(client) -> None:
+    """One strip per protocol, and each is named - a bare count would pass while the page
+    silently lost the protocol that reverses the decision."""
     from pitch_occupancy.api.models_view import render as render_models
 
     out = render_models()
-    assert out.count('class="strip"') == 3  # random, grouped, cross-venue
+    for protocol in ("random split (leaky)", "grouped split", "cross-venue recall",
+                     "false-play (lower is better)"):
+        assert protocol in out, protocol
+    assert out.count('class="strip"') == 4
 
 
 def test_models_view_flags_a_ranking_inversion(client) -> None:
@@ -341,3 +346,25 @@ def test_the_search_table_never_shows_a_broken_false_play_as_a_number() -> None:
     if "not re-scored" in html:
         assert "predate the repair" in html
     assert "Balanced" in html
+
+
+def test_the_model_view_reports_false_play_not_only_recall() -> None:
+    """Cross-venue recall is measured on folds with no empty pitch in them, so a page that
+    ranks on it alone recommends the model that says PLAY most often."""
+    from pitch_occupancy.api.models_view import collect, render
+
+    if not any(r.get("false_play") for r in collect()["rows"]):
+        pytest.skip("h3_with_false_play.csv not generated")
+    html = render()
+    assert "False-play" in html and "Balanced" in html
+    assert "answering" in html and "playing" in html
+
+
+def test_the_model_view_names_the_backbone_that_survives_the_control() -> None:
+    from pitch_occupancy.api.models_view import _balanced, collect, render
+
+    rows = [r for r in collect()["rows"] if _balanced(r) is not None]
+    if not rows:
+        pytest.skip("no false-play data")
+    best = max((r for r in rows if r["key"] != "clock_rule"), key=_balanced)
+    assert best["label"] in render()
