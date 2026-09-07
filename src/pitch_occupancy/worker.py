@@ -138,7 +138,9 @@ def run_slot(
             disagreements=disagreements,
             cameras_seen=len({s.camera_id for s in samples}),
         ),
-        transitions=tuple(find_transitions(fused_states)),
+        transitions=tuple(
+            find_transitions(fused_states, minutes=[r[0] for r in evidence_rows])
+        ),
     )
 
 

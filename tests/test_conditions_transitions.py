@@ -162,3 +162,80 @@ def test_an_empty_slot_does_not_divide_by_zero() -> None:
     )
     assert c.capture_rate == 0.0
     assert c.disagreement_rate == 0.0
+
+
+# --- a camera gap must not move the clock ---------------------------------
+#
+# worker.py appends nothing for a minute no camera could be read, so the state sequence is
+# compacted while the clock is not. `find_transitions` reported a list *position* in a field
+# called `minute`, and the evidence selector looked it up in a dict keyed by real minute.
+# Identical while every minute was observed; wrong for every slot with an outage.
+
+PLAY, EMPTY = Class3.ACTIVE_PLAY, Class3.EMPTY
+
+#: Play for minutes 0-19, then empty. The change is at minute 20.
+_STATES = [PLAY] * 20 + [EMPTY] * 40
+
+
+def _rows(pairs):
+    return [(m, s, 0.9, f"f{m}.jpg") for m, s in pairs]
+
+
+def test_a_transition_reports_a_minute_not_a_position() -> None:
+    """With the first ten minutes lost, position 10 is minute 20."""
+    kept = [(m, s) for m, s in enumerate(_STATES) if m >= 10]
+    t = find_transitions([s for _, s in kept], minutes=[m for m, _ in kept])[0]
+    assert t.minute == 20, "the clock time of the change"
+    assert t.index == 10, "and its position in the compacted sequence"
+
+
+def test_without_minutes_the_transition_falls_back_to_the_position() -> None:
+    """Backwards compatible: a gapless caller needs no extra argument."""
+    t = find_transitions(_STATES)[0]
+    assert t.minute == 20 and t.index == 20
+
+
+def test_evidence_straddles_the_change_even_when_minutes_are_missing() -> None:
+    """The whole point of transition-aware evidence, under an outage.
+
+    Before the fix this returned minutes 10 and 12 - two frames instead of three, both
+    still showing ACTIVE_PLAY, for a slot whose play stopped at minute 20. A reviewer
+    settling a dispute would have seen no evidence of the change at all.
+    """
+    kept = [(m, s) for m, s in enumerate(_STATES) if m >= 10]
+    ev = select_evidence_around_transitions(
+        _rows(kept), [s for _, s in kept], SlotStatus.REVIEW
+    )
+    assert [e.minute_index for e in ev] == [18, 20, 22]
+    assert [e.predicted for e in ev] == [PLAY, EMPTY, EMPTY], "both states must appear"
+
+
+def test_a_gap_and_no_gap_choose_the_same_evidence() -> None:
+    """The outage removed minutes 0-9; it should not change what explains the slot."""
+    kept = [(m, s) for m, s in enumerate(_STATES) if m >= 10]
+    with_gap = select_evidence_around_transitions(
+        _rows(kept), [s for _, s in kept], SlotStatus.REVIEW
+    )
+    without = select_evidence_around_transitions(
+        _rows(list(enumerate(_STATES))), _STATES, SlotStatus.REVIEW
+    )
+    assert [e.minute_index for e in with_gap] == [e.minute_index for e in without]
+
+
+def test_three_frames_survive_a_gap_around_the_transition_itself() -> None:
+    """Neighbours come from the observed sequence, not from arithmetic on the clock.
+
+    Minute-2 may simply not exist after an outage; the observation two *samples* earlier
+    does, and it is the honest stand-in.
+    """
+    kept = [(m, s) for m, s in enumerate(_STATES) if not 14 <= m <= 19]
+    ev = select_evidence_around_transitions(
+        _rows(kept), [s for _, s in kept], SlotStatus.REVIEW
+    )
+    assert len(ev) == 3, "a gap next to the change must not cost a frame"
+    assert {e.predicted for e in ev} == {PLAY, EMPTY}
+
+
+def test_misaligned_minutes_raise_rather_than_silently_shift_the_clock() -> None:
+    with pytest.raises(ValueError, match="align"):
+        find_transitions(_STATES, minutes=list(range(len(_STATES) - 1)))

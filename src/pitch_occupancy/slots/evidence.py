@@ -103,6 +103,12 @@ class Transition:
     after: Class3
     stable_before: int  # consecutive minutes held before the change
     stable_after: int  # consecutive minutes held after it
+    #: Position in the ``states`` sequence. Equal to ``minute`` only when the sequence has
+    #: one entry per minute - which it does not when a camera dropped out, because
+    #: `worker.py` appends nothing for a minute it could not observe. Keeping both is what
+    #: stops a position being read as a clock time: it was, and the evidence for every
+    #: gapped slot pointed at the wrong part of it.
+    index: int = -1
 
     def describe(self) -> str:
         return (
@@ -112,7 +118,10 @@ class Transition:
 
 
 def find_transitions(
-    states: Sequence[Class3 | str], *, min_stable: int = 5
+    states: Sequence[Class3 | str],
+    *,
+    min_stable: int = 5,
+    minutes: Sequence[int] | None = None,
 ) -> list[Transition]:
     """Points where the slot changed state and stayed changed.
 
@@ -123,9 +132,23 @@ def find_transitions(
     This is what makes an abandoned match distinguishable from a slot that was never used:
     play for twenty minutes then empty for forty is a different event from empty
     throughout, and only the transition tells them apart.
+
+    ``minutes`` maps each entry of ``states`` to the minute it was observed in. **Pass it
+    whenever the sequence can have holes.** `worker.py` appends nothing for a minute no
+    camera could be read, so ``states`` is compacted while the clock is not: on a slot with
+    a ten-minute outage the run boundary sits at position 10 and minute 20. Without this
+    argument the returned ``minute`` is really a position, and every caller treating it as
+    a time - the evidence selector, ``describe()``, ``SlotRun.transitions`` - was pointed at
+    the wrong part of the slot.
     """
     if not states:
         return []
+    if minutes is not None and len(minutes) != len(states):
+        raise ValueError(
+            f"minutes and states must align: {len(minutes)} vs {len(states)}. They are "
+            f"appended together per observed minute, so a mismatch means one of them was "
+            f"filtered and the other was not."
+        )
     seq = [Class3(s) for s in states]
 
     # collapse into runs, then keep only the boundaries where both sides are long enough
@@ -140,8 +163,12 @@ def find_transitions(
     for a, b in zip(runs, runs[1:], strict=False):
         if a[2] >= min_stable and b[2] >= min_stable:
             out.append(
-                Transition(minute=b[1], before=a[0], after=b[0],
-                           stable_before=a[2], stable_after=b[2])
+                Transition(
+                    minute=b[1] if minutes is None else int(minutes[b[1]]),
+                    before=a[0], after=b[0],
+                    stable_before=a[2], stable_after=b[2],
+                    index=b[1],
+                )
             )
     return out
 
@@ -160,20 +187,32 @@ def select_evidence_around_transitions(
     frames that all show the same thing. Thirds remain right for a uniform slot, so this
     only takes over when a transition is actually found.
     """
-    transitions = find_transitions(states, min_stable=min_stable)
-    if not transitions:
-        return select_evidence(samples, status)
-
     rows = [(int(m), Class3(c), float(conf), p) for m, c, conf, p in samples]
     if not rows:
         return []
+
+    # The minutes are what `states` was observed in, and they are passed to
+    # `find_transitions` so its `minute` is a clock time rather than a list position. It
+    # used to be a position looked up in a dict keyed by minute: identical while every
+    # minute was observed, and wrong for every slot with a camera gap. A ten-minute outage
+    # put the evidence for a change at minute 20 on minutes 10 and 12 - both still showing
+    # the old state - and silently returned two frames instead of three.
+    minutes = [r[0] for r in rows]
+    transitions = find_transitions(states, min_stable=min_stable, minutes=minutes)
+    if not transitions:
+        return select_evidence(samples, status)
+
     by_minute = {r[0]: r for r in rows}
     # the largest change: the one a dispute would turn on
     t = max(transitions, key=lambda x: min(x.stable_before, x.stable_after))
 
+    # Neighbours are taken from the observed sequence rather than by arithmetic on the
+    # clock, so a gap around the transition still yields three frames: minute-2 does not
+    # exist after an outage, but the observation two *samples* earlier does.
     picks: list[tuple[int, int, bool]] = []  # (minute, third, is_backfill)
-    lo, hi = min(by_minute), max(by_minute)
-    for minute, third in ((max(lo, t.minute - 2), 0), (t.minute, 1), (min(hi, t.minute + 2), 2)):
+    i = t.index
+    for pos, third in ((max(0, i - 2), 0), (i, 1), (min(len(minutes) - 1, i + 2), 2)):
+        minute = minutes[pos]
         if minute in by_minute:
             picks.append((minute, third, False))
 
