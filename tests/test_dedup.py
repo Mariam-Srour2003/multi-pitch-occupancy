@@ -14,6 +14,7 @@ import pytest
 from pitch_occupancy.data.dedup import (
     DEFAULT_THRESHOLD,
     dhash,
+    distinct_subset,
     duplicate_rate,
     find_near_duplicates,
     hamming,
@@ -126,3 +127,56 @@ def test_group_records_its_worst_internal_distance() -> None:
     group = find_near_duplicates({"a": 0b0000, "b": 0b0011, "c": 0b1111}, threshold=2)[0]
     assert group.max_distance == 4  # larger than the threshold that built it
     assert group.redundant == 2
+
+
+# --- distinct_subset: the effective-sample rule ----------------------------
+
+
+def test_distinct_subset_keeps_one_frame_per_near_duplicate_cluster() -> None:
+    """Two near-identical frames count as one observation, not two.
+
+    This is the rule behind "243 held-out empty frames are three to ten distinct scenes",
+    which is what killed six comparisons that had looked significant at p down to 8e-53.
+    """
+    hashes = {"a": 0b0000, "a_twin": 0b0001, "b": 0b11111111, "b_twin": 0b11111110}
+    assert distinct_subset(hashes, threshold=2) == ["a", "b"]
+
+
+def test_distinct_subset_keeps_everything_when_nothing_is_similar() -> None:
+    hashes = {"a": 0x0000, "b": 0xFFFF, "c": 0x00FF}
+    assert distinct_subset(hashes, threshold=2) == ["a", "b", "c"]
+
+
+def test_distinct_subset_collapses_identical_frames_to_one() -> None:
+    assert distinct_subset({"a": 7, "b": 7, "c": 7}) == ["a"]
+
+
+def test_distinct_subset_is_empty_for_empty_input() -> None:
+    assert distinct_subset({}) == []
+
+
+def test_distinct_subset_respects_insertion_order_for_the_tie_break() -> None:
+    """Greedy keeps the first of a cluster, so the caller controls which frame survives.
+
+    Relied on by the audit, which wants a stable answer across runs rather than the
+    largest possible independent set - a maximum independent set is NP-hard, and the count
+    was checked to be stable across five shuffles anyway.
+    """
+    a_first = distinct_subset({"a": 0b0000, "b": 0b0001}, threshold=2)
+    b_first = distinct_subset({"b": 0b0001, "a": 0b0000}, threshold=2)
+    assert a_first == ["a"] and b_first == ["b"]
+    assert len(a_first) == len(b_first)
+
+
+def test_distinct_subset_threshold_is_exclusive_like_the_audit_expects() -> None:
+    """`> threshold` to keep, so a pair exactly at the threshold is a duplicate.
+
+    Matches `near_duplicate_pairs`, which treats `<= threshold` as similar. The two rules
+    must agree on the boundary or a frame could be both a near-duplicate and a distinct
+    scene.
+    """
+    hashes = {"a": 0b0000, "b": 0b0011}  # distance 2
+    assert distinct_subset(hashes, threshold=2) == ["a"]
+    assert distinct_subset(hashes, threshold=1) == ["a", "b"]
+    assert len(near_duplicate_pairs(hashes, threshold=2)) == 1
+    assert len(near_duplicate_pairs(hashes, threshold=1)) == 0

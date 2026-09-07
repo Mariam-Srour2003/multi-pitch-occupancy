@@ -1464,6 +1464,25 @@ This is the same defect class as the fingerprint AUC column found earlier the sa
 number that appears in an output but is not computed from the data it describes. Two instances
 in one review is enough to call it the pattern to watch for here.
 
+### Accuracy stays on the full test set, and another experiment's guard is why
+
+The first version of this fix restricted **accuracy** to the evaluable subset too. That was
+wrong, and `experiments/effective_sample_audit.py` caught it: that script reproduces the
+published H1/H2 accuracies to 5e-4 and refuses to run if they have moved. Dropping the single
+C3 frame shifted them by up to **0.0025** - four to five times its tolerance - so the audit
+exited rather than report anything.
+
+It was right to. The estimand problem belongs specifically to the macro *average over
+classes*, where an undefined per-class F1 has to be either excluded or invented. Accuracy has
+no such difficulty: every frame has a right answer whatever its class's support, so dropping a
+real observation from it buys nothing. Accuracy and balanced accuracy are computed on all 394
+frames; only the macro-F1 and its interval use the restricted set, and the row records both
+sizes.
+
+**The guard was worth more than the number it protects.** It is a reproduce-before-extending
+check written for a different purpose, and it caught a change two files away that no test
+covered.
+
 ### What does not change
 
 Every grouped-split number, every H2 conclusion drawn on the grouped split, and all of H3 -
@@ -1550,3 +1569,5 @@ real. A paired bootstrap over folds belongs with WP4-T4b.
 - 2026-09-07 | WP5-T9 logit-average baseline | `python experiments/logit_average_baseline.py` | `logit_average_baseline.csv` | naive ensemble takes 74% of oracle headroom; false-play 1.0000, worse than every single backbone
 
 - 2026-09-07 | WP5-T9 logit-average baseline | `python experiments/logit_average_baseline.py` | `logit_average_baseline.csv` | best single dinov2 0.9297, oracle 0.9603
+
+- 2026-09-07 · H1/H2 · `python experiments/h1_h2_baseline_floor.py` · seed 42 · `h1_h2_baseline_floor.csv` · 14 rows over 2 splits

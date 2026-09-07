@@ -132,6 +132,14 @@ def run_split(split: Split, all_rows) -> list[dict]:
         y_pred = model.predict(X[te], split.test)
         fit_ms = (time.perf_counter() - t0) * 1000
 
+        # **Accuracy stays on the full test set; only the macro average is restricted.**
+        # The estimand problem belongs to the macro *average over classes* - an undefined
+        # per-class F1 has to be either excluded or invented. Accuracy has no such
+        # difficulty: every frame has a right answer whatever its class's support, so
+        # dropping the single C3 frame from it would discard a real observation for no
+        # reason, and it moved the published accuracies by up to 0.0025 - enough to trip
+        # `effective_sample_audit.py`, which reproduces them to 5e-4 before it will run.
+        rep_all = evaluate(y_true, y_pred)
         yt, yp, dropped = evaluable_subset(y_true, y_pred)
         rep = evaluate(yt, yp)
         ci = bootstrap_metric_ci(
@@ -144,12 +152,12 @@ def run_split(split: Split, all_rows) -> list[dict]:
                 "model": name,
                 "n_train": len(split.train),
                 "n_test": len(split.test),
-                "accuracy": round(rep.accuracy, 4),
+                "accuracy": round(rep_all.accuracy, 4),
                 "macro_f1": round(rep.macro_f1, 4),
                 "macro_f1_lo": round(ci.low, 4),
                 "macro_f1_hi": round(ci.high, 4),
-                "balanced_acc": round(rep.balanced_accuracy, 4),
-                "absent_classes": ";".join(rep.absent_classes),
+                "balanced_acc": round(rep_all.balanced_accuracy, 4),
+                "absent_classes": ";".join(rep_all.absent_classes),
                 # The estimand, stated in the row rather than left to be inferred: which
                 # classes the macro average is over, and any dropped for want of support.
                 # H1 compares this split against another, so a reader must be able to see

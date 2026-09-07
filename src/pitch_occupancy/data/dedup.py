@@ -23,14 +23,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import combinations
+from typing import Hashable, TypeVar
 
 import cv2
 import numpy as np
 
 __all__ = [
     "dhash", "hamming", "DuplicateGroup", "find_near_duplicates",
-    "near_duplicate_pairs", "duplicate_rate",
+    "near_duplicate_pairs", "duplicate_rate", "distinct_subset",
 ]
+
+#: Key type of a hash mapping: frame paths in most callers, row indices in some.
+K = TypeVar("K", bound=Hashable)
 
 #: Hamming distance at or below which two frames are treated as near-duplicates. Chosen from
 #: the measured distribution: consecutive frames from one static slot sit far below it, and
@@ -151,3 +155,30 @@ def duplicate_rate(hashes: dict[str, int], *, threshold: int = DEFAULT_THRESHOLD
         has_twin.add(a)
         has_twin.add(b)
     return len(has_twin) / len(hashes)
+
+
+def distinct_subset(
+    hashes: dict[K, int], *, threshold: int = DEFAULT_THRESHOLD
+) -> list[K]:
+    """Keys of a greedy maximal set of frames that are pairwise *not* near-duplicates.
+
+    This is the **effective sample size** of a test set, and it is the number that governs
+    how confident any frame-level claim may be. 1,667 of the 1,692 frames in this dataset
+    have a direct near-duplicate; the 243 held-out empty frames are three to ten distinct
+    scenes, and six pairwise comparisons that looked significant at p down to 8e-53 did not
+    survive being counted this way.
+
+    Greedy rather than exhaustive because a maximum independent set is NP-hard, and the count
+    is stable across input orderings anyway - checked on the held-out empty frames, where
+    five shuffles all returned the same number. Insertion order of ``hashes`` is respected,
+    so a caller that wants a particular tie-break can choose it.
+
+    Lives here beside :func:`near_duplicate_pairs` rather than in the experiment that first
+    needed it, because a second experiment now needs the same rule and two greedy loops that
+    are meant to agree are two that can drift apart.
+    """
+    keep: list[K] = []
+    for key, h in hashes.items():
+        if all(hamming(h, hashes[k]) > threshold for k in keep):
+            keep.append(key)
+    return keep

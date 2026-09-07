@@ -28,7 +28,7 @@ import cv2
 import numpy as np
 
 from pitch_occupancy.config import settings
-from pitch_occupancy.data.dedup import DEFAULT_THRESHOLD, dhash, hamming
+from pitch_occupancy.data.dedup import DEFAULT_THRESHOLD, dhash, distinct_subset
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.data.splits import development_rows, grouped_split, random_split
 from pitch_occupancy.evaluation.stats import holm_bonferroni, mcnemar
@@ -43,20 +43,17 @@ CHEAP = "cheap_histogram.npz"
 def distinct_scenes(rows, *, threshold: int = DEFAULT_THRESHOLD) -> list[int]:
     """Indices of a greedy maximal set of pairwise-distinct frames.
 
-    Greedy rather than exhaustive because a maximum independent set is NP-hard and the count
-    is stable across input orderings anyway - checked on the held-out empty frames, where
-    five shuffles all returned the same number.
+    The selection rule now lives in :func:`pitch_occupancy.data.dedup.distinct_subset`,
+    because `logit_average_baseline.py` and this script both need it and two greedy loops
+    meant to agree are two that can drift apart. This wrapper keeps the I/O - reading the
+    frames and hashing them - which is the part that is specific to a script.
     """
     hashes = {}
     for i, row in enumerate(rows):
         image = cv2.imread(str(settings.dataset_dir / row.file))
         if image is not None:
             hashes[i] = dhash(image)
-    keep: list[int] = []
-    for i, h in hashes.items():
-        if all(hamming(h, hashes[k]) > threshold for k in keep):
-            keep.append(i)
-    return keep
+    return distinct_subset(hashes, threshold=threshold)
 
 
 def correctness(model: str, train, test, features, pos) -> np.ndarray:
