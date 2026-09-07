@@ -410,3 +410,81 @@ def schema() -> str:
 tables are the two that make it auditable: every sampled minute behind a decision, and every
 disagreement with the booking record.</figcaption>
 </figure>"""
+
+
+def empty_blindness() -> str:
+    """Why adding the clip venues stops the model seeing an empty pitch.
+
+    The mechanism is a class imbalance that is invisible in the headline metric: the clip
+    venues contribute 282 frames, every one of them ACTIVE_PLAY, and the cross-venue test
+    folds are also 100% ACTIVE_PLAY - so a probe that has learned to say PLAY scores
+    perfectly and nothing in the evaluation objects. Drawn as the two training sets and
+    what each does to a held-out empty pitch, because the contrast is the whole point.
+    """
+    w, h = 840, 300
+    left, right = 60, 470
+    box_w, box_h = 300, 96
+
+    def stack(x: int, y: int, label: str, play: int, empty: int, note: str) -> str:
+        total = play + empty
+        play_w = round(box_w * play / total)
+        return (
+            f'<text class="dg-t" x="{x}" y="{y - 10}">{label}</text>'
+            f'<rect x="{x}" y="{y}" width="{play_w}" height="30" rx="3" '
+            f'fill="currentColor" opacity="0.30"/>'
+            f'<rect x="{x + play_w}" y="{y}" width="{box_w - play_w}" height="30" rx="3" '
+            f'fill="currentColor" opacity="0.72"/>'
+            f'<text class="dg-s" x="{x + 6}" y="{y + 20}">{play} play</text>'
+            f'<text class="dg-s" x="{x + box_w - 6}" y="{y + 20}" text-anchor="end">'
+            f'{empty} empty</text>'
+            f'<text class="dg-s" x="{x}" y="{y + 46}">{note}</text>'
+        )
+
+    def outcome(x: int, y: int, rate: str, verdict: str, bad: bool) -> str:
+        colour = "var(--warn)" if bad else "var(--accent)"
+        return (
+            f'<rect x="{x}" y="{y}" width="{box_w}" height="62" rx="6" '
+            f'class="dg-box" stroke="{colour}" stroke-width="2"/>'
+            f'<text x="{x + 14}" y="{y + 28}" fill="{colour}" '
+            f'font-family="JetBrains Mono,monospace" font-size="19" font-weight="700">'
+            f'{rate}</text>'
+            f'<text class="dg-s" x="{x + 14}" y="{y + 47}">{verdict}</text>'
+        )
+
+    # defs must live *inside* the svg, or the fragment-internal url(#eb-arrow) does not
+    # resolve and every connector loses its head
+    arrow = (
+        '<defs><marker id="eb-arrow" viewBox="0 0 10 10" refX="9" refY="5" '
+        'markerWidth="6" markerHeight="6" orient="auto-start-reverse">'
+        '<path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/></marker></defs>'
+    )
+    return f"""<figure>
+<svg viewBox="0 0 {w} {h}" role="img"
+  aria-label="Training on venue_01 alone leaves a 23% false-play rate on held-out empty
+  frames; adding the clip venues, which contain no empty frames at all, raises it to 100%.">
+  {arrow}
+  <text class="dg-s" x="{left}" y="24">what the probe is trained on</text>
+  <text class="dg-s" x="{right}" y="24">what it then does with an unseen empty pitch</text>
+
+  {stack(left, 56, "venue_01 camera A", 518, 251, "both classes present")}
+  {outcome(right, 42, "23%", "of empty pitches called a match", False)}
+  <line x1="{left + box_w + 14}" y1="71" x2="{right - 14}" y2="71"
+        class="dg-line" marker-end="url(#eb-arrow)"/>
+
+  {stack(left, 186, "+ the nine clip venues", 800, 251, "282 frames added, none of them empty")}
+  {outcome(right, 172, "100%", "every empty pitch called a match", True)}
+  <line x1="{left + box_w + 14}" y1="201" x2="{right - 14}" y2="201"
+        class="dg-line" marker-end="url(#eb-arrow)"/>
+
+  <text class="dg-s" x="{left}" y="278">
+    <tspan opacity="0.72">&#9632;</tspan> empty frames &nbsp;
+    <tspan opacity="0.4">&#9632;</tspan> active-play frames
+  </text>
+</svg>
+<figcaption>Every cross-venue test fold is also 100% active play, so a probe that has simply
+learned to answer &ldquo;playing&rdquo; scores perfectly and the evaluation raises no
+objection. The high cross-venue recall is real; it was never evidence that the model can
+recognise an empty pitch. This is a missing-data problem rather than a modelling one &mdash;
+restricted to a venue that contains both classes, the same probe reaches a 2% false-play
+rate.</figcaption>
+</figure>"""

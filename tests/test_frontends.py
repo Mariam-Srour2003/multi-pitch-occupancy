@@ -188,7 +188,7 @@ def test_models_view_marks_the_clock_rule_as_using_no_pixels(client) -> None:
 @pytest.mark.parametrize(
     "name",
     ["confound_matrix", "blocked_questions", "pipeline", "protocols", "schema",
-     "augmentation_axes"],
+     "augmentation_axes", "empty_blindness"],
 )
 def test_every_diagram_stays_inside_its_viewbox(name) -> None:
     """Content drawn past the viewBox is clipped, and clipping is invisible in code."""
@@ -208,7 +208,7 @@ def test_every_diagram_stays_inside_its_viewbox(name) -> None:
 @pytest.mark.parametrize(
     "name",
     ["confound_matrix", "blocked_questions", "pipeline", "protocols", "schema",
-     "augmentation_axes"],
+     "augmentation_axes", "empty_blindness"],
 )
 def test_every_diagram_is_captioned_and_labelled(name) -> None:
     """A diagram nobody can read is worse than a sentence."""
@@ -311,3 +311,33 @@ def test_figure_route_refuses_anything_but_a_figure_filename(client, name) -> No
     never be published. A subpath or a traversal must not reach them, and nor must any
     non-image file."""
     assert client.get(f"/figs/{name}").status_code in (404, 405)
+
+
+def test_the_empty_blindness_diagram_shows_both_outcomes() -> None:
+    """It exists to contrast two training sets, so a version showing one is broken."""
+    from pitch_occupancy.api.diagrams import empty_blindness
+
+    svg = empty_blindness()
+    assert "23%" in svg and "100%" in svg
+    assert "venue_01 camera A" in svg and "clip venues" in svg
+    # the marker has to be inside the svg or every connector loses its head
+    body = svg[svg.index("<svg"):svg.index("</svg>")]
+    assert "<defs>" in body and 'marker-end="url(#eb-arrow)"' in body
+
+
+def test_the_findings_tab_leads_with_the_empty_blindness_diagram(client) -> None:
+    """The most consequential finding in the project should not be buried in prose."""
+    html = client.get("/").text
+    assert "every empty pitch called a match" in html
+
+
+def test_the_search_table_never_shows_a_broken_false_play_as_a_number() -> None:
+    """Entries written before the control was repaired carry false_play = 0.0 for
+    everything. That is not a low rate, it is a dead measurement, and rendering it as
+    0.0000 would read as the best possible result."""
+    from pitch_occupancy.api.thesis_site import _search_summary
+
+    html = _search_summary()
+    if "not re-scored" in html:
+        assert "predate the repair" in html
+    assert "Balanced" in html

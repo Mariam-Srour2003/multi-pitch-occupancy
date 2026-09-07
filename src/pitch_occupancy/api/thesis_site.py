@@ -17,8 +17,8 @@ from functools import lru_cache
 from pathlib import Path
 
 from pitch_occupancy.api.diagrams import (
-    DIAGRAM_STYLES, augmentation_axes, blocked_questions, confound_matrix, pipeline,
-    protocols, schema,
+    DIAGRAM_STYLES, augmentation_axes, blocked_questions, confound_matrix,
+    empty_blindness, pipeline, protocols, schema,
 )
 from pitch_occupancy.api.markdown import render
 from pitch_occupancy.api.models_view import STYLES as MODEL_STYLES
@@ -46,7 +46,7 @@ DOCUMENTS = {
 #: A diagram opens the tab it explains, and the document follows as the detail. Each shows
 #: a mechanism the prose can only assert - so the reader sees it before reading about it.
 LEADS = {
-    "findings": lambda: protocols() + pipeline(),
+    "findings": lambda: protocols() + empty_blindness() + pipeline(),
     "dataset": confound_matrix,
     "questions": blocked_questions,
     "database": schema,
@@ -80,22 +80,47 @@ def _search_summary() -> str:
         return "<p class='missing'>The search has started but scored nothing yet.</p>"
     frames = {e.get("n_frames") for e in evals}
     base = next((e for e in evals if e["label"] == "baseline"), None)
-    rows = sorted(evals, key=lambda e: -e["play_recall"])
+    # Rank on the balanced score where it exists. Entries written before the false-play
+    # control was repaired carry false_play = 0.0 for everything, which is not a low rate -
+    # it is a broken measurement, and showing it as a number would read as a good result.
+    scored = [e for e in evals if "balanced" in e]
+    stale = [e for e in evals if "balanced" not in e]
+    rows = sorted(scored, key=lambda e: -e["balanced"]) + sorted(
+        stale, key=lambda e: -e["play_recall"]
+    )
+
+    def cell(e: dict) -> str:
+        if "balanced" in e:
+            return (f"<td class='num'>{e['false_play']:.4f}</td>"
+                    f"<td class='num'>{e['balanced']:.4f}</td>")
+        return "<td class='num warn' colspan='2'>not re-scored</td>"
+
     body = "".join(
         f"<tr><td class='mono'>{e['label']}</td>"
         f"<td class='num'>{e['play_recall']:.4f}</td>"
         f"<td class='num'>{(e['play_recall'] - base['play_recall']):+.3f}</td>"
         f"<td class='num'>{e['worst_fold']:.3f}</td>"
-        f"<td class='num'>{e['false_play']:.4f}</td>"
+        f"{cell(e)}"
         f"<td class='num'>{e['round']}</td></tr>"
         for e in rows
     ) if base else ""
+
     note = (f"<p>{len(evals)} evaluations, scored on "
-            f"{', '.join(str(f) for f in sorted(frames) if f)} frames.</p>")
+            f"{', '.join(str(f) for f in sorted(frames) if f)} frames. "
+            f"Ranked on <strong>balanced = recall &minus; false-play</strong>, because "
+            f"every cross-venue test fold is 100% active play and recall alone can be "
+            f"bought by answering &ldquo;playing&rdquo; more often.</p>")
+    if stale:
+        note += (f"<p class='missing'>{len(stale)} entries predate the repair of the "
+                 f"false-play control, which was scoring probes on their own training "
+                 f"data and read 0.0000 for everything. They are shown unranked rather "
+                 f"than with a number that means nothing; re-running the search re-scores "
+                 f"them from cache.</p>")
     return note + (
-        "<div class='scroll'><table><thead><tr><th>Configuration</th><th class='num'>Recall</th>"
-        "<th class='num'>vs baseline</th><th class='num'>Worst fold</th>"
-        "<th class='num'>False-play</th><th class='num'>Round</th></tr></thead>"
+        "<div class='scroll'><table><thead><tr><th>Configuration</th>"
+        "<th class='num'>Recall</th><th class='num'>vs baseline</th>"
+        "<th class='num'>Worst fold</th><th class='num'>False-play</th>"
+        "<th class='num'>Balanced</th><th class='num'>Round</th></tr></thead>"
         f"<tbody>{body}</tbody></table></div>"
     )
 
@@ -274,6 +299,7 @@ main{max-width:1000px;margin:0 auto;padding:30px 24px 80px}
 .doc p{max-width:72ch;color:var(--ink-2);margin:0 0 12px}
 .doc strong{color:var(--ink);font-weight:600}
 .doc a{color:var(--accent)}
+.doc td.warn{color:var(--warn);font-style:italic}
 .fig{margin:20px 0}
 .fig img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:8px;
  background:var(--surface-2)}
