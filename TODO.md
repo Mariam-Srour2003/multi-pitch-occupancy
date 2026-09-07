@@ -133,8 +133,29 @@ tagged with the question it answers. Fix that first — it is what turns a build
       the 4-class ablation quietly disappears.
 - [x] **WP0-T4 Split module.** `pitch_occupancy/data/splits.py`: `grouped_split`,
       `leave_one_group_out`, `temporal_split`, and a deliberately leaky `random_split` kept only
-      as H1's control arm. Materialised to `results/splits/`, referenced by name, never
-      re-randomised. 16 tests.
+      as H1's control arm. 24 tests.
+  - [ ] ★ **"Materialised, referenced by name, never re-randomised" is claimed but not
+        practised.** `write_split` and `read_split` have **no callers outside the tests**, and
+        `results/splits/` holds only the lock file. Every experiment calls `grouped_split(...,
+        seed=42)` directly, which is deterministic *given the same rows* — and that proviso is
+        the whole problem: the row list depends on which feature caches a script filters to.
+        `effective_sample_audit.py` (DINOv2 cache only) counts **94** distinct scenes where
+        `h4_model_equivalence.py` (all three caches) counts **95**, from the same seed. Harmless
+        this time, and precisely the drift materialisation exists to prevent.
+        **Decide one of two things** rather than leaving the claim standing: (a) materialise the
+        canonical splits once and have every experiment `read_split` them — correct, and a
+        retrofit across ~20 scripts; or (b) drop the claim and rely on `seed=42` plus a fixed
+        row list, documenting that the row list is part of the split's identity. (a) is what the
+        plan intended; (b) is honest and nearly free. Either way the docstring should stop
+        asserting a guarantee the code does not provide.
+  - [x] ★ **The materialisation machinery works now, whichever way that goes** (2026-09-07):
+        the round-trip preserves `group_key` and `seed` (it lost them, leaving a placeholder
+        that made `check_split` raise `AttributeError` on *every* split read from disk);
+        `read_split` **re-applies the final-venue lock**, since a file written before the lock
+        existed can name a locked venue and nothing downstream looks again; `check_split`
+        reports an unrunnable group check instead of crashing on one; and `write_split`'s
+        default directory is package-relative rather than cwd-relative — the same fail-open
+        path bug as the lock, in the same folder as the lock.
   - [x] ★ `temporal_split` added — drift was listed as a risk but never measured.
   - [x] ★ Final-venue lock enforced in code, not discipline (see 0.4).
   - [x] ★ `check_split()` reports what would make results misleading: group overlap, duplicate

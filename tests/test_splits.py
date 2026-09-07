@@ -11,6 +11,8 @@ import pytest
 from pitch_occupancy.data.manifest import ManifestRow
 from pitch_occupancy.data.splits import (
     DEFAULT_FINAL_VENUES,
+    DEFAULT_SPLIT_DIR,
+    LEGACY_GROUP_KEY,
     check_split,
     development_rows,
     final_test_rows,
@@ -196,3 +198,83 @@ def test_read_split_raises_if_the_dataset_changed(rows, tmp_path: Path) -> None:
         csv.writer(fh).writerow(["deleted_frame.jpg", "test"])
     with pytest.raises(KeyError, match="not in the manifest"):
         read_split(path, rows)
+
+
+def test_the_round_trip_preserves_the_group_key_and_seed(rows, tmp_path: Path) -> None:
+    """Without these the round-trip is lossy in the field the leakage check needs.
+
+    A split read back used to carry `group_key="<from file>"`, which is not a manifest
+    field - so `check_split`, the validation this module exists for, raised AttributeError
+    on every materialised split instead of checking it.
+    """
+    s = grouped_split(rows, group_key="slot_id", seed=7)
+    back = read_split(write_split(s, tmp_path), rows)
+    assert back.group_key == "slot_id"
+    assert back.seed == 7
+
+
+def test_check_split_gives_the_same_answer_on_disk_as_in_memory(rows, tmp_path: Path) -> None:
+    s = grouped_split(rows)
+    back = read_split(write_split(s, tmp_path), rows)
+    assert check_split(back) == check_split(s)
+
+
+def test_check_split_reports_an_unrunnable_group_check_instead_of_raising(
+    rows, tmp_path: Path
+) -> None:
+    """A split file written before group_key was recorded must still be checkable.
+
+    Silently skipping the group-overlap check would be worse than crashing: the whole
+    point of this function is to say when a split would make results misleading, so "I
+    could not check this" has to appear in the output.
+    """
+    s = grouped_split(rows)
+    path = tmp_path / "legacy.csv"
+    with path.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["file", "role"])  # the old two-column format
+        for r in s.train:
+            w.writerow([r.file, "train"])
+        for r in s.test:
+            w.writerow([r.file, "test"])
+
+    back = read_split(path, rows)
+    assert back.group_key == LEGACY_GROUP_KEY
+    problems = check_split(back)
+    assert any("could not be checked" in p and "not fully validated" in p for p in problems)
+
+
+def test_read_split_re_applies_the_final_venue_lock(rows, tmp_path: Path, monkeypatch) -> None:
+    """A materialised split is not a licence to skip the lock.
+
+    A file written before the lock existed - or while it was failing open, which was
+    possible until the path became package-relative - can name a locked venue, and nothing
+    downstream looks again.
+    """
+    s = grouped_split(rows)
+    path = write_split(s, tmp_path)
+    # now declare one of the venues in that file locked, as if the lock post-dates it
+    victim = s.test[0].venue
+    monkeypatch.setattr(
+        "pitch_occupancy.data.splits.load_final_venues", lambda *a, **k: frozenset({victim})
+    )
+    with pytest.raises(RuntimeError, match="locked final-test venue"):
+        read_split(path, rows)
+
+
+def test_a_split_file_that_disagrees_with_itself_raises(rows, tmp_path: Path) -> None:
+    s = grouped_split(rows, group_key="slot_id")
+    path = write_split(s, tmp_path)
+    with path.open("a", newline="", encoding="utf-8") as fh:
+        csv.writer(fh).writerow([s.test[0].file, "test", "venue", "42"])
+    with pytest.raises(ValueError, match="more than one group_key"):
+        read_split(path, rows)
+
+
+def test_the_default_split_directory_does_not_depend_on_the_working_directory() -> None:
+    """`write_split(s)` with no out_dir used to write into whatever cwd happened to be -
+    scattering materialised splits outside the repo, into the same folder the final-venue
+    lock lives in."""
+    assert DEFAULT_SPLIT_DIR.is_absolute()
+    assert DEFAULT_SPLIT_DIR.name == "splits"
+
