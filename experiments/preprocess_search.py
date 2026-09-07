@@ -132,6 +132,39 @@ def candidates(base: PreprocessConfig, used: set[str]) -> list[tuple[str, Prepro
     return out
 
 
+def process_alive(pid: int) -> bool:
+    """Is a process with this pid running?
+
+    Deliberately **not** `os.kill(pid, 0)`: on Windows that call does not probe, it routes
+    through `TerminateProcess`, so the liveness check would kill the process it asked
+    about. `OpenProcess` with a query-only right is the safe equivalent, and the exit code
+    still has to be checked - a handle opens on a process that has already exited.
+
+    Pid reuse can make a dead holder look alive. That direction is the safe one: the search
+    refuses to start and says so, rather than running concurrently and silently mixing two
+    sets of results into one state file, which is the failure this lock exists to prevent.
+    """
+    if os.name == "nt":
+        import ctypes
+
+        PROCESS_QUERY_LIMITED_INFORMATION, STILL_ACTIVE = 0x1000, 259
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not handle:
+            return False
+        code = ctypes.c_ulong()
+        ok = kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+        kernel32.CloseHandle(handle)
+        return bool(ok) and code.value == STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # exists, owned by someone else
+    return True
+
+
 class SearchLock:
     """A crude lock file, because concurrent searches silently corrupt the results.
 
@@ -146,11 +179,20 @@ class SearchLock:
 
     def __enter__(self) -> "SearchLock":
         if self.path.exists():
-            pid = self.path.read_text(encoding="utf-8").strip()
-            raise SystemExit(
-                f"another search already holds {self.path.name} (pid {pid}). "
-                f"Stop it first, or delete the lock if it is stale."
-            )
+            raw = self.path.read_text(encoding="utf-8").strip()
+            holder = int(raw) if raw.isdigit() else None
+            if holder is not None and not process_alive(holder):
+                # A search that is killed - a timeout, a closed laptop, Ctrl-C during a
+                # long embedding pass - never reaches __exit__, so its lock outlives it and
+                # blocks every future run until someone deletes a hidden file. That has
+                # already happened here. A dead holder's lock is not a lock.
+                print(f"clearing a stale lock left by pid {holder}, which is gone")
+                self.path.unlink(missing_ok=True)
+            else:
+                raise SystemExit(
+                    f"another search already holds {self.path.name} (pid {raw}). "
+                    f"Stop it first, or delete the lock if it is stale."
+                )
         self.path.write_text(str(os.getpid()), encoding="utf-8")
         return self
 

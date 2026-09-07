@@ -87,3 +87,8 @@ desktop.ini
 .env.*
 secrets.json
 config/*.local.json
+
+# Search lock files are per-machine runtime state. One was committed by accident, and a
+# clone then carried a lock naming a pid from another machine - so the search refused to
+# start until someone found and deleted a hidden file.
+results/.*.lock
