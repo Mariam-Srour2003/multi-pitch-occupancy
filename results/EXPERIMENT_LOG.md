@@ -981,3 +981,85 @@ a venue that has both classes, false-play is 0.021 for the best configuration. I
 *clip venues cannot supply training data for the EMPTY class*, which is a labelled-data
 problem, not a modelling one. Full-length recordings from any second venue would close it,
 which is the same conclusion the blocked-questions diagram already draws.
+
+---
+
+## Near-duplicate audit and a label review (WP2-T4) — 2026-09-07
+
+`src/pitch_occupancy/data/dedup.py`, `experiments/near_duplicate_audit.py` →
+`results/near_duplicates.csv`. Perceptual difference hash (dHash, 64 bits), compared by
+Hamming distance.
+
+### The threshold is justified by the data, not carried in from elsewhere
+
+| pairs | p5 | median | p95 |
+|---|---|---|---|
+| within one slot | 1 | 4 | 35 |
+| across different slots | 18 | 30 | 38 |
+
+Frames from different slots fall under the threshold of 6 only **0.42%** of the time, so the
+threshold separates scenes rather than merging them.
+
+### H1's leakage, finally quantified
+
+There are 139,865 near-duplicate pairs among the development frames. The question is how many
+each split puts on opposite sides — because a straddling pair is one frame being scored
+against a copy of itself:
+
+| split | straddling pairs | share |
+|---|---|---|
+| random split (H1's leaky control) | **51,946** | **37.1%** |
+| grouped split (what replaced it) | 1,067 | **0.8%** |
+
+**A 49× reduction.** H1 reported that a 16-bin colour histogram beat a deep probe under a
+random split, and concluded the evaluation was measuring the dataset rather than the models.
+This is the mechanism behind that result, counted.
+
+### A mistake worth recording: single-link chaining is not a duplicate count
+
+The first version grouped frames transitively and announced **96.9% redundant, "52 distinct
+scenes"**. That number was an artifact, and the same output refuted it: the largest group
+held 512 frames whose **maximum internal distance was 19** against a threshold of 6, and
+contained both EMPTY and ACTIVE_PLAY frames. A fixed camera drifts slowly, so every frame is
+near its neighbour in time and an entire slot chains into one blob. An empty pitch and a
+match in progress are not duplicates of each other.
+
+Duplication is now reported **pairwise**: 1,667 of 1,692 frames (98.5%) have at least one
+direct near-duplicate. Chaining is kept in the code, documented as informative about slot
+continuity and useless as a count.
+
+### Two verified labelling errors, found by the cross-label signal
+
+Pairs that are near-identical yet carry different labels are label-review candidates. At
+distance ≤ 1 the ranking is led by five frames, and rendering them settles each:
+
+| frame | label | verdict on inspection |
+|---|---|---|
+| `2_playing/…_t000021_m.jpg` | ACTIVE_PLAY | **wrong — the pitch is empty** |
+| `2_playing/…_t000027_m.jpg` | ACTIVE_PLAY | **wrong — the pitch is empty** |
+| `3_people_not_playing/…_t000269.jpg` | MAINTENANCE | correct — one person on the pitch |
+| `3_people_not_playing/…_t000494.jpg` | MAINTENANCE | correct — one person on the pitch |
+| `3_people_not_playing/…_t000509.jpg` | MAINTENANCE | correct — one person on the pitch |
+
+Both errors are `labeled_by=human`, so this is annotation noise rather than a bulk-filing
+bug.
+
+**dHash is a candidate generator, not an oracle**, and the C3 rows are why. Measured on this
+camera, frames with three or four players plus a cone sit **5–6 bits** from an empty frame,
+but a **single** person near the frame edge sits at **0–1** — an 8×8 downscale erases one
+figure. So it surfaces frames worth a human look and cannot decide any of them. Three of five
+top candidates were correctly labelled.
+
+### Why two frames matter more than two frames
+
+Those two are in `venue_01`'s **morning** slot, which holds 247 EMPTY, 6 ACTIVE_PLAY and 6
+MAINTENANCE frames on camera A, and 238 EMPTY with **zero** ACTIVE_PLAY on camera B. They are
+therefore among the only **daytime ACTIVE_PLAY frames in the entire venue_01 recording**.
+
+Removing them takes daytime ACTIVE_PLAY at `venue_01` from 6 frames to 4 — so the day/night
+confound is *more* absolute than reported, not less, and part of the clock rule's 1.6% error
+was it being right where the label was wrong.
+
+**Not corrected in the data yet, deliberately.** Moving two files invalidates every feature
+cache and shifts every number in this log, and a preprocessing search is running. The
+evidence is recorded here and the correction is queued in `TODO.md`.

@@ -138,6 +138,7 @@ on the Mini-PC.
 | `splits.py` | `grouped_split`, `leave_one_group_out`, `temporal_split`, and a deliberately leaky `random_split` kept only as H1's control. **Enforces the final-venue lock.** `check_split()` reports what would make results misleading. |
 | `feature_cache.py` | Embed once per backbone, reuse forever. Refuses caches built with different pooling or preprocessing. |
 | `coverage.py` | The class × lighting × venue matrix, and the concentration table that predicts a degenerate split. |
+| `dedup.py` | Near-duplicate detection by perceptual difference hash. Reports **pairwise**, never by transitive chaining — single-link grouping called 96.9% of the dataset redundant by chaining a whole slot together. Quantifies H1's leakage: a random split straddles 37.1% of near-duplicate pairs, a grouped split 0.8%. |
 
 ### `vision/` — preprocessing and classification
 

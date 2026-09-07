@@ -243,8 +243,19 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [ ] **[H] Spot-check the 396 clip frames** before they back a headline number. They are in
         `data/processed/2_playing/` as `clip_*.jpg`.
 - [ ] **WP2-T3b Ingest loop for future batches.** Same path for any further footage.
-- [ ] **WP2-T4 De-duplication.** Perceptual-hash near-duplicate pass; drop near-identical
+- [x] **WP2-T4 De-duplication.** Perceptual-hash near-duplicate pass; drop near-identical
       consecutive frames within a class. *Accept:* duplicate rate reported per batch.
+  - [x] `data/dedup.py` + `experiments/near_duplicate_audit.py` -> `near_duplicates.csv`.
+        1,667 of 1,692 frames (98.5%) have a direct near-duplicate; rates reported per class
+        and per venue.
+  - [x] **H1's leakage quantified:** the random split puts **37.1%** of near-duplicate pairs
+        across the train/test boundary, the grouped split **0.8%** - a 49x reduction.
+  - [x] Reported pairwise after single-link chaining gave a meaningless 96.9%.
+  - [ ] ★ **Fix two verified label errors** - `2_playing/slot_20260711_1000_camA_t000021_m.jpg`
+        and `..._t000027_m.jpg` show an empty pitch. Both are human-labelled. They are two of
+        only six daytime ACTIVE_PLAY frames at `venue_01`, so correcting them makes the
+        day/night confound *more* absolute. Deferred because moving them invalidates every
+        feature cache; do it between search runs, then re-run `reproduce_all.py`.
 - [ ] **WP2-T5 Double-labelling & κ.** 10% sample → second annotator, blind → `tools/kappa.py`
       computes Cohen's κ, logs disagreements → resolve, amend `protocol.md`. *Accept:* κ ≥ 0.85.
   - [ ] **WP2-T9 ★ Human ceiling on the test set.** While the second annotator is labelling, have
