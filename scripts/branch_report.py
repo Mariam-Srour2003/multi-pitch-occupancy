@@ -95,8 +95,11 @@ def block() -> str:
     others = len(branches()) - 2  # the tip and the pilot are named separately
 
     if tip == "main":
-        where = f"""`main` carries the whole project — {c['commits']} commits, {c['src']} source
-modules, {c['experiments']} experiment scripts, {c['tests']} test files. Clone it and everything is
+        # No commit count here, deliberately. It changes with every commit - including the
+        # commit that regenerates this block - so the block could never be current and its
+        # own test failed permanently. The file counts move only when real work lands.
+        where = f"""`main` carries the whole project — {c['src']} source modules,
+{c['experiments']} experiment scripts, {c['tests']} test files. Clone it and everything is
 there; no branch to check out first.
 
 ```bash

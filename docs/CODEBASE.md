@@ -7,8 +7,8 @@ What exists, where it lives, what each file does, and how to run it.
 ## Read this first: where the code is
 
 <!-- branch-report:start -->
-`main` carries the whole project — 64 commits, 46 source
-modules, 17 experiment scripts, 27 test files. Clone it and everything is
+`main` carries the whole project — 46 source modules,
+17 experiment scripts, 27 test files. Clone it and everything is
 there; no branch to check out first.
 
 ```bash
