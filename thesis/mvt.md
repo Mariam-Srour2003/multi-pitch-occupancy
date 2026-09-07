@@ -85,10 +85,16 @@ Everything above rests on 1,692 labels. The document defining what a label *mean
 outside the ROI don't count, goalkeeper-only during live play is ACTIVE_PLAY, coach carrying
 gear is C3 — has not been written, and it is the M1 gate artefact that was due in week 4.
 
-This is the only genuine hole in the floor, it is a writing task rather than a compute task,
-and it is cheap. **Until it exists, every number above rests on a definition that lives only in
-one person's head** — which is exactly the question a sharp examiner asks about a single-annotator
-dataset. Write it before anything in WP5.
+**Drafted 2026-09-07 → [`labelling_protocol.md`](labelling_protocol.md).** It was the only
+genuine hole in the floor, it was a writing task rather than a compute task, and it was cheap.
+Until it existed, every number above rested on a definition that lived only in one person's
+head — exactly the question a sharp examiner asks about a single-annotator dataset.
+
+**The hole is not fully closed, and the remainder is not ours.** The document needs supervisor
+sign-off, and two of its open items need the client (the slot-level rules, and whether a booked
+slot used for a non-sporting purpose counts as USED). One item *is* ours and would materially
+improve label reliability: no ROI polygons have been drawn (WP3-T1), so "people outside the
+pitch don't count" is currently the annotator's judgement rather than a constraint in code.
 
 Its companion, WP2-T5's second-annotator κ, is *not* in the floor: it would be better to have,
 but a single-annotator dataset with a written protocol is defensible, while a

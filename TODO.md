@@ -214,16 +214,40 @@ tagged with the question it answers. Fix that first — it is what turns a build
       is trivially cheap to answer in advance.
 
 ### 1.C Protocol (M1 artefact)
-- [ ] **WP1-T2 Protocol document** → `thesis/protocol.md`: the 3-class taxonomy with labelling rules
-      (people outside ROI don't count; goalkeeper-only during live match = ACTIVE_PLAY; academy =
-      ACTIVE_PLAY; coach carrying gear = C3; hi-vis + tool = C3), split definitions, metrics, seeds.
-  - [ ] ★ Add **slot-level labelling rules**, not just frame-level: what makes a real slot USED when
-        players arrive 20 min late, when two slots run back-to-back and players overlap the
-        boundary, when a slot is booked but used for a birthday party. STAN is trained on slot
-        labels, so ambiguity here propagates straight into your headline novelty.
-  - [ ] ★ Add the **decision rule for ties/uncertainty** the annotator follows, so κ is measuring
-        genuine disagreement rather than missing instructions.
+- [x] **WP1-T2 Protocol document — drafted, awaiting sign-off** →
+      **[`thesis/labelling_protocol.md`](thesis/labelling_protocol.md)** (2026-09-07). Its own file
+      rather than `protocol.md`, which was already taken by the *measurement* protocol — what is
+      done to a frame's pixels. This one is what a frame *means*. Consolidates rules that already
+      existed but were scattered across `TODO.md`, `SUPER_PLAN.md`, `PLAN.md`, `taxonomy.py` and
+      `ethics.md`; anything never decided is marked **OPEN** rather than filled in.
+      **All 1,692 labels already rested on these rules with nothing written down** — `thesis/mvt.md`
+      calls this the one genuine hole in the minimum viable thesis.
+  - [ ] **[H][B] Supervisor sign-off** — this is the M1 gate's labelling half. §6 lists the five
+        open items blocking approval; two of them (slot rules, non-sporting booked use) need the
+        client.
+  - [x] ★ **Slot-level labelling rules** — drafted in §3 with a proposed answer per case (late
+        arrival, abandonment, back-to-back boundary, no-show, unbooked usage, camera failure) and
+        the rule that matters most: **booking status must never influence the vision label**, since
+        that independence *is* the audit. Flagged as the highest-priority gap in the document
+        because STAN trains on slot labels and only 2 real slots exist — these must be settled
+        before slot labelling starts, not after.
+    - [ ] ★ **[H] Client decision:** does a booked slot used for a non-sporting purpose (birthday
+          party) count as USED for billing? Vision says C3 and billing may say USED; the
+          disagreement is the reconciliation layer's job to surface, not something to hide by
+          picking one.
+  - [x] ★ **Decision rule for ties/uncertainty** — §2.6, so κ measures genuine disagreement rather
+        than missing instructions. Activity beats emptiness · sport beats non-sport · non-sport
+        beats emptiness (matching the fusion module's priority order, so labels and code agree) ·
+        undecidable frames go to a holding folder rather than being forced, because an honest count
+        of ambiguous frames is a result and a forced label is silent noise · and **never label from
+        context not visible in the frame** — not the filename, not the timestamp. That last one is
+        load-bearing: the day/night confound and the `lighting` mislabelling both came from
+        metadata standing in for pixels, and labelling from a clock would bake the confound into
+        the ground truth itself.
 - [ ] **M1 GATE [H]** — protocol, taxonomy, evaluation design approved by supervisor. *By week 4.*
+      ★ **Overdue and now unblocked on our side.** The labelling half is drafted (WP1-T2 above);
+      what remains is genuinely external — a supervisor conversation and two client answers. The
+      literature half (WP1-T1) is separate and still open.
 
 ---
 
