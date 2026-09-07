@@ -1,0 +1,16 @@
+camera,n_frames,trustworthy,contrast_median,contrast_floor,blur_median,blur_floor,n_bad
+clipvenue_a_blue_barrier::night,168,True,29.31,23.04,1002.7,706.9,0
+clipvenue_b_floodlit_track::day,78,True,31.01,29.46,830.0,544.4,6
+clipvenue_c_teal_boards::day,36,True,40.07,39.40,1711.9,1577.3,0
+clipvenue_d_indoor_dome::day,18,False,34.08,23.99,1186.3,1057.3,0
+clipvenue_e_pink_boards::day,18,False,30.83,29.77,1362.0,1303.4,0
+clipvenue_f_outdoor_bldg::day,12,False,50.15,45.94,725.3,468.7,0
+clipvenue_g_netting::day,24,True,43.42,36.16,2180.7,1129.3,0
+clipvenue_g_netting::night,6,False,25.91,25.85,1023.5,1003.3,0
+clipvenue_h_teal_pitch::day,18,False,39.49,35.43,1988.5,1636.0,0
+clipvenue_i_outdoor_trees::day,12,False,47.10,45.72,2397.6,2050.4,0
+clipvenue_i_outdoor_trees::night,6,False,36.09,35.70,1099.1,1084.2,0
+venue_01::camera_A::day,259,True,16.89,16.38,253.1,236.0,0
+venue_01::camera_A::night,516,True,20.49,18.75,110.5,66.7,0
+venue_01::camera_B::day,238,True,36.78,36.33,1781.1,1662.8,0
+venue_01::camera_B::night,283,True,38.01,36.13,315.1,184.7,0

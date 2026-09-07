@@ -656,3 +656,118 @@ recommendation actually needs.
 
 This also answers a question the search was built to ask: whether the best preprocessing
 depends on the model. It does, and the dependence is large enough to reverse the sign.
+
+---
+
+## Frame quality and camera health (WP3-T5) — 2026-09-07
+
+`src/pitch_occupancy/vision/quality.py`, `experiments/camera_health.py`, outputs
+`results/camera_health.csv` and `results/frame_quality.csv`.
+
+### The result: a global threshold would have flagged one venue, not bad frames
+
+The obvious design is a constant — Laplacian variance below *x* is blurry. Measured over all
+1,692 frames it fails outright:
+
+| camera group | median RMS contrast | median blur |
+|---|---|---|
+| `venue_01` camera A, night | 20.5 | 111 |
+| `venue_01` camera A, day | 16.9 | 253 |
+| `clipvenue_i_outdoor_trees`, day | 47.1 | 2398 |
+
+Blur spans **88 to 2755, a thirty-fold range**, and it tracks *which camera took the frame* —
+optics, resolution, compression — not whether the frame is usable. A cutoff at the 10th
+percentile flags 169 frames, and **100% of them come from `venue_01`** — the primary venue,
+and the only one with full-length recordings. That filter would have discarded the venue the
+system actually runs on, while reporting itself as a quality improvement.
+
+This is the project's central confound arriving a third time. It is the same mistake as
+day-versus-night: a measurement that looks like it is about the target is actually about the
+scene. Every threshold is therefore relative to **the camera's own history under the same
+lighting**, and the design note in `quality.py` states the reason with the numbers.
+
+### Two false-positive modes, both found by looking at the frames
+
+1. **Statistically unusual is not unusable.** A 3-MAD rule alone flagged four `venue_01`
+   frames at blur 221–235 against a median of 253. Rendered beside a typical frame they are
+   indistinguishable — same pitch, same light, equally readable. `venue_01`'s camera is so
+   consistent that its MAD is tiny, so the outlier floor sat within 9% of the median. A frame
+   must now be **materially** worse as well as unusual: half the detail, or two-thirds the
+   contrast.
+2. **A night frame is not a degraded day frame.** Baselines keyed on camera alone judged six
+   readable floodlit `clipvenue_g_netting` frames against a median built from that venue's
+   daylight frames, and called them low-contrast. Lighting is now part of the baseline key.
+
+After both fixes the filter flags **6 of 1,692 frames (0.4%)**, all from
+`clipvenue_b_floodlit_track`, where "camera" is really several unrelated clips — so those
+reflect clip-to-clip variation, not a degrading camera.
+
+### The honest statement about validation
+
+**This dataset contains no known-bad frames.** Nothing is clipped beyond 1.5% against a 10%
+limit, and every frame the filter flagged proved readable when rendered. So the filter is
+validated against *deliberately degraded* frames in `tests/test_quality.py` — blurred,
+blown out, crushed, flattened — and the absence of real positives is recorded here rather
+than hidden by tuning the thresholds until something is flagged.
+
+---
+
+## Correction: the `lighting` column does not mean time of day outside `venue_01`
+
+Found while building the quality baselines, and it changes how one reported number should be
+read.
+
+`lighting` has two different provenances, and only one of them is a clock:
+
+* **`venue_01` (1,296 frames, 77%)** — derived from the recording's real slot time
+  (`_lighting_for` in `data/manifest.py`); the 10:00 slot is day, the 20:30 slot is night.
+  **Reliable.**
+* **The nine clip venues (396 frames)** — derived from *mean frame brightness*
+  (`NIGHT_BRIGHTNESS_BELOW = 80.0` in `data/extract.py`). **Not a clock at all.**
+
+Floodlit and indoor pitches are bright. Rendering one frame per venue and lighting group makes
+the failure plain: **`clipvenue_b_floodlit_track` (78 frames) and `clipvenue_f_outdoor_bldg`
+(12 frames) are unambiguously night football — black sky, lit floodlight poles, distant city
+lights — and both are labelled `day`.** `clipvenue_c_teal_boards` carries a burned-in
+timestamp reading roughly 21:52 and is also labelled `day`. Several others are indoor, where
+time of day and illumination are genuinely unrelated.
+
+### Why this matters: it is exactly what H3's clock rule reads
+
+`ClockRule.predict` uses `r.lighting` and nothing else, so its cross-venue recall is a direct
+readout of these labels. The per-fold numbers are precisely the fraction of each venue's
+frames labelled `night`:
+
+| fold | recall | labelled night |
+|---|---|---|
+| `a_blue_barrier` | 1.000 | 168 / 168 |
+| `d_indoor_dome` | 0.000 | 0 / 18 |
+| `e_pink_boards` | 0.000 | 0 / 18 |
+| `f_outdoor_bldg` | 0.000 | 0 / 12 |
+| `g_netting` | 0.200 | 6 / 30 |
+| `h_teal_pitch` | 0.000 | 0 / 18 |
+| `i_outdoor_trees` | 0.333 | 6 / 18 |
+| **mean** | **0.219** | |
+
+`f_outdoor_bldg` is night football scored as though a clock would have said "day". Correcting
+that single fold — twelve frames — moves the clock rule from **0.219 to 0.362**, a 65%
+relative change from one twelfth of the test data.
+
+### What survives and what does not
+
+**The venue_01 confound finding is untouched.** It rests on real slot times: EMPTY is 98%
+daytime, ACTIVE_PLAY 99% night, and a clock rule scores 98.4%. That is the headline result and
+it stands.
+
+**H3's qualitative conclusion also survives.** Even corrected, the clock rule is somewhere
+around 0.36 while the frozen backbones hold above 0.86 — still a collapse, still the point.
+
+**The specific figure 0.219 should not be quoted as the clock rule's cross-venue recall.** It
+is a lower bound produced partly by label error. The honest claim is *"a lighting-only rule
+collapses across venues"*, and the thesis should say the exact value depends on lighting
+labels that are a brightness proxy for the clip venues.
+
+**What would fix it.** The clips carry burned-in timestamps in at least some venues, and the
+venue names themselves record the answer for others. Relabelling those 396 frames by hand is
+a small job — under an hour — and it is the only way to get a defensible number. Until then
+the column would be more honestly named `illumination` than `lighting`.

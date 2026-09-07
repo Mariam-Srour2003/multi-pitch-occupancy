@@ -301,9 +301,22 @@ tagged with the question it answers. Fix that first — it is what turns a build
       gated on RMS contrast.
 - [ ] ~~WP3-T4 original~~ RMS contrast on ROI; below threshold → CLAHE/gamma variant;
       expose `clahe on|off|auto`. *Accept:* toggleable; before/after visuals saved.
-- [ ] **WP3-T5 Quality filter & camera health.** Over/under-exposure, Laplacian-variance blur,
+- [x] **WP3-T5 Quality filter & camera health.** Over/under-exposure, Laplacian-variance blur,
       lens-dirt proxy (persistent contrast drop vs the camera's own 7-day baseline) → `quality=bad`
       in manifest; emit `camera_health.csv`. *Accept:* known-bad frames flagged.
+  - [x] `vision/quality.py` + `experiments/camera_health.py` → `camera_health.csv`,
+        `frame_quality.csv`. Thresholds are per (physical camera × lighting), never global.
+  - [x] **The finding:** a global blur cutoff flags 169 frames and **100% are `venue_01`** —
+        it measures which camera took the frame, not whether the frame is usable. Same
+        confound as day-vs-night, third appearance.
+  - [x] *Accept* met by construction, not by real positives: **this dataset has no known-bad
+        frames**, so the filter is proved on deliberately degraded frames in
+        `tests/test_quality.py` and the absence is recorded rather than tuned away.
+  - [ ] ★ **Relabel the 396 clip-venue frames' `lighting` by hand** (~1 hour). It is currently
+        a brightness proxy, and it is wrong for at least `b_floodlit_track`, `f_outdoor_bldg`
+        and `c_teal_boards` — all night football labelled `day`. The clock rule reads this
+        column and nothing else, so H3's 0.219 is partly label error; correcting one 12-frame
+        fold alone moves it to 0.362. See the correction entry in `results/EXPERIMENT_LOG.md`.
 - [ ] **WP3-T6 Train-time augmentation.** Photometric jitter, synthetic fog (gaussian haze),
       night-gamma, horizontal flip. **No rotations/warps** — cameras are fixed. *Accept:* flag in
       benchmark; visual grid saved.
