@@ -130,9 +130,9 @@ main  <- everything is here
 - **`exp/preprocess-search-convnextv2`** — 45 evaluations, 740 minutes. Sharpening is the one
   switch that matters (+0.015 alone, in every top configuration), but the metric **saturated**:
   three configurations tie at exactly 1.0000, so they cannot be ranked. The interaction trap
-  reproduced on a new pair — sharpen and a centre crop are each fine alone and **&minus;0.200**
+  reproduced on a new pair — sharpen and a centre crop are each fine alone and **−0.200**
   together. And the whole search ran on ConvNeXtV2 while the configured default is DINOv2;
-  full desaturation is +0.022 on one and &minus;0.119 on the other, from identical code, so
+  full desaturation is +0.022 on one and −0.119 on the other, from identical code, so
   **the recommendation does not transfer between backbones** and the DINOv2 run is the one
   that counts.
 

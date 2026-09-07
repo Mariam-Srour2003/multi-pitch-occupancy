@@ -594,7 +594,7 @@ development set. Output: `results/preprocess_search.json`.
 | `sharpen=0.6` | 0.9991 | +0.0150 | 0.994 | 0.0000 |
 | `saturation=0.5` | 0.9983 | +0.0142 | 0.988 | 0.0000 |
 | baseline (no preprocessing) | 0.9841 | — | 0.889 | 0.0000 |
-| `centre_crop=0.5 sharpen=0.6` | 0.7841 | **&minus;0.2000** | — | 0.0000 |
+| `centre_crop=0.5 sharpen=0.6` | 0.7841 | **−0.2000** | — | 0.0000 |
 
 **Sharpening is the one switch that matters.** It is the largest single-switch gain
 (+0.0150) and appears in every configuration at the top of the table. Nothing else comes
@@ -621,8 +621,8 @@ ranking rests on recall alone.
 
 ### The interaction trap, confirmed a second time
 
-`sharpen=0.6` alone is +0.0150. `centre_crop=0.5` alone is &minus;0.0289. Together they are
-**&minus;0.2000** — far worse than the sum, and the worst result in the search. This is the
+`sharpen=0.6` alone is +0.0150. `centre_crop=0.5` alone is −0.0289. Together they are
+**−0.2000** — far worse than the sum, and the worst result in the search. This is the
 same non-additivity the input ablation found with grayscale and crop50, now reproduced on a
 different pair of switches. **One-at-a-time preprocessing tables cannot be trusted to
 compose**, which is the argument for searching the space rather than tabulating it.
@@ -635,7 +635,7 @@ bookkeeping note if preprocessing effects transferred between backbones. They do
 
 | removing colour | DINOv2 (input ablation) | ConvNeXtV2 (this search) |
 |---|---|---|
-| full desaturation | **+0.022** | **&minus;0.119** |
+| full desaturation | **+0.022** | **−0.119** |
 | worst fold | 0.917 | 0.500 |
 
 Both numbers come from the *same operation* — `cv2.COLOR_BGR2GRAY` then back to three

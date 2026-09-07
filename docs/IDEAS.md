@@ -72,7 +72,7 @@ dataset on top of the occupancy one.
 
 ---
 
-## 2. Synthetic rain as training augmentation &mdash; BUILT (untested)
+## 2. Synthetic rain as training augmentation — BUILT (untested)
 
 **The idea.** WP3-T6 already lists synthetic fog. Add rain: oriented motion-blurred streaks
 at varying density and angle, plus a slight contrast reduction and a wet-turf specular
@@ -115,7 +115,7 @@ weather at all and is directly motivated by the ablation.
 
 ---
 
-## 3. Every verdict should carry the conditions it was formed under &mdash; BUILT
+## 3. Every verdict should carry the conditions it was formed under — BUILT
 
 **The idea.** Generalise the weather idea: attach an observed-conditions record to each
 slot evaluation - mean contrast, lighting, capture rate, person counts, weather once it
@@ -135,7 +135,7 @@ numbers are already computed and then thrown away.
 
 ---
 
-## 4. Evidence should show the moment a slot changed, not fixed thirds &mdash; BUILT
+## 4. Evidence should show the moment a slot changed, not fixed thirds — BUILT
 
 **The idea.** Evidence selection currently takes the most confident frame from each third.
 Where a slot contains a **state transition** - play starting late, stopping early,

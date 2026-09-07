@@ -392,3 +392,53 @@ def test_the_model_view_names_the_backbone_that_survives_the_control() -> None:
         pytest.skip("no false-play data")
     best = max((r for r in rows if r["key"] != "clock_rule"), key=_balanced)
     assert best["label"] in render()
+
+
+# --- markdown entities ------------------------------------------------------
+
+
+def test_typographic_entities_render_as_characters_not_as_text() -> None:
+    """`html.escape` broke entities the author meant to be rendered.
+
+    Six `&minus;` and three `&mdash;` were displaying as raw text on the site, several of
+    them the sign of a signed number - a reader saw "&minus;0.2000" where the entire point
+    was that the value is negative.
+    """
+    from pitch_occupancy.api.markdown import _inline
+
+    assert _inline("a &minus;0.2 drop") == "a −0.2 drop"
+    assert _inline("built &mdash; untested") == "built — untested"
+
+
+def test_restoring_entities_does_not_reopen_html_injection() -> None:
+    """The escaping exists to stop markdown source injecting HTML. It still does.
+
+    Every restored entity is purely typographic, so none can begin a tag or an attribute.
+    """
+    from pitch_occupancy.api.markdown import _inline
+
+    for hostile in (
+        "<script>alert(1)</script>",
+        "&amp;lt;img src=x onerror=y&amp;gt;",
+        '&amp;quot; onload=x',
+        "<iframe src=evil>",
+    ):
+        out = _inline(hostile)
+        assert "<script" not in out
+        assert "<img" not in out
+        assert "<iframe" not in out
+
+
+def test_an_unknown_entity_is_left_escaped() -> None:
+    """Only the whitelist is restored; anything else stays visible as source."""
+    from pitch_occupancy.api.markdown import _inline
+
+    assert _inline("&nosuchentity;") == "&amp;nosuchentity;"
+
+
+def test_the_served_page_contains_no_double_escaped_entities(client) -> None:
+    """The end-to-end version, which is what the reader actually gets."""
+    import re
+
+    leftovers = re.findall(r"&amp;[a-z]{2,10};", client.get("/").text)
+    assert not leftovers, f"literal entity text on the page: {sorted(set(leftovers))}"

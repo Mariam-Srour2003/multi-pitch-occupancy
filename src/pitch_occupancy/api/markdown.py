@@ -25,8 +25,33 @@ _INLINE = (
 )
 
 
+#: Typographic entities restored after escaping, so a source file that writes `&minus;`
+#: renders a minus sign rather than the literal text "&minus;".
+#:
+#: `html.escape` turns `&` into `&amp;` - which is right, and is what stops markdown source
+#: injecting HTML - but it also breaks any entity the author meant to be rendered. Six
+#: `&minus;` and three `&mdash;` were displaying as raw text on the thesis site, several of
+#: them the sign of a signed number: a reader saw "&minus;0.2000" where the point was that
+#: the value is negative.
+#:
+#: The sources now use literal characters, which is already the house style in the same
+#: files and reads correctly in any viewer. This exists so the slip cannot recur silently.
+#: **Every entry is purely typographic** - none can begin a tag or an attribute, so
+#: restoring them cannot reintroduce what the escaping is there to prevent. Do not extend
+#: this with anything structural.
+_ENTITIES = {
+    "minus": "−", "mdash": "—", "ndash": "–", "times": "×", "plusmn": "±",
+    "hellip": "…", "deg": "°", "rarr": "→", "larr": "←", "le": "≤", "ge": "≥",
+    "ldquo": "“", "rdquo": "”", "lsquo": "‘", "rsquo": "’",
+}
+_DOUBLE_ESCAPED = re.compile(
+    r"&amp;(" + "|".join(sorted(_ENTITIES)) + r");"
+)
+
+
 def _inline(text: str) -> str:
     out = html.escape(text, quote=False)
+    out = _DOUBLE_ESCAPED.sub(lambda m: _ENTITIES[m.group(1)], out)
     for pattern, repl in _INLINE:
         out = pattern.sub(repl, out)
     return out
