@@ -33,6 +33,30 @@ external clock you don't control.
       evaluation is impossible (no empty pitch exists outside venue_01), C3 stays unclaimable, and
       STAN can only be reported as preliminary on synthesised sequences. Scope reduced deliberately
       and documented, rather than discovered at the defence.
+  - [ ] ★ **[H] Reopen two lines of it — not the whole request.** Closing 0.3 was reasonable
+        against WP2-T2 *as written*: it asked for maintenance windows, idle-people slots, two more
+        pitches, two external venues, rain days, 30–40 complete slots **and** the booking export.
+        That is a large ask and it was declined as one. But two of those lines are far cheaper than
+        the rest and carry almost all of the blocked value, and they should be asked for separately
+        rather than left closed by association:
+    - [ ] **(a) Empty-pitch footage at 2–3 other venues.** The cheapest footage a facility owns —
+          a pitch is empty most hours of the day, so this is an export of a quiet early-morning
+          hour from cameras that are already recording. **No people in frame means it carries
+          near-zero privacy exposure**, which also makes it the easiest thing for the operator to
+          say yes to. It is the one input behind *every* blocked question: three-class cross-venue
+          evaluation (currently impossible), **RQ6 in its entirety** (the risk–coverage curve has
+          nothing to trade against on a 99%-single-class test set), the statistical backing for the
+          false-play comparison (3–10 effective scenes → dozens), and RQ1's full form rather than
+          its active-play-only scope. `EXPERIMENT_LOG.md` reaches the same conclusion
+          independently: *"a second venue with genuine downtime … would turn three effective
+          observations into dozens."*
+    - [ ] **(b) Slot verdicts for footage already held.** No new recording at all — one
+          USED/NOTUSED label per hour, read off the facility's own booking sheet for slots they
+          have already exported. This is what M4's original criterion and WP5-T8's hard gate need,
+          and it is close to free to produce.
+        *If both are declined, nothing changes: the re-cut M2/M4 gates below stand and the thesis
+        is complete without them. That is exactly why asking costs nothing — there is no plan that
+        collapses on a "no".*
 - [x] **0.4 ★ Final test set locked.** 66 clips grouped into 9 venues
       (`configs/clip_venues.csv`); `clipvenue_b_floodlit_track` + `clipvenue_c_teal_boards`
       (19 clips, 29%) held out in `results/splits/FINAL_TESTSET_venues.csv`, chosen by venue
@@ -265,10 +289,32 @@ tagged with the question it answers. Fix that first — it is what turns a build
         Costs almost nothing on top of the κ work you are already doing.
 - [ ] **WP2-T6 Screenshot rescue (optional).** Crop/inpaint the red burned-in labels from the 14
       `data/ss data/` screenshots → held-out qualitative set. *Accept:* no legible label text remains.
-- [ ] **WP2-T10 ★ Camera fingerprinting.** Gotcha §2.7 says the `(1).mp4` ↔ camera-side mapping is
-      inconsistent across days and is currently keyed by hand. That does not survive 5 venues.
-      Auto-identify a camera view by background histogram / keypoint match against a reference frame.
-      *Accept:* all existing footage auto-assigned correctly.
+- [x] **WP2-T10 ★ Camera fingerprinting — built; accept criterion partly met.**
+      `vision/fingerprint.py` (median background + gradient-orientation grid + rg-chromaticity,
+      watermark masked, 25 tests) and `experiments/camera_fingerprint_audit.py` →
+      `results/camera_fingerprint.csv`. Full findings in EXPERIMENT_LOG 2026-09-07; in the reproduction pipeline as `camera-fingerprint`.
+  - [x] **Gotcha §2.7 — already solved by `vision/camera_id.py`; this replicates it.** That
+        module measured the swap first (0.88 cross-day vs 0.70 own-suffix) and `db/seed.py`
+        already encodes it; `fingerprint.py` was written without noticing. Independent
+        replication: both cross-day pairings are mutual nearest neighbours with opposite
+        suffixes (d=0.111 and 0.277) while same-day camA-vs-camB sit at 0.46–0.57.
+  - [x] ★ **Duplication turned into a cross-check** rather than deleted:
+        `tests/test_camera_id_agreement.py` (6 tests) asserts both descriptors reach the same
+        pairing, that `db/seed.py` still encodes it, and — guarding the premise — that the two
+        descriptors have not converged into one measurement. Two independent methods agreeing
+        is a stronger write-up claim than one measured twice.
+  - [x] ★ **Division of labour recorded:** `camera_id` = which physical camera (runtime,
+        wired in); `fingerprint` = how views group into venues (audit tool, not runtime).
+  - [x] **Confirms the visual audit's load-bearing claim:** `g` and `h` share no cluster at any
+        threshold, so the leave-one-venue-out folds do not leak between them. (`g` splitting
+        into 2 view-clusters is correct multi-pitch behaviour, not a contradiction — `venue_01`
+        splits into its 2 cameras the same way.)
+  - [ ] ★ *Accept only 67/70, not 70/70.* Misses: `cb_…680610`, `cg_…155619`, `ci_…712737` — all
+        day/dusk clips landing on another facility. Same-venue and different-venue distances
+        **overlap**, so no threshold settles identity alone and unsupervised clustering leaves 4
+        clusters mixing two facilities each. Use it to *check* a grouping and to assign new
+        footage against known references with a human confirming — not to invent a grouping.
+        Revisit when more venues arrive; more references should lift 1-NN.
 
 ### 2.D Contingency for the C3 class (the #1 scientific risk)
 - [ ] **WP2-T11 ★ C3 fallback decision tree.** Decide by **week 6** — do not drift past it. If C3
@@ -366,6 +412,22 @@ tagged with the question it answers. Fix that first — it is what turns a build
 - [ ] **WP3-T8 Preprocessing ablation (E-PRE).** *(search done; see the correction below)* Best model + grouped split; toggle
       {ROI, letterbox-vs-thumbnail, CLAHE, augmentation, balancing} one at a time; deltas with CIs
       → `results/ablation_preprocessing.csv`. *Accept:* table + one-paragraph finding per switch.
+  - [ ] ★ **[B] Regenerate `results/preprocess_search.html` — the committed copy is a snapshot of
+        the disowned run.** Its embedded payload is stamped `2026-09-06T16:50:02` with **16
+        evaluations**: the 500-frame run the project itself renamed
+        `preprocess_search_500frame_UNTRUSTWORTHY.json` (stamped 16:55 the same day). The current
+        search has **77**. The page states its own provenance in the meta line, but nothing on it
+        says that particular run was withdrawn, so anyone opening the committed HTML — a
+        supervisor, an examiner — reads retracted numbers as current. **Not regenerated during this
+        review on purpose:** a search was in flight and writing `preprocess_search.json`, so
+        rebuilding then would only have swapped a withdrawn run for a half-finished one. Do it once
+        the run completes: `uv run python experiments/make_search_viewer.py`.
+  - [ ] ★ **Then add the staleness guard**, in the same shape as `scripts/branch_report.py`'s
+        `--check` and `tests/test_branch_report.py`: assert the committed HTML's embedded
+        `generated` stamp and evaluation count match `results/preprocess_search.json`. The branch
+        table went stale silently once and a generated-vs-committed test is what caught it; this
+        page went stale silently for a day and nothing caught it. Add the test *after* the
+        regeneration above, so it starts green.
 - [ ] **WP3-T9 ★ ROI ablation gets its own figure.** Of all preprocessing steps, ROI masking is the
       one with a *visual* story (adjacent pitches firing false ACTIVE_PLAY). Pair the number with
       side-by-side example frames — it will be one of the most quoted figures in your defence.
@@ -393,9 +455,11 @@ tagged with the question it answers. Fix that first — it is what turns a build
       0.657); under the grouped split the **clock rule came within 0.007** of it using no pixels at
       all. The comparison was indeed measuring the wrong thing — established in week 1, not at the
       defence. **(RQ7)**
-  - [x] ★ The complement: `experiments/h3_cross_venue_recall.py` shows the clock rule collapsing to
-        0.219 play-recall on unseen venues while ConvNeXtV2 and DINOv2 hold at 0.910 / 0.930. The
+  - [x] ★ The complement: `experiments/h3_cross_venue_recall.py` shows a lighting-only rule
+        collapsing on unseen venues while ConvNeXtV2 and DINOv2 hold at 0.910 / 0.930. The
         evaluation was uninformative; the models were not the problem. **(RQ3, RQ7)**
+        *The measured 0.219 is a lower bound partly produced by label error — quote the
+        collapse, not the number, until WP3-T5's relabelling lands.*
 - [ ] **WP4-T2 Label-efficiency curves.** Training sizes {10, 25, 50, 100, 300, 1000, all} × 5 seeds
       × 4 models; zero-shot OpenCLIP as the 0-label horizontal line. *Accept:*
       `results/label_efficiency.csv` + `results/figs/label_curve.png`. **(RQ1, RQ2)**
@@ -463,7 +527,54 @@ tagged with the question it answers. Fix that first — it is what turns a build
 > result is a publishable result — but only if the baseline was strong enough to make losing to it
 > interesting.
 
-### 5.A STAN — Slot-Temporal Aggregation Network *(Core tier — do this one first)*
+> ### ★ Order changed 2026-09-07 — do 5.B before 5.A
+>
+> **The tier labels were assigned before the data limits were known, and they now point at the
+> wrong module first.** STAN (5.A, "Core tier — do this one first") is the *only* WP5 module that
+> is data-blocked: it is a **slot** classifier, its real test set is n = 2, and WP5-T8's own hard
+> gate forbids reporting it as a headline below 30 real slots. Gated multi-backbone fusion (5.B,
+> "Target tier") is **frame**-level and blocked by nothing — the three backbone caches already
+> cover all 1,692 frames, the cheap gate statistics are already cached
+> (`cheap_histogram.npz`, `cheap_intensity.npz`), and the evaluation protocol, split machinery
+> and significance tooling all exist. It can be fitted in seconds on cached features.
+>
+> **So 5.B carries the M4 gate and 5.A becomes the preliminary result the pre-registration
+> already says it must be.** Nothing is dropped and no research question changes; the module that
+> can actually be ablated goes first.
+>
+> **The headroom is measured, not assumed.** From the per-fold table in
+> `results/h3_with_false_play.csv`, cross-venue play-recall by held-out venue:
+>
+> | held-out venue | ConvNeXtV2 | DINOv2 | ViT | best |
+> |---|---|---|---|---|
+> | a_blue_barrier (n=168) | 0.9345 | 0.9524 | **1.0000** | ViT |
+> | f_outdoor_bldg (n=12) | 0.7500 | **1.0000** | 0.5833 | DINOv2 |
+> | h_teal_pitch (n=18) | **0.7222** | 0.6667 | 0.5000 | ConvNeXtV2 |
+> | i_outdoor_trees (n=18) | **1.0000** | 0.8889 | 1.0000 | ConvNeXtV2 |
+> | *(d, e, g: all three at 1.0000)* | | | | tie |
+> | **unweighted fold mean** | 0.9105 | **0.9297** | 0.8690 | |
+>
+> DINOv2 leads overall but is **strictly beaten on three of the seven folds**. A per-fold oracle
+> scores **0.9603** against DINOv2's 0.9297 — **+3.1 points of headroom**, which is the
+> complementarity a gate would have to capture. There is a real signal here.
+>
+> **And the two things that must be said in the same breath, or this becomes a fishing trip:**
+> 1. **The other axis is dominated.** On held-out empty frames the false-play rates are DINOv2
+>    0.309, ViT 0.835, ConvNeXtV2 0.992. Any gate that routes away from DINOv2 on an actually-empty
+>    pitch is catastrophic there, so the ablation must report **both** axes — recall *and*
+>    false-play — never recall alone. Reporting recall alone is the exact mistake the repaired
+>    search control already caught once.
+> 2. **The gate's inputs are confounded.** It sees cheap image statistics, and at `venue_01`
+>    brightness/contrast is nearly a day/night indicator, which is nearly the class label. A gate
+>    trained on those risks re-learning the clock rule and scoring well for the wrong reason —
+>    the same confound that has now appeared four times in this project. Check it explicitly.
+>
+> +3.1 is an *oracle* ceiling that assumes perfect per-venue selection the gate does not have, so
+> the realistic gain is well below it and a **clean negative result is a likely and acceptable
+> outcome** — which the rules above already accept, provided WP5-T9's logit-average baseline is
+> run first so "the ensemble did it, not the gate" is ruled out rather than left open.
+
+### 5.A STAN — Slot-Temporal Aggregation Network *(preliminary result — data-blocked; see the order note above)*
 - [ ] **WP5-T1 STAN implementation.** `engine/stan.py`: input = ordered per-minute fused class
       probabilities (optionally + embeddings); model = 1-D TCN or 2-layer Transformer encoder
       (< 100k params); output = 3-way slot status + calibrated confidence. **(RQ5)**
@@ -493,16 +604,35 @@ tagged with the question it answers. Fix that first — it is what turns a build
 - [ ] *Accept:* STAN vs best baseline on slot macro-F1, paired bootstrap, p reported in either
       direction; REVIEW rate ≤ baseline; latency negligible.
 
-### 5.B Gated multi-backbone fusion *(Target tier)*
+### 5.B Gated multi-backbone fusion *(Core tier — do this one first; carries the M4 gate)*
+- [ ] **WP5-T9 ★ Sanity baseline for fusion: plain logit averaging. DO THIS FIRST.** If a naive
+      ensemble of the two backbones matches the learned gate, the gate is not the contribution —
+      the ensemble is. Better to discover that yourself and report it than to have it asked.
+      ★ **Promoted to the front of 5.B:** it is ~20 lines on cached features and it decides
+      whether the rest of 5.B is worth building. Measured oracle headroom over the three
+      backbones is +3.1 points of cross-venue play-recall (see the order note above); if logit
+      averaging already captures most of that, say so and the gate becomes a documented negative
+      result instead of six weeks of work defending a null.
 - [ ] **WP5-T2 Fusion head.** `engine/fusion_head.py`: features from {ConvNeXtV2, DINOv2} (option
       +ViT); gate = tiny MLP on cheap image statistics (contrast, brightness, edge density) → fusion
       weights → shared linear head. **(RQ5)**
+  - [ ] ★ **Report both axes, never recall alone.** Cross-venue play-recall *and* false-play on
+        held-out empty frames, in the same table. On the second axis DINOv2 (0.309) dominates ViT
+        (0.835) and ConvNeXtV2 (0.992) outright, so a gain in recall bought by routing away from
+        DINOv2 on empty pitches is not a gain. Recall-only on a single-class test set is the
+        precise mistake the repaired search control already caught.
+  - [ ] ★ **Test the gate for the confound before believing it.** The gate reads cheap image
+        statistics; at `venue_01` brightness and contrast are close to a day/night indicator, and
+        day/night is close to the class label. Ablate the gate against one fed *only* lighting —
+        if a lighting-only gate matches it, the gate has re-learned the clock rule and the
+        confound has appeared for the fifth time. Log the comparison either way.
 - [ ] **WP5-T2b Conditional-compute variant.** Run ConvNeXt first; invoke DINOv2 only when confidence
       < τ. Report accuracy **and** average ms/frame vs always-both. *Accept:* ablation table with CIs,
       p-values, latency; adopt/reject decision logged.
-- [ ] **WP5-T9 ★ Sanity baseline for fusion: plain logit averaging.** If a naive ensemble of the two
-      backbones matches the learned gate, the gate is not the contribution — the ensemble is. Better
-      to discover that yourself and report it than to have it asked.
+  - [ ] ★ **State the honest motivation.** WP0-T10 measured 10–24× headroom in the 60 s cycle, so
+        this variant does **not** buy needed speed on the dev machine and must not be sold as if it
+        did. Its real justification is the *target Mini-PC* (WP7-T1, unmeasured) and the
+        scaling claim beyond 20 cameras. Frame it that way or drop it to the extensions list.
 
 ### 5.C Context-aware multimodal head *(Stretch tier)*
 - [ ] **WP5-T3 Context head.** `engine/context_head.py`: visual embedding + context vector
@@ -655,15 +785,40 @@ tagged with the question it answers. Fix that first — it is what turns a build
 
 ## Milestone gate tracker
 
+> ### ★ Re-cut 2026-09-07, because two gates had become unpassable
+>
+> **Decision 0.3 closed the footage request. Nobody re-cut the gates that depended on it.**
+> As originally written, M2 required "dataset balanced across classes/conditions/venues +
+> ≥30 real slots labelled" and M4 required STAN "ablated with significance". Two real slots
+> exist, C3 holds 6 frames and maintenance 0, EMPTY exists at exactly one venue, and the 66
+> clips are 10–14 s highlights with no slot structure. No further footage is coming. So both
+> criteria were, from the moment 0.3 was taken, **impossible** — and WP5-T8's own hard gate
+> already says not to report STAN as a headline below 30 real slots.
+>
+> A gate that cannot be passed is not a gate. It is a permanent red row that trains everyone
+> reading the table to ignore it, and it hides the fact that the *rest* of the milestone was
+> met. The criteria below are re-cut against the data that actually exists. **The originals
+> are kept, struck through, so the reduction is visible rather than quietly absorbed** — and
+> each re-cut says what would restore the original.
+>
+> This changes no research question and drops no contribution. It changes what counts as
+> done, to match what the evidence can support.
+
 | Gate | Week | Exit criterion | Done |
 |---|---|---|---|
 | M1 | 4 | Protocol, taxonomy, evaluation design approved ★ + ethics/DPIA cleared | [ ] |
-| M2 | 9 | Dataset balanced across classes/conditions/venues ★ + ≥30 real slots labelled | [ ] |
+| M2 | 9 | ~~Dataset balanced across classes/conditions/venues + ≥30 real slots~~ → **Dataset characterised and its limits quantified**: coverage matrix published, concentration table showing EMPTY 100% venue_01, near-duplicate rate and per-split leakage measured, effective sample size (~150 distinct scenes) reported, and every unanswerable question recorded in `preregistration.md` §"Not answerable" | [ ] |
 | M3 | 13 | Four-model leakage-free benchmark with CIs + significance ★ + trivial-baseline floor | [ ] |
-| M4 | 18 | STAN + ≥1 fusion module ablated with significance ★ against strong baselines | [ ] |
+| M4 | 18 | ~~STAN + ≥1 fusion module ablated with significance~~ → **≥1 frame-level novel module (gated multi-backbone fusion, WP5-T2) fully ablated with significance against a strong baseline — including plain logit averaging (WP5-T9)** — plus STAN reported as a preliminary result on synthesised sequences with its synthetic-to-real gap stated as unquantifiable | [ ] |
 | M5 | 19 | End-to-end system + reconciliation on mock feeds | [ ] |
 | M6 | 21 | 48-h live validation accepted | [ ] |
 | M7 | 24 | Thesis submitted, defence ready | [ ] |
+
+**What would restore the originals.** Both re-cuts are reversed by one thing: more footage.
+M2's original needs empty-pitch and maintenance footage at **more than one venue**; M4's needs
+**≥30 complete slots with known verdicts**. Both are cheap for the operator to supply and are
+still listed under *Human-only tasks* — see the note under 0.3 about the one request worth
+reopening. Until then, these are the gates.
 
 ---
 
@@ -688,28 +843,43 @@ drop the fusion and context heads to the extensions list · data collection at 2
 disproportionate defensive weight. ★ Compress WP6 to reconciliation logic + a minimal dashboard;
 polish is not worth thesis marks.
 
-- [ ] **★ Define the minimum viable thesis** and write it in `thesis/mvt.md`. Something like:
-      *leakage-free four-model benchmark with honest statistics + the C3 data limitation reported
-      openly + a working end-to-end system on recorded slots + STAN as a preliminary result.* That is
-      already a complete, defensible thesis. Knowing your floor makes every later scope decision
-      calm instead of panicked.
+- [x] **★ Minimum viable thesis defined** → **[`thesis/mvt.md`](thesis/mvt.md)** (2026-09-07).
+      Four load-bearing items — leakage-free benchmark with honest statistics · the
+      *decision-reversal* methodological result · the data limits reported as findings · a working
+      end-to-end system on recorded slots — and **all four are already in hand**. The document also
+      lists what the floor deliberately does *not* require (STAN as a headline, 30 real slots, a
+      non-degenerate RQ6 test set, live deployment, a released dataset), so a failure in any of them
+      is a scoping note rather than a crisis.
+  - [ ] ★ **The one genuine hole in the floor: the labelling protocol (WP1-T2) is unwritten.**
+        All 1,692 labels rest on a definition that exists only in one person's head, and it is the
+        M1 artefact that was due week 4. It is a writing task, it is cheap, and it should come
+        **before anything in WP5**. Everything else in the floor is done.
 
 ---
 
 ## Risk register (act, don't admire)
 
+> ★ **Recalibrated 2026-09-07.** Most triggers were date-locked on week numbers, and several
+> waited on answers to a request that decision 0.3 closed — so they could never fire, which
+> makes a register decorative. Risks that have already *resolved* are marked as such (a
+> register that never closes anything is not being used), and the live ones are re-triggered on
+> something observable rather than on a calendar.
+
 | Risk | Trigger to watch | Action |
 |---|---|---|
-| ★ Ethics/DPIA blocks collection | No answer by week 2 | Escalate to supervisor; work WP0/WP1 meanwhile |
-| C3 data stays scarce | `coverage.md` cell < 100 by week 6 | Execute the WP2-T11 decision tree |
-| ★ Real slots stay < 30 | Week 12 | Demote STAN to preliminary; lead with WP4 as the contribution |
-| Only 1 venue accessible | Week 5, no partner venue | Reduce claim to cross-pitch/cross-lighting; state scope explicitly |
-| Booking DB access blocked | Week 12, no sample export | Manual booking sheet for the case study |
-| Novel module gives no gain | WP5 ablation p > 0.05 | Report as a negative result with analysis — still a contribution |
-| Laptop sleep kills runs | Any multi-hour run | Chunk runs, incremental writes, cache-resumable (WP0-T11) |
-| ★ Data loss | Any time | 3-2-1 backup verified monthly (WP0-T8) |
-| ★ Test-set overfitting | Many ablation cycles | FINAL_TESTSET locked and enforced in code (WP0-T4) |
-| ★ Capacity overrun | Behind by week 10 | Switch to the 16-week compression; protect WP5 |
+| ~~Ethics/DPIA blocks collection~~ | — | **Resolved.** Operator holds the approval; `thesis/ethics.md`. One supervisor question remains, and it blocks nothing. |
+| ~~C3 data stays scarce~~ | — | **Resolved as fact, not as risk.** 6 frames, 0 maintenance, no more footage coming. Act on it: take the WP2-T11 decision (Option C, 2-class + flagged exception, is the recommendation) rather than watching a cell that cannot change. |
+| ~~Real slots stay < 30~~ | — | **Resolved as fact.** 2 exist. STAN is already demoted to preliminary and M4 re-cut onto 5.B. Nothing left to watch. |
+| ~~Only 1 venue accessible~~ | — | **Resolved better than feared.** 9 venues for ACTIVE_PLAY. *But* still exactly 1 venue for EMPTY — which is the live risk below, and is not the same thing. |
+| **EMPTY stays single-venue** | Now — it already is | **The live scientific risk, and the one worth acting on.** It is what makes RQ6 unanswerable, keeps cross-venue evaluation recall-only, and leaves the false-play comparison on 3–10 effective scenes. Action: the 0.3(a) request. If declined, all three stay scoped as unanswerable in `preregistration.md` — which is already written, so the cost is bounded. |
+| **The labelling protocol stays unwritten** | Now — it is | Highest-value open item in the plan (see `thesis/mvt.md`). 1,692 labels rest on it and it is the overdue M1 artefact. Write WP1-T2 before starting WP5. |
+| Booking DB access blocked | No sample export by the time WP6-T4 starts | Manual booking sheet for the case study; RQ4 reported as design + fixtures, not measured precision |
+| Novel module gives no gain | WP5 ablation p > 0.05 | Report as a negative result with analysis — still a contribution, **provided** WP5-T9's logit-average baseline was run first so the null is about the gate and not the ensemble |
+| Laptop sleep kills runs | Any multi-hour run | Chunk runs, incremental writes, cache-resumable (WP0-T11). ★ Note the feature-cache stage is *not* in fact resumable — see the reproduction audit |
+| ★ Data loss | **Now — 0.2 is still open** | **The one unmitigated risk in the register.** 4.2 GB of irreplaceable footage in one place. Every result above is regenerable; the footage is not. WP0-T8. |
+| ★ Test-set overfitting | Many ablation cycles | FINAL_TESTSET locked and enforced in code (WP0-T4). ★ The lock was found to be cwd-relative on 2026-09-07 and is now package-relative with a raising guard — see amendment A7 |
+| ★ Capacity overrun | Behind by week 10 | Switch to the 16-week compression; protect WP5 — now meaning **5.B**, the module that is not data-blocked |
+| ★ **Pixels are already permanent in git history** | Now | 9 image files are committed, incl. 5 venue-audit sheets showing unblurred players. This forecloses WP1-T5 option (a), "features-only, no pixels", because history cannot be quietly rewritten across 85 commits and 50 branches. **Decide WP1-T5 before the repo is shared with anyone.** |
 
 ---
 

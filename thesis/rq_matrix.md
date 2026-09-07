@@ -102,11 +102,19 @@ rather than reported as a fitted parameter.
 |---|---|---|
 | Baseline floor | `h1_h2_baseline_floor.csv` | clock rule 0.4907 vs ConvNeXtV2 0.4975 on the grouped split |
 | Baseline floor | same | colour histogram 0.686 vs ConvNeXtV2 0.657 under the random split |
-| Cross-venue | `h3_cross_venue_recall.csv` | clock rule collapses to 0.219; backbones hold above 0.86 |
+| Cross-venue | `h3_cross_venue_recall.csv` | a lighting-only rule collapses across venues; backbones hold above 0.86 |
 
 **Answered, and the answer is conditional.** *Within* a confounded venue, no - a clock rule
 matches ConvNeXtV2 and ViT, and a colour histogram beats them. *Across* venues, emphatically
 yes - the trivial baselines collapse while the frozen features transfer.
+
+> **Do not quote 0.219 as the clock rule's cross-venue recall.** It is a lower bound partly
+> produced by label error: the `lighting` column for the 396 clip frames is a brightness
+> proxy, and `f_outdoor_bldg` is night football filed as `day`. Correcting that one
+> twelve-frame fold moves the figure to 0.362. The defensible claim is the *direction* - a
+> lighting-only rule collapses across venues while the backbones hold above 0.86 - and the
+> exact value waits on the hand relabelling in TODO WP3-T5. See the correction entry in
+> `results/EXPERIMENT_LOG.md`.
 
 H2 as pre-registered ("within 2 macro-F1 points of the best probe") is **refuted**: DINOv2
 clears the floor by 8.9 points. The narrower version stands and is the more useful finding:

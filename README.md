@@ -51,6 +51,8 @@ git checkout pilot/model-selection
 | File | What it is |
 |---|---|
 | **[TODO.md](TODO.md)** | **The working checklist.** Every task, WP0→WP8, with milestone gates. Start here. |
+| [thesis/mvt.md](thesis/mvt.md) | **The minimum viable thesis** — the four load-bearing items, and what the floor deliberately does *not* require. Read before any scope decision. |
+| [docs/PM_REVIEW_2026-09-07.md](docs/PM_REVIEW_2026-09-07.md) | Project-management review: what was fixed, what the plan changed to, and the open decisions |
 | [SUPER_PLAN.md](SUPER_PLAN.md) | Reference plan — research questions, architecture, hard-won gotchas |
 | [PLAN.md](PLAN.md) | The original engineering plan from the pilot phase, kept for history |
 | `Thesis_Plan_Multi-Pitch_Occupancy (4).docx` | Full thesis plan — abstract, related work, methodology, contributions |
@@ -62,7 +64,7 @@ git checkout pilot/model-selection
 
 Seven models were benchmarked on 1,296 labelled frames from one venue. Four were carried forward:
 
-| Model | Role | Accuracy | ms/frame |
+| Model | Role the pilot assigned | Accuracy | ms/frame |
 |---|---|---|---|
 | ConvNeXtV2-Tiny + head | production lead | 98.1% | 102 |
 | ViT-Base + head | accuracy reference | 99.2% | 203 |
@@ -76,6 +78,14 @@ cached features. No fine-tuning, no GPU.
 two starved classes — a feasibility signal only. The main line of work replaces them with
 grouped and leave-one-venue-out splits, confidence intervals, and significance testing. Details in
 the pilot branch README.
+
+> **The pilot's production pick has since been overturned.** Measured properly, latency is not
+> the binding constraint — even the slowest backbone uses under 10% of the 60 s sampling cycle
+> for 20 cameras — so the choice falls to accuracy under honest evaluation, and that is
+> **DINOv2**, with ConvNeXtV2 the fallback if the target Mini-PC proves far slower (WP7-T1).
+> ConvNeXtV2 also calls 99.2% of held-out empty pitches a match, against DINOv2's 30.9%.
+> The "Role" column above is what the pilot concluded, kept for the record; `thesis/rq_matrix.md`
+> (RQ2, RQ7) holds the current answer.
 
 ---
 

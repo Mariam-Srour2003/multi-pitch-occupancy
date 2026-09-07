@@ -141,3 +141,84 @@ convenient one.
 ## Amendments
 
 *(append below, dated; never edit above this line)*
+
+---
+
+### 2026-09-07 — First amendment batch: reconciling this document with what was actually run
+
+This log was empty while six hypotheses had been written and four experiments' worth of
+results had landed. Standing rule 1 says *every hypothesis is reported whichever way it comes
+out*, and rule 5 says *the family is declared with the hypothesis*. Both had drifted. Nothing
+below changes a result; it records movement that had already happened in
+`results/EXPERIMENT_LOG.md` and `thesis/rq_matrix.md` but never reached the document an
+examiner will read first.
+
+**A1 — H2 is refuted as pre-registered, and confirmed in a narrower form. Both are reported.**
+H2 predicted trivial baselines would come *within 2 macro-F1 points* of the best probe, and
+predicted confirmation. Outcome: **refuted at the pre-registered threshold** — DINOv2 clears
+the baseline floor by 8.9 points. The narrower claim stands and is the more useful one: *two
+of three* backbones fail to beat a clock rule that never looks at the image (grouped split,
+clock rule 0.4907 vs ConvNeXtV2 0.4975), and under the leaky random split a 16-bin colour
+histogram scores above ConvNeXtV2 (0.686 vs 0.657). The 2-point threshold is **not** revised
+after the fact; it is reported as missed, with the narrower finding beside it.
+
+**A2 — H1's finding stands; its wording and its p-value do not.**
+Originally reported as *"a colour histogram beat the deep probe under the leaky protocol"*.
+After the effective-sample audit (`experiments/effective_sample_audit.py`) the 394-frame
+random test set is **62 distinct scenes**, and on those DINOv2 and the histogram both score
+**1.0000** — identical, with p moving 7.4e-03 → 1.00. The claim becomes *"the leaky protocol
+cannot tell them apart"*, which is a cleaner statement of the same point and no longer rests
+on a difference that is not there. H2's grouped-split comparison survives but moves from
+p 1.2e-03 to **2.2e-02** on 94 scenes — from comfortable to marginal.
+
+**A3 — New standing rule (9): effective sample size beside every frame-level statistic.**
+The dataset is 1,692 frames but roughly **150 distinct scenes**; 98.5% of frames have a near
+neighbour. Frame-level CIs and p-values computed as if frames were independent are inflated,
+and this was discovered *after* the first results were reported, not designed in. From now on
+every frame-level number carries its effective sample size. H3 needs no correction for a
+specific reason worth stating: its intervals bootstrap over the **seven venue folds**, not
+over frames, so the resampling unit already matches the thing being generalised over.
+
+**A4 — H3's conclusion stands; the figure 0.219 is withdrawn.**
+The `lighting` column for the 396 clip frames is a brightness proxy, not a clock, and at least
+`b_floodlit_track`, `f_outdoor_bldg` and `c_teal_boards` are night football filed as `day`.
+The clock rule reads that column and nothing else, so its 0.219 cross-venue play-recall is a
+lower bound partly produced by label error — correcting one twelve-frame fold alone moves it to
+0.362. **The direction is what is claimed** (a lighting-only rule collapses across venues while
+the backbones hold above 0.86); the value waits on hand relabelling.
+
+**A5 — H4, H5 and H6 are declared OUTSTANDING, not quietly dropped.**
+None of the three appears anywhere outside this document — not in the experiment log, the RQ
+matrix, or the task list. Recorded now so they are visibly open rather than silently missing:
+
+| | status | what it needs |
+|---|---|---|
+| **H4** compact backbone not significantly worse | **outstanding** | pairwise McNemar under the grouped split (WP4-T4b). Note it is now partly *superseded*: latency stopped being the binding constraint (10–24× headroom), so a null result no longer hands the decision to speed the way the decision rule assumed |
+| **H5** preprocessing contributes measurably | **outstanding and complicated** | the 76-evaluation search ran, but WP3-T3 found the HF processor re-crops after `preprocess.py`, so every *geometric* switch was partly overwritten. H5 cannot be settled until the `processor_geometry` convention is decided by measurement |
+| **H6** zero-shot lags trained probes | **outstanding** | the prompt search produced the zero-shot numbers; the pre-registered *comparison* against every trained probe, with correction, was never run |
+
+**A6 — Two large search families were run outside the declared family structure. Disclosed.**
+Rule 5 requires the multiple-comparison family to be declared with its hypothesis. Two searches
+were not:
+
+- the **preprocessing search** — 76 configurations scored (`results/preprocess_search.json`);
+- the **zero-shot prompt search** — 375 prompt/model rows (`results/prompt_search.csv`).
+
+That is **451 evaluations** whose selection was not corrected for, and both were *selection*
+procedures — picking the best configuration — rather than hypothesis tests, which is why no
+p-value was attached and also why the winner's margin is optimistically biased. The honest
+treatment, and what the thesis will do: report any searched configuration as **selected, not
+tested**; never quote a search-winning delta as a significance result; and re-measure any
+configuration that is actually adopted on the held-out venues under its own pre-declared
+comparison. The prompt search additionally has no task in any plan document, so it is being
+mapped to H6/RQ1 rather than left as an orphan artefact.
+
+**A7 — Disclosure of one further look at nothing.** No amendment above was prompted by a
+result on the locked final test set. `results/splits/FINAL_TESTSET_venues.csv` has still never
+been evaluated. During this review the lock was found to be **enforceable only from the repo
+root** — a relative path meant a run launched from any other directory silently returned all
+1,692 rows as development data. The path is now resolved from the package and a missing lock
+file raises instead of unlocking everything (`tests/test_splits.py`). No evidence exists that
+any reported run was affected — every experiment script is launched from the root — but the
+guarantee was weaker than this document claimed, and that is worth recording rather than
+quietly repairing.
