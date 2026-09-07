@@ -1773,3 +1773,97 @@ away.
 - 2026-09-07 | H4 model equivalence | `python experiments/h4_model_equivalence.py` | `h4_model_equivalence.csv` | ConvNeXtV2 vs ViT: equivalent at margin 0.02
 
 - 2026-09-07 | preprocessing search | `python experiments/preprocess_search.py` | `preprocess_search.json` | 88 evaluations
+
+---
+
+## WP3-T3 answered, and it moves more than the convention — 2026-09-08
+
+`experiments/geometry_convention_probe.py` -> `results/geometry_convention_probe.csv`.
+Three arms x three backbones, both axes, in a cache directory of its own
+(`data/cache/geom_probe/`) so nothing published could be overwritten - the main caches were
+md5-checked before and after and are byte-identical.
+
+| backbone | arm | recall | worst fold | false-play | balanced |
+|---|---|---|---|---|---|
+| convnextv2 | raw+geom *(published)* | 0.9105 | 0.722 | **0.9918** | −0.0813 |
+| convnextv2 | **preproc+geom** | **0.9841** | **0.889** | **0.0206** | **+0.9635** |
+| convnextv2 | preproc+nogeom | 0.9711 | 0.833 | 0.4815 | +0.4896 |
+| dinov2 | raw+geom *(published)* | 0.9297 | 0.667 | 0.3086 | +0.6211 |
+| dinov2 | **preproc+geom** | **0.9595** | **0.800** | **0.2305** | **+0.7290** |
+| dinov2 | preproc+nogeom | 0.8690 | 0.417 | 0.1687 | +0.7003 |
+| vit | raw+geom *(published)* | 0.8690 | 0.500 | 0.8354 | +0.0336 |
+| vit | preproc+geom | 0.9118 | 0.611 | 0.9712 | −0.0594 |
+| vit | preproc+nogeom | 0.9118 | 0.611 | 0.9712 | −0.0594 |
+
+### 1. The convention question: keep the processor's geometry
+
+`protocol.md` leaned the other way - disabling it "is the coherent choice for a project where
+preprocessing is a *searched* variable". Measured, that is wrong on this data:
+
+* **ConvNeXtV2**: disabling costs 0.47 of balanced score (0.964 -> 0.490), almost all of it
+  false-play (0.021 -> 0.482).
+* **DINOv2**: a genuine trade - false-play improves (0.231 -> 0.169) but recall falls further
+  (0.960 -> 0.869) and the worst fold collapses from 0.800 to **0.417**. Balanced favours
+  keeping it, narrowly.
+* **ViT**: no difference whatsoever, and that is a *confirmation*. Its two caches are
+  **bit-identical** (max abs diff 0.0), while ConvNeXtV2's differ by 7.38 and DINOv2's by
+  1.22. `protocol.md` predicted exactly this - ViT's processor resizes to exactly 224x224 and
+  crops nothing - so the probe reproduces the audit's own finding from the other direction.
+
+**Recommendation: never disable it.** Why it works is worth stating, because it is not
+obvious: the letterbox produces a 224x224 frame with grey bars, and the processor then
+resizes to 256 and crops 224 back out - which trims most of the padding. The pair is
+aspect-preserved content with the padding removed. Each step alone is worse than both.
+
+### 2. The finding that matters: ConvNeXtV2's false-play was mostly the input path
+
+`preproc+geom` against the published `raw+geom`:
+
+| backbone | Δrecall | Δfalse-play | Δbalanced |
+|---|---|---|---|
+| convnextv2 | +0.0736 | **−0.9712** | **+1.0448** |
+| dinov2 | +0.0298 | −0.0781 | +0.1079 |
+| vit | +0.0428 | +0.1358 | −0.0930 |
+
+**ConvNeXtV2's 0.9918 false-play - the number behind "ConvNeXtV2 says PLAY to almost
+everything", and one of the reasons the production pick moved to DINOv2 - drops to 0.0206
+when the frame is letterboxed instead of handed raw to the processor.** The mechanism is
+plain: a 1920x1080 frame resized shortest-edge to 256 and centre-cropped to 224 keeps about
+the middle half of the pitch horizontally. The model was being shown a narrow central strip
+and asked whether the pitch was empty.
+
+So under preprocessing the ranking inverts. ConvNeXtV2 leads on **both** axes (0.9841 /
+0.0206 against DINOv2's 0.9595 / 0.2305) *and* is the fastest of the three. That would
+reverse RQ2's reversal.
+
+**Preprocessing is not universally good, though.** It helps ConvNeXtV2 enormously, DINOv2
+modestly, and **hurts ViT** - recall up but false-play up more. "Adopt `preprocess.py`
+globally" is therefore not the clean conclusion the first backbone suggested; what to adopt
+depends on which backbone is deployed.
+
+### What is not established
+
+Everything above is a **strong signal on thin evidence**, and the thin part is the same as
+always: the false-play column is 243 frames that the effective-sample audit found to be
+**three to ten distinct scenes**. A swing from 0.99 to 0.02 on ten effective observations is
+worth acting on and is not a measured quantity. Nor are there CIs, multiple seeds, or a
+paired test here; the recall side is an unweighted mean over seven folds, three of them 12-18
+frames. Only the default letterbox was used - none of the ten searched switches.
+
+**So this probe decides what to do next, not what to claim.** It says the convention question
+is settled (keep the geometry), and it says the *input path* deserves the full protocol -
+CIs, paired tests, effective sample - because a result this large sitting outside the
+published pipeline is not something to leave in a side experiment.
+
+### Consequences to work through
+
+1. **RQ2's production recommendation is in question again.** Under preprocessing ConvNeXtV2 is
+   better on both axes and 2x faster. Do not change the recommendation on this evidence -
+   settle it under the full protocol first.
+2. **WP5-T9's second finding is undercut**, as already flagged: "blending is disqualified"
+   rests on ConvNeXtV2's 0.9918. Re-run it on these caches - they exist now.
+3. **WP3-T3's third option is the live one.** Putting `preprocess.py` into `build_cache`
+   changes the input to every published number. This probe is the cheap evidence that the
+   question is worth the expense, which is what it was for.
+
+- 2026-09-08 | WP3-T3 geometry probe | `python experiments/geometry_convention_probe.py` | `geometry_convention_probe.csv` | keep processor geometry; ConvNeXtV2 false-play 0.9918 -> 0.0206 under letterboxing

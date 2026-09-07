@@ -407,9 +407,23 @@ tagged with the question it answers. Fix that first — it is what turns a build
         padding sits. ViT is the only backbone unaffected.
   - [x] Gives a mechanism for the search's `centre_crop=0.5` + `sharpen` = −0.200: a crop
         applied to a crop.
-  - [ ] ★ **Decide the convention by measurement** — one cross-venue run per model with
-        `processor_geometry=False` vs the current default, once the CPU is free. If
-        disabling it transfers better, regenerate the search results under it.
+  - [x] ★ **Convention decided by measurement (2026-09-08): keep the processor's geometry.**
+        `experiments/geometry_convention_probe.py` → `results/geometry_convention_probe.csv`,
+        three arms × three backbones, both axes, in its own cache directory so nothing
+        published could be overwritten (main caches md5-checked, byte-identical after).
+        `protocol.md` leaned toward *disabling* it; measured, that is wrong here.
+    - [x] **ConvNeXtV2**: disabling costs 0.47 of balanced score (0.964 → 0.490), nearly all
+          of it false-play (0.021 → 0.482). **DINOv2**: a real trade — false-play improves
+          (0.231 → 0.169) but recall falls further (0.960 → 0.869) and the worst fold
+          collapses to **0.417**; balanced narrowly favours keeping it. **ViT**: no
+          difference at all, and that *confirms* the harness — its two caches are
+          bit-identical (max diff 0.0) exactly as `protocol.md` predicted, since its
+          processor resizes to 224×224 and crops nothing.
+    - [x] **Why keeping it works**, which is not obvious: the letterbox makes a 224×224 frame
+          with grey bars, and the processor's resize-to-256-then-crop-224 trims most of that
+          padding back off. The pair is aspect-preserved content *with the padding removed*.
+          Either step alone is worse than both.
+    - [ ] ★ **[B] And a much larger finding fell out of it — see WP3-T3 note 2 below.**
   - [x] ★ **Attempted 2026-09-08, and it surfaced something bigger than the convention
         question. Read this before running the comparison.**
     - [x] The flag was **not runnable**. `build_cache` had no `processor_geometry`
@@ -449,6 +463,32 @@ tagged with the question it answers. Fix that first — it is what turns a build
     - [ ] ★ Update `protocol.md`'s framing either way. It calls `preprocess.py` "the single
           preprocessing path"; for the main caches it is not a path at all, and that sentence
           should not survive into the thesis unqualified.
+  - [ ] ★ **WP3-T3 note 2 — ConvNeXtV2's false-play was mostly the input path, and this may
+        reverse the production recommendation.** `preproc+geom` against the published
+        `raw+geom`:
+
+        | backbone | Δrecall | Δfalse-play | Δbalanced |
+        |---|---|---|---|
+        | convnextv2 | +0.0736 | **−0.9712** | **+1.0448** |
+        | dinov2 | +0.0298 | −0.0781 | +0.1079 |
+        | vit | +0.0428 | +0.1358 | −0.0930 |
+
+        **ConvNeXtV2's 0.9918 false-play — the number behind "says PLAY to almost everything",
+        and part of why the production pick moved to DINOv2 — is 0.0206 when the frame is
+        letterboxed instead of handed raw to the processor.** A 1920×1080 frame resized
+        shortest-edge to 256 and cropped to 224 keeps about the middle *half* of the pitch:
+        the model was shown a central strip and asked whether the pitch was empty.
+    - [ ] Under preprocessing ConvNeXtV2 leads on **both** axes (0.9841 / 0.0206 vs DINOv2's
+          0.9595 / 0.2305) *and* is the fastest. **Do not change the recommendation on this
+          evidence** — settle it under the full protocol first (CIs, paired test, effective
+          sample). Flagged in `rq_matrix.md` RQ2.
+    - [ ] Preprocessing is **not** universally good: it helps ConvNeXtV2 hugely, DINOv2
+          modestly, and **hurts ViT**. "Adopt it globally" is not the clean answer; what to
+          adopt depends on which backbone ships.
+    - [ ] ★ **What is not established.** The false-play column is 243 frames = **three to ten
+          distinct scenes**. No CIs, one seed, no paired test, and only the default letterbox
+          (none of the ten searched switches). This probe decides *what to do next*, not what
+          to claim — and what to do next is option (b) above, under the full protocol.
 - [x] **WP3-T4 Low-light / fog branch.** CLAHE on the LAB lightness channel, `on|off|auto`
       gated on RMS contrast.
 - [ ] ~~WP3-T4 original~~ RMS contrast on ROI; below threshold → CLAHE/gamma variant;

@@ -225,6 +225,14 @@ STAGES: list[Stage] = [
         minutes=25,
     ),
     Stage(
+        name="geometry-probe",
+        command=[*PY, str(ROOT / "experiments" / "geometry_convention_probe.py")],
+        produces=[RESULTS / "geometry_convention_probe.csv"],
+        requires=[DATA / "processed" / "manifest.csv"],
+        note="WP3-T3: keep the processor geometry; ConvNeXtV2 false-play 0.99 -> 0.02 letterboxed",
+        minutes=50,
+    ),
+    Stage(
         name="h4-equivalence",
         command=[*PY, str(ROOT / "experiments" / "h4_model_equivalence.py")],
         produces=[RESULTS / "h4_model_equivalence.csv"],

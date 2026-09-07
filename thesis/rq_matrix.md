@@ -13,7 +13,7 @@ Updated 2026-09-06.
 | RQ | Question | Status |
 |---|---|---|
 | RQ1 | Frozen backbone + light head at production accuracy on CPU, under night and fog? | **partly answered** |
-| RQ2 | Best accuracy / latency / memory trade-off for one Mini-PC? | **answered** (dev hardware) |
+| RQ2 | Best accuracy / latency / memory trade-off for one Mini-PC? | **answered** (dev hardware) — *but the input-path finding may reverse it* |
 | RQ3 | How does leakage-free, multi-venue evaluation change apparent performance? | **answered** |
 | RQ4 | Can slot aggregation + booking reconciliation detect record discrepancies? | not started |
 | RQ5 | Do purpose-built lightweight architectures beat single-backbone probes? | **baseline established; the fusion answer looks like *no*** |
@@ -68,6 +68,28 @@ production choice then resting on latency. Both halves fail to deliver:
 So the DINOv2 recommendation rests on the **cross-venue** evidence, where the three models are
 not equivalent at all - and where DINOv2 is the only one that ever predicts EMPTY. See
 amendment A9.
+
+> ### ⚠ And that cross-venue evidence is now itself in question (2026-09-08)
+>
+> `geometry_convention_probe.csv`. Every published cross-venue number comes from caches built
+> by handing **raw frames** to the HF processor, which resizes a 1920x1080 frame shortest-edge
+> to 256 and centre-crops 224 - keeping roughly the middle *half* of the pitch. Apply
+> `preprocess.py`'s letterbox instead and:
+>
+> | backbone | recall | false-play | balanced |
+> |---|---|---|---|
+> | **ConvNeXtV2** | **0.9841** | **0.0206** | **+0.9635** |
+> | DINOv2 | 0.9595 | 0.2305 | +0.7290 |
+> | ViT | 0.9118 | 0.9712 | −0.0594 |
+>
+> ConvNeXtV2's false-play falls from **0.9918 to 0.0206**, so it leads on *both* axes - and it
+> is the fastest of the three. **That would reverse this recommendation back to ConvNeXtV2.**
+>
+> **Not acted on, deliberately.** The false-play column is 243 frames amounting to three to
+> ten distinct scenes, with no CIs, one seed and no paired test. The recommendation stays
+> DINOv2 until the input-path question is settled under the full protocol - which is TODO
+> WP3-T3 option (b). Recording it here so the next reader of this section knows the ground
+> may move.
 
 ## RQ3 - what leakage-free evaluation changes
 
