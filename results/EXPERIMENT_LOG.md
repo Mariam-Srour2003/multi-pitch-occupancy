@@ -780,3 +780,64 @@ labels that are a brightness proxy for the clip venues.
 venue names themselves record the answer for others. Relabelling those 396 frames by hand is
 a small job — under an hour — and it is the only way to get a defensible number. Until then
 the column would be more honestly named `illumination` than `lighting`.
+
+---
+
+## Normalisation audit (WP3-T3) — 2026-09-07: the processor crops after preprocessing runs
+
+Full protocol table in `thesis/protocol.md`. Tests in `tests/test_normalisation_audit.py`.
+
+**The photometric half was fine.** Each model is normalised with its own statistics — ViT on
+0.5/0.5, the other two on ImageNet — because each model's own processor is called.
+
+**The geometric half was not.** The Hugging Face processor does not only normalise. Given a
+frame that `preprocess.py` has already resized to 224×224 with letterbox padding, two of the
+three models resize it *again* to 256 and centre-crop back to 224:
+
+| model | processor geometry on a 224×224 frame | frame kept | cosine vs. geometry-off |
+|---|---|---|---|
+| **ConvNeXtV2** | `crop_pct=0.875` → resize 256, crop 224 | **76.6%** | **0.886** |
+| ViT | resize to exactly 224×224 | 100% | 1.000 |
+| **DINOv2** | resize shortest edge 256, crop 224 | **76.6%** | **0.961** |
+
+**23.4% of every frame is discarded after preprocessing has run**, and the discarded border
+is exactly where WP3-T2's letterbox padding sits. The two affected models are the default
+model and the model the 740-minute preprocessing search ran on. ViT is the only backbone that
+sees what preprocessing produced.
+
+### The audit's own first pass got this wrong, which is the point
+
+ConvNeXtV2's config reads `size: {'shortest_edge': 224}` with no `do_center_crop` flag. On a
+224×224 input that reads as a no-op, and this audit **recorded it as one** before the
+embeddings disagreed. `crop_pct: 0.875` is the field that matters: it resizes to
+`224 / 0.875 = 256` first. Reading `size` — the field one naturally reads — gives the wrong
+answer. DINOv2 declares its crop openly, which is why it was found first and ConvNeXtV2
+second, by measurement rather than by reading.
+
+### It explains a result already logged as a puzzle
+
+The preprocessing search recorded `centre_crop=0.5` at −0.029 alone and **−0.200** combined
+with `sharpen`, filed as non-additivity with no mechanism. There is now a mechanism: a hidden
+crop already removes 23.4%, so an explicit half-crop is **a crop applied to a crop**, leaving
+the model a small central patch of pitch. The input ablation's `crop50` gain (+0.038 on
+DINOv2) is the same compound, and its "information floor" reading should be re-read in that
+light — the floor may be a crop-on-crop artefact rather than a property of information
+removal.
+
+### What it does not overturn
+
+Every model was measured under the same pipeline, so **model-to-model comparisons stand**,
+and the confound findings rest on labels rather than pixels. What is affected is the
+*interpretation of the geometric preprocessing switches*: they are applied and then partly
+overwritten, so they do not mean exactly what their names say.
+
+### The decision is deferred deliberately, not forgotten
+
+`embed_batch(..., processor_geometry=False)` keeps rescale and normalisation but disables the
+processor's resize and crop. It is not the default, because 256-then-crop is the canonical
+inference recipe for both models and departing from it is a choice to be **measured**, not
+applied quietly as a bug fix — and because flipping it invalidates every cached feature. The
+flag is part of the cache fingerprint, so the conventions cannot mix.
+
+**What settles it:** one cross-venue run per model under each convention, once the DINOv2
+preprocessing search finishes and the CPU is free.

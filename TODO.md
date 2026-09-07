@@ -295,8 +295,19 @@ tagged with the question it answers. Fix that first — it is what turns a build
       squashing it replaces.
 - [ ] ~~WP3-T2 original~~ Aspect-preserving, replaces naive thumbnail. *Accept:* unit test —
       224×224, no distortion, grey padding.
-- [ ] **WP3-T3 Photometric normalisation audit.** Verify each model's HF processor stats are applied;
+- [x] **WP3-T3 Photometric normalisation audit.** Verify each model's HF processor stats are applied;
       document per model in `protocol.md`. *Accept:* table in protocol.md.
+  - [x] Table in `thesis/protocol.md`; 11 tests in `tests/test_normalisation_audit.py`.
+  - [x] Photometric half is correct — each model uses its own mean/std.
+  - [x] **The geometric half was not, and nobody had looked.** ConvNeXtV2 and DINOv2 both
+        resize to 256 and centre-crop 224 *after* `preprocess.py` has produced a 224×224
+        letterboxed frame — **23.4% of every frame discarded**, exactly where WP3-T2's
+        padding sits. ViT is the only backbone unaffected.
+  - [x] Gives a mechanism for the search's `centre_crop=0.5` + `sharpen` = −0.200: a crop
+        applied to a crop.
+  - [ ] ★ **Decide the convention by measurement** — one cross-venue run per model with
+        `processor_geometry=False` vs the current default, once the CPU is free. If
+        disabling it transfers better, regenerate the search results under it.
 - [x] **WP3-T4 Low-light / fog branch.** CLAHE on the LAB lightness channel, `on|off|auto`
       gated on RMS contrast.
 - [ ] ~~WP3-T4 original~~ RMS contrast on ROI; below threshold → CLAHE/gamma variant;
