@@ -1063,3 +1063,62 @@ was it being right where the label was wrong.
 **Not corrected in the data yet, deliberately.** Moving two files invalidates every feature
 cache and shifts every number in this log, and a preprocessing search is running. The
 evidence is recorded here and the correction is queued in `TODO.md`.
+
+---
+
+## H3 revisited with a false-play control — 2026-09-07
+
+`experiments/h3_with_false_play.py` → `results/h3_with_false_play.csv`. Runs on the existing
+feature caches, so it costs seconds rather than an embedding pass.
+
+**The recall column reproduces the published H3 table exactly** — 0.219, 0.910, 0.930, 0.869
+— before anything was added to it. A harness that cannot reproduce the number it is extending
+has no business adding a second one.
+
+| model | cross-venue play recall | worst fold | **false-play on 243 held-out EMPTY frames** |
+|---|---|---|---|
+| `clock_rule` | 0.219 | 0.000 | **0.021** |
+| `convnextv2` | 0.910 | 0.722 | **0.992** |
+| `dinov2` | **0.930** | 0.667 | **0.309** |
+| `vit` | 0.869 | 0.500 | **0.835** |
+
+### What this changes
+
+H3's headline is *"across unseen venues the frozen backbones hold above 0.86 while a clock
+rule collapses to 0.219"*. On recall that is exactly right. With the second column it reads
+very differently:
+
+- **ConvNeXtV2 calls 99.2% of held-out empty pitches a match.** Its 0.910 recall is not
+  evidence of generalisation; it is close to what a model scores by answering "playing" to
+  everything, on test folds that are 100% ACTIVE_PLAY.
+- **ViT is nearly as bad at 0.835.**
+- **The clock rule, the designated straw man, has the *lowest* false-play rate of any model**
+  — 0.021 — because in daylight it says EMPTY and in this venue daylight means empty.
+- **DINOv2 is the only model with a defensible balance**: the best recall *and* by far the
+  best false-play of the three backbones.
+
+Ranking on `recall − false-play` inverts the table: DINOv2 **0.621**, clock rule 0.198, ViT
+0.034, **ConvNeXtV2 −0.082**. On a balanced view the pilot's production lead scores *below a
+rule that reads the clock and never looks at the image*.
+
+This is the third time the same lesson has arrived: RQ2 already moved the production pick
+from ConvNeXtV2 to DINOv2 on accuracy under honest evaluation. This is a second, independent
+reason, and a much starker one.
+
+### The caveat, stated because the two columns are not the same fit
+
+They cannot be. Every cross-venue fold has **zero EMPTY frames in its test set**, so
+false-play is unmeasurable on the fold that produced the recall. Recall is cross-*venue*
+(trained on six venues, tested on a seventh); false-play is cross-*camera* within `venue_01`
+(trained on camera A, tested on camera B's empty frames). They measure different
+generalisation from different fits, so `recall − false-play` is **indicative, not a single
+coherent metric**, and the two numbers should be quoted side by side rather than combined
+into one.
+
+What makes the comparison fair is that every model faces the identical pair of tasks.
+
+### Also recorded: why H3 has seven folds and not eight
+
+The `venue_01` fold trains on the clip venues alone, and all 282 of their development frames
+are ACTIVE_PLAY. A single class cannot be fitted, so the fold is dropped. That is the dataset
+gap, not a code limitation, and it is the same gap behind every finding in this section.

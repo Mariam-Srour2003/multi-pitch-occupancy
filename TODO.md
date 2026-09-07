@@ -376,6 +376,11 @@ tagged with the question it answers. Fix that first — it is what turns a build
 *Weeks 9–13 · ~110 h · M3 gate*
 
 ### 4.A The headline experiments
+  - [x] ★ **H3 re-reported with a false-play control** (`experiments/h3_with_false_play.py`).
+        Recall reproduces the published table exactly, then the second column reframes it:
+        ConvNeXtV2 calls **99.2%** of held-out empty pitches a match, ViT 83.5%, DINOv2
+        30.9%, and the clock rule — the straw man — just **2.1%**. On `recall − false-play`
+        ConvNeXtV2 scores *below* a rule that never looks at the image.
 - [ ] **WP4-T1 Same-scene vs grouped vs leave-one-venue-out.** 4 models × 3 split strategies ×
       3 classes. *Accept:* `results/benchmark_v2.csv`; the random-vs-grouped delta is the thesis's
       first key figure. **(RQ3)**

@@ -114,3 +114,31 @@ def test_adding_the_all_play_clip_venues_destroys_empty_detection(rows) -> None:
 
     assert rate(venue_a) < 0.5
     assert rate(venue_a + clips) > 0.9
+
+
+@pytest.mark.slow
+def test_h3_recall_still_reproduces_the_published_table(rows) -> None:
+    """The h3_with_false_play harness earns the right to add a column by first reproducing
+    the one already published. If this drifts, neither column can be trusted."""
+    import csv as _csv
+
+    from experiments.h3_with_false_play import CACHES, cross_venue_recall, load
+    import numpy as _np
+
+    published = {
+        r["model"]: float(r["play_recall"])
+        for r in _csv.DictReader((settings.results_dir / "h3_cross_venue_recall.csv")
+                                 .open(encoding="utf-8"))
+        if r["held_out_venue"] == "MEAN_ACROSS_FOLDS"
+    }
+    if not published:
+        pytest.skip("published H3 table not present")
+
+    for model, cache in CACHES.items():
+        if not (settings.feature_cache_dir / cache).exists() or model not in published:
+            continue
+        kept, X = load(cache, rows)
+        mean = float(_np.mean([r for _, r, _ in cross_venue_recall(model, kept, X)]))
+        assert abs(mean - published[model]) < 0.005, (
+            f"{model}: {mean:.4f} against published {published[model]:.4f}"
+        )

@@ -91,7 +91,9 @@ main  <- everything is here
   evaluation was measuring the dataset, not the models.
 - **`exp/h3-cross-venue`** — across unseen venues the clock rule collapses to 0.219 while the
   frozen backbones hold above 0.86. Combined with H2: the evaluation was uninformative, the
-  models were not the problem.
+  models were not the problem. **Re-read this with `exp/h3-false-play-control`**: the recall
+  is real but ConvNeXtV2 buys it by calling 99.2% of held-out empty pitches a match, so on a
+  balanced view it scores below the clock rule. DINOv2 is the only backbone that holds up.
 - **`exp/label-efficiency`** — the curves are **not monotone**. ConvNeXtV2 peaks at 100 labels
   and is worse with all 671. Balanced subsampling accidentally de-confounds.
 - **`exp/rq6-calibration-riskcoverage`** — machinery built and tested; the answer is blocked
