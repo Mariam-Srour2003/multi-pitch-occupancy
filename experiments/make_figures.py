@@ -18,6 +18,7 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
+import matplotlib.patheffects as patheffects
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -129,20 +130,53 @@ def fig_label_efficiency() -> None:
 
 
 def fig_ranking_inversion() -> None:
-    """Rank under three protocols. Rank, not score - the metrics are not comparable."""
+    """Rank under three protocols. Rank, not score - the metrics are not comparable.
+
+    The ranks *and* the printed scores used to be hardcoded here, which meant the figure did
+    not read the CSVs it is generated from and could not notice when they changed. It stopped
+    agreeing with them the moment the H1/H2 estimand was fixed: the panel still printed the
+    random split's 0.657 for DINOv2 and ConvNeXtV2 after the corrected value became 0.988, so
+    the most quoted figure in the thesis contradicted its own source table while the
+    reproduction stage reported success. Everything below is derived from the CSVs now.
+    """
+    MODELS = ("vit", "dinov2", "convnextv2")
     protocols = ["random split\n(leaky)", "grouped split", "cross-venue\nrecall"]
-    # Ties are drawn at a slight offset from the shared rank so both series stay visible:
-    # DINOv2/ConvNeXtV2 tie at 2nd under the random split, ConvNeXtV2/ViT under the grouped.
-    tracks = {
-        "vit": [1.0, 2.10, 3.0],
-        "dinov2": [2.10, 1.0, 1.0],
-        "convnextv2": [1.90, 1.90, 2.0],
-    }
-    scores = {
-        "vit": ["0.996", "0.498", "0.869"],
-        "dinov2": ["0.657", "0.579", "0.930"],
-        "convnextv2": ["0.657", "0.498", "0.910"],
-    }
+
+    h1 = pd.read_csv(RESULTS / "h1_h2_baseline_floor.csv")
+    h3 = pd.read_csv(RESULTS / "h3_cross_venue_recall.csv")
+
+    def by_split(fragment: str) -> dict[str, float]:
+        rows = h1[h1.split.str.contains(fragment, case=False)]
+        if rows.empty:
+            raise SystemExit(f"no split matching {fragment!r} in h1_h2_baseline_floor.csv")
+        return {m: float(rows.loc[rows.model == m, "macro_f1"].iloc[0]) for m in MODELS}
+
+    cross = h3[h3.held_out_venue == "MEAN_ACROSS_FOLDS"]
+    columns = [
+        by_split("random"),
+        by_split("grouped"),
+        {m: float(cross.loc[cross.model == m, "play_recall"].iloc[0]) for m in MODELS},
+    ]
+
+    #: Ties share a rank, and two dots at identical coordinates hide one series entirely, so
+    #: tied models are spread by a small offset around the rank they share. Which models tie
+    #: is read from the data rather than described in a comment that can go stale.
+    OFFSET = 0.10
+    tracks: dict[str, list[float]] = {m: [] for m in MODELS}
+    scores: dict[str, list[str]] = {m: [] for m in MODELS}
+    for col in columns:
+        order = sorted(MODELS, key=lambda m: -col[m])
+        rank: dict[str, float] = {}
+        i = 0
+        while i < len(order):
+            tied = [m for m in order if abs(col[m] - col[order[i]]) < 5e-4]
+            shared = (i + 1 + i + len(tied)) / 2
+            for k, m in enumerate(tied):
+                rank[m] = shared + (k - (len(tied) - 1) / 2) * (OFFSET * 2 if len(tied) > 1 else 0)
+            i += len(tied)
+        for m in MODELS:
+            tracks[m].append(rank[m])
+            scores[m].append(f"{col[m]:.3f}")
 
     fig, ax = plt.subplots(figsize=(7.6, 4.6))
     style(ax)
@@ -157,11 +191,17 @@ def fig_ranking_inversion() -> None:
         )
         ax.text(-0.10, ys[0], LABELS[model], color=c, fontsize=10,
                 ha="right", va="center", fontweight="medium")
-        # score in the series colour, beside its own point, so ties never share a label
+        # score in the series colour, beside its own point, so ties never share a label.
+        # Tied models sit a fraction apart and another series' line often passes straight
+        # through the gap, so each label carries a thin halo of the background colour - it
+        # keeps two tied scores readable where they would otherwise be crossed out.
         for xi, yi, s in zip(x, ys, scores[model], strict=True):
             ax.text(
                 xi + 0.055, yi - 0.055, s, color=c, fontsize=8.5,
-                ha="left", va="bottom", zorder=5,
+                ha="left", va="bottom", zorder=6,
+                path_effects=[
+                    patheffects.withStroke(linewidth=2.6, foreground=SURFACE),
+                ],
             )
 
     ax.set_xticks(x)
@@ -175,9 +215,21 @@ def fig_ranking_inversion() -> None:
         "The evaluation protocol reverses the model ranking",
         color=INK, fontsize=13, fontweight="semibold", loc="left", pad=44,
     )
+    # The subtitle asserted "first under the leaky protocol and last under the honest one".
+    # "Last" was true of the old numbers; corrected, ViT is *tied* 2nd/3rd under the grouped
+    # split. Describe what the data says rather than restating a sentence that has to be
+    # remembered - a caption is a claim, and this one is now checked on every regeneration.
+    grouped = columns[1]
+    beaten_by = sum(1 for m in MODELS if grouped[m] > grouped["vit"] + 5e-4)
+    tied_with = [m for m in MODELS if m != "vit" and abs(grouped[m] - grouped["vit"]) < 5e-4]
+    where = (
+        "last" if beaten_by == len(MODELS) - 1 and not tied_with
+        else f"tied {beaten_by + 1}{'st' if beaten_by == 0 else 'nd' if beaten_by == 1 else 'rd'}"
+        if tied_with else f"{beaten_by + 1}th"
+    )
     ax.text(
         0, 1.015,
-        "ViT is first under the leaky protocol and last under the honest one. Ranks are "
+        f"ViT is first under the leaky protocol and {where} under the honest one. Ranks are "
         "shown because the three\nmetrics are not comparable; the score under each protocol "
         "is printed beneath its point.",
         transform=ax.transAxes, color=INK_2, fontsize=8.5, va="bottom", linespacing=1.5,

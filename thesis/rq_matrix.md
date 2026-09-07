@@ -57,17 +57,28 @@ DINOv2.
 
 | evidence | file / figure | finding |
 |---|---|---|
-| Split comparison | `h1_h2_baseline_floor.csv` | macro-F1 falls for every model, random -> grouped |
+| Split comparison | `h1_h2_baseline_floor.csv` | macro-F1 roughly **halves**, random -> grouped: ConvNeXtV2 0.988 -> 0.498, ViT 0.994 -> 0.498, DINOv2 0.988 -> 0.579 |
 | Split validation | `check_split()` | the honest grouped split is 99% single-class - degenerate on this data |
-| Ranking inversion | `figs/ranking_inversion.png` | ViT 1st under the leaky protocol, 3rd under the honest one |
+| Ranking inversion | `figs/ranking_inversion.png` | ViT 1st under the leaky protocol, tied 2nd/3rd under the honest one |
 
 **Answered, and more strongly than "accuracy drops".** The protocol does not merely deflate
 scores, it **reverses the decision**: a reader following the pilot's protocol would have
 selected ViT, the weakest generaliser of the three. That is the thesis's central
 methodological result.
 
-Honest caveat: the magnitude of the drop cannot be attributed purely to leakage, because
-the grouped test set is near-single-class. Direction is sound; the number is not clean.
+**Restated 2026-09-07 after the estimand fix, and the effect is ~3x larger than first
+reported.** The drop was quoted as -0.159 for ConvNeXtV2; on a consistent 2-class metric it is
+**-0.490**. The earlier figure came from comparing a random-split macro-F1 that was
+intermittently 3-class against a grouped-split one that was 2-class - C3 has support 1 in the
+random test set and entered 63% of bootstrap resamples. Leakage does not shave points off this
+benchmark, it halves the score. The affected CIs were also ~15x too wide. Grouped-split
+numbers are unchanged. See the WP4-T4b entry in `EXPERIMENT_LOG.md`.
+
+Two caveats, both narrower than before. The magnitude still cannot be attributed *purely* to
+leakage, because the grouped test set is near-single-class - the direction is sound and the
+number is now clean but not attributable. And the ranking inversion is a fact about **rank,
+not margin**: ViT's apparent 0.339 lead under the leaky protocol was almost entirely the
+single C3 frame it happened to get right; on equal footing that lead is **0.006**.
 
 ## RQ4 - reconciliation
 

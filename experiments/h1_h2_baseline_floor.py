@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import csv
 import time
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -89,6 +90,34 @@ def predictors(rows):
         yield key, LinearProbe(key, seed=SEED), X
 
 
+#: A class needs at least this many test frames to enter the macro average.
+#:
+#: `evaluate` excludes zero-support classes from the macro, which is right, but the
+#: bootstrap called it once per resample - so the *class set* was re-derived 10,000 times
+#: and the estimand moved with it. On the random split C3 has support **1** and appears in
+#: **63.4%** of resamples, so two thirds of them averaged three classes and one third
+#: averaged two: one interval over two different quantities. (The grouped split is
+#: unaffected - both its classes appear in every resample.)
+#:
+#: Support 1 is not evaluable in any case. One frame gives an F1 of 0 or 1 with nothing in
+#: between, and no resampling scheme manufactures the information. So the class set is
+#: fixed *once* from the full test set and the point estimate and the interval are computed
+#: over the same restricted data, which is also what `preregistration.md` already promises:
+#: "metrics are reported 2-class where C3 support is zero, and this is stated in every
+#: table". Support 1 slipped through a rule written for support 0.
+MIN_SUPPORT_FOR_MACRO = 2
+
+
+def evaluable_subset(y_true: list[str], y_pred: list[str]) -> tuple[list[str], list[str], list[str]]:
+    """Restrict to classes with enough support to be averaged, and name what was dropped."""
+    counts = Counter(y_true)
+    dropped = sorted(c for c, n in counts.items() if n < MIN_SUPPORT_FOR_MACRO)
+    if not dropped:
+        return y_true, y_pred, []
+    keep = [i for i, t in enumerate(y_true) if t not in dropped]
+    return [y_true[i] for i in keep], [y_pred[i] for i in keep], dropped
+
+
 def run_split(split: Split, all_rows) -> list[dict]:
     """Fit every predictor on this split and score it."""
     pos = {r.file: i for i, r in enumerate(all_rows)}
@@ -103,9 +132,10 @@ def run_split(split: Split, all_rows) -> list[dict]:
         y_pred = model.predict(X[te], split.test)
         fit_ms = (time.perf_counter() - t0) * 1000
 
-        rep = evaluate(y_true, y_pred)
+        yt, yp, dropped = evaluable_subset(y_true, y_pred)
+        rep = evaluate(yt, yp)
         ci = bootstrap_metric_ci(
-            y_true, y_pred, lambda t, p: evaluate(t, p).macro_f1,
+            yt, yp, lambda t, p: evaluate(t, p).macro_f1,
             resamples=RESAMPLES, seed=SEED,
         )
         out.append(
@@ -120,6 +150,13 @@ def run_split(split: Split, all_rows) -> list[dict]:
                 "macro_f1_hi": round(ci.high, 4),
                 "balanced_acc": round(rep.balanced_accuracy, 4),
                 "absent_classes": ";".join(rep.absent_classes),
+                # The estimand, stated in the row rather than left to be inferred: which
+                # classes the macro average is over, and any dropped for want of support.
+                # H1 compares this split against another, so a reader must be able to see
+                # that the two averages cover the same classes before trusting the delta.
+                "macro_over_classes": ";".join(c.label for c in rep.per_class),
+                "excluded_low_support": ";".join(dropped),
+                "n_test_evaluable": len(yt),
                 "fit_ms": round(fit_ms, 1),
                 "_correct": np.array([p == t for p, t in zip(y_pred, y_true, strict=True)]),
             }

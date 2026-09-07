@@ -1363,3 +1363,114 @@ search) and is an audit tool, not a runtime component.
 - 2026-09-07 | WP2-T10 camera fingerprinting | `python experiments/camera_fingerprint_audit.py` | `camera_fingerprint.csv` | 70 views, 10 venues
 
 - 2026-09-07 | WP2-T10 camera fingerprinting | `python experiments/camera_fingerprint_audit.py` | `camera_fingerprint.csv` | 70 views, 10 venues
+
+---
+
+## H1/H2 re-reported on a stable estimand (WP4-T4b) — 2026-09-07
+
+`experiments/h1_h2_baseline_floor.py` -> `results/h1_h2_baseline_floor.csv`, figures
+regenerated. **This changes the random split's numbers substantially and leaves the grouped
+split's untouched.** H1 gets stronger; the ranking-inversion finding survives but one of its
+components turns out to have been an artefact.
+
+### The defect
+
+`bootstrap_metric_ci` was called as `lambda t, p: evaluate(t, p).macro_f1`. `evaluate`
+excludes zero-support classes from the macro average - which is correct - but it was being
+asked to do so **once per resample**, so the class set was re-derived 10,000 times and the
+estimand moved with it.
+
+C3 has support **1** in the random split's test set (n=394: C2 274, C1 119, C3 1). A
+bootstrap resample of that size contains that single frame **63.4% of the time**. So roughly
+two thirds of the resamples averaged three classes and one third averaged two, and the
+resulting interval covered two different quantities. The grouped split is unaffected: both
+its classes appear in essentially every resample (C1 support 9 of 907).
+
+Support 1 is not evaluable in any case - one frame yields an F1 of 0 or 1 with nothing in
+between, and no resampling scheme manufactures the missing information. The class set is now
+fixed **once** from the full test set, with the point estimate and the interval computed over
+the same restricted data, and the retained classes plus anything dropped are written into
+every CSV row (`macro_over_classes`, `excluded_low_support`, `n_test_evaluable`).
+
+`preregistration.md` already promised this: *"metrics are reported 2-class where C3 support is
+zero, and this is stated in every table."* Support 1 slipped through a rule written for
+support 0.
+
+### What moved
+
+| split | model | before | after | delta | CI width before | after |
+|---|---|---|---|---|---|---|
+| random | vit | 0.9960 | 0.9940 | -0.002 | 0.013 | 0.016 |
+| random | convnextv2 | 0.6573 | **0.9879** | **+0.331** | 0.348 | **0.023** |
+| random | dinov2 | 0.6573 | **0.9879** | **+0.331** | 0.348 | **0.023** |
+| random | cheap_histogram | 0.6855 | **0.9616** | +0.276 | 0.309 | 0.037 |
+| random | clock_rule | 0.6050 | **0.9091** | +0.304 | 0.344 | 0.059 |
+| grouped | *every model* | - | - | **0.0000** | - | - |
+
+The intervals were not merely wrong, they were **fifteen times too wide** on the affected
+rows - the mixed estimand was most of the apparent uncertainty.
+
+### H1 is understated by a factor of three, not overstated
+
+H1 claims same-scene evaluation inflates apparent performance. Measured on a consistent
+metric, the drop from the leaky to the honest protocol is:
+
+| model | random | grouped | drop |
+|---|---|---|---|
+| vit | 0.9940 | 0.4975 | **-0.497** |
+| convnextv2 | 0.9879 | 0.4975 | **-0.490** |
+| dinov2 | 0.9879 | 0.5794 | **-0.409** |
+
+Previously reported as -0.159 for ConvNeXtV2. The honest figure is **-0.490, about 3.1x
+larger**. The claim was not too strong; it was far too weak. Leakage does not shave points off
+this benchmark, it **halves the score** - and that is a much cleaner statement of the thesis's
+central methodological result.
+
+It also sharpens H2 on the leaky side, where a fair comparison now exists: under the leaky
+protocol a 16-bin colour histogram reaches **0.9616** against the best deep probe's 0.9940,
+and a clock rule that never looks at the image reaches **0.9091**. Everything is at ceiling,
+which is what "the protocol is measuring the dataset" looks like when every model is scored on
+the same classes.
+
+### One component of the ranking inversion was an artefact
+
+The inversion **stands**: ViT ranks 1st under the leaky protocol (0.9940) and is tied 2nd/3rd
+under the honest one (0.4975, against DINOv2's 0.5794). A reader following the pilot's
+protocol still selects the weakest generaliser.
+
+But its *magnitude* on the leaky side was not real. ViT's old 0.9960 against the field's 0.6573
+was a gap of 0.339, and almost all of it came from ViT happening to classify the single C3
+frame correctly while the others did not - a three-class average against a two-class one. On
+equal footing the leaky-protocol gap is **0.006**. The inversion is a fact about ranking, not
+about margins, and it should be quoted that way.
+
+### The figure did not read the table it illustrates
+
+Regenerating `figs/ranking_inversion.png` changed nothing, which is how a second defect
+surfaced: `fig_ranking_inversion()` **hardcoded both the ranks and the printed scores**. It
+never read `h1_h2_baseline_floor.csv`, so it kept displaying DINOv2 and ConvNeXtV2 at the
+random split's old 0.657 after the corrected value became 0.988 - the most quoted figure in the
+thesis contradicting its own source table, while the `figures` reproduction stage reported
+success and its own docstring said "regenerated from the CSVs".
+
+Both columns are derived from the CSVs now, ties are detected from the data rather than
+described in a comment, and the subtitle is computed too: it asserted ViT was "last under the
+honest one", which was true of the old numbers and is not true of the corrected ones - ViT is
+**tied 2nd**. A caption is a claim, so it is now checked on every regeneration rather than
+remembered. Score labels also carry a background halo, because two tied scores sit a fraction
+apart and a third series' line ran straight through one of them.
+
+This is the same defect class as the fingerprint AUC column found earlier the same day: a
+number that appears in an output but is not computed from the data it describes. Two instances
+in one review is enough to call it the pattern to watch for here.
+
+### What does not change
+
+Every grouped-split number, every H2 conclusion drawn on the grouped split, and all of H3 -
+which never used this code path, and whose intervals bootstrap over venue folds rather than
+frames. The effective-sample audit's conclusions are also untouched: they concern
+independence between frames, not the class set.
+
+- 2026-09-07 | WP4-T4b H1/H2 stable estimand | `python experiments/h1_h2_baseline_floor.py` | `h1_h2_baseline_floor.csv` | random split +0.33 macro-F1, grouped unchanged; H1's effect 3.1x larger
+
+- 2026-09-07 · H1/H2 · `python experiments/h1_h2_baseline_floor.py` · seed 42 · `h1_h2_baseline_floor.csv` · 14 rows over 2 splits

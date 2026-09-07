@@ -222,3 +222,38 @@ file raises instead of unlocking everything (`tests/test_splits.py`). No evidenc
 any reported run was affected — every experiment script is launched from the root — but the
 guarantee was weaker than this document claimed, and that is worth recording rather than
 quietly repairing.
+
+---
+
+### 2026-09-07 — A8: H1's effect size is corrected upward, and the metric is pinned
+
+Found while auditing `bootstrap_metric_ci`. `evaluate` was called inside the bootstrap, so it
+re-derived which classes to macro-average **once per resample**. C3 has support 1 in the random
+split's test set and appears in 63.4% of resamples, so two thirds of them averaged three
+classes and one third averaged two — one confidence interval spanning two estimands. The
+grouped split was unaffected (both its classes appear in every resample).
+
+Standing rule 2 says the primary metric is macro-F1 over the 3-class taxonomy; §"Not
+answerable" item 3 says metrics are reported 2-class where C3 support is zero. **Support 1 fell
+between the two**, and the code resolved it differently in different resamples. Rule 2 is now
+read as: *the class set is fixed once from the full test set, a class needs at least 2 test
+frames to enter the macro average, and the retained and dropped classes are printed in every
+table* (`macro_over_classes`, `excluded_low_support`).
+
+**This moves a headline number, and it moves it against us being modest.** H1's drop from the
+leaky to the honest protocol was reported as −0.159 macro-F1 for ConvNeXtV2. On a consistent
+metric it is **−0.490** — about 3.1× larger. The pre-registered prediction (random > grouped)
+is confirmed more strongly, not less. Affected intervals also narrowed ~15×, the mixed estimand
+having been most of the apparent uncertainty.
+
+**One reported claim is weakened and is restated rather than dropped.** The ranking inversion
+(ViT selected under the leaky protocol, weakest generaliser under the honest one) **stands** as
+a statement about rank. Its magnitude does not: ViT's apparent 0.339 lead under the leaky
+protocol came almost entirely from correctly classifying the single C3 frame that the other
+models missed. On equal footing the lead is **0.006**. The thesis must quote the inversion as a
+reversal of *ordering*, never as a large leaky-protocol margin.
+
+Nothing here touches H3 (which bootstraps over venue folds, not frames), the effective-sample
+audit (which concerns independence between frames, not the class set), or any grouped-split
+number.
+
