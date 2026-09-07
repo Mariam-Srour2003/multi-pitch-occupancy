@@ -137,6 +137,14 @@ STAGES: list[Stage] = [
         minutes=6,
     ),
     Stage(
+        name="camera-fingerprint",
+        command=[*PY, str(ROOT / "experiments" / "camera_fingerprint_audit.py")],
+        produces=[RESULTS / "camera_fingerprint.csv"],
+        requires=[DATA / "processed" / "manifest.csv"],
+        note="proves the (1).mp4 camera suffix swaps between venue_01's two days",
+        minutes=1,
+    ),
+    Stage(
         name="augmentation-grid",
         command=[*PY, str(ROOT / "experiments" / "augmentation_grid.py")],
         produces=[RESULTS / "figs" / "augmentation_grid.jpg"],
@@ -202,7 +210,42 @@ STAGES: list[Stage] = [
         requires=[RESULTS / "label_efficiency.csv", RESULTS / "h3_cross_venue_recall.csv"],
         note="thesis figures, regenerated from the CSVs",
     ),
+    # --- three experiments the log quotes that this pipeline used not to reach ----------
+    # The docstring's claim is "anything not reachable from here is not reproducible",
+    # and the pipeline exited 0 while `prompt_search.csv`, `false_play_rescored.csv` and
+    # `preprocess_search.json` - all cited in EXPERIMENT_LOG.md and all committed under
+    # results/ - had no stage at all. A green run that silently omits a cited artefact is
+    # the exact failure the header warns about, one level up.
+    Stage(
+        name="prompt-search",
+        command=[*PY, str(ROOT / "experiments" / "prompt_search.py")],
+        produces=[RESULTS / "prompt_search.csv", RESULTS / "prompt_search_best.json"],
+        requires=[DATA / "processed" / "manifest.csv"],
+        note="zero-shot prompt sweep - the RQ1 cold-start baseline",
+        minutes=25,
+    ),
+    Stage(
+        name="preprocess-search",
+        command=[*PY, str(ROOT / "experiments" / "preprocess_search.py")],
+        produces=[RESULTS / "preprocess_search.json"],
+        requires=[DATA / "processed" / "manifest.csv"],
+        note="740-min preprocessing sweep - named so it is reported, not omitted; run it deliberately with --only",
+        minutes=740,
+    ),
+    Stage(
+        name="rescore-false-play",
+        command=[*PY, str(ROOT / "experiments" / "rescore_false_play.py")],
+        produces=[RESULTS / "false_play_rescored.csv"],
+        requires=[RESULTS / "preprocess_search.json"],
+        note="repairs the search's false-play control, which scored probes on their own training data",
+        minutes=10,
+    ),
 ]
+
+#: Stages too long to belong in a default run, but that must still be *named*: `--check`
+#: reports them and the summary says the run was partial, so "everything reproduced"
+#: is never printed over a gap. Run them explicitly with `--only preprocess-search`.
+LONG_STAGES = {"preprocess-search"}
 
 
 def main() -> int:
@@ -218,6 +261,12 @@ def main() -> int:
         if unknown:
             print(f"unknown stage(s): {', '.join(sorted(unknown))}")
             return 2
+
+    # Deferred, not dropped. Without --only these are listed with their state and then
+    # held back, and the summary below refuses to say "all stages reproduced" while any
+    # remain outstanding.
+    deferred = [s for s in stages if s.name in LONG_STAGES and not args.only]
+    stages = [s for s in stages if s not in deferred]
 
     print(f"{'stage':<24}{'state':<12}{'~min':>6}  note")
     print("-" * 96)
@@ -235,19 +284,35 @@ def main() -> int:
             todo.append(s)
         print(f"{s.name:<24}{state:<12}{s.minutes:>6}  {s.note}")
 
+    outstanding: list[str] = []
+    for s in deferred:
+        state = "done" if s.satisfied() and not args.force else "DEFERRED"
+        if state == "DEFERRED":
+            outstanding.append(s.name)
+        print(f"{s.name:<24}{state:<12}{s.minutes:>6}  {s.note}")
+
     if blocked:
         print("\nblocked stages and what they need:")
         for s, missing in blocked:
             for m in missing:
                 print(f"  {s.name}: missing {m.relative_to(ROOT)}")
 
+    if outstanding:
+        print(
+            "\ndeferred (too long for a default run, run deliberately):\n"
+            + "\n".join(f"  --only {n}" for n in outstanding)
+        )
+
     print(f"\n{len(todo)} stage(s) to run, ~{sum(s.minutes for s in todo)} min")
     if args.check:
         # a blocked stage is a real failure of reproducibility, so say so in the exit code
-        return 1 if blocked else 0
+        return 1 if blocked or outstanding else 0
     if not todo:
-        print("nothing to do - everything is already reproduced")
-        return 1 if blocked else 0
+        if outstanding:
+            print(f"nothing to run here, but {len(outstanding)} deferred stage(s) are outstanding")
+        else:
+            print("nothing to do - everything is already reproduced")
+        return 1 if blocked or outstanding else 0
 
     failed: list[str] = []
     for s in todo:
@@ -270,8 +335,14 @@ def main() -> int:
     if failed:
         print(f"\n{len(failed)} stage(s) failed: {', '.join(failed)}")
         return 1
+    if blocked or outstanding:
+        print(
+            f"\nran every stage attempted, but the reproduction is PARTIAL: "
+            f"{len(blocked)} blocked, {len(outstanding)} deferred"
+        )
+        return 1
     print("\nall stages reproduced")
-    return 1 if blocked else 0
+    return 0
 
 
 if __name__ == "__main__":

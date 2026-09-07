@@ -38,9 +38,10 @@ import cv2
 import numpy as np
 from PIL import Image
 
+from pitch_occupancy.data.feature_cache import preprocessing_hash
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.data.splits import development_rows, leave_one_group_out
-from pitch_occupancy.vision.backbones import embed_batch, load_backbone
+from pitch_occupancy.vision.backbones import BACKBONES, POOLING_STAMP, embed_batch, load_backbone
 from pitch_occupancy.vision.heads import LinearProbe
 from pitch_occupancy.vision.preprocess import PreprocessConfig, preprocess
 
@@ -52,15 +53,21 @@ SEED = 42
 PLAY = "C2_ACTIVE_PLAY"
 BACKBONE = "dinov2"  # the strongest generaliser from H3
 
+# `grayscale=True` became `saturation=0.0` when the switch was generalised into a dial
+# (see PreprocessConfig.saturation). This script kept the old keyword and so raised
+# TypeError on import of the module-level dict - it could not run at all, while its
+# numbers stayed cited in five places and its caches sat on disk from the run before the
+# rename. The variant *names* are deliberately unchanged: they key the cache files those
+# numbers came from, so renaming them would orphan the results instead of restoring them.
 VARIANTS = {
     "full": PreprocessConfig(),
-    "grayscale": PreprocessConfig(grayscale=True),
+    "grayscale": PreprocessConfig(saturation=0.0),
     "blur4": PreprocessConfig(blur_sigma=4.0),
     "blur8": PreprocessConfig(blur_sigma=8.0),
     "crop50": PreprocessConfig(centre_crop=0.5),
     # the two individually-helpful removals together: does the benefit compound, or was
     # colour and border carrying the same redundant venue signal?
-    "gray+crop50": PreprocessConfig(grayscale=True, centre_crop=0.5),
+    "gray+crop50": PreprocessConfig(saturation=0.0, centre_crop=0.5),
 }
 
 
@@ -68,10 +75,38 @@ def embed_variant(rows, name: str, cfg: PreprocessConfig) -> np.ndarray:
     """Embed every frame under one preprocessing variant, cached to disk."""
     path = CACHE / f"ablate_{BACKBONE}_{name}.npz"
     files = [r.file for r in rows]
+    # These caches are keyed by *variant name* only. That is fine while the name and the
+    # config agree, and silently wrong the moment they drift - which is exactly what
+    # happened here: `grayscale=True` was renamed to `saturation=0.0` and this file kept
+    # the old keyword, so the config expression changed while the cache name did not.
+    # feature_cache.py already solved this for the main caches with a pooling stamp and a
+    # preprocessing fingerprint; the same two fields are written here now.
+    want = preprocessing_hash(backbone=BACKBONES[BACKBONE].hf_id, variant=name, **vars(cfg))
     if path.exists():
         z = np.load(path, allow_pickle=True)
         idx = {str(f): i for i, f in enumerate(z["files"])}
         if all(f in idx for f in files):
+            if "preproc_hash" not in z.files:
+                # Written before stamping existed. Accepted, but never silently: the whole
+                # point of the stamp is that "I cannot check this" and "I checked this"
+                # must not look the same in a log.
+                print(
+                    f"    WARNING: {path.name} predates preprocessing stamps - reusing it "
+                    f"on the strength of its filename alone. Delete it to re-embed under "
+                    f"the current config ({want})."
+                )
+            elif str(z["preproc_hash"]) != want:
+                raise SystemExit(
+                    f"{path.name} was embedded under preprocessing {str(z['preproc_hash'])} "
+                    f"but this run asks for {want}. Mixing preprocessing conventions in one "
+                    f"comparison produces plausible, wrong numbers. Delete the file to "
+                    f"re-embed."
+                )
+            elif str(z["pooling"]) != POOLING_STAMP:
+                raise SystemExit(
+                    f"{path.name} was built with pooling={str(z['pooling'])!r}, expected "
+                    f"{POOLING_STAMP!r} - see SUPER_PLAN.md gotcha 2.1."
+                )
             return z["features"][[idx[f] for f in files]]
 
     model, processor, spec = load_backbone(BACKBONE)
@@ -87,7 +122,13 @@ def embed_variant(rows, name: str, cfg: PreprocessConfig) -> np.ndarray:
     print()
     feats = np.concatenate(chunks)
     CACHE.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(path, files=np.array(files, dtype=object), features=feats)
+    np.savez_compressed(
+        path,
+        files=np.array(files, dtype=object),
+        features=feats,
+        pooling=POOLING_STAMP,
+        preproc_hash=want,
+    )
     return feats
 
 
