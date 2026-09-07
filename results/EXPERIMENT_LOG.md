@@ -905,3 +905,79 @@ Even balanced, 23% of held-out empty frames are called ACTIVE_PLAY across camera
 weak number and it is not hidden here: it is measured across two different camera views,
 which is harder than the deployed case, but it is the clearest signal yet that EMPTY-vs-PLAY
 is not solved once the evaluation stops being degenerate.
+
+---
+
+## Correction: the search's false-play control was measuring training data — 2026-09-07
+
+`experiments/rescore_false_play.py` → `results/false_play_rescored.csv`.
+
+### The bug
+
+```python
+empties = [r for r in fold.train if r.class3 == EMPTY]   # the probe's own fitting data
+```
+
+The control scored each probe on **frames it had just been fitted on**, so it read exactly
+`0.0000` for all 52 evaluations across both models and separated none of them. It went
+unnoticed for a structural reason: every clip-venue fold has **494 EMPTY frames in train and
+zero in test**, so there was nothing on the held-out side to measure and the code reached
+for the training side instead.
+
+The entry above records this search's metric as *saturated* — three configurations tied at
+1.0000 and "there is no way to rank those three". **That conclusion was wrong.** The metric
+was not saturated; the second dimension was broken, so ranking had only one axis.
+
+### What the repaired control shows
+
+Trained on `venue_01` camera A, scored on camera B's 243 held-out EMPTY frames:
+
+| configuration | recall | worst fold | false-play |
+|---|---|---|---|
+| `saturation=0.5 sharpen=0.6` | 1.0000 | 1.000 | **0.021** |
+| `gamma=0.7 sharpen=0.6` | 1.0000 | 1.000 | **0.663** |
+| `gamma=0.7 denoise=25 sharpen=0.6` | 1.0000 | 1.000 | **0.979** |
+| `gamma=0.7 saturation=0.5 sharpen=0.6` | 0.9983 | 0.988 | 0.021 |
+| `sharpen=0.6` | 0.9991 | 0.994 | 0.276 |
+
+The three "unrankable" configurations are decisively ranked. Two of them would call **66%
+and 98% of empty pitches a match** — unusable for a billing audit, and indistinguishable
+from the winner on recall alone.
+
+**The recommendation is `saturation=0.5 sharpen=0.6`**: perfect cross-venue play recall with
+a 2% false-play rate. The search now ranks on `balanced = recall − false_play`, as the prompt
+search already did.
+
+The correlation between recall and false-play is weak (+0.112 for ConvNeXtV2, −0.154 for
+DINOv2), so the search was not *systematically* buying recall — but individual top
+configurations plainly were, which is precisely what a control exists to catch.
+
+### The larger finding: training on the clip venues destroys EMPTY detection
+
+While repairing the control, the first version trained on everything except the held-out
+camera — which includes the clip venues. It returned **1.0000 for every DINOv2
+configuration**. Isolating the cause:
+
+| training set | n | fraction ACTIVE_PLAY | false-play on 243 held-out EMPTY frames |
+|---|---|---|---|
+| `venue_01` camera A only | 775 | 0.668 | **0.231** |
+| camera A **+ clip venues** | 1,057 | 0.757 | **1.000** |
+
+All 282 clip-venue development frames are ACTIVE_PLAY and **none are EMPTY**. Adding them
+takes the probe from calling 23% of unseen empty pitches a match to calling **all of them**.
+
+Class balancing is already on, so this is not simply a shifted prior — those frames appear to
+widen the PLAY region of feature space until it swallows an unseen camera's empty frames.
+
+**This is the most serious consequence of the dataset gap found so far.** Every cross-venue
+protocol in this project trains on venue_01 plus six clip venues, and H3 measured only
+ACTIVE_PLAY recall on all-play test sets — so a probe that says PLAY to everything scores
+perfectly and looks excellent. The high cross-venue recall numbers are real, but they were
+never evidence that the model can recognise an empty pitch, and under that training set it
+cannot.
+
+**What it does not mean.** It is not evidence the approach fails: with training restricted to
+a venue that has both classes, false-play is 0.021 for the best configuration. It means the
+*clip venues cannot supply training data for the EMPTY class*, which is a labelled-data
+problem, not a modelling one. Full-length recordings from any second venue would close it,
+which is the same conclusion the blocked-questions diagram already draws.

@@ -352,7 +352,7 @@ tagged with the question it answers. Fix that first — it is what turns a build
         EMPTY frames it calls **46.5%** of empty pitches a match, against 23.1% balanced.
   - [x] The first control used 9 EMPTY frames and said 0.000 for both — it would have led to
         the wrong recommendation. Splitting on physical camera gives 243 and reverses it.
-- [ ] **WP3-T8 Preprocessing ablation (E-PRE).** Best model + grouped split; toggle
+- [ ] **WP3-T8 Preprocessing ablation (E-PRE).** *(search done; see the correction below)* Best model + grouped split; toggle
       {ROI, letterbox-vs-thumbnail, CLAHE, augmentation, balancing} one at a time; deltas with CIs
       → `results/ablation_preprocessing.csv`. *Accept:* table + one-paragraph finding per switch.
 - [ ] **WP3-T9 ★ ROI ablation gets its own figure.** Of all preprocessing steps, ROI masking is the

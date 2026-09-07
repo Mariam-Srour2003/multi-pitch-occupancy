@@ -1,0 +1,53 @@
+model,describe,play_recall,worst_fold,false_play_old,false_play_fixed
+convnextv2,baseline,0.9841,0.8889,0.0,0.0205761316872428
+convnextv2,undistort=0.15,0.9396,0.75,0.0,0.01646090534979424
+convnextv2,undistort=0.3,0.8651,0.1667,0.0,0.00411522633744856
+convnextv2,centre_crop=0.5,0.9552,0.7222,0.0,1.0
+convnextv2,centre_crop=0.7,0.9563,0.7778,0.0,0.0
+convnextv2,top_crop=0.2,0.9167,0.4167,0.0,0.0205761316872428
+convnextv2,top_crop=0.35,0.8917,0.7,0.0,0.9958847736625515
+convnextv2,letterbox=False,0.9165,0.7667,0.0,0.0
+convnextv2,per_image_standardise=True,0.9541,0.8333,0.0,0.012345679012345678
+convnextv2,clahe=on,0.9348,0.7222,0.0,0.6131687242798354
+convnextv2,clahe=auto,0.9561,0.7222,0.0,0.07407407407407407
+convnextv2,gamma=0.7,0.9151,0.7778,0.0,0.0205761316872428
+convnextv2,gamma=1.4,0.9349,0.6667,0.0,1.0
+convnextv2,saturation=0.0,0.8738,0.5,0.0,0.23045267489711935
+convnextv2,saturation=0.5,0.9983,0.9881,0.0,0.09465020576131687
+convnextv2,denoise=25.0,0.9841,0.9444,0.0,0.9218106995884774
+convnextv2,sharpen=0.6,0.9991,0.994,0.0,0.2757201646090535
+convnextv2,undistort=0.15 sharpen=0.6,0.945,0.7778,0.0,0.0411522633744856
+convnextv2,undistort=0.3 sharpen=0.6,0.9076,0.3889,0.0,0.00411522633744856
+convnextv2,centre_crop=0.5 sharpen=0.6,0.7841,0.0,0.0,0.11934156378600823
+convnextv2,centre_crop=0.7 sharpen=0.6,0.9524,0.8333,0.0,0.0
+convnextv2,top_crop=0.2 sharpen=0.6,0.9952,0.9667,0.0,0.1111111111111111
+convnextv2,top_crop=0.35 sharpen=0.6,0.9176,0.6333,0.0,0.9917695473251029
+convnextv2,letterbox=False sharpen=0.6,0.858,0.5833,0.0,0.01646090534979424
+convnextv2,per_image_standardise=True sharpen=0.6,0.9769,0.9048,0.0,0.7901234567901234
+convnextv2,clahe=on sharpen=0.6,0.8886,0.4167,0.0,0.8888888888888888
+convnextv2,clahe=auto sharpen=0.6,0.9308,0.6667,0.0,0.39094650205761317
+convnextv2,gamma=0.7 sharpen=0.6,1.0,1.0,0.0,0.6625514403292181
+convnextv2,gamma=1.4 sharpen=0.6,0.984,0.9,0.0,0.9382716049382716
+convnextv2,saturation=0.0 sharpen=0.6,0.9563,0.75,0.0,0.0
+convnextv2,saturation=0.5 sharpen=0.6,1.0,1.0,0.0,0.0205761316872428
+convnextv2,denoise=25.0 sharpen=0.6,0.9974,0.9821,0.0,1.0
+convnextv2,undistort=0.15 gamma=0.7 sharpen=0.6,0.9735,0.9,0.0,0.08641975308641975
+convnextv2,undistort=0.3 gamma=0.7 sharpen=0.6,0.9683,0.7778,0.0,0.0
+convnextv2,centre_crop=0.5 gamma=0.7 sharpen=0.6,0.7902,0.0,0.0,0.9835390946502057
+convnextv2,centre_crop=0.7 gamma=0.7 sharpen=0.6,0.9635,0.8,0.0,0.02880658436213992
+convnextv2,top_crop=0.2 gamma=0.7 sharpen=0.6,0.9833,0.9167,0.0,0.0205761316872428
+convnextv2,top_crop=0.35 gamma=0.7 sharpen=0.6,0.9668,0.8333,0.0,0.9917695473251029
+convnextv2,letterbox=False gamma=0.7 sharpen=0.6,0.8095,0.1667,0.0,0.01646090534979424
+convnextv2,per_image_standardise=True gamma=0.7 sharpen=0.6,0.9828,0.9333,0.0,0.5596707818930041
+convnextv2,clahe=on gamma=0.7 sharpen=0.6,0.9635,0.8,0.0,1.0
+convnextv2,clahe=auto gamma=0.7 sharpen=0.6,0.9923,0.9464,0.0,0.9794238683127572
+convnextv2,gamma=0.7 saturation=0.0 sharpen=0.6,0.8698,0.5556,0.0,0.0
+convnextv2,gamma=0.7 saturation=0.5 sharpen=0.6,0.9983,0.9881,0.0,0.0205761316872428
+convnextv2,gamma=0.7 denoise=25.0 sharpen=0.6,1.0,1.0,0.0,0.9794238683127572
+dinov2,baseline,0.9595,0.8,0.0,0.23045267489711935
+dinov2,undistort=0.15,0.9531,0.7778,0.0,0.9958847736625515
+dinov2,undistort=0.3,0.9921,0.9444,0.0,0.0411522633744856
+dinov2,centre_crop=0.5,0.9983,0.9881,0.0,0.31275720164609055
+dinov2,centre_crop=0.7,0.9649,0.8095,0.0,0.0205761316872428
+dinov2,top_crop=0.2,0.9706,0.8,0.0,1.0
+dinov2,top_crop=0.35,0.9921,0.9444,0.0,1.0

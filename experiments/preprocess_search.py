@@ -48,6 +48,7 @@ from PIL import Image
 from pitch_occupancy.data.manifest import ManifestRow, read_manifest
 from pitch_occupancy.data.splits import development_rows, leave_one_group_out
 from pitch_occupancy.vision.backbones import BACKBONES, embed_batch, load_backbone
+from pitch_occupancy.db.seed import PHYSICAL_CAMERA
 from pitch_occupancy.vision.heads import LinearProbe
 from pitch_occupancy.vision.preprocess import SWITCHES, PreprocessConfig, preprocess
 
@@ -103,23 +104,60 @@ def score(rows: list[ManifestRow], X: np.ndarray, folds) -> dict[str, float]:
     rather than celebrated.
     """
     pos = {r.file: i for i, r in enumerate(rows)}
-    recalls, false_play = [], []
+    recalls = []
     for fold in folds:
         probe = LinearProbe("s", seed=SEED).fit(X[[pos[r.file] for r in fold.train]], fold.train)
         pred = probe.predict(X[[pos[r.file] for r in fold.test]], fold.test)
         truth = [r.class3 for r in fold.test]
         play = [(p, t) for p, t in zip(pred, truth, strict=True) if t == PLAY]
         recalls.append(sum(p == PLAY for p, _ in play) / len(play) if play else float("nan"))
-        empties = [r for r in fold.train if r.class3 == EMPTY]
-        if empties:
-            pe = probe.predict(X[[pos[r.file] for r in empties]], empties)
-            false_play.append(float(np.mean([p == PLAY for p in pe])))
     arr = np.array(recalls, dtype=float)
+    false_play = false_play_rate(rows, X, pos)
     return {
         "play_recall": float(arr.mean()),
         "worst_fold": float(arr.min()),
-        "false_play": float(np.mean(false_play)) if false_play else 0.0,
+        "false_play": false_play,
+        # What the search ranks on. Recall alone cannot rank these configurations: three of
+        # them reached exactly 1.0000 on test sets that are 100% ACTIVE_PLAY, and their
+        # false-play rates were 0.021, 0.663 and 0.979 - the same score for a usable
+        # configuration and for one that calls almost every empty pitch a match.
+        "balanced": float(arr.mean()) - (0.0 if np.isnan(false_play) else false_play),
     }
+
+
+def false_play_rate(rows: list[ManifestRow], X: np.ndarray, pos: dict[str, int]) -> float:
+    """How often a config makes the probe call a *held-out* empty pitch a match.
+
+    **This was measured on training data for the first 52 evaluations**, and read 0.0000 for
+    every one of them. The reason it went unnoticed is structural: every clip-venue fold has
+    zero EMPTY frames in its test set - that is the dataset gap the project keeps meeting -
+    so there was nothing on the held-out side to measure, and the code reached for
+    `fold.train` instead. A probe scored on its own fitting data does not call anything
+    wrong, so the control agreed with every configuration and discriminated between none.
+
+    The fix uses the only genuine held-out empty frames available: `venue_01` has two
+    physical cameras looking at different halves of the pitch, so training on camera A and
+    scoring on camera B's 243 empty frames is a real generalisation test.
+
+    **The clip venues are excluded from this control's training set, and that is not a
+    convenience.** All 282 of their development frames are ACTIVE_PLAY and none are EMPTY -
+    the dataset gap again - and including them takes the false-play rate from 0.231 to
+    **1.000**: the probe then calls every held-out empty pitch a match, for every
+    configuration, so the control saturates and ranks nothing. Class balancing is already on,
+    so this is more than a shifted prior; those frames appear to widen the PLAY region of
+    feature space until it swallows an unseen camera's empty frames. That is a finding in its
+    own right and is recorded in the experiment log, but a control has to discriminate, so
+    this one trains where both classes actually exist.
+    """
+    venue = [r for r in rows if r.venue == "venue_01"]
+    camera = lambda r: PHYSICAL_CAMERA.get(r.camera, r.camera)  # noqa: E731
+    train = [r for r in venue if camera(r) == "camera_A"]
+    empties = [r for r in venue if camera(r) == "camera_B" and r.class3 == EMPTY]
+    if not empties or len({r.class3 for r in train}) < 2:
+        return float("nan")  # never 0.0: "not measurable" is not "no false play"
+    probe = LinearProbe("fp", seed=SEED).fit(X[[pos[r.file] for r in train]], train)
+    pred = probe.predict(X[[pos[r.file] for r in empties]], empties)
+    return float(np.mean([p == PLAY for p in pred]))
 
 
 def candidates(base: PreprocessConfig, used: set[str]) -> list[tuple[str, PreprocessConfig]]:
@@ -288,6 +326,17 @@ def _search(args, rows, folds, state: dict) -> int:
                 None,
             )
             if cached:
+                if "balanced" not in cached:
+                    # Written before the false-play control was repaired, when it read 0.0
+                    # for everything. Re-scoring is a second from the config's cached
+                    # embeddings, against sixteen minutes to recompute them, so the entry is
+                    # repaired in place rather than trusted or thrown away.
+                    print(f"    re-scoring {label} under the repaired false-play control")
+                    cached.update({
+                        k: round(v, 4)
+                        for k, v in score(rows, embed(rows, cfg, backbone), folds).items()
+                    })
+                    save_state(state)
                 return cached
             t0 = time.perf_counter()
             metrics = score(rows, embed(rows, cfg, backbone), folds)
@@ -313,14 +362,14 @@ def _search(args, rows, folds, state: dict) -> int:
             best = None
             for label, cfg in candidates(base, used):
                 entry = evaluate(cfg, label, round_no)
-                mark = "+" if entry["play_recall"] > current["play_recall"] else " "
+                mark = "+" if entry["balanced"] > current["balanced"] else " "
                 print(
                     f"  {mark} {label:<28} recall {entry['play_recall']:.4f} "
                     f"worst {entry['worst_fold']:.3f} falsePlay {entry['false_play']:.4f}"
                 )
-                if best is None or entry["play_recall"] > best["play_recall"]:
+                if best is None or entry["balanced"] > best["balanced"]:
                     best = entry
-            if best is None or best["play_recall"] <= current["play_recall"]:
+            if best is None or best["balanced"] <= current["balanced"]:
                 print(f"  round {round_no}: no improvement - stopping")
                 break
             switch = best["label"].split("=")[0]
@@ -332,7 +381,8 @@ def _search(args, rows, folds, state: dict) -> int:
         state["best"][backbone] = current
         save_state(state)
         print(f"\n  BEST for {backbone}: {current['describe']}")
-        print(f"    recall {current['play_recall']:.4f}  worst {current['worst_fold']:.3f}")
+        print(f"    recall {current['play_recall']:.4f}  worst {current['worst_fold']:.3f}"
+              f"  false-play {current['false_play']:.4f}")
 
     print(f"\nwrote {OUT_JSON}")
     with (RESULTS / "EXPERIMENT_LOG.md").open("a", encoding="utf-8") as fh:
