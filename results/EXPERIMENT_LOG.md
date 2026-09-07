@@ -1660,3 +1660,5 @@ silent one-frame discrepancy between two scripts is worth more written down than
 away.
 
 - 2026-09-07 | H4 model equivalence | `python experiments/h4_model_equivalence.py` | `h4_model_equivalence.csv` | ConvNeXtV2 vs ViT: equivalent at margin 0.02
+
+- 2026-09-07 | preprocessing search | `python experiments/preprocess_search.py` | `preprocess_search.json` | 88 evaluations

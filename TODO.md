@@ -457,8 +457,12 @@ tagged with the question it answers. Fix that first — it is what turns a build
 - [ ] **WP3-T8 Preprocessing ablation (E-PRE).** *(search done; see the correction below)* Best model + grouped split; toggle
       {ROI, letterbox-vs-thumbnail, CLAHE, augmentation, balancing} one at a time; deltas with CIs
       → `results/ablation_preprocessing.csv`. *Accept:* table + one-paragraph finding per switch.
-  - [ ] ★ **[B] Regenerate `results/preprocess_search.html` — the committed copy is a snapshot of
-        the disowned run.** Its embedded payload is stamped `2026-09-06T16:50:02` with **16
+  - [x] ★ **Regenerated 2026-09-07, once the run finished.** The search completed at 88
+        evaluations (stamp `2026-09-07T20:34`) and released its lock; the viewer is rebuilt from
+        it, so the withdrawn 16-evaluation snapshot is no longer what a reader opens.
+        *Original note kept below for the record:*
+  - [x] ~~**[B] Regenerate `results/preprocess_search.html` — the committed copy is a snapshot of
+        the disowned run.**~~ Its embedded payload is stamped `2026-09-06T16:50:02` with **16
         evaluations**: the 500-frame run the project itself renamed
         `preprocess_search_500frame_UNTRUSTWORTHY.json` (stamped 16:55 the same day). The current
         search has **77**. The page states its own provenance in the meta line, but nothing on it
@@ -467,12 +471,14 @@ tagged with the question it answers. Fix that first — it is what turns a build
         review on purpose:** a search was in flight and writing `preprocess_search.json`, so
         rebuilding then would only have swapped a withdrawn run for a half-finished one. Do it once
         the run completes: `uv run python experiments/make_search_viewer.py`.
-  - [ ] ★ **Then add the staleness guard**, in the same shape as `scripts/branch_report.py`'s
-        `--check` and `tests/test_branch_report.py`: assert the committed HTML's embedded
-        `generated` stamp and evaluation count match `results/preprocess_search.json`. The branch
-        table went stale silently once and a generated-vs-committed test is what caught it; this
-        page went stale silently for a day and nothing caught it. Add the test *after* the
-        regeneration above, so it starts green.
+  - [x] ★ **Staleness guard added** → `tests/test_search_viewer_current.py`, in the same shape
+        as `tests/test_branch_report.py` and for the same reason: a generated artefact that can
+        silently fall behind its source will. Three assertions — the page embeds the current
+        run's `generated` stamp, every evaluation in the source appears in the page (a subset
+        check, because the `best` block repeats its winners' hashes and an exact count reads 90
+        for 88), and the source is not the withdrawn 500-frame run, so re-publishing that one
+        needs a deliberate edit. Verified both ways: green on the current page, and it fires when
+        the stamp is rolled back.
 - [ ] **WP3-T9 ★ ROI ablation gets its own figure.** Of all preprocessing steps, ROI masking is the
       one with a *visual* story (adjacent pitches firing false ACTIVE_PLAY). Pair the number with
       side-by-side example frames — it will be one of the most quoted figures in your defence.

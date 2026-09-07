@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-07T19:52:04+00:00",
+  "generated": "2026-09-07T20:34:33+00:00",
   "evaluations": [
     {
       "model": "convnextv2",
@@ -2420,6 +2420,93 @@
       "worst_fold": 1.0,
       "false_play": 0.4403,
       "balanced": 0.5597
+    },
+    {
+      "model": "dinov2",
+      "n_frames": 1578,
+      "hash": "13ee8f4531bb",
+      "label": "gamma=1.4",
+      "round": 3,
+      "config": {
+        "size": 224,
+        "undistort": 0.3,
+        "roi": false,
+        "centre_crop": 1.0,
+        "top_crop": 0.0,
+        "letterbox": true,
+        "per_image_standardise": false,
+        "clahe": "off",
+        "clahe_contrast_below": 40.0,
+        "gamma": 1.4,
+        "saturation": 0.0,
+        "denoise": 0.0,
+        "sharpen": 0.0,
+        "blur_sigma": 0.0
+      },
+      "describe": "undistort=0.3 gamma=1.4 saturation=0.0",
+      "seconds": 773.8,
+      "play_recall": 0.9932,
+      "worst_fold": 0.9524,
+      "false_play": 0.0,
+      "balanced": 0.9932
+    },
+    {
+      "model": "dinov2",
+      "n_frames": 1578,
+      "hash": "52a7c1ce0332",
+      "label": "denoise=25.0",
+      "round": 3,
+      "config": {
+        "size": 224,
+        "undistort": 0.3,
+        "roi": false,
+        "centre_crop": 1.0,
+        "top_crop": 0.0,
+        "letterbox": true,
+        "per_image_standardise": false,
+        "clahe": "off",
+        "clahe_contrast_below": 40.0,
+        "gamma": 1.0,
+        "saturation": 0.0,
+        "denoise": 25.0,
+        "sharpen": 0.0,
+        "blur_sigma": 0.0
+      },
+      "describe": "undistort=0.3 saturation=0.0 denoise=25.0",
+      "seconds": 1000.2,
+      "play_recall": 0.9685,
+      "worst_fold": 0.7798,
+      "false_play": 0.0329,
+      "balanced": 0.9356
+    },
+    {
+      "model": "dinov2",
+      "n_frames": 1578,
+      "hash": "efa3cfb4c131",
+      "label": "sharpen=0.6",
+      "round": 3,
+      "config": {
+        "size": 224,
+        "undistort": 0.3,
+        "roi": false,
+        "centre_crop": 1.0,
+        "top_crop": 0.0,
+        "letterbox": true,
+        "per_image_standardise": false,
+        "clahe": "off",
+        "clahe_contrast_below": 40.0,
+        "gamma": 1.0,
+        "saturation": 0.0,
+        "denoise": 0.0,
+        "sharpen": 0.6,
+        "blur_sigma": 0.0
+      },
+      "describe": "undistort=0.3 saturation=0.0 sharpen=0.6",
+      "seconds": 774.5,
+      "play_recall": 0.9753,
+      "worst_fold": 0.8333,
+      "false_play": 0.9424,
+      "balanced": 0.033
     }
   ],
   "best": {
@@ -2450,6 +2537,35 @@
       "play_recall": 1.0,
       "worst_fold": 1.0,
       "false_play": 0.0
+    },
+    "dinov2": {
+      "model": "dinov2",
+      "n_frames": 1578,
+      "hash": "0d0c175d1daa",
+      "label": "undistort=0.3",
+      "round": 2,
+      "config": {
+        "size": 224,
+        "undistort": 0.3,
+        "roi": false,
+        "centre_crop": 1.0,
+        "top_crop": 0.0,
+        "letterbox": true,
+        "per_image_standardise": false,
+        "clahe": "off",
+        "clahe_contrast_below": 40.0,
+        "gamma": 1.0,
+        "saturation": 0.0,
+        "denoise": 0.0,
+        "sharpen": 0.0,
+        "blur_sigma": 0.0
+      },
+      "describe": "undistort=0.3 saturation=0.0",
+      "seconds": 725.4,
+      "play_recall": 0.9974,
+      "worst_fold": 0.9821,
+      "false_play": 0.0,
+      "balanced": 0.9974
     }
   }
 }
