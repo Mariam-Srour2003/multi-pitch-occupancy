@@ -410,6 +410,45 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [ ] ★ **Decide the convention by measurement** — one cross-venue run per model with
         `processor_geometry=False` vs the current default, once the CPU is free. If
         disabling it transfers better, regenerate the search results under it.
+  - [x] ★ **Attempted 2026-09-08, and it surfaced something bigger than the convention
+        question. Read this before running the comparison.**
+    - [x] The flag was **not runnable**. `build_cache` had no `processor_geometry`
+          parameter, so the alternative convention could not be cached at all — and the flag
+          was not in the fingerprint either, though `thesis/protocol.md` and
+          `EXPERIMENT_LOG.md` both stated it was. Both conventions would have collided on
+          one cache key *and* one filename. Fixed: the parameter threads through, it is in
+          the fingerprint, the non-default convention gets `<backbone>_nogeom.npz`, and six
+          tests pin it. Existing caches were verified bit-for-bit as
+          `processor_geometry=True` builds before their stale fingerprint was restamped, so
+          **no published number moves**.
+    - [x] ★ **The real finding: `build_cache` does not apply `preprocess.py` at all.** It
+          opens raw frames and hands them to the HF processor, whose resize is the only
+          thing making them model-sized. `preproc` is a dict of *labels for the
+          fingerprint* — it has never driven a transform. So the letterbox of WP3-T2, ROI
+          masking, CLAHE and the other searched switches are **not in the path that produced
+          any cached feature the headline experiments read.** The search and ablation caches
+          are a separate family precisely because those scripts call `preprocess()`
+          themselves.
+    - [x] Which is why the flag crashed rather than working: with the processor's geometry
+          off and no preprocessing, the model gets a 1080×1920 frame and refuses it
+          (`ValueError: Input image size (1080*1920) doesn't match model (224*224)`).
+          `build_cache` now requires an explicit `preprocess_fn` when the flag is off, so
+          the dependency is legible instead of a crash five frames deep in transformers.
+    - [ ] ★ **[B] So WP3-T3's experiment is not the one-line run it looks like, and it is a
+          decision, not a patch.** Comparing conventions honestly means putting
+          `preprocess.py` into the main cache path — which changes the input to *every*
+          published number, not just the nogeom arm. Three options, in increasing cost:
+          **(a)** run the comparison with `preprocess_fn` supplied for both arms, as a
+          self-contained side experiment that touches no existing cache and answers the
+          convention question on its own terms; **(b)** adopt `preprocess.py` in
+          `build_cache` and regenerate everything, which is the coherent end state and
+          invalidates every cached feature; **(c)** leave the default path as it is and state
+          plainly in the write-up that the searched preprocessing switches apply to the
+          search and ablation caches only. **(a) first** — it is cheap and it tells you
+          whether (b) is worth its cost.
+    - [ ] ★ Update `protocol.md`'s framing either way. It calls `preprocess.py` "the single
+          preprocessing path"; for the main caches it is not a path at all, and that sentence
+          should not survive into the thesis unqualified.
 - [x] **WP3-T4 Low-light / fog branch.** CLAHE on the LAB lightness channel, `on|off|auto`
       gated on RMS contrast.
 - [ ] ~~WP3-T4 original~~ RMS contrast on ROI; below threshold → CLAHE/gamma variant;

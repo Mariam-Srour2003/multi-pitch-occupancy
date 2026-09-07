@@ -18,6 +18,19 @@ preprocessing search explores. The Hugging Face processor was understood to do o
 model needs to interpret its input — rescale to `[0, 1]` and normalise with that model's
 training statistics.
 
+> **Correction, 2026-09-08 — for the main feature caches it is not a path at all.**
+> `build_cache` opens **raw frames** and hands them straight to the HF processor, whose
+> resize is the only thing making them model-sized. Its `preproc` argument is a dict of
+> *labels for the fingerprint*; it has never driven a transform, and `preprocess` is never
+> imported there. So the letterbox of WP3-T2, ROI masking, CLAHE and the rest of the ten
+> switches **do not touch any cached feature the headline experiments read**. The
+> preprocessing search and the input ablation are the exception — those scripts call
+> `preprocess()` themselves, which is why they keep their own cache family.
+>
+> The diagram above is therefore the *intended* pipeline and the one the search operates in,
+> not the one behind the cross-venue numbers. Which to make real is TODO WP3-T3's open
+> decision; until it is taken, this document should not be read as saying the two agree.
+
 ## The pipeline, as measured (WP3-T3, 2026-09-07)
 
 The photometric half is correct. Each model is normalised with its own statistics, because
@@ -91,6 +104,19 @@ It is **not** the default yet, for two reasons.
   not applied quietly as a bug fix.
 - Flipping it invalidates every cached feature and every result built on one. The flag is
   part of the cache fingerprint, so the two conventions can never silently mix.
+
+> **Correction, 2026-09-08.** That last sentence was not true when it was written. The flag
+> was **not** in the fingerprint, and `build_cache` had no parameter for it at all — so the
+> alternative convention could not be cached, and had it been, both conventions would have
+> collided on one cache key *and* one filename. `embed_batch` accepted the flag; nothing
+> above it did.
+>
+> Now: `build_cache(..., processor_geometry=False)` threads it through, the flag is in the
+> fingerprint, and the non-default convention gets its own file (`<backbone>_nogeom.npz`) so
+> the two can exist side by side — which is what "compare them" requires. Six tests pin it.
+> The existing caches were verified to be `processor_geometry=True` builds bit-for-bit
+> before their stored fingerprint was migrated to the new formula, so no published number
+> moves.
 
 **What settles it:** one cross-venue run per model under each convention. If disabling the
 processor geometry improves transfer, the preprocessing path becomes genuinely single and

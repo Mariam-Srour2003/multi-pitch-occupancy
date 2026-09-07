@@ -139,3 +139,61 @@ def test_build_cache_round_trips_on_real_images(tmp_path: Path) -> None:
 
 def test_every_registered_backbone_declares_its_pooling_kind() -> None:
     assert {b.kind for b in BACKBONES.values()} <= {"transformer", "convnet"}
+
+
+# --- the processor-geometry convention ------------------------------------
+#
+# WP3-T3 found that ConvNeXtV2 and DINOv2 resize to 256 and centre-crop back to 224 *after*
+# preprocess.py has produced a 224x224 frame, discarding 23.4% of it. Which convention to
+# use is an open decision to be settled by measurement, so both have to be cacheable at
+# once. `thesis/protocol.md` and `EXPERIMENT_LOG.md` both stated the flag was already part
+# of the cache fingerprint; it was neither in the fingerprint nor a parameter of
+# build_cache, so the alternative convention could not be cached at all.
+
+
+def test_the_two_geometry_conventions_get_different_fingerprints() -> None:
+    """Otherwise they collide on one cache key and mix silently."""
+    hf = BACKBONES["vit"].hf_id
+    on = preprocessing_hash(backbone=hf, processor_geometry=True, roi=False)
+    off = preprocessing_hash(backbone=hf, processor_geometry=False, roi=False)
+    assert on != off
+
+
+def test_the_two_geometry_conventions_get_different_files() -> None:
+    """And different filenames, or building the second overwrites the first."""
+    d = Path("cache")
+    assert cache_path("vit", d) != cache_path("vit", d, processor_geometry=False)
+    assert cache_path("vit", d).name == "vit.npz", "the default path must not move"
+    assert cache_path("vit", d, processor_geometry=False).name == "vit_nogeom.npz"
+
+
+def test_the_default_convention_keeps_the_original_filename() -> None:
+    """Existing caches stay findable; only the alternative convention is new."""
+    assert cache_path("dinov2", Path("c"), processor_geometry=True).name == "dinov2.npz"
+
+
+def test_load_cache_reads_the_convention_it_is_asked_for(tmp_path: Path) -> None:
+    """A cache written under one convention is never returned for the other."""
+    for geom, val in ((True, 1.0), (False, 2.0)):
+        np.savez_compressed(
+            cache_path("vit", tmp_path, processor_geometry=geom),
+            files=np.array(["a.jpg"], dtype=object),
+            features=np.full((1, 4), val, dtype=np.float32),
+            backbone="vit",
+            pooling=POOLING_STAMP,
+            preproc_hash=f"h_{geom}",
+        )
+    assert load_cache("vit", tmp_path).features[0][0] == 1.0
+    assert load_cache("vit", tmp_path, processor_geometry=False).features[0][0] == 2.0
+
+
+def test_asking_for_a_convention_that_was_never_built_raises(tmp_path: Path) -> None:
+    np.savez_compressed(
+        cache_path("vit", tmp_path),
+        files=np.array(["a.jpg"], dtype=object),
+        features=np.zeros((1, 4), dtype=np.float32),
+        backbone="vit", pooling=POOLING_STAMP, preproc_hash="h",
+    )
+    load_cache("vit", tmp_path)  # the default one exists
+    with pytest.raises(FileNotFoundError):
+        load_cache("vit", tmp_path, processor_geometry=False)

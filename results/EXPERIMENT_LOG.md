@@ -839,6 +839,15 @@ inference recipe for both models and departing from it is a choice to be **measu
 applied quietly as a bug fix — and because flipping it invalidates every cached feature. The
 flag is part of the cache fingerprint, so the conventions cannot mix.
 
+> **Corrected 2026-09-08 — the last sentence was false when written.** The flag was not in
+> the fingerprint and `build_cache` had no parameter for it, so the alternative convention
+> could not be cached at all; had it been, both conventions would have collided on one cache
+> key *and* one filename. Only `embed_batch` knew about the flag. Fixed: `build_cache`
+> threads it through, it is in the fingerprint, and the non-default convention gets its own
+> `<backbone>_nogeom.npz`. This is the second claim in this project to assert a guard that
+> did not exist — the first was the final-test-set lock, which was cwd-relative — and both
+> were written in good faith about code that read as though it did the thing.
+
 **What settles it:** one cross-venue run per model under each convention, once the DINOv2
 preprocessing search finishes and the CPU is free.
 
@@ -1573,6 +1582,87 @@ real. A paired bootstrap over folds belongs with WP4-T4b.
 - 2026-09-07 · H1/H2 · `python experiments/h1_h2_baseline_floor.py` · seed 42 · `h1_h2_baseline_floor.csv` · 14 rows over 2 splits
 
 ---
+
+---
+
+## WP3-T3: the convention question is not runnable yet, and finding out why matters more — 2026-09-08
+
+Setting up *"one cross-venue run per model under each convention"* - the measurement
+`protocol.md` says will settle whether to disable the HF processor's geometry - turned up
+three things in ascending order of importance.
+
+### 1. The flag could not be cached, and the fingerprint claim was false
+
+`embed_batch` accepted `processor_geometry`; nothing above it did. `build_cache` had no such
+parameter, so **the alternative convention could not be produced at all**. And the flag was
+not in the fingerprint either, though this log and `thesis/protocol.md` both asserted that it
+was - so the two conventions would have collided on one cache key *and* one filename, the
+second build silently overwriting the first.
+
+Fixed: the parameter threads through, it is in the fingerprint, and the non-default
+convention gets `<backbone>_nogeom.npz`. Six tests.
+
+This is the **second** claim in this project to assert a guard that did not exist - the
+first was the final-test-set lock, which resolved a cwd-relative path. Both were written in
+good faith about code that read as though it did the thing.
+
+### 2. The existing caches were restamped, not re-embedded, and that was checked first
+
+Adding the flag to the fingerprint changed the hash of the *default* convention, so the
+three main caches carried a stale one. The features are unchanged - the flag defaults to the
+behaviour they were built with - so restamping is the faithful action and re-embedding would
+be waste. But "faithful" is a premise, so it was tested rather than assumed: 24 frames per
+backbone re-embedded at `processor_geometry=True` and compared to what was stored.
+
+| backbone | identical | max abs diff | fingerprint |
+|---|---|---|---|
+| convnextv2 | yes | 0.000e+00 | `1a9884ba1a9f536f` -> `1b0463ed87f74f7d` |
+| dinov2 | yes | 0.000e+00 | `b1e06cdd436e8522` -> `fb1f12b5d77d212d` |
+| vit | yes | 0.000e+00 | `52bd9716fba57b92` -> `9ff3ae02598ffd4e` |
+
+Bit-for-bit on all three, and the migration script refuses to restamp anything if a single
+check fails. `load_cache(..., expect_preproc_hash=...)` now passes for all three, which it
+could not before. **No published number moves.**
+
+### 3. `build_cache` does not apply `preprocess.py` — and that is the finding
+
+Turning the processor's geometry off crashed:
+
+```
+ValueError: Input image size (1080*1920) doesn't match model (224*224)
+```
+
+Because `build_cache` opens **raw frames** and hands them to the HF processor, whose resize
+is the only thing making them model-sized. Its `preproc` argument is a dict of *labels for
+the fingerprint* - it has never driven a transform, and `preprocess` is not imported there.
+
+So the letterbox of WP3-T2, ROI masking, CLAHE and the rest of the ten searched switches
+**are not in the path that produced any cached feature the headline experiments read.** The
+preprocessing search and the input ablation are the exception: those scripts call
+`preprocess()` themselves, which is exactly why they keep a separate cache family
+(`data/cache/search/`, `ablate_*`).
+
+`protocol.md` calls `preprocess.py` "the single preprocessing path". For the main caches it
+is not a path at all. The pipeline diagram there is the *intended* one and the one the search
+operates in - not the one behind the cross-venue numbers.
+
+### What this does to the experiment
+
+It stops being a one-line run. Comparing the conventions honestly means putting
+`preprocess.py` into the main cache path, which changes the input to **every** published
+number rather than just the nogeom arm. That is a decision, not a patch, so the options are
+recorded in TODO WP3-T3 rather than chosen here: **(a)** a self-contained side experiment
+supplying `preprocess_fn` to both arms, touching no existing cache; **(b)** adopt
+`preprocess.py` in `build_cache` and regenerate everything - the coherent end state, and it
+invalidates every cached feature; **(c)** leave the default path alone and say plainly that
+the searched switches apply only to the search and ablation caches.
+
+**(a) first**, because it is cheap and it tells you whether (b) is worth its cost.
+
+Meanwhile `build_cache` requires an explicit `preprocess_fn` when the flag is off, so the
+dependency is legible instead of a `ValueError` five frames deep in transformers.
+
+- 2026-09-08 | WP3-T3 processor-geometry setup | `pytest tests/test_feature_cache.py` | `data/cache/*.npz` restamped | flag now cacheable and fingerprinted; build_cache found not to apply preprocess.py at all
 
 ## H4: confirmed arithmetically, and it means nothing — 2026-09-07
 

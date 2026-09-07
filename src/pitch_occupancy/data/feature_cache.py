@@ -16,6 +16,7 @@ cache is trustworthy. Two things make it trustworthy:
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,7 +25,10 @@ import numpy as np
 from pitch_occupancy.data.manifest import ManifestRow
 from pitch_occupancy.vision.backbones import BACKBONES, POOLING_STAMP
 
-__all__ = ["CachedFeatures", "preprocessing_hash", "build_cache", "load_cache", "features_for"]
+__all__ = [
+    "CachedFeatures", "preprocessing_hash", "cache_path", "build_cache", "load_cache",
+    "features_for",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,8 +56,17 @@ def preprocessing_hash(**settings: object) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()[:16]
 
 
-def cache_path(backbone: str, cache_dir: Path) -> Path:
-    return cache_dir / f"{backbone}.npz"
+def cache_path(
+    backbone: str, cache_dir: Path, *, processor_geometry: bool = True
+) -> Path:
+    """Where a cache lives. The non-default geometry convention gets its own file.
+
+    Both conventions have to be able to exist at once, because settling which one to use
+    (WP3-T3) means comparing them - and one filename for two conventions would have meant
+    the second build silently overwriting the first.
+    """
+    suffix = "" if processor_geometry else "_nogeom"
+    return cache_dir / f"{backbone}{suffix}.npz"
 
 
 def build_cache(
@@ -65,11 +78,50 @@ def build_cache(
     batch_size: int = 16,
     preproc: dict[str, object] | None = None,
     progress: bool = True,
+    processor_geometry: bool = True,
+    preprocess_fn: Callable[[np.ndarray], np.ndarray] | None = None,
 ) -> CachedFeatures:
-    """Embed every frame in ``rows`` and write the cache to disk."""
+    """Embed every frame in ``rows`` and write the cache to disk.
+
+    ``processor_geometry=False`` disables the HF processor's own resize and centre crop,
+    keeping only its rescale and normalisation, so the model sees exactly what
+    ``preprocess.py`` produced. WP3-T3 found that ConvNeXtV2 and DINOv2 otherwise resize to
+    256 and crop back to 224 *after* preprocessing has run, discarding 23.4% of the frame.
+
+    **This parameter did not exist**, so the alternative convention could not be cached at
+    all - and the flag was not in the fingerprint either, though `thesis/protocol.md` and
+    `EXPERIMENT_LOG.md` both stated that it was. Two conventions would have collided on one
+    cache key *and* one filename.
+
+    ``preprocess_fn`` is **required** when ``processor_geometry=False``, and the reason is
+    the finding that came out of trying to use the flag:
+
+    **This function does not apply ``preprocess.py``.** It opens raw frames and hands them
+    to the HF processor, whose resize is what makes them model-sized. ``preproc`` is a dict
+    of *labels for the fingerprint* - it has never driven a transform. So the letterbox of
+    WP3-T2, ROI masking, CLAHE and the rest of the ten searched switches are **not in the
+    path that produced any cached feature the headline experiments read**; the search and
+    ablation caches are separate because those scripts call ``preprocess`` themselves.
+
+    Turning the processor's geometry off therefore leaves nothing to resize the frame, and
+    the model rejects a 1080x1920 input outright. Rather than crash deep inside
+    transformers, this asks for the preprocessing step explicitly - which also makes the
+    dependency legible: the alternative convention is only meaningful *with* a
+    preprocessing path, and the default one currently has none.
+    """
     from PIL import Image
 
     from pitch_occupancy.vision.backbones import embed_batch, load_backbone
+
+    if not processor_geometry and preprocess_fn is None:
+        raise ValueError(
+            "processor_geometry=False needs preprocess_fn. build_cache feeds *raw* frames "
+            "to the processor, whose resize is the only thing making them model-sized - "
+            "preprocess.py is not in this path. With the processor's geometry off and no "
+            "preprocessing, the model receives a full-resolution frame and refuses it. "
+            "Pass the preprocessing callable that produces a model-sized frame, and note "
+            "in the run that this cache is not comparable with the default ones."
+        )
 
     preproc = preproc or {"roi": False, "resize": "processor_default"}
     model, processor, spec = load_backbone(backbone)
@@ -79,7 +131,16 @@ def build_cache(
     for start in range(0, len(files), batch_size):
         batch = files[start : start + batch_size]
         images = [Image.open(dataset_dir / f).convert("RGB") for f in batch]
-        chunks.append(embed_batch(model, processor, spec, images))
+        if preprocess_fn is not None:
+            images = [
+                Image.fromarray(preprocess_fn(np.asarray(im)[:, :, ::-1])[:, :, ::-1])
+                for im in images
+            ]
+        chunks.append(
+            embed_batch(
+                model, processor, spec, images, processor_geometry=processor_geometry
+            )
+        )
         if progress:
             done = min(start + batch_size, len(files))
             print(f"  {backbone}: {done}/{len(files)}", end="\r", flush=True)
@@ -90,13 +151,17 @@ def build_cache(
     cached = CachedFeatures(
         backbone=backbone,
         pooling=POOLING_STAMP,
-        preproc_hash=preprocessing_hash(backbone=BACKBONES[backbone].hf_id, **preproc),
+        preproc_hash=preprocessing_hash(
+            backbone=BACKBONES[backbone].hf_id,
+            processor_geometry=processor_geometry,
+            **preproc,
+        ),
         files=np.array(files, dtype=object),
         features=feats,
     )
     cache_dir.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
-        cache_path(backbone, cache_dir),
+        cache_path(backbone, cache_dir, processor_geometry=processor_geometry),
         files=cached.files,
         features=cached.features,
         backbone=cached.backbone,
@@ -107,10 +172,14 @@ def build_cache(
 
 
 def load_cache(
-    backbone: str, cache_dir: Path, *, expect_preproc_hash: str | None = None
+    backbone: str,
+    cache_dir: Path,
+    *,
+    expect_preproc_hash: str | None = None,
+    processor_geometry: bool = True,
 ) -> CachedFeatures:
     """Load a cache, refusing anything built under a different convention."""
-    path = cache_path(backbone, cache_dir)
+    path = cache_path(backbone, cache_dir, processor_geometry=processor_geometry)
     if not path.exists():
         raise FileNotFoundError(f"no feature cache for {backbone!r} at {path}")
     z = np.load(path, allow_pickle=True)
