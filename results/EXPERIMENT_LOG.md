@@ -574,3 +574,80 @@ here it is CLIP's trained projection (512-d = `projection_dim`, against a 768-d 
 state). Verified functionally before use rather than by name: a real ACTIVE_PLAY frame
 scores 0.296 against "people playing football", 0.062 against "a plate of spaghetti" and
 -0.011 against "a cat on a sofa".
+
+---
+
+## Preprocessing search (WP3-T8) — 2026-09-07
+
+`experiments/preprocess_search.py`, greedy forward selection over ten preprocessing
+switches, scored on cross-venue ACTIVE_PLAY recall with the false-play control.
+**45 evaluations, 740 minutes of compute, four rounds**, all on the full 1,578-frame
+development set. Output: `results/preprocess_search.json`.
+
+### What it found
+
+| configuration | recall | vs baseline | worst fold | false-play |
+|---|---|---|---|---|
+| `gamma=0.7 sharpen=0.6` | **1.0000** | +0.0159 | 1.000 | 0.0000 |
+| `saturation=0.5 sharpen=0.6` | **1.0000** | +0.0159 | 1.000 | 0.0000 |
+| `gamma=0.7 denoise=25 sharpen=0.6` | **1.0000** | +0.0159 | 1.000 | 0.0000 |
+| `sharpen=0.6` | 0.9991 | +0.0150 | 0.994 | 0.0000 |
+| `saturation=0.5` | 0.9983 | +0.0142 | 0.988 | 0.0000 |
+| baseline (no preprocessing) | 0.9841 | — | 0.889 | 0.0000 |
+| `centre_crop=0.5 sharpen=0.6` | 0.7841 | **&minus;0.2000** | — | 0.0000 |
+
+**Sharpening is the one switch that matters.** It is the largest single-switch gain
+(+0.0150) and appears in every configuration at the top of the table. Nothing else comes
+close on its own.
+
+### Three caveats, and the first one is fatal to quoting the number
+
+**1. The metric saturated.** Three configurations tie at exactly 1.0000 with a worst fold
+of 1.000. That is not "preprocessing is solved" — it is the measurement running out of
+resolution. There is no way to rank those three, and any of them may be better than the
+others on data this development set cannot see. A ceiling result means the next experiment
+needs a harder test set, not a finer search.
+
+**2. It was selected on the folds it reports.** Same structure as the prompt search: 45
+configurations were scored against these development folds and the winner reported.
+That is selection on the evaluation data. This is a **development** result. The locked
+final venues were excluded throughout, so an honest confirmation is available — evaluate
+one chosen configuration on them, once, at the end.
+
+**3. The false-play control never fired.** It reads 0.0000 for all 45 configurations, so
+it did nothing to discriminate here. It is not evidence the control is unnecessary — it
+did real work in the prompt search — but on this axis it carries no information, and the
+ranking rests on recall alone.
+
+### The interaction trap, confirmed a second time
+
+`sharpen=0.6` alone is +0.0150. `centre_crop=0.5` alone is &minus;0.0289. Together they are
+**&minus;0.2000** — far worse than the sum, and the worst result in the search. This is the
+same non-additivity the input ablation found with grayscale and crop50, now reproduced on a
+different pair of switches. **One-at-a-time preprocessing tables cannot be trusted to
+compose**, which is the argument for searching the space rather than tabulating it.
+
+### The finding that matters most, and it was nearly missed
+
+The search ran entirely on **ConvNeXtV2** (the script's default), while the project's
+configured default model is **DINOv2** (`config.default_model_key`). That would be a minor
+bookkeeping note if preprocessing effects transferred between backbones. They do not:
+
+| removing colour | DINOv2 (input ablation) | ConvNeXtV2 (this search) |
+|---|---|---|
+| full desaturation | **+0.022** | **&minus;0.119** |
+| worst fold | 0.917 | 0.500 |
+
+Both numbers come from the *same operation* — `cv2.COLOR_BGR2GRAY` then back to three
+channels; `_apply_saturation(0.0)` and the ablation's `grayscale=True` are the same code
+path. The aggregation differs slightly (per-venue mean against pooled recall), but not by
+anything like enough to flip a sign or halve a worst fold.
+
+**So preprocessing choices are model-specific, and this search's recommendation must not be
+applied to the default model.** Doing so would have taken a step that helps DINOv2 and
+recorded it as harmful, or applied ConvNeXtV2's optimum to a backbone it was never measured
+on. The search supports `--models dinov2 convnextv2`; the DINOv2 run is what the
+recommendation actually needs.
+
+This also answers a question the search was built to ask: whether the best preprocessing
+depends on the model. It does, and the dependence is large enough to reverse the sign.
