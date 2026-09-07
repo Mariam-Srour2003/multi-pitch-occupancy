@@ -238,7 +238,13 @@ def render() -> str:
         <b>{best_bal['label']}</b> is the only backbone that survives it. The two terms come
         from different fits &mdash; no cross-venue fold holds a single empty frame to measure
         against &mdash; so read them side by side rather than as one number; every model
-        faces the identical pair.</p></div>"""
+        faces the identical pair.</p>
+        <p><b>This is observed behaviour on one pitch, not an established ranking.</b> The
+        243 held-out empty frames are consecutive views of a single camera and amount to
+        three to ten <i>distinct scenes</i>; once that is accounted for, none of the six
+        pairwise comparisons survives a Holm correction. The gap is large enough that the
+        failure is a lack of power rather than evidence of equivalence &mdash; but settling
+        it needs empty footage from more than one scene.</p></div>"""
 
     # --- latency against the budget ---
     budget = 60.0

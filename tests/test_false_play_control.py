@@ -142,3 +142,36 @@ def test_h3_recall_still_reproduces_the_published_table(rows) -> None:
         assert abs(mean - published[model]) < 0.005, (
             f"{model}: {mean:.4f} against published {published[model]:.4f}"
         )
+
+
+@pytest.mark.slow
+def test_the_effective_sample_is_reported_not_assumed(rows) -> None:
+    """The 243 held-out empty frames are consecutive views of one camera. Counting them as
+    243 observations gave p-values down to 8e-53; counting distinct scenes leaves three to
+    ten, and no comparison survives. The check that catches this must stay."""
+    import cv2
+
+    from pitch_occupancy.data.dedup import DEFAULT_THRESHOLD, dhash, hamming
+    from pitch_occupancy.db.seed import PHYSICAL_CAMERA
+
+    cam = lambda r: PHYSICAL_CAMERA.get(r.camera, r.camera)  # noqa: E731
+    empties = [
+        r for r in rows
+        if r.venue == "venue_01" and cam(r) == "camera_B" and r.class3 == EMPTY
+    ]
+    hashes = {}
+    for row in empties:
+        img = cv2.imread(str(settings.dataset_dir / row.file))
+        if img is not None:
+            hashes[row.file] = dhash(img)
+    if len(hashes) < 50:
+        pytest.skip("frames not present")
+
+    keep: list[str] = []
+    for f, h in hashes.items():
+        if all(hamming(h, hashes[k]) > DEFAULT_THRESHOLD for k in keep):
+            keep.append(f)
+    assert len(keep) < 25, (
+        f"{len(keep)} distinct scenes from {len(hashes)} frames - if this rises a lot, the "
+        f"held-out set has genuinely diversified and the significance entry needs revisiting"
+    )

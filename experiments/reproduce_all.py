@@ -162,6 +162,14 @@ STAGES: list[Stage] = [
         minutes=2,
     ),
     Stage(
+        name="false-play-significance",
+        command=[*PY, "-m", "experiments.false_play_significance"],
+        produces=[RESULTS / "false_play_significance.csv"],
+        requires=[RESULTS / "h3_with_false_play.csv"],
+        note="CIs, McNemar and Holm - and the de-duplication that overturns them",
+        minutes=3,
+    ),
+    Stage(
         name="end-to-end-slots",
         command=[*PY, str(ROOT / "experiments" / "end_to_end_slots.py")],
         produces=[RESULTS / "end_to_end_slots.csv"],

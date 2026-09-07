@@ -1,0 +1,11 @@
+kind,a,b,estimate,ci_low,ci_high,p_value,p_holm,significant,n_frames
+false_play_rate,clock_rule,,0.0206,0.0041,0.0412,,,,243
+false_play_rate,convnextv2,,0.9918,0.9794,1.0000,,,,243
+false_play_rate,dinov2,,0.3086,0.2510,0.3663,,,,243
+false_play_rate,vit,,0.8354,0.7860,0.8807,,,,243
+mcnemar,clock_rule,convnextv2,,,,7.982e-53,4.789e-52,True,243
+mcnemar,clock_rule,dinov2,,,,1.623e-16,3.246e-16,True,243
+mcnemar,clock_rule,vit,,,,1.555e-44,7.774e-44,True,243
+mcnemar,convnextv2,dinov2,,,,1.051e-36,4.203e-36,True,243
+mcnemar,convnextv2,vit,,,,4.909e-09,4.909e-09,True,243
+mcnemar,dinov2,vit,,,,1.640e-25,4.919e-25,True,243

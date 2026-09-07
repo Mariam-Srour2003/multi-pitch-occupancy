@@ -1101,6 +1101,11 @@ Ranking on `recall − false-play` inverts the table: DINOv2 **0.621**, clock ru
 0.034, **ConvNeXtV2 −0.082**. On a balanced view the pilot's production lead scores *below a
 rule that reads the clock and never looks at the image*.
 
+> **Read this with the significance entry below.** The 243 held-out empty frames amount to
+> three to ten *distinct scenes*, and no pairwise comparison survives Holm correction once
+> that is accounted for. The rates above are observed behaviour on one pitch, not an
+> established ranking — and the failure is a lack of power, not evidence of equivalence.
+
 This is the third time the same lesson has arrived: RQ2 already moved the production pick
 from ConvNeXtV2 to DINOv2 on accuracy under honest evaluation. This is a second, independent
 reason, and a much starker one.
@@ -1122,3 +1127,65 @@ What makes the comparison fair is that every model faces the identical pair of t
 The `venue_01` fold trains on the clip venues alone, and all 282 of their development frames
 are ACTIVE_PLAY. A single class cannot be fitted, so the fold is dropped. That is the dataset
 gap, not a code limitation, and it is the same gap behind every finding in this section.
+
+---
+
+## Significance testing on the false-play finding (WP4-T4) — 2026-09-07
+
+`experiments/false_play_significance.py` → `results/false_play_significance.csv`.
+
+**This qualifies the entry above, which stated the model reordering more confidently than
+the evidence supports.**
+
+### Taken at face value, everything is significant
+
+| model | false-play | 95% bootstrap CI |
+|---|---|---|
+| `clock_rule` | 0.0206 | [0.0041, 0.0412] |
+| `dinov2` | 0.3086 | [0.2510, 0.3663] |
+| `vit` | 0.8354 | [0.7860, 0.8807] |
+| `convnextv2` | 0.9918 | [0.9794, 1.0000] |
+
+Non-overlapping intervals, and all **six** pairwise McNemar tests significant after
+Holm–Bonferroni, with p-values down to 8e-53.
+
+### Those numbers are arithmetic, not evidence
+
+All 243 frames are consecutive samples of **one camera watching one empty pitch**. The
+near-duplicate audit found their median pairwise dHash distance is **2 bits**. Requiring each
+retained frame to differ from every other retained frame leaves:
+
+| distinctness threshold | distinct scenes | comparisons still significant |
+|---|---|---|
+| 2 bits (very strict) | 10 | **0 of 6** |
+| 6 bits (the audit's threshold) | 3 | **0 of 6** |
+
+The count is stable across shuffles of the input order, so it is a property of the frames
+rather than of the greedy selection. **Not one of the six comparisons survives.** The
+p-values above are what you get by counting 243 views of the same empty pitch as 243
+independent observations.
+
+### What stands and what does not
+
+**Stands — descriptive.** On this data ConvNeXtV2 called 99.2% of held-out empty frames a
+match and DINOv2 30.9%. That is a fact about how these models behave here, and it is why the
+model page now shows the column.
+
+**Does not stand — inferential.** *"ConvNeXtV2 is significantly worse than DINOv2 at avoiding
+false play"* is **not supported**. The effective sample is three to ten distinct scenes.
+
+**And the distinction that stops this becoming an over-correction:** a non-significant result
+here is *underpowered*, not null. The observed gap is enormous — 0.99 against 0.31 — and with
+three to ten independent scenes no test could detect even a real difference of that size.
+Absence of significance is not evidence of no difference. The honest statement is **"we do
+not have the data to establish this"**, not "the models are equivalent".
+
+### What would settle it
+
+Empty-pitch footage from **more than one scene**. A second venue with genuine downtime, or
+`venue_01` on other days, would turn three effective observations into dozens. This is the
+same missing data behind every blocked question in this project, and it now also blocks the
+statistical backing for its most striking model comparison.
+
+Until then the false-play column should be presented as **observed behaviour on one pitch**,
+with the effective sample stated beside it.

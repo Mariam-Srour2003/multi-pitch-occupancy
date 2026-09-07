@@ -409,7 +409,17 @@ tagged with the question it answers. Fix that first — it is what turns a build
       home for the selective-prediction citations from WP1-T1. Nearly free once calibration is done.
 
 ### 4.B Making the numbers defensible
-- [ ] **WP4-T4 Statistical testing.** Bootstrap CIs + McNemar (frame level) + paired bootstrap (slot
+- [x] **WP4-T4 Statistical testing.** *(applied to the false-play finding; see below)*
+  - [x] `experiments/false_play_significance.py` -> `false_play_significance.csv`. Bootstrap
+        CIs, pairwise McNemar, Holm-Bonferroni across the family of six.
+  - [x] **It overturned the claim it was meant to support.** All six comparisons look
+        significant at p down to 8e-53 - but the 243 held-out empty frames are consecutive
+        views of one camera and amount to **3-10 distinct scenes**. De-duplicated, **0 of 6**
+        survive. The point estimates stand as observed behaviour; the ranking is not
+        statistically established. Underpowered, *not* null - the gap is 0.99 vs 0.31.
+  - [ ] ★ Apply the same treatment to H1/H2/H3's own significance claims, which were
+        computed on the same near-duplicate-heavy frames.
+- [ ] **WP4-T4b Statistical testing for the remaining hypotheses.** Bootstrap CIs + McNemar (frame level) + paired bootstrap (slot
       level) for every headline pair. *Accept:* every claim carries CI + p-value columns.
   - [ ] ★ Apply the Holm–Bonferroni correction from WP0-T6 and say so in the caption.
   - [ ] ★ Report effect sizes next to p-values.
