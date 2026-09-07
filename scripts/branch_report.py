@@ -17,6 +17,20 @@ So the numbers come from git. This rewrites the block between the two markers in
 merged into `main`, so it is safe to run - and to check - from anywhere; it simply will not
 mention work that has not landed yet. Merging is what adds a branch to the history, so
 merging is what changes the document.
+
+Two consequences worth knowing before they cost you an afternoon:
+
+**The newest branch is always the one missing.** A branch pointing at `main`'s own tip is
+excluded deliberately - it carries no commits of its own, and its row would repeat `main`'s
+last commit. So the branch merged most recently does not appear until the *next* merge
+advances `main` past it. That is not a bug and `--check` will still pass.
+
+**Never `git commit --amend` after a fast-forward merge.** The amend rewrites `main`'s tip
+while the branch ref stays on the original commit, so the branch stops being an ancestor of
+`main`, `git branch --merged` drops it, and this script quietly omits it - a step vanishes
+from the documented history and `--check` still reports "current", because both sides agree
+it does not exist. Recovering it is `git branch -f <branch> main`. Prefer a second commit on
+the branch to amending after a merge.
 """
 
 from __future__ import annotations
