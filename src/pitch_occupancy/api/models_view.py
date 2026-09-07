@@ -48,6 +48,28 @@ def _num(v, d=3) -> str:
         return "—"
 
 
+def _ci(lo, hi, d: int = 3) -> str:
+    """A 95% interval, or nothing when the source did not carry one.
+
+    Rendered small and beside its estimate rather than in its own column: the point is that
+    the reader cannot see the estimate without seeing its width.
+    """
+    try:
+        return f'<span class="ci">[{float(lo):.{d}f}, {float(hi):.{d}f}]</span>'
+    except (TypeError, ValueError):
+        return ""
+
+
+def _overlap(a: dict, b: dict, lo: str, hi: str) -> bool:
+    """Do two intervals overlap? Used to stop "leads" being claimed on point estimates."""
+    try:
+        a_lo, a_hi = float(a[lo]), float(a[hi])
+        b_lo, b_hi = float(b[lo]), float(b[hi])
+    except (KeyError, TypeError, ValueError):
+        return False
+    return a_lo <= b_hi and b_lo <= a_hi
+
+
 def _bar(value: float | None, *, lo: float = 0.0, hi: float = 1.0, tone: str = "accent") -> str:
     """A bar on a shared scale, so two rows are comparable by length alone."""
     if value is None:
@@ -84,8 +106,21 @@ def collect() -> dict:
             "random": random_.get(key, {}).get("macro_f1"),
             "grouped": grouped.get(key, {}).get("macro_f1"),
             "cross": cross.get("play_recall"),
+            # The intervals were loaded and thrown away. `preregistration.md` standing rule
+            # 3 is "uncertainty on every number", and this is the page that makes the
+            # production recommendation - the one place a bare point estimate does the most
+            # damage. They also change what the table says: DINOv2's cross-venue interval
+            # and ConvNeXtV2's overlap across most of their width.
+            "cross_lo": cross.get("ci_low"),
+            "cross_hi": cross.get("ci_high"),
             "worst": cross.get("worst_fold"),
             "merged": sens.get(key, {}).get("play_recall"),
+            "merged_lo": sens.get(key, {}).get("ci_low"),
+            "merged_hi": sens.get(key, {}).get("ci_high"),
+            "random_lo": random_.get(key, {}).get("macro_f1_lo"),
+            "random_hi": random_.get(key, {}).get("macro_f1_hi"),
+            "grouped_lo": grouped.get(key, {}).get("macro_f1_lo"),
+            "grouped_hi": grouped.get(key, {}).get("macro_f1_hi"),
             "false_play": fp.get(key, {}).get("false_play_rate"),
             "ms": lat.get(key, {}).get("single_median_ms"),
             "conc": lat.get(key, {}).get("round_wall_s"),
@@ -164,16 +199,40 @@ def render() -> str:
     rec = ""
     if winner and fastest:
         same = winner["key"] == fastest["key"]
+        # "Leads" was asserted from point estimates alone. The runner-up's interval overlaps
+        # the winner's across most of its width, and a paired test on the grouped split
+        # returns *inconclusive* (H4, macro-F1 difference CI [-0.231, +0.003]). The
+        # recommendation stands - something has to be deployed, and this is the best
+        # estimate - but it must not read as an established gap.
+        rivals = [
+            r for r in rows
+            if r["key"] in TRAINED and r["key"] != winner["key"]
+            and _overlap(winner, r, "cross_lo", "cross_hi")
+        ]
+        overlap_note = ""
+        if rivals:
+            names = " and ".join(r["label"] for r in rivals)
+            overlap_note = (
+                f"<p class=\"vcav\"><b>The lead is not established by the intervals.</b> "
+                f"{names} overlap{'s' if len(rivals) == 1 else ''} this one's 95% interval, "
+                f"and a paired test on the grouped split returns <i>inconclusive</i> rather "
+                f"than a difference. This is the best available estimate and something has "
+                f"to be deployed &mdash; it is not a measured gap.</p>"
+            )
         rec = f"""
         <div class="verdict">
           <div class="vk">Use this one</div>
           <div class="vname">{winner['label']}</div>
-          <p>Leads the honest protocols at <b>{_num(winner['cross'])}</b> cross-venue recall
-          and holds <b>{_num(winner['merged'])}</b> when the two audited venues are merged.
+          <p>Leads the honest protocols at <b>{_num(winner['cross'])}</b>
+          {_ci(winner.get('cross_lo'), winner.get('cross_hi'))} cross-venue recall
+          and holds <b>{_num(winner['merged'])}</b>
+          {_ci(winner.get('merged_lo'), winner.get('merged_hi'))} when the two audited
+          venues are merged.
           {"It is also the fastest." if same else
            f"It is the slowest of the three at {_num(winner['ms'], 0)} ms/frame &mdash; which "
            f"does not matter: 20 cameras take {_num(winner['conc'], 1)} s of a 60-second cycle, "
            f"so latency is not the binding constraint and the choice falls to accuracy."}</p>
+          {overlap_note}
           {zero_line}
           <p class="vfall">Fall back to <b>{fastest['label']}</b> only if the target hardware
           proves far slower than the development machine.</p>
@@ -206,10 +265,11 @@ def render() -> str:
         tone = "accent" if r["key"] in TRAINED else "muted"
         body += f"""<tr>
           <td><div class="mn">{r['label']}</div><div class="mt">{r['nature']}</div></td>
-          <td class="num">{_num(r['random'])}</td>
-          <td class="num">{_num(r['grouped'])}</td>
+          <td class="num">{_num(r['random'])}{_ci(r.get('random_lo'), r.get('random_hi'))}</td>
+          <td class="num">{_num(r['grouped'])}{_ci(r.get('grouped_lo'), r.get('grouped_hi'))}</td>
           <td class="cell">{_bar(cross, lo=0.0, hi=1.0, tone=tone)}
-            <span class="cv">{_num(r['cross'])}</span></td>
+            <span class="cv">{_num(r['cross'])}</span>
+            {_ci(r.get('cross_lo'), r.get('cross_hi'))}</td>
           <td class="num">{_num(r['worst'])}</td>
           <td class="num {'bad' if r.get('false_play') and float(r['false_play']) > 0.5 else ''}">{_num(r['false_play'])}</td>
           <td class="num">{_num(_balanced(r))}</td>
@@ -324,6 +384,9 @@ td.bad{color:var(--warn);font-weight:600}
 .t-ok{background:var(--up,#2c7a52)}
 .cell{white-space:nowrap}
 .cv{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:13px;
+.ci{display:block;font:500 10.5px 'JetBrains Mono',monospace;color:var(--ink-3);
+ letter-spacing:-.01em;margin-top:2px;white-space:nowrap}
+.vcav{font-size:13px;color:var(--ink-2);margin-top:10px}
  margin-left:9px;color:var(--ink);font-weight:600}
 .mn{font-weight:600;color:var(--ink)}
 .mt{font-size:12px;color:var(--ink-3);margin-top:1px}

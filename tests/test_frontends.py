@@ -442,3 +442,79 @@ def test_the_served_page_contains_no_double_escaped_entities(client) -> None:
 
     leftovers = re.findall(r"&amp;[a-z]{2,10};", client.get("/").text)
     assert not leftovers, f"literal entity text on the page: {sorted(set(leftovers))}"
+
+
+# --- the models tab must show uncertainty ----------------------------------
+#
+# `preregistration.md` standing rule 3 is "uncertainty on every number: 95% bootstrap CI".
+# This is the page that makes the production recommendation, and it rendered bare point
+# estimates while the source CSVs carried ci_low/ci_high and macro_f1_lo/hi all along -
+# collect() loaded those files and dropped the columns.
+
+
+def test_the_models_table_renders_confidence_intervals() -> None:
+    import re
+
+    from pitch_occupancy.api.models_view import render
+
+    intervals = re.findall(r"\[\d\.\d{3}, \d\.\d{3}\]", render())
+    assert len(intervals) >= 6, f"expected intervals beside the estimates, found {intervals}"
+
+
+def test_the_recommendation_carries_its_interval() -> None:
+    from pitch_occupancy.api.models_view import collect, render
+
+    winner = max(
+        (r for r in collect()["rows"] if r.get("cross")), key=lambda r: float(r["cross"])
+    )
+    html = render()
+    assert f"{float(winner['cross_lo']):.3f}" in html
+    assert f"{float(winner['cross_hi']):.3f}" in html
+
+
+def test_a_lead_is_not_claimed_when_the_intervals_overlap() -> None:
+    """DINOv2's cross-venue interval overlaps both rivals', and H4 returns inconclusive.
+
+    Something still has to be deployed, so the recommendation stands - but it must not read
+    as a measured gap when a paired test does not find one.
+    """
+    from pitch_occupancy.api.models_view import collect, render, _overlap, TRAINED
+
+    rows = collect()["rows"]
+    winner = max(
+        (r for r in rows if r["key"] in TRAINED and r.get("cross")),
+        key=lambda r: float(r["cross"]),
+    )
+    overlapping = [
+        r for r in rows
+        if r["key"] in TRAINED and r["key"] != winner["key"]
+        and _overlap(winner, r, "cross_lo", "cross_hi")
+    ]
+    html = render()
+    if overlapping:
+        assert "not established by the intervals" in html
+        for r in overlapping:
+            assert r["label"] in html
+    else:  # pragma: no cover - would mean the data changed materially
+        assert "not established by the intervals" not in html
+
+
+def test_overlap_detection_is_symmetric_and_handles_missing_bounds() -> None:
+    from pitch_occupancy.api.models_view import _overlap
+
+    a = {"lo": "0.10", "hi": "0.50"}
+    b = {"lo": "0.40", "hi": "0.90"}
+    far = {"lo": "0.80", "hi": "0.95"}
+    assert _overlap(a, b, "lo", "hi") and _overlap(b, a, "lo", "hi")
+    assert not _overlap(a, far, "lo", "hi")
+    assert not _overlap(a, {"lo": "", "hi": ""}, "lo", "hi")
+    assert not _overlap(a, {}, "lo", "hi")
+
+
+def test_a_missing_interval_renders_nothing_rather_than_a_dash() -> None:
+    """An absent CI must not look like a measured one."""
+    from pitch_occupancy.api.models_view import _ci
+
+    assert _ci(None, None) == ""
+    assert _ci("", "") == ""
+    assert "0.100" in _ci("0.1", "0.9")
