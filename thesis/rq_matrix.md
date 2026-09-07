@@ -53,6 +53,22 @@ DINOv2.
 > **Recommendation changed: DINOv2, not ConvNeXtV2.** ConvNeXtV2 remains the fallback if the
 > target Mini-PC turns out far slower than the development machine, which WP7-T1 settles.
 
+**H4 was meant to underwrite this and cannot** (2026-09-07, `h4_model_equivalence.csv`). It
+predicted ConvNeXtV2 indistinguishable from ViT on macro-F1 *and* >= 2x faster, with the
+production choice then resting on latency. Both halves fail to deliver:
+
+- The equivalence is exact (ΔmacroF1 = 0.0000, zero-width interval) and **degenerate**: the
+  two models emit *identical* predictions - ACTIVE_PLAY for all 907 frames, EMPTY zero times,
+  C1 F1 = 0.000. 0.4975 is the score of a model that never recognises an empty pitch, and both
+  sit exactly there. They are equivalent to each other and to a constant predictor.
+- The speed clause is **not met under the condition the pre-registration names**: 1.83x on the
+  20-camera concurrent median, against the >= 2x required. It reaches 2.01x only on the
+  single-frame median, which that document explicitly declined to rely on.
+
+So the DINOv2 recommendation rests on the **cross-venue** evidence, where the three models are
+not equivalent at all - and where DINOv2 is the only one that ever predicts EMPTY. See
+amendment A9.
+
 ## RQ3 - what leakage-free evaluation changes
 
 | evidence | file / figure | finding |

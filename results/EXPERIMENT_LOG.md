@@ -1571,3 +1571,92 @@ real. A paired bootstrap over folds belongs with WP4-T4b.
 - 2026-09-07 | WP5-T9 logit-average baseline | `python experiments/logit_average_baseline.py` | `logit_average_baseline.csv` | best single dinov2 0.9297, oracle 0.9603
 
 - 2026-09-07 · H1/H2 · `python experiments/h1_h2_baseline_floor.py` · seed 42 · `h1_h2_baseline_floor.csv` · 14 rows over 2 splits
+
+---
+
+## H4: confirmed arithmetically, and it means nothing — 2026-09-07
+
+`experiments/h4_model_equivalence.py` -> `results/h4_model_equivalence.csv`. The three
+grouped-split macro-F1 values reproduce the published table exactly before anything is added.
+First of the three pre-registered hypotheses that had never been reported (A5).
+
+H4: *ConvNeXtV2-Tiny is statistically indistinguishable from ViT-Base on macro-F1 under
+grouped splitting, while being >= 2x faster per frame.* Its decision rule reads *a null
+result confirms H4* - and this run is a concrete demonstration of why that rule is unsafe.
+
+### The equivalence is real, and it is degenerate
+
+| pair | ΔmacroF1 | 95% CI | verdict at ±0.02 | Holm p (accuracy) |
+|---|---|---|---|---|
+| ConvNeXtV2 vs ViT | **+0.0000** | **[+0.0000, +0.0000]** | equivalent | 1.000 |
+| ConvNeXtV2 vs DINOv2 | -0.0819 | [-0.2308, +0.0028] | inconclusive | 0.375 |
+| DINOv2 vs ViT | +0.0819 | [-0.0028, +0.2308] | inconclusive | 0.375 |
+
+The interval for H4's pair has **zero width**, which is the tell. These two models are not
+similar - they are *identical*. Both predict ACTIVE_PLAY for all 907 test frames and EMPTY
+**zero times**:
+
+| | precision | recall | F1 | support |
+|---|---|---|---|---|
+| C1_EMPTY | 0.000 | 0.000 | **0.000** | 9 |
+| C2_ACTIVE_PLAY | 0.990 | 1.000 | 0.995 | 898 |
+
+0.4975 is `(0.995 + 0.000) / 2`. It is the score of a model that never gets an empty pitch
+right, and both backbones sit on exactly that point. **They are equivalent to each other and
+equally equivalent to a constant predictor.** DINOv2, at 0.5794, is the only one of the three
+that ever predicts EMPTY - consistent with its false-play rate of 0.309 against ConvNeXtV2's
+0.992.
+
+So H4's accuracy clause is *confirmed* and carries no information about whether the two
+models are interchangeable in production. It measures a test set that cannot distinguish
+anything, which is H1's finding arriving from a third direction.
+
+### The pre-registered decision rule would have got this wrong three times
+
+*A null result confirms H4* is the absence-of-evidence error, and on a 99%-single-class test
+set a null result is close to guaranteed. Under that rule all three pairs "confirm"
+equivalence - including the two where DINOv2 is **8.2 macro-F1 points** better and the
+interval runs out to -0.23. Read as intervals against a margin declared in advance
+(±0.02, borrowed from H2's own threshold rather than invented here), those two are
+**inconclusive**, which is the honest third answer the rule collapses away.
+
+The pair that is genuinely equivalent is equivalent for a reason that disqualifies the
+conclusion. Reporting *equivalent* and *inconclusive* separately is what makes that visible.
+
+### The speed clause fails on its own stated condition
+
+| measurement | ViT | ConvNeXtV2 | ratio | >= 2x? |
+|---|---|---|---|---|
+| single-frame median | 303.3 ms | 150.9 ms | **2.01x** | yes, barely |
+| **20-camera concurrent median** | 4361.5 ms | 2388.1 ms | **1.83x** | **no** |
+
+H4 says ">= 2x faster per frame", and its own decision rule says latency is *"reported as
+median and p95 under a 20-camera concurrent load"*. Under that condition the ratio is
+**1.83x** and the clause is not met. It is met only on the single-frame median, which is the
+measurement the pre-registration explicitly declined to rely on. Memory-bandwidth contention
+compresses the gap, exactly as WP0-T10 predicted it might.
+
+### Verdict
+
+**H4 is refuted as a whole, and its accuracy half is confirmed but uninformative.** It cannot
+support the production recommendation, which is what its decision rule was for: *"a null
+result confirms H4; the production recommendation then rests on latency."* Latency does not
+clear the bar it set, and the equivalence it relies on is an artefact of a degenerate test
+set. **RQ2's recommendation of DINOv2 stands on the cross-venue evidence instead**, where the
+three models are not equivalent at all (0.930 / 0.910 / 0.869 play recall, and 0.309 / 0.992 /
+0.835 false-play).
+
+### Two caveats on this run
+
+The distinct-scene rows are reported but should not be read as a second opinion: 95 scenes
+contain **2 EMPTY frames**, so a macro average over them rests on two observations. They are
+in the CSV for completeness and because the standing rule requires the effective sample
+beside every frame-level number, not because they settle anything.
+
+The scene count is 95 here against the 94 in `effective_sample_audit.csv`. The rows are
+filtered to frames present in **all three** caches rather than DINOv2's alone, which shifts
+the split by one frame. Recorded rather than reconciled - it changes no conclusion, and a
+silent one-frame discrepancy between two scripts is worth more written down than explained
+away.
+
+- 2026-09-07 | H4 model equivalence | `python experiments/h4_model_equivalence.py` | `h4_model_equivalence.csv` | ConvNeXtV2 vs ViT: equivalent at margin 0.02

@@ -225,6 +225,15 @@ STAGES: list[Stage] = [
         minutes=25,
     ),
     Stage(
+        name="h4-equivalence",
+        command=[*PY, str(ROOT / "experiments" / "h4_model_equivalence.py")],
+        produces=[RESULTS / "h4_model_equivalence.csv"],
+        requires=[DATA / "cache" / "vit.npz", RESULTS / "h1_h2_baseline_floor.csv",
+                  RESULTS / "efficiency_latency.csv"],
+        note="H4: ConvNeXtV2 == ViT exactly because neither ever predicts EMPTY; 1.83x concurrent",
+        minutes=8,
+    ),
+    Stage(
         name="logit-average",
         command=[*PY, str(ROOT / "experiments" / "logit_average_baseline.py")],
         produces=[RESULTS / "logit_average_baseline.csv"],

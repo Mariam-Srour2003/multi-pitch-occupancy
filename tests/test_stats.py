@@ -16,6 +16,7 @@ from pitch_occupancy.evaluation.stats import (
     holm_bonferroni,
     mcnemar,
     paired_bootstrap_diff,
+    paired_bootstrap_metric_diff,
 )
 
 # --- metrics ----------------------------------------------------------------
@@ -197,3 +198,94 @@ def test_holm_never_exceeds_one() -> None:
 
 def test_holm_on_empty_family() -> None:
     assert holm_bonferroni([]) == ([], [])
+
+
+# --- paired_bootstrap_metric_diff: testing the metric that is actually reported ----
+
+
+def _macro_f1(y_true, y_pred) -> float:
+    from pitch_occupancy.evaluation.metrics import evaluate
+
+    return evaluate(list(y_true), list(y_pred)).macro_f1
+
+
+_Y = ["C1_EMPTY"] * 50 + ["C2_ACTIVE_PLAY"] * 50
+
+
+def test_identical_predictions_give_a_zero_difference_with_a_zero_width_interval() -> None:
+    ci = paired_bootstrap_metric_diff(_Y, _Y, _Y, _macro_f1, resamples=300)
+    assert ci.estimate == 0.0
+    assert (ci.low, ci.high) == (0.0, 0.0)
+
+
+def test_the_difference_is_antisymmetric_in_its_arguments() -> None:
+    """Swapping the models must flip the sign and mirror the interval.
+
+    Cheap to check and it would catch the single most likely implementation slip - scoring
+    the two models on different resamples, which breaks the pairing and makes the interval
+    a statement about sampling noise rather than about the models.
+    """
+    worse = ["C2_ACTIVE_PLAY"] * 10 + _Y[10:]
+    ab = paired_bootstrap_metric_diff(_Y, _Y, worse, _macro_f1, resamples=300)
+    ba = paired_bootstrap_metric_diff(_Y, worse, _Y, _macro_f1, resamples=300)
+    assert ab.estimate == pytest.approx(-ba.estimate)
+    assert ab.low == pytest.approx(-ba.high)
+    assert ab.high == pytest.approx(-ba.low)
+
+
+def test_a_real_difference_gives_an_interval_clear_of_zero() -> None:
+    worse = ["C2_ACTIVE_PLAY"] * 25 + _Y[25:]
+    ci = paired_bootstrap_metric_diff(_Y, _Y, worse, _macro_f1, resamples=500)
+    assert ci.estimate > 0
+    assert ci.low > 0, "an interval spanning zero would call a clear difference inconclusive"
+
+
+def test_the_observed_estimate_is_the_unresampled_difference() -> None:
+    """The point estimate must come from the data, not from the bootstrap mean.
+
+    A bootstrap distribution of a bounded metric is skewed near the boundary, so reporting
+    its mean would quietly bias the headline number.
+    """
+    worse = ["C2_ACTIVE_PLAY"] * 10 + _Y[10:]
+    ci = paired_bootstrap_metric_diff(_Y, _Y, worse, _macro_f1, resamples=200)
+    assert ci.estimate == pytest.approx(_macro_f1(_Y, _Y) - _macro_f1(_Y, worse))
+
+
+def test_misaligned_inputs_raise_rather_than_broadcast() -> None:
+    with pytest.raises(ValueError, match="align"):
+        paired_bootstrap_metric_diff(_Y, _Y, _Y[:-1], _macro_f1, resamples=10)
+
+
+def test_an_empty_sample_raises() -> None:
+    with pytest.raises(ValueError, match="empty"):
+        paired_bootstrap_metric_diff([], [], [], _macro_f1, resamples=10)
+
+
+def test_it_is_reproducible_for_a_fixed_seed_and_varies_without_one() -> None:
+    worse = ["C2_ACTIVE_PLAY"] * 10 + _Y[10:]
+    a = paired_bootstrap_metric_diff(_Y, _Y, worse, _macro_f1, resamples=200, seed=1)
+    b = paired_bootstrap_metric_diff(_Y, _Y, worse, _macro_f1, resamples=200, seed=1)
+    c = paired_bootstrap_metric_diff(_Y, _Y, worse, _macro_f1, resamples=200, seed=2)
+    assert (a.low, a.high) == (b.low, b.high)
+    assert (a.low, a.high) != (c.low, c.high)
+
+
+def test_it_answers_a_different_question_from_mcnemar() -> None:
+    """The reason this function exists.
+
+    Two models with the *same* accuracy can have very different macro-F1 when one of them
+    concentrates its errors on the minority class. McNemar sees no difference; the reported
+    metric does. H2 was published with a macro-F1 delta beside an accuracy p-value, and for
+    one pair they disagreed on direction.
+    """
+    y = ["C1_EMPTY"] * 10 + ["C2_ACTIVE_PLAY"] * 90
+    # a errs on 5 majority frames; b errs on 5 minority frames. Same accuracy, 95%.
+    a = ["C1_EMPTY"] * 10 + ["C1_EMPTY"] * 5 + ["C2_ACTIVE_PLAY"] * 85
+    b = ["C2_ACTIVE_PLAY"] * 5 + ["C1_EMPTY"] * 5 + ["C2_ACTIVE_PLAY"] * 90
+
+    acc = lambda p: sum(x == t for x, t in zip(p, y, strict=True)) / len(y)  # noqa: E731
+    assert acc(a) == acc(b)
+
+    ci = paired_bootstrap_metric_diff(y, a, b, _macro_f1, resamples=400)
+    assert abs(ci.estimate) > 0.05, "macro-F1 should separate them where accuracy cannot"
+

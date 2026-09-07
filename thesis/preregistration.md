@@ -257,3 +257,49 @@ Nothing here touches H3 (which bootstraps over venue folds, not frames), the eff
 audit (which concerns independence between frames, not the class set), or any grouped-split
 number.
 
+---
+
+### 2026-09-07 — A9: H4 reported, and its decision rule disowned
+
+First of the three hypotheses A5 declared outstanding. `experiments/h4_model_equivalence.py`,
+`results/h4_model_equivalence.csv`.
+
+**The decision rule as written is unsafe and was not followed.** H4 says *"a null result
+confirms H4"*. That is the absence-of-evidence error, and on a grouped test set that is 99%
+one class a null result is close to guaranteed regardless of the models. It was replaced with
+an equivalence test read off the interval against a margin **declared before looking** -
++/-0.02 macro-F1, taken from H2's own "within 2 points" threshold rather than invented - with
+three possible outcomes instead of two: equivalent, different, or **inconclusive**.
+
+That change matters here rather than in principle. Under the original rule all three model
+pairs "confirm" equivalence, including the two where DINOv2 is **8.2 macro-F1 points** better
+and the interval runs to -0.23. Read as intervals those two are inconclusive.
+
+**Verdict: H4 is refuted as a whole; its accuracy clause is confirmed and uninformative.**
+
+- *Accuracy clause - confirmed, degenerately.* ConvNeXtV2 and ViT differ by exactly 0.0000
+  with a **zero-width** interval, because their predictions are *identical*: both predict
+  ACTIVE_PLAY for all 907 frames and EMPTY zero times (C1 F1 = 0.000 on 9 frames). 0.4975 is
+  (0.995 + 0)/2 - the score of a model that never gets an empty pitch right. They are
+  equivalent to each other and equally equivalent to a constant predictor.
+- *Speed clause - refuted on its own stated condition.* The rule specifies latency "under a
+  20-camera concurrent load". There the ratio is **1.83x**, below the >= 2x the hypothesis
+  requires. It reaches 2.01x only on the single-frame median, the measurement the
+  pre-registration declined to rely on.
+
+**Consequence for the production recommendation**, which this hypothesis existed to support:
+it cannot. RQ2's choice of DINOv2 rests on the cross-venue evidence instead, where the three
+models are not equivalent at all.
+
+**Realised family declared:** 3 pairs, not the 6 this hypothesis anticipated from "4 models,
+all pairs". OpenCLIP's image features cover 600 of 1,578 frames and its slice of this test set
+is 339 ACTIVE_PLAY against 6 EMPTY, which cannot carry a macro-F1. Holm corrects over 3.
+Declared here because a family that shrinks silently is a family that was chosen afterwards.
+
+**A statistical gap this closed.** The comparison needed a paired bootstrap on *macro-F1*, and
+no such function existed - `mcnemar` and `paired_bootstrap_diff` both work on per-frame
+correctness, i.e. on accuracy. That absence is why H2 was published with a macro-F1 delta
+beside an accuracy p-value that for one pair pointed the other way.
+`paired_bootstrap_metric_diff` now resamples once per draw and scores both models on the same
+frames; 8 tests, including two models with *identical accuracy* that macro-F1 separates.
+

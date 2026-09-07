@@ -24,7 +24,9 @@ __all__ = [
     "BootstrapCI",
     "McNemarResult",
     "bootstrap_ci",
+    "bootstrap_metric_ci",
     "paired_bootstrap_diff",
+    "paired_bootstrap_metric_diff",
     "mcnemar",
     "holm_bonferroni",
     "cohens_g",
@@ -120,6 +122,54 @@ def paired_bootstrap_diff(
     if a.shape != b.shape:
         raise ValueError(f"paired inputs must align: {a.shape} vs {b.shape}")
     return bootstrap_ci(a - b, np.mean, resamples=resamples, level=level, seed=seed)
+
+
+def paired_bootstrap_metric_diff(
+    y_true: Sequence[str],
+    pred_a: Sequence[str],
+    pred_b: Sequence[str],
+    metric: Callable[[Sequence[str], Sequence[str]], float],
+    *,
+    resamples: int = DEFAULT_RESAMPLES,
+    level: float = 0.95,
+    seed: int = 42,
+) -> BootstrapCI:
+    """CI for ``metric(A) - metric(B)``, resampling items **once** per draw.
+
+    The missing primitive that made a confirmed defect possible. :func:`mcnemar` and
+    :func:`paired_bootstrap_diff` both work on per-frame *correctness*, so they answer a
+    question about accuracy - but this project's primary metric is macro-F1, which is not a
+    mean over frames and cannot be recovered from a correctness vector. H2 was consequently
+    reported with a macro-F1 delta beside a p-value computed on accuracy, and for one pair
+    the two pointed in opposite directions.
+
+    Drawing one index set per resample and scoring both models on it is what keeps the
+    comparison paired: the two models then face the same frames in the same proportions, so
+    the difference distribution reflects disagreement between models rather than variation
+    between samples.
+
+    **Read the interval, not a p-value.** For an equivalence claim - "these two models are
+    indistinguishable" - a non-significant difference is absence of evidence, while an
+    interval that lies entirely inside a stated margin is evidence of absence. Only the
+    second supports the claim, so callers testing equivalence should compare this interval
+    against a margin they declared in advance.
+    """
+    t = np.asarray(y_true, dtype=object)
+    a = np.asarray(pred_a, dtype=object)
+    b = np.asarray(pred_b, dtype=object)
+    if not (t.shape == a.shape == b.shape):
+        raise ValueError(f"paired inputs must align: {t.shape} vs {a.shape} vs {b.shape}")
+    if t.size == 0:
+        raise ValueError("cannot bootstrap an empty sample")
+
+    rng = np.random.default_rng(seed)
+    dist = np.empty(resamples)
+    for r in range(resamples):
+        i = rng.integers(0, t.size, t.size)
+        dist[r] = metric(t[i], a[i]) - metric(t[i], b[i])
+    lo, hi = np.percentile(dist, [(1 - level) / 2 * 100, (1 + level) / 2 * 100])
+    observed = metric(t, a) - metric(t, b)
+    return BootstrapCI(float(observed), float(lo), float(hi), level)
 
 
 def cohens_g(n_a: int, n_b: int) -> float:

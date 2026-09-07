@@ -518,6 +518,39 @@ tagged with the question it answers. Fix that first — it is what turns a build
       level) for every headline pair. *Accept:* every claim carries CI + p-value columns.
   - [ ] ★ Apply the Holm–Bonferroni correction from WP0-T6 and say so in the caption.
   - [ ] ★ Report effect sizes next to p-values.
+  - [x] ★ **H4 reported** (2026-09-07) → `experiments/h4_model_equivalence.py`,
+        `results/h4_model_equivalence.csv`. First of the three pre-registered hypotheses that
+        had never been reported. **Refuted as a whole**, and instructively:
+    - [x] The accuracy clause is confirmed **degenerately** — ConvNeXtV2 and ViT differ by
+          exactly 0.0000 with a *zero-width* interval, because their predictions are
+          identical: ACTIVE_PLAY for all 907 frames, EMPTY **zero times**, C1 F1 = 0.000.
+          0.4975 is (0.995+0)/2, the score of a model that never recognises an empty pitch.
+          Equivalent to each other, and equally equivalent to a constant predictor.
+    - [x] The speed clause **fails under the condition the pre-registration names**: 1.83×
+          on the 20-camera concurrent median against the ≥2× required. It clears 2× only on
+          the single-frame median, which that document declined to rely on. Memory-bandwidth
+          contention compresses the gap, as WP0-T10 warned.
+    - [x] ★ **The pre-registered decision rule was disowned, not followed.** *"A null result
+          confirms H4"* is absence-of-evidence, and on a 99%-single-class test set a null is
+          near-guaranteed. Replaced with an interval test against a margin declared in
+          advance (±0.02, borrowed from H2's threshold). It matters concretely: under the old
+          rule all three pairs "confirm" equivalence, including two where DINOv2 is **8.2
+          points** better and the interval reaches −0.23. Those are **inconclusive** — the
+          honest third answer the original rule collapses away. Amendment A9.
+    - [x] ★ **Closed a statistical gap in the library.** The comparison needed a paired
+          bootstrap on *macro-F1* and none existed — `mcnemar` and `paired_bootstrap_diff`
+          both work on per-frame correctness, i.e. accuracy. That absence is exactly why H2
+          was published with a macro-F1 delta beside an accuracy p-value that for one pair
+          pointed the other way. `paired_bootstrap_metric_diff` added, 8 tests, including
+          two models with identical accuracy that macro-F1 separates.
+  - [ ] ★ **H6 is blocked, and not for want of effort.** OpenCLIP image features cover 600 of
+        1,578 frames, and that slice of the grouped test set is **339 ACTIVE_PLAY against 6
+        EMPTY** — a macro-F1 there would rest on six frames. Worse, the prompt search selected
+        the best of **375** prompt sets on this same data and reports `play_recall 0.9883,
+        false_play 0.0`, which would beat every trained probe — a *selected* number, not a
+        tested one, so H6's pre-registered direction may well be refuted but cannot be
+        established from it. **Needs a decision on handling the selection bias** (a prompt set
+        fixed before evaluation) before it is worth running. See A6.
 - [x] **WP4-T5 Calibration — built, answer blocked.** `evaluation/calibration.py` (ECE,
       reliability bins, temperature scaling, risk-coverage), 16 tests. The run produces
       "99% precision at 0% review", which is an artifact of the 99% single-class test set.

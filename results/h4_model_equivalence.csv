@@ -1,0 +1,9 @@
+pair,sample,n,d_macro_f1,ci_lo,ci_hi,margin,equivalence_verdict,mcnemar_p_accuracy,mcnemar_p_holm,mcnemar_differs,mcnemar_effect_g,n_discordant
+convnextv2_vs_dinov2,all frames,907,-0.0819,-0.2308,0.0028,0.02,inconclusive,1.250e-01,3.750e-01,False,0.357,7
+convnextv2_vs_dinov2,distinct scenes,95,0.0027,0.0,0.0109,0.02,equivalent,1.000e+00,1.000e+00,False,0.5,1
+convnextv2_vs_vit,all frames,907,0.0,0.0,0.0,0.02,equivalent,1.000e+00,1.000e+00,False,0.0,0
+convnextv2_vs_vit,distinct scenes,95,0.0,0.0,0.0,0.02,equivalent,1.000e+00,1.000e+00,False,0.0,0
+dinov2_vs_vit,all frames,907,0.0819,-0.0028,0.2308,0.02,inconclusive,1.250e-01,3.750e-01,False,0.357,7
+dinov2_vs_vit,distinct scenes,95,-0.0027,-0.0109,0.0,0.02,equivalent,1.000e+00,1.000e+00,False,0.5,1
+latency_convnextv2_vs_vit,single_frame_median,,,,,,2.01x,,,,,
+latency_convnextv2_vs_vit,concurrent20_median,,,,,,1.83x,,,,,
