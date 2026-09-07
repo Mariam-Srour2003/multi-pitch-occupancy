@@ -36,6 +36,25 @@ class Thresholds:
     notused_min_empty: float = 0.75
     #: Below this mean confidence the slot goes to REVIEW regardless of ratios, so the
     #: audit never accuses on footage it could barely read.
+    #:
+    #: **Zero means this guard is off, and it is off everywhere.** `conf < 0.0` is never
+    #: true, no non-test caller raises it, and `experiments/end_to_end_slots.py` passes
+    #: `review_below_confidence=0.0` explicitly. So the sentence above describes a wired
+    #: code path rather than an active protection - which is worth saying plainly, because
+    #: three claims in this project have now turned out to describe guards that were not
+    #: guarding (the final-test-set lock's cwd-relative path and the processor-geometry
+    #: fingerprint were the others).
+    #:
+    #: It is left at zero deliberately rather than fixed here: picking a threshold by hand
+    #: is exactly the "hyper-parameters, not constants" mistake this module's own header
+    #: warns about. Calibrating it belongs with RQ6 - `evaluation/calibration.py` already
+    #: has the risk-coverage machinery - and is blocked by the same degenerate test set.
+    #: See TODO WP6-T5.
+    #:
+    #: The ethics commitment does **not** rest on this. A human confirms every anomaly and
+    #: the system takes no automated financial action (WP6-T12); this guard is
+    #: defence-in-depth on top of that, not the thing standing between the audit and a
+    #: false accusation.
     review_below_confidence: float = 0.0
 
 

@@ -852,6 +852,25 @@ tagged with the question it answers. Fix that first — it is what turns a build
       anomaly; low-confidence slots are downgraded before any rule runs; anomalies are **per
       field, never per person** (`entered_by` never reaches the output — asserted by test),
       which settles WP1-T4 in code. Validated end-to-end on both real slots.
+  - [ ] ★ **Correction: "low-confidence slots are downgraded" is a wired code path, not an
+        active protection.** Both confidence guards default to **0.0**, which is off —
+        `Thresholds.review_below_confidence` and `reconcile(min_confidence=...)`. `conf < 0.0`
+        is never true, no non-test caller raises either, and `experiments/end_to_end_slots.py`
+        passes `review_below_confidence=0.0` explicitly. Only the tests set 0.6.
+        **Third time in this project a documented guard turned out not to be guarding** — the
+        final-test-set lock's cwd-relative path and the processor-geometry fingerprint were the
+        others. Worth naming as a pattern: a guard with a permissive default reads, in code
+        review and in prose, exactly like a guard.
+    - [ ] **Do not fix it by picking a number.** That is the "hyper-parameters, not
+          constants" mistake `aggregate.py`'s own header warns about. Calibrate it against
+          the confidence distribution — `evaluation/calibration.py` already has the
+          risk–coverage machinery, and this *is* RQ6's question in operational form: what
+          REVIEW rate buys what verdict reliability. So it is blocked by the same degenerate
+          test set, and should be set as part of answering RQ6 rather than before it.
+    - [x] **The ethics commitment does not rest on this**, and that is worth stating so the
+          finding is not read as worse than it is: a human confirms every anomaly and no
+          automated financial action is taken (WP6-T12). This guard is defence-in-depth on
+          top of that, not the thing standing between the audit and a false accusation.
 - [ ] ~~WP6-T5 original~~ `engine/reconcile.py`: join slot_evaluations × bookings on
       (field, date, slot) → typed anomalies: `NO_SHOW_OR_OVERRECORDED`, `PLAYED_NOT_RECORDED`,
       `UNBOOKED_USAGE`, `BLOCKED_SLOT_SOLD`; REVIEW routes to an inspector, never a hard anomaly.
