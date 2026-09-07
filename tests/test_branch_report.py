@@ -15,7 +15,8 @@ from __future__ import annotations
 import re
 
 from scripts.branch_report import (
-    DOC, block, branch_table, branches, chain, contains_everything, git, tip_branch,
+    DOC, block, branch_table, branches, chain, contains_everything,
+    documented_branches, git, tip_branch,
 )
 
 # Roots a document may legitimately name besides the tip. `pilot/model-selection` branches
@@ -38,11 +39,17 @@ def test_the_documented_tip_is_a_real_branch() -> None:
     assert documented_tip() in branches()
 
 
-def test_the_documented_tip_actually_contains_every_other_branch() -> None:
-    """The one claim a reader relies on: go here and you have all the work."""
+def test_the_documented_tip_contains_every_branch_the_table_lists() -> None:
+    """The one claim a reader relies on: go here and you get all the work the page
+    describes.
+
+    Scoped to the branches the table actually lists, not every ref that happens to exist
+    locally. An unmerged branch is work in progress, not a promise the document has made -
+    and holding the document to it is what made this fail on every feature branch.
+    """
     tip = documented_tip()
     merged = set(git("branch", "--merged", tip).replace("*", "").split())
-    missing = [b for b in branches() if b not in merged and b != "pilot/model-selection"]
+    missing = [b for b in chain() if b not in merged]
     assert not missing, f"{tip} does not contain {missing}; the instruction is wrong"
 
 
@@ -64,11 +71,30 @@ def test_the_generated_block_is_current() -> None:
     )
 
 
-def test_every_branch_appears_in_the_branch_table() -> None:
-    """A branch missing from the table is work nobody can find."""
+def test_every_merged_branch_appears_in_the_branch_table() -> None:
+    """A branch missing from the table is work nobody can find.
+
+    Merged branches only. The document describes the history that is *in* `main`, so a
+    branch created minutes ago and not yet merged is not missing documentation - and
+    demanding it made this fail on every feature branch, which taught the only person
+    running it to pass --deselect.
+    """
     text = DOC.read_text(encoding="utf-8")
-    missing = [b for b in branches() if f"`{b}`" not in text]
-    assert not missing, f"branches absent from docs/CODEBASE.md: {missing}"
+    missing = [b for b in documented_branches() if f"`{b}`" not in text]
+    assert not missing, f"merged branches absent from docs/CODEBASE.md: {missing}"
+
+
+def test_an_unmerged_branch_does_not_make_the_document_stale() -> None:
+    """The property that makes these checks runnable mid-branch.
+
+    `pilot/model-selection` is excluded: it branches from the first commit and is
+    deliberately never merged, yet it is documented on purpose as a preserved root. Being
+    unmerged is not the same as being undocumented.
+    """
+    in_progress = set(branches()) - set(documented_branches()) - {"pilot/model-selection"}
+    for name in in_progress:
+        assert name not in set(chain()), f"{name} is unmerged but in the chain"
+        assert f"`{name}`" not in branch_table(), f"{name} is unmerged but in the table"
 
 
 def test_the_branch_table_is_generated_too() -> None:

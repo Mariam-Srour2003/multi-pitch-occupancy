@@ -13,9 +13,10 @@ So the numbers come from git. This rewrites the block between the two markers in
     uv run python scripts/branch_report.py --write   # rewrite the block
     uv run python scripts/branch_report.py --check    # exit 1 if the block is stale
 
-**Run it after merging to main, not before.** The tip is read from git, so running it on a
-feature branch records that branch as the tip - true at that instant, and wrong as soon as
-the branch merges and main contains everything. That mistake has been made once already.
+**Run it after merging to main.** Everything here is computed from the branches already
+merged into `main`, so it is safe to run - and to check - from anywhere; it simply will not
+mention work that has not landed yet. Merging is what adds a branch to the history, so
+merging is what changes the document.
 """
 
 from __future__ import annotations
@@ -38,7 +39,24 @@ def git(*args: str) -> str:
 
 
 def branches() -> list[str]:
+    """Every local branch."""
     return git("for-each-ref", "--format=%(refname:short)", "refs/heads/").splitlines()
+
+
+def documented_branches() -> list[str]:
+    """The branches this reference describes: those already merged into `main`.
+
+    **Not simply every branch, and the difference is what makes the checks usable.** The
+    document says where the code is and how it was built, so it describes the history that
+    is *in* `main`. A branch created five minutes ago and not yet merged is not part of that
+    history, and treating it as missing documentation made the tests fail on every feature
+    branch from the moment it was created - which taught the only person running them to
+    pass --deselect, and a test that is routinely skipped protects nothing.
+
+    Merging is what adds a branch to the story, so merging is what updates the document.
+    """
+    merged = set(git("branch", "--merged", "main").replace("*", "").split())
+    return [b for b in branches() if b in merged]
 
 
 def contains_everything(branch: str) -> bool:
@@ -49,7 +67,7 @@ def contains_everything(branch: str) -> bool:
     anything and would make this false for every branch.
     """
     merged = set(git("branch", "--merged", branch).replace("*", "").split())
-    return all(b in merged for b in branches() if b != "pilot/model-selection")
+    return all(b in merged for b in documented_branches() if b != "pilot/model-selection")
 
 
 def tip_branch() -> str:
@@ -82,7 +100,7 @@ def counts(ref: str) -> dict[str, int]:
 
     return {
         "commits": int(git("rev-list", "--count", ref)),
-        "branches": len(branches()),
+        "branches": len(documented_branches()),
         "src": n("src/"),
         "experiments": n("experiments/"),
         "tests": n("tests/"),
@@ -91,8 +109,10 @@ def counts(ref: str) -> dict[str, int]:
 
 def block() -> str:
     tip = tip_branch()
+    # Counts come from the documented tip, never from HEAD: run on a feature branch this
+    # would otherwise describe that branch and disagree with itself once merged.
     c = counts(tip)
-    others = len(branches()) - 2  # the tip and the pilot are named separately
+    others = len(documented_branches()) - 2  # the tip and the pilot are named separately
 
     if tip == "main":
         # No commit count here, deliberately. It changes with every commit - including the
@@ -163,7 +183,7 @@ def chain() -> list[str]:
     dates it cannot be disturbed by a rebase or a clock.
     """
     ordered = sorted(
-        (b for b in branches() if b != "pilot/model-selection"),
+        (b for b in documented_branches() if b != "pilot/model-selection"),
         key=lambda b: int(git("rev-list", "--count", b)),
     )
     return ordered
