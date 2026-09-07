@@ -139,23 +139,22 @@ complementarity between backbones. Both halves of that premise now have numbers 
   three of seven venue folds and the oracle is +0.031 above it, but plain averaging collects
   three quarters of that without a parameter, leaving 0.008 for a learned gate that cannot
   reach the oracle anyway because it has no venue identity.
-- **Blending is disqualified outright on the second axis** — *under revision, 2026-09-08.*
-  Mixing ConvNeXtV2 (false-play 0.9918) into the decision destroyed the one property that
-  makes DINOv2 worth having (0.3086): the ensembles called **100% of 243 held-out empty
-  frames** a match.
+- ~~Blending is disqualified outright on the second axis~~ — **refuted 2026-09-08.** On raw
+  caches every ensemble scored 1.0000 false-play, which looked decisive. On letterboxed
+  caches the two-model ensemble scores **0.0288** false-play at **1.0000** recall, the best
+  balanced score measured here. Blending was never the problem; blending a model that had
+  been shown a central strip of the pitch was.
 
-  **But 0.9918 appears to be an artefact of the input path.** Every cache behind it was built
-  from raw frames, which the HF processor crops to roughly the middle half of a 16:9 pitch.
-  Under `preprocess.py`'s letterbox ConvNeXtV2 measures **0.0206** false-play at **0.9841**
-  recall — better than DINOv2 on both axes, which inverts the premise. Not settled either
-  way: 243 frames are three to ten distinct scenes. Re-run WP5-T9 on the probe's
-  preprocessed caches before relying on this line.
+**WP5-T2's answer is unchanged and its reasoning is now the opposite.** Not "blending is
+disqualified so a gate must be a hard router", but **the naive ensemble is already at the
+oracle ceiling** - it captures 100% of the headroom on preprocessed caches, up from 74% - so
+there is nothing left for a gate to learn. That argument needs no claim about routing or
+confounds. Report WP5-T2 as a negative result against the naive ensemble.
 
-So a gate here cannot be a soft blend; only a hard router with DINOv2 as the default, which
-runs straight into the day/night confound (see RQ7). **WP5-T2 should be built and reported as
-a likely negative result**, which the WP5 rules accept as a contribution. Not tested: the
-+0.023 recall gain, an unweighted mean over 7 folds - it should not be quoted as an
-improvement, and it does not change the direction of the comparison.
+Two things that keep it honest. The recall axis is **saturated** (oracle 1.0000), so the
+headroom was only +0.0159; "100% of it" is a smaller claim than it sounds. And the ensemble
+leads ConvNeXtV2 alone by 0.008 balanced, which is not a difference on three to ten distinct
+scenes - under preprocessing the two are indistinguishable, DINOv2 is behind, and ViT is poor.
 
 STAN (WP5-T1) remains gated on real labelled slots: **2 exist, ~30 are needed**, and the 66
 clips are 10-14 s highlights with no slot structure. Any STAN result will be reported as

@@ -246,7 +246,16 @@ STAGES: list[Stage] = [
         command=[*PY, str(ROOT / "experiments" / "logit_average_baseline.py")],
         produces=[RESULTS / "logit_average_baseline.csv"],
         requires=[DATA / "cache" / "dinov2.npz", RESULTS / "h3_cross_venue_recall.csv"],
-        note="WP5-T9: a naive ensemble takes 74% of the fusion headroom and fails on false-play",
+        note="WP5-T9 on raw caches; its false-play half is refuted - see logit-average-preproc",
+        minutes=6,
+    ),
+    Stage(
+        name="logit-average-preproc",
+        command=[*PY, str(ROOT / "experiments" / "logit_average_baseline.py"),
+                 "--cache-dir", str(DATA / "cache" / "geom_probe"), "--suffix", "_preproc"],
+        produces=[RESULTS / "logit_average_baseline_preproc.csv"],
+        requires=[DATA / "cache" / "geom_probe" / "dinov2.npz"],
+        note="WP5-T9 on letterboxed caches: refutes finding 2, strengthens finding 1 to 100%",
         minutes=6,
     ),
     Stage(

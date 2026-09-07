@@ -1549,7 +1549,7 @@ set while being worse at the thing that actually matters. Recall on 100%-ACTIVE_
 rises by answering "playing" more often, and an ensemble is a very efficient way to answer
 "playing" more often.
 
-> ### ⚠ Finding 2 is under revision (2026-09-08). Do not quote it yet.
+> ### ⚠ Finding 2 was REFUTED on 2026-09-08 — see the re-run entry at the end of this log
 >
 > It rests on ConvNeXtV2's false-play of **0.9918**, and the geometry probe run the next day
 > shows that figure is largely an artefact of the **input path** rather than a property of
@@ -1564,11 +1564,13 @@ rises by answering "playing" more often, and an ensemble is a very efficient way
 > property" describes the raw path only. Finding 1 - that a parameter-free average captures
 > 74% of the oracle headroom - is unaffected, since it is a recall-side result.
 >
-> **Neither version is settled**, and the reason is the same for both: this false-play column
-> is 243 frames that the effective-sample audit found to be **three to ten distinct scenes**.
-> A swing from 0.99 to 0.02 on ten observations is a strong signal and not an established
-> number. The honest next step is to re-run WP5-T9 on the probe's preprocessed caches, which
-> already exist, and report both together.
+> **Settled by the re-run.** On letterboxed caches the two-model ensemble scores **0.0288**
+> false-play at **1.0000** recall - the best balanced score measured on this dataset, better
+> than any single backbone. Blending was never disqualified; blending *a model that had been
+> shown a central strip of the pitch* was. Finding 1 survives and strengthens: the naive
+> average now captures **100%** of the oracle headroom, so the gate has no room - and that
+> conclusion no longer depends on the false-play axis at all. WP5-T2's answer is unchanged
+> and its reasoning is now the opposite.
 
 ### What this does to WP5-T2
 
@@ -1867,3 +1869,73 @@ published pipeline is not something to leave in a side experiment.
    question is worth the expense, which is what it was for.
 
 - 2026-09-08 | WP3-T3 geometry probe | `python experiments/geometry_convention_probe.py` | `geometry_convention_probe.csv` | keep processor geometry; ConvNeXtV2 false-play 0.9918 -> 0.0206 under letterboxing
+
+- 2026-09-07 | WP5-T9 logit-average baseline | `python experiments/logit_average_baseline.py` | `logit_average_baseline_preproc.csv` | best single convnextv2 0.9841, oracle 1.0000
+
+---
+
+## WP5-T9 re-run on preprocessed caches: finding 2 refuted, finding 1 strengthened — 2026-09-08
+
+`experiments/logit_average_baseline.py --cache-dir data/cache/geom_probe --suffix _preproc`
+-> `results/logit_average_baseline_preproc.csv`. Same experiment, same seed, same folds; the
+only change is that the features come from letterboxed frames rather than raw ones. Both
+outputs are kept side by side, and the reproduction check against the published H3 table is
+skipped rather than failed, because on a different cache family those numbers *should* differ.
+
+| model | raw recall | raw false-play | raw balanced | | preproc recall | preproc false-play | preproc balanced |
+|---|---|---|---|---|---|---|---|
+| convnextv2 | 0.9105 | 0.9918 | −0.081 | | **0.9841** | **0.0206** | **+0.9635** |
+| dinov2 | 0.9297 | 0.3086 | +0.621 | | 0.9595 | 0.2305 | +0.7290 |
+| vit | 0.8690 | 0.8354 | +0.034 | | 0.9118 | 0.9712 | −0.0594 |
+| ens ConvNeXtV2+DINOv2 | 0.9473 | **1.0000** | −0.053 | | **1.0000** | **0.0288** | **+0.9712** |
+| ens all three (log) | 0.9524 | **1.0000** | −0.048 | | 1.0000 | 0.1399 | +0.8601 |
+| *oracle* | *0.9603* | – | – | | *1.0000* | – | – |
+
+### Finding 2 is refuted, and it was an artefact of the input path
+
+The claim was: *every ensemble scores 1.0000 false-play, worse than every backbone alone, so
+blending is disqualified whatever the weights.* Under letterboxing the two-model ensemble
+scores **0.0288** false-play at **1.0000** recall - the best balanced score of anything
+measured on this dataset, better than any single backbone.
+
+The 1.0000 came from ConvNeXtV2's 0.9918, and that came from the processor cropping a
+1920x1080 frame down to roughly its middle half. Blending was never disqualified; blending
+*a model that had been shown a central strip of the pitch* was.
+
+### Finding 1 survives and gets stronger, which settles WP5-T2 anyway
+
+A parameter-free average now captures **100%** of the oracle headroom, against 74% on the raw
+caches. The oracle is 1.0000 and the ensemble reaches 1.0000, so **there is nothing left for a
+learned gate to learn** - and this time the conclusion does not depend on the false-play axis
+at all.
+
+So WP5-T2's answer is unchanged and its reasoning is now the opposite. Not *"blending is
+disqualified, so a gate must be a hard router"* but **"the naive ensemble is already at the
+ceiling, so a gate has no room"**. That is a cleaner negative result and it needs no argument
+about routing or confounds.
+
+### The recall axis is saturated, and that limits what the headroom claim means
+
+"Captures 100% of the headroom" sounds stronger than it is: the headroom was **+0.0159** to
+begin with, because every fold already has some backbone at 1.0. Perfect recall on
+100%-ACTIVE_PLAY folds means only "never said EMPTY on a play frame" - it is not a hard
+target. The informative axis is false-play, where the ensemble (0.0288) is marginally *worse*
+than ConvNeXtV2 alone (0.0206) and far better than DINOv2 (0.2305).
+
+On balanced score the ensemble leads ConvNeXtV2 by **0.008**. On 243 empty frames amounting to
+three to ten distinct scenes that is not a difference. **The honest reading: under
+preprocessing, ConvNeXtV2 alone and the two-model ensemble are indistinguishable and both are
+strong; DINOv2 is clearly behind; ViT is poor.** Adding ViT to the ensemble hurts it
+(false-play 0.0288 -> 0.1399), consistent with ViT being the one backbone preprocessing harms.
+
+### What this does and does not settle
+
+**Settles:** the gate is not worth building, on the strongest available version of the
+argument. Report WP5-T2 as a negative result against the naive ensemble.
+
+**Does not settle:** which single model to deploy. That is RQ2, it now turns on the input-path
+decision, and it needs the full protocol - CIs, paired tests, effective sample - not this
+probe. The revision flags placed on WP5-T9 in `TODO.md` and `rq_matrix.md` are resolved by
+this entry; the RQ2 flag stays.
+
+- 2026-09-08 | WP5-T9 on preprocessed caches | `python experiments/logit_average_baseline.py --cache-dir data/cache/geom_probe --suffix _preproc` | `logit_average_baseline_preproc.csv` | finding 2 refuted (ensemble false-play 1.0000 -> 0.0288); finding 1 strengthened to 100% of headroom

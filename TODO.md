@@ -758,7 +758,7 @@ tagged with the question it answers. Fix that first — it is what turns a build
 > with DINOv2 as the default**, invoking another backbone where it is confident the scene is not
 > empty — which is the confound in caveat 2, now as the whole module rather than a footnote.
 >
-> ### ⚠ That conclusion is under revision (2026-09-08) — do not act on it yet
+> ### ✔ Resolved 2026-09-08 — the conclusion holds, the reasoning is now the opposite
 >
 > It rests on ConvNeXtV2's false-play of 0.9918, and the geometry probe indicates that figure
 > is largely an artefact of the **input path**. Every cache WP5-T9 used came from *raw* frames
@@ -766,11 +766,20 @@ tagged with the question it answers. Fix that first — it is what turns a build
 > `preprocess.py`'s letterbox ConvNeXtV2 measures **0.0206** false-play with recall **0.9841** —
 > better than DINOv2 on *both* axes, which inverts the premise.
 >
-> The 74%-of-headroom finding is unaffected (recall-side). **Neither version is settled**: the
-> false-play column is 243 frames amounting to three to ten distinct scenes, so a 0.99→0.02
-> swing is a strong signal and not an established number. Re-run WP5-T9 on the probe's
-> preprocessed caches — they already exist — before choosing a shape for 5.B. Full note in
-> `EXPERIMENT_LOG.md`.
+> **The re-run settles it** (`logit_average_baseline_preproc.csv`). On letterboxed caches the
+> two-model ensemble scores **0.0288** false-play at **1.0000** recall — the best balanced
+> score measured on this dataset, better than any single backbone. So blending is **not**
+> disqualified; that was an artefact of showing ConvNeXtV2 a central strip of the pitch.
+>
+> **5.B's answer is unchanged and its reasoning is stronger.** The naive average now captures
+> **100%** of the oracle headroom (was 74%), so there is nothing left for a gate to learn —
+> and that argument no longer rests on the false-play axis or on any claim about routing.
+> Report WP5-T2 as a negative result against the naive ensemble.
+>
+> Caveat that keeps this honest: the recall axis is **saturated** (oracle 1.0000), so the
+> headroom was only +0.0159 to begin with, and the ensemble leads ConvNeXtV2 alone by 0.008
+> on balanced score — not a difference on three to ten distinct scenes. Under preprocessing
+> ConvNeXtV2 and the two-model ensemble are indistinguishable; DINOv2 is behind; ViT is poor.
 >
 > **Plan 5.B as a negative result and it is worth doing; plan it as a win and it will not
 > survive the defence.** Build it to be reported either way, against these numbers as the
