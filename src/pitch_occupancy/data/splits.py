@@ -26,6 +26,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+from pitch_occupancy.config import RESULTS_DIR
 from pitch_occupancy.data.manifest import ManifestRow
 
 __all__ = [
@@ -42,7 +43,14 @@ __all__ = [
     "read_split",
 ]
 
-DEFAULT_FINAL_VENUES = Path("results/splits/FINAL_TESTSET_venues.csv")
+#: Resolved from the installed package, not the working directory. It was
+#: ``Path("results/splits/...")``, which made the lock fail **open**: launched from
+#: anywhere but the repo root the file was simply not found, :func:`load_final_venues`
+#: returned an empty set, and :func:`development_rows` handed both locked venues - 114
+#: frames, 29% of the clip data - straight to training with no warning at all. `config.py`
+#: states the contract this restores: paths "work identically from a notebook, a test, the
+#: CLI, and the scheduler on the Mini-PC".
+DEFAULT_FINAL_VENUES = RESULTS_DIR / "splits" / "FINAL_TESTSET_venues.csv"
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,10 +77,24 @@ class Split:
 
 
 def load_final_venues(path: Path | None = None) -> frozenset[str]:
-    """Venues reserved for the final evaluation. Empty set if the lock file is absent."""
+    """Venues reserved for the final evaluation.
+
+    A **missing** lock file raises. "No lock file" and "no locked venues" must never be
+    the same value: the second is a deliberate configuration, the first is a broken
+    checkout, and returning an empty set for both is precisely how a locked venue reaches
+    the training set unnoticed. A file that exists and locks nothing is still allowed -
+    that is a choice someone made and can be read in git.
+    """
     path = path or DEFAULT_FINAL_VENUES
     if not path.exists():
-        return frozenset()
+        raise RuntimeError(
+            f"the final-test-set lock file is missing: {path}\n"
+            "Every split strategy drops locked-venue rows by consulting this file, so "
+            "without it the lock is not enforced and the held-out venues silently enter "
+            "development - which invalidates the one guarantee thesis/preregistration.md "
+            "rests on. Restore results/splits/FINAL_TESTSET_venues.csv from git rather "
+            "than running without it."
+        )
     with path.open(newline="", encoding="utf-8") as fh:
         return frozenset(
             r["venue"] for r in csv.DictReader(fh) if r.get("role") == "FINAL_TEST"

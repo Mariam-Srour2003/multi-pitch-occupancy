@@ -10,11 +10,13 @@ import pytest
 
 from pitch_occupancy.data.manifest import ManifestRow
 from pitch_occupancy.data.splits import (
+    DEFAULT_FINAL_VENUES,
     check_split,
     development_rows,
     final_test_rows,
     grouped_split,
     leave_one_group_out,
+    load_final_venues,
     random_split,
     read_split,
     temporal_split,
@@ -64,6 +66,29 @@ def test_final_test_rows_refuses_without_the_explicit_flag(rows, lock) -> None:
 def test_final_test_rows_returns_only_locked_venues_when_unlocked(rows, lock) -> None:
     final = final_test_rows(rows, i_have_finished_all_development=True, final_venues=lock)
     assert {r.venue for r in final} == {"v4"}
+
+
+def test_the_lock_path_does_not_depend_on_the_working_directory(monkeypatch, tmp_path) -> None:
+    """The lock used to fail *open* from any other directory.
+
+    `DEFAULT_FINAL_VENUES` was `Path("results/splits/...")`, so a run launched from a
+    parent directory, a scheduler, or a notebook found no file, got an empty frozenset,
+    and `development_rows` quietly returned all 1,692 rows - both locked venues included.
+    Nothing raised and nothing warned. The path is resolved from the package now, and
+    this pins it: the venues locked before any model was fitted must stay locked wherever
+    the process happens to be started.
+    """
+    assert DEFAULT_FINAL_VENUES.is_absolute()
+    monkeypatch.chdir(tmp_path)
+    assert load_final_venues() == frozenset(
+        {"clipvenue_b_floodlit_track", "clipvenue_c_teal_boards"}
+    )
+
+
+def test_a_missing_lock_file_raises_instead_of_unlocking_everything(tmp_path) -> None:
+    """"No lock file" must not evaluate to "nothing is locked"."""
+    with pytest.raises(RuntimeError, match="lock file is missing"):
+        load_final_venues(tmp_path / "absent.csv")
 
 
 def test_splits_never_leak_the_locked_venue(rows, monkeypatch) -> None:
