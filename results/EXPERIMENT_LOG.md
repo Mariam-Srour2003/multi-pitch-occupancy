@@ -728,9 +728,18 @@ read.
 Floodlit and indoor pitches are bright. Rendering one frame per venue and lighting group makes
 the failure plain: **`clipvenue_b_floodlit_track` (78 frames) and `clipvenue_f_outdoor_bldg`
 (12 frames) are unambiguously night football — black sky, lit floodlight poles, distant city
-lights — and both are labelled `day`.** `clipvenue_c_teal_boards` carries a burned-in
-timestamp reading roughly 21:52 and is also labelled `day`. Several others are indoor, where
-time of day and illumination are genuinely unrelated.
+lights — and both are labelled `day`.** Several others are indoor, where time of day and illumination are genuinely unrelated.
+
+**One venue settles it beyond visual judgement.** `clipvenue_c_teal_boards` carries a
+burned-in camera clock, and at full resolution it reads **`08-23-2026 Sun 20:55:46`**. Ten
+to nine at night, 36 frames, labelled `day`. That is not an interpretation of a dark sky —
+it is the camera stating the time on the frame while the manifest says otherwise. No other
+clip venue exposes a legible clock in the frame, so this is the one case that can be proved
+rather than argued, and it proves the mechanism: brightness was measured, time was not.
+
+`c_teal_boards` is one of the two **locked final-test venues**, so it does not touch the H3
+development folds below. It does mean the final evaluation would inherit the same error, and
+it shows the mislabelling is systematic rather than one bad clip.
 
 ### Why this matters: it is exactly what H3's clock rule reads
 
