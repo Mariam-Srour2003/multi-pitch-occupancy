@@ -341,8 +341,17 @@ tagged with the question it answers. Fix that first — it is what turns a build
         pass per view, so the feature cache every experiment relies on stops applying
         (~8 min/model/epoch-equivalent vs seconds for a probe fit). This needs its own
         extraction budget, not a switch. See `docs/IDEAS.md` #2.
-- [ ] **WP3-T7 Class balancing.** `class_weight='balanced'` + optional weighted sampling, default ON
+- [x] **WP3-T7 Class balancing.** `class_weight='balanced'` + optional weighted sampling, default ON
       for 3-class runs. *Accept:* C3 recall improves on validation vs unweighted.
+  - [x] Default is already ON. `experiments/class_balancing.py` → `class_balancing.csv`.
+  - [x] **The acceptance criterion is unmeasurable.** C3's six frames are one moment from one
+        camera, so it lands on a single side of *every* leakage-free split — zero folds have
+        it on both sides. A random-split number would measure memorisation of 30 seconds.
+  - [x] **Kept anyway, for a better reason:** unweighted looks +0.0286 better on cross-venue
+        recall, but the folds are 100% ACTIVE_PLAY so that recall is free. On 243 held-out
+        EMPTY frames it calls **46.5%** of empty pitches a match, against 23.1% balanced.
+  - [x] The first control used 9 EMPTY frames and said 0.000 for both — it would have led to
+        the wrong recommendation. Splitting on physical camera gives 243 and reverses it.
 - [ ] **WP3-T8 Preprocessing ablation (E-PRE).** Best model + grouped split; toggle
       {ROI, letterbox-vs-thumbnail, CLAHE, augmentation, balancing} one at a time; deltas with CIs
       → `results/ablation_preprocessing.csv`. *Accept:* table + one-paragraph finding per switch.

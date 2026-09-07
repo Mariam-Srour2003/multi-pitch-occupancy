@@ -841,3 +841,67 @@ flag is part of the cache fingerprint, so the conventions cannot mix.
 
 **What settles it:** one cross-venue run per model under each convention, once the DINOv2
 preprocessing search finishes and the CPU is free.
+
+---
+
+## Class balancing (WP3-T7) — 2026-09-07: kept, for a reason the task did not anticipate
+
+`experiments/class_balancing.py` → `results/class_balancing.csv`. DINOv2 cached features.
+
+### The acceptance criterion cannot be met
+
+WP3-T7 accepts on *"C3 recall improves on validation vs unweighted"*. **C3 has six frames and
+they are all the same moment** — `venue_01`, camera A, the 2026-07-11 10:00 slot, daylight,
+four of them seconds apart. So it never appears on both sides of a leakage-free split:
+
+| protocol | C3 in train | C3 in test |
+|---|---|---|
+| grouped split | 6 | **0** |
+| leave-one-venue-out, all seven clip folds | 6 | **0** |
+| leave-one-venue-out, `venue_01` fold | **0** | 6 |
+
+Folds with C3 on both sides: **zero**. A number could be produced by shuffling frames
+randomly, but four of the six are near-duplicates, so it would measure memorisation of one
+30-second window. The criterion is unanswerable, and reporting a random-split figure instead
+would be reporting an artifact.
+
+### What is answerable reverses the obvious conclusion
+
+`balanced` weights those six frames about **88×**, so the natural worry is that it distorts
+the boundary for the classes that matter. The first measurement appeared to confirm it:
+
+| weighting | cross-venue play recall | worst fold |
+|---|---|---|
+| balanced | 0.9595 | 0.800 |
+| unweighted | **0.9881** | **0.9167** |
+
+Turning balancing off looked worth +0.0286. **It is not.** Every cross-venue fold is 100%
+ACTIVE_PLAY, so recall can be bought by predicting PLAY more often — and removing the weight
+on a minority class is precisely the change that would do that. On held-out EMPTY frames:
+
+| weighting | false-play rate on 243 held-out EMPTY frames |
+|---|---|
+| balanced | **0.2305** |
+| unweighted | **0.4650** |
+
+The unweighted probe calls **nearly half of all empty pitches a match**. The recall was free
+and the cost was real. `balanced=True` stays the default — earned by halving the false-play
+rate, not by the C3 recall the task asked for.
+
+### The control nearly missed it, which is the transferable lesson
+
+The first version of the control used a grouped split inside `venue_01`. That splits on
+`slot_id`, and `venue_01` has **two** slots, so it is nearly all-or-nothing: it left **nine**
+EMPTY frames, both settings scored exactly 0.000, and the recall gain looked clean. Nine
+frames cannot distinguish a false-play rate of 0.0 from one of 0.5.
+
+Splitting on the **physical camera** instead — two genuinely different views, spanning both
+slots — leaves 243 EMPTY frames and inverts the answer. **A control too small to separate the
+hypotheses is not a control**, and it fails silently, by agreeing with whatever it is asked.
+
+### An honest residual
+
+Even balanced, 23% of held-out empty frames are called ACTIVE_PLAY across cameras. That is a
+weak number and it is not hidden here: it is measured across two different camera views,
+which is harder than the deployed case, but it is the clearest signal yet that EMPTY-vs-PLAY
+is not solved once the evaluation stops being degenerate.

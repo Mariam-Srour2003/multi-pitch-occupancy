@@ -1,0 +1,15 @@
+weighting,fold,n_play,play_recall
+balanced,lo_venue_out__clipvenue_a_blue_barrier,168,1.0000
+balanced,lo_venue_out__clipvenue_d_indoor_dome,18,1.0000
+balanced,lo_venue_out__clipvenue_e_pink_boards,18,1.0000
+balanced,lo_venue_out__clipvenue_f_outdoor_bldg,12,0.9167
+balanced,lo_venue_out__clipvenue_g_netting,30,0.8000
+balanced,lo_venue_out__clipvenue_h_teal_pitch,18,1.0000
+balanced,lo_venue_out__clipvenue_i_outdoor_trees,18,1.0000
+unweighted,lo_venue_out__clipvenue_a_blue_barrier,168,1.0000
+unweighted,lo_venue_out__clipvenue_d_indoor_dome,18,1.0000
+unweighted,lo_venue_out__clipvenue_e_pink_boards,18,1.0000
+unweighted,lo_venue_out__clipvenue_f_outdoor_bldg,12,0.9167
+unweighted,lo_venue_out__clipvenue_g_netting,30,1.0000
+unweighted,lo_venue_out__clipvenue_h_teal_pitch,18,1.0000
+unweighted,lo_venue_out__clipvenue_i_outdoor_trees,18,1.0000
