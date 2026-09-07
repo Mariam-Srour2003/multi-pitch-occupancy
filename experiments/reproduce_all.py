@@ -225,6 +225,14 @@ STAGES: list[Stage] = [
         minutes=25,
     ),
     Stage(
+        name="logit-average",
+        command=[*PY, str(ROOT / "experiments" / "logit_average_baseline.py")],
+        produces=[RESULTS / "logit_average_baseline.csv"],
+        requires=[DATA / "cache" / "dinov2.npz", RESULTS / "h3_cross_venue_recall.csv"],
+        note="WP5-T9: a naive ensemble takes 74% of the fusion headroom and fails on false-play",
+        minutes=6,
+    ),
+    Stage(
         name="preprocess-search",
         command=[*PY, str(ROOT / "experiments" / "preprocess_search.py")],
         produces=[RESULTS / "preprocess_search.json"],

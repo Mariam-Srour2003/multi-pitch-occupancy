@@ -1474,3 +1474,79 @@ independence between frames, not the class set.
 - 2026-09-07 | WP4-T4b H1/H2 stable estimand | `python experiments/h1_h2_baseline_floor.py` | `h1_h2_baseline_floor.csv` | random split +0.33 macro-F1, grouped unchanged; H1's effect 3.1x larger
 
 - 2026-09-07 · H1/H2 · `python experiments/h1_h2_baseline_floor.py` · seed 42 · `h1_h2_baseline_floor.csv` · 14 rows over 2 splits
+
+---
+
+## WP5-T9: the naive ensemble takes 74% of the fusion headroom, and fails on the other axis — 2026-09-07
+
+`experiments/logit_average_baseline.py` -> `results/logit_average_baseline.csv`, 10 tests.
+The sanity baseline the plan asks for **before** building the gated-fusion module (WP5-T2).
+All three single-backbone means reproduce the published H3 table exactly before anything is
+added.
+
+The case for a gate rests on complementarity: DINOv2 leads the fold mean at 0.9297 but is
+strictly beaten on three of seven venue folds, and a per-fold oracle reaches 0.9603 -
+**+0.031** of headroom. The question this answers is whether a *learned* gate is needed to
+collect it.
+
+| model | play recall | worst fold | false-play | vs best single |
+|---|---|---|---|---|
+| convnextv2 | 0.9105 | 0.722 | 0.9918 | -0.019 |
+| **dinov2** | **0.9297** | 0.667 | **0.3086** | - |
+| vit | 0.8690 | 0.500 | 0.8354 | -0.061 |
+| mean-probability, ConvNeXtV2+DINOv2 | 0.9473 | 0.667 | **1.0000** | +0.018 |
+| mean-log-probability, ConvNeXtV2+DINOv2 | 0.9524 | 0.667 | **1.0000** | +0.023 |
+| mean-probability, all three | 0.9524 | 0.667 | **1.0000** | +0.023 |
+| mean-log-probability, all three | 0.9524 | 0.667 | **1.0000** | +0.023 |
+| *oracle (per-fold best single)* | *0.9603* | - | - | *+0.031* |
+
+### Two findings, and the second one decides it
+
+**1. Averaging captures 74% of the headroom for free.** The best naive ensemble reaches
+0.9524 against a 0.9603 ceiling that requires knowing which venue a frame came from. A
+parameter-free mean gets three quarters of the way there, leaving **0.008** for a learned
+gate to fight over - and a gate cannot reach the oracle anyway, because it does not have
+venue identity. On recall alone, WP5-T9 has already answered the question the plan warned
+about: *if a naive ensemble matches the learned gate, the ensemble is the contribution.*
+
+**2. Every ensemble scores 1.0000 false-play, which is worse than every backbone alone.**
+This is the finding that matters. DINOv2's one genuinely valuable property is that it does
+*not* call empty pitches a match (0.3086, against ConvNeXtV2's 0.9918). Blend ConvNeXtV2
+into the decision and that property is gone completely: the ensembles call **100% of 243
+held-out empty frames** a match. The +0.023 of recall is bought at +0.69 of false-play.
+
+On the balanced view the naive ensemble is **strictly worse than DINOv2 alone**, and this is
+the third time on this dataset that a configuration has looked better on a single-class test
+set while being worse at the thing that actually matters. Recall on 100%-ACTIVE_PLAY folds
+rises by answering "playing" more often, and an ensemble is a very efficient way to answer
+"playing" more often.
+
+### What this does to WP5-T2
+
+It removes the version of the module that was easiest to build. **Blending is disqualified**:
+any fusion that mixes ConvNeXtV2's logits into the verdict inherits its empty-pitch
+blindness, whatever the weights. So a gate here cannot be a soft blend - it has to be a
+**hard router with DINOv2 as the default**, invoking another backbone only where it is
+confident the scene is not empty.
+
+Which puts the module back against the confound it was always going to face: deciding "this
+scene might be empty" from cheap image statistics, on a venue where brightness is nearly a
+day/night indicator and day/night is nearly the class label. That is the clock rule wearing a
+different hat, and it is now the *whole* module rather than a caveat on it.
+
+**The honest read: WP5-T2's expected outcome is a negative result**, and it should be planned
+as one - built to be reported either way, against these numbers as the baseline, with the
+lighting-only gate ablation run first. That is a legitimate contribution under the WP5 rules,
+and it is a much better position than discovering it in week 18.
+
+### What is not established
+
+The **+0.023 recall gain is not tested**. It is an unweighted mean over seven folds, three of
+which have 12-18 play frames, and no paired test was run over the fold distribution. It should
+not be quoted as a real improvement - and it barely matters, because the false-play column
+makes the direction of the overall comparison negative regardless of whether that gain is
+real. A paired bootstrap over folds belongs with WP4-T4b.
+
+- 2026-09-07 | WP5-T9 logit-average baseline | `python experiments/logit_average_baseline.py` | `logit_average_baseline.csv` | naive ensemble takes 74% of oracle headroom; false-play 1.0000, worse than every single backbone
+
+- 2026-09-07 | WP5-T9 logit-average baseline | `python experiments/logit_average_baseline.py` | `logit_average_baseline.csv` | best single dinov2 0.9297, oracle 0.9603

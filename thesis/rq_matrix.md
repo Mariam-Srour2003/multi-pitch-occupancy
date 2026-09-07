@@ -16,7 +16,7 @@ Updated 2026-09-06.
 | RQ2 | Best accuracy / latency / memory trade-off for one Mini-PC? | **answered** (dev hardware) |
 | RQ3 | How does leakage-free, multi-venue evaluation change apparent performance? | **answered** |
 | RQ4 | Can slot aggregation + booking reconciliation detect record discrepancies? | not started |
-| RQ5 | Do purpose-built lightweight architectures beat single-backbone probes? | not started |
+| RQ5 | Do purpose-built lightweight architectures beat single-backbone probes? | **baseline established; the fusion answer looks like *no*** |
 | RQ6 | Precision / REVIEW-rate trade-off and its operating point? | **blocked by data** |
 | RQ7 | Do deep backbones earn their cost over trivial baselines? | **answered** |
 
@@ -88,9 +88,33 @@ really were no-shows. Without that, anomaly precision and recall cannot be measu
 
 ## RQ5 - novel architectures
 
-No evidence yet. STAN (WP5-T1) is gated on real labelled slots: **2 exist, ~30 are needed**,
-and the 66 clips are 10-14 s highlights with no slot structure. Any STAN result will be
-reported as preliminary on synthesised sequences.
+| evidence | file | finding |
+|---|---|---|
+| Naive-ensemble baseline (WP5-T9) | `logit_average_baseline.csv` | a parameter-free average takes **74%** of the multi-backbone oracle headroom (0.9524 of 0.9603, best single 0.9297) |
+| Same, second axis | same | every ensemble scores **1.0000** false-play - worse than all three backbones alone |
+
+**The baseline is established, and it points at "no" for the fusion half.** The gated-fusion
+module (WP5-T2) was the one WP5 module this data can support, and its premise was
+complementarity between backbones. Both halves of that premise now have numbers attached:
+
+- The complementarity is **real but small and mostly free**. DINOv2 is strictly beaten on
+  three of seven venue folds and the oracle is +0.031 above it, but plain averaging collects
+  three quarters of that without a parameter, leaving 0.008 for a learned gate that cannot
+  reach the oracle anyway because it has no venue identity.
+- **Blending is disqualified outright on the second axis.** Mixing ConvNeXtV2 (false-play
+  0.9918) into the decision destroys the one property that makes DINOv2 worth having
+  (0.3086): the ensembles call **100% of 243 held-out empty frames** a match. On the balanced
+  view the ensemble is *strictly worse than DINOv2 alone*.
+
+So a gate here cannot be a soft blend; only a hard router with DINOv2 as the default, which
+runs straight into the day/night confound (see RQ7). **WP5-T2 should be built and reported as
+a likely negative result**, which the WP5 rules accept as a contribution. Not tested: the
++0.023 recall gain, an unweighted mean over 7 folds - it should not be quoted as an
+improvement, and it does not change the direction of the comparison.
+
+STAN (WP5-T1) remains gated on real labelled slots: **2 exist, ~30 are needed**, and the 66
+clips are 10-14 s highlights with no slot structure. Any STAN result will be reported as
+preliminary on synthesised sequences.
 
 ## RQ6 - precision / REVIEW-rate trade-off
 
@@ -135,11 +159,22 @@ two of three backbones fail to beat a rule that never looks at the image.
 
 ## Experiments not yet mapped
 
-None. Every experiment run so far answers RQ1, RQ2, RQ3 or RQ7.
+**One.** The zero-shot **prompt search** (`prompt_search.csv`, `prompt_search_best.json`, 375
+rows) has no task in any plan document and no RQ. It belongs to **H6** and RQ1 - the
+no-label cold-start cost - and is mapped there rather than left as an orphan artefact. It is
+now a stage in the reproduction pipeline (`prompt-search`) and is disclosed as an undeclared
+search family in `preregistration.md` A6.
 
 ## Coverage gaps to close, in cost order
 
-1. **RQ6** - code complete; blocked on a non-degenerate test set, i.e. empty pitches at
+1. **RQ5 (fusion half)** - baseline done and it points at a negative result. Cheapest
+   remaining WP5 work: the lighting-only gate ablation, then WP5-T2 built to be reported
+   either way. Needs no new data.
+2. **RQ6** - code complete; blocked on a non-degenerate test set, i.e. empty pitches at
    more than one venue. No further engineering will unblock it.
-2. **RQ4** - reconciliation. Needs a booking export and adjudicated slots (human).
-3. **RQ5** - STAN. Needs ~30 real labelled slots, which the current footage cannot supply.
+3. **RQ4** - reconciliation. Needs a booking export and adjudicated slots (human).
+4. **RQ5 (STAN half)** - needs ~30 real labelled slots, which the current footage cannot
+   supply.
+5. **H4 and H6** - both pre-registered, neither reported. H4 is a pairwise McNemar on the
+   grouped split; H6 is the zero-shot-vs-trained comparison the prompt search's numbers
+   already support. Both are hours of work on cached features (`preregistration.md` A5).

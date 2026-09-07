@@ -597,6 +597,36 @@ tagged with the question it answers. Fix that first — it is what turns a build
 > the realistic gain is well below it and a **clean negative result is a likely and acceptable
 > outcome** — which the rules above already accept, provided WP5-T9's logit-average baseline is
 > run first so "the ensemble did it, not the gate" is ruled out rather than left open.
+>
+> ### ★ WP5-T9 has now been run, and it weakens this recommendation. Read it before starting 5.B.
+>
+> Both caveats above were right, and the second one turned out to be decisive rather than a
+> risk to monitor. `results/logit_average_baseline.csv`, full entry in `EXPERIMENT_LOG.md`:
+>
+> | | play recall | false-play |
+> |---|---|---|
+> | DINOv2 alone | 0.9297 | **0.3086** |
+> | best naive ensemble | 0.9524 | **1.0000** |
+> | *oracle ceiling* | *0.9603* | *—* |
+>
+> **A parameter-free average already captures 74% of the +3.1 headroom**, leaving 0.008 for a
+> learned gate — which cannot reach the oracle anyway, lacking venue identity. And **every
+> ensemble scores 1.0000 false-play**, worse than every single backbone: blending ConvNeXtV2 in
+> destroys the one property that makes DINOv2 worth having. On the balanced view the naive
+> ensemble is *strictly worse than DINOv2 alone*.
+>
+> So **blending is disqualified**, whatever the weights. A gate here can only be a **hard router
+> with DINOv2 as the default**, invoking another backbone where it is confident the scene is not
+> empty — which is the confound in caveat 2, now as the whole module rather than a footnote.
+>
+> **Plan 5.B as a negative result and it is worth doing; plan it as a win and it will not
+> survive the defence.** Build it to be reported either way, against these numbers as the
+> baseline, with the lighting-only gate ablation first. Under the WP5 rules a rigorous negative
+> result is a contribution — and this is a far better place to learn it than week 18.
+>
+> *(The +0.023 recall gain is **not** tested — an unweighted mean over 7 folds, three of them
+> 12–18 frames. Do not quote it as an improvement. It does not change the direction of the
+> comparison, which the false-play column settles on its own.)*
 
 ### 5.A STAN — Slot-Temporal Aggregation Network *(preliminary result — data-blocked; see the order note above)*
 - [ ] **WP5-T1 STAN implementation.** `engine/stan.py`: input = ordered per-minute fused class
@@ -629,14 +659,28 @@ tagged with the question it answers. Fix that first — it is what turns a build
       direction; REVIEW rate ≤ baseline; latency negligible.
 
 ### 5.B Gated multi-backbone fusion *(Core tier — do this one first; carries the M4 gate)*
-- [ ] **WP5-T9 ★ Sanity baseline for fusion: plain logit averaging. DO THIS FIRST.** If a naive
-      ensemble of the two backbones matches the learned gate, the gate is not the contribution —
-      the ensemble is. Better to discover that yourself and report it than to have it asked.
-      ★ **Promoted to the front of 5.B:** it is ~20 lines on cached features and it decides
-      whether the rest of 5.B is worth building. Measured oracle headroom over the three
-      backbones is +3.1 points of cross-venue play-recall (see the order note above); if logit
-      averaging already captures most of that, say so and the gate becomes a documented negative
-      result instead of six weeks of work defending a null.
+- [x] **WP5-T9 ★ Sanity baseline for fusion — done, and it answered the question.**
+      `experiments/logit_average_baseline.py` → `results/logit_average_baseline.csv`, 10 tests,
+      in the reproduction pipeline as `logit-average`. Single-backbone means reproduce the
+      published H3 table exactly before anything is added. **(RQ5)**
+  - [x] **A parameter-free average captures 74% of the oracle headroom** (0.9524 against a
+        0.9603 ceiling, best single 0.9297), leaving 0.008 for a learned gate that cannot reach
+        the oracle anyway because it has no venue identity. The plan's own test — *if a naive
+        ensemble matches the learned gate, the ensemble is the contribution* — is close to met
+        on recall before the gate exists.
+  - [x] **And every ensemble scores 1.0000 false-play**, worse than all three backbones alone.
+        Blending ConvNeXtV2 (0.9918) in destroys DINOv2's one valuable property (0.3086): the
+        ensembles call **100% of 243 held-out empty frames** a match. +0.023 recall for +0.69
+        false-play — strictly worse than DINOv2 alone on the balanced view. Third time on this
+        dataset that a configuration looked better on a single-class test set while being worse
+        at the thing that matters.
+  - [x] **Consequence: soft blending is disqualified for WP5-T2**, whatever the weights. See the
+        order note at the top of WP5 — the module is now a hard-router-or-negative-result, and
+        should be planned as the latter.
+  - [ ] ★ **Not established: the +0.023 recall gain is untested** — unweighted mean over 7 folds,
+        three of them 12–18 frames. A paired bootstrap over the fold distribution belongs with
+        WP4-T4b. Do not quote it as an improvement; it does not change the direction of the
+        comparison either way.
 - [ ] **WP5-T2 Fusion head.** `engine/fusion_head.py`: features from {ConvNeXtV2, DINOv2} (option
       +ViT); gate = tiny MLP on cheap image statistics (contrast, brightness, edge density) → fusion
       weights → shared linear head. **(RQ5)**
