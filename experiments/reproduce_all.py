@@ -121,6 +121,47 @@ STAGES: list[Stage] = [
         minutes=30,
     ),
     Stage(
+        name="camera-health",
+        command=[*PY, str(ROOT / "experiments" / "camera_health.py")],
+        produces=[RESULTS / "camera_health.csv", RESULTS / "frame_quality.csv"],
+        requires=[DATA / "processed" / "manifest.csv"],
+        note="per-camera frame quality; a global threshold would flag one venue",
+        minutes=4,
+    ),
+    Stage(
+        name="near-duplicate-audit",
+        command=[*PY, str(ROOT / "experiments" / "near_duplicate_audit.py")],
+        produces=[RESULTS / "near_duplicates.csv"],
+        requires=[DATA / "processed" / "manifest.csv"],
+        note="quantifies H1's leakage: 37.1% of duplicate pairs straddle a random split",
+        minutes=6,
+    ),
+    Stage(
+        name="augmentation-grid",
+        command=[*PY, str(ROOT / "experiments" / "augmentation_grid.py")],
+        produces=[RESULTS / "figs" / "augmentation_grid.jpg"],
+        requires=[DATA / "processed" / "manifest.csv"],
+        note="every augmentation preset over two real frames - the visual check",
+    ),
+    Stage(
+        name="class-balancing",
+        command=[*PY, str(ROOT / "experiments" / "class_balancing.py")],
+        produces=[RESULTS / "class_balancing.csv"],
+        # the input ablation writes this cache; class balancing only reads it
+        requires=[DATA / "cache" / "ablate_dinov2_full.npz"],
+        note="why balancing stays on: unweighted calls 46.5% of empty pitches a match",
+        minutes=2,
+    ),
+    Stage(
+        name="h3-false-play",
+        command=[*PY, str(ROOT / "experiments" / "h3_with_false_play.py")],
+        produces=[RESULTS / "h3_with_false_play.csv"],
+        # needs the published table too - it reproduces that column before adding its own
+        requires=[DATA / "cache" / "dinov2.npz", RESULTS / "h3_cross_venue_recall.csv"],
+        note="H3 with the control it never had; ConvNeXtV2 calls 99.2% of empties a match",
+        minutes=2,
+    ),
+    Stage(
         name="end-to-end-slots",
         command=[*PY, str(ROOT / "experiments" / "end_to_end_slots.py")],
         produces=[RESULTS / "end_to_end_slots.csv"],

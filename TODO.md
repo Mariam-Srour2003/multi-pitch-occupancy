@@ -147,7 +147,7 @@ tagged with the question it answers. Fix that first — it is what turns a build
         makes those two numbers different, and the honest one is the one you must report.
 - [x] **WP0-T7 Experiment log.** `results/EXPERIMENT_LOG.md`, pilot backfilled, appended
       automatically by every experiment script.
-- [ ] **WP0-T11 ★ Reproduction script.** `make reproduce` (or `tools/reproduce_all.py`) that
+- [x] **WP0-T11 ★ Reproduction script.** `make reproduce` (or `tools/reproduce_all.py`) that
       regenerates **every table and figure** in the thesis from the manifest + cached features.
       *Accept:* runs clean from scratch. Doubles as insurance against the laptop-sleep risk, since
       every stage is resumable and cached.
