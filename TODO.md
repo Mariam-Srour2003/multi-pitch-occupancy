@@ -718,6 +718,20 @@ tagged with the question it answers. Fix that first — it is what turns a build
 > with DINOv2 as the default**, invoking another backbone where it is confident the scene is not
 > empty — which is the confound in caveat 2, now as the whole module rather than a footnote.
 >
+> ### ⚠ That conclusion is under revision (2026-09-08) — do not act on it yet
+>
+> It rests on ConvNeXtV2's false-play of 0.9918, and the geometry probe indicates that figure
+> is largely an artefact of the **input path**. Every cache WP5-T9 used came from *raw* frames
+> handed to the HF processor, which keeps roughly the middle half of a 16:9 pitch. Under
+> `preprocess.py`'s letterbox ConvNeXtV2 measures **0.0206** false-play with recall **0.9841** —
+> better than DINOv2 on *both* axes, which inverts the premise.
+>
+> The 74%-of-headroom finding is unaffected (recall-side). **Neither version is settled**: the
+> false-play column is 243 frames amounting to three to ten distinct scenes, so a 0.99→0.02
+> swing is a strong signal and not an established number. Re-run WP5-T9 on the probe's
+> preprocessed caches — they already exist — before choosing a shape for 5.B. Full note in
+> `EXPERIMENT_LOG.md`.
+>
 > **Plan 5.B as a negative result and it is worth doing; plan it as a win and it will not
 > survive the defence.** Build it to be reported either way, against these numbers as the
 > baseline, with the lighting-only gate ablation first. Under the WP5 rules a rigorous negative

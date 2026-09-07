@@ -117,10 +117,17 @@ complementarity between backbones. Both halves of that premise now have numbers 
   three of seven venue folds and the oracle is +0.031 above it, but plain averaging collects
   three quarters of that without a parameter, leaving 0.008 for a learned gate that cannot
   reach the oracle anyway because it has no venue identity.
-- **Blending is disqualified outright on the second axis.** Mixing ConvNeXtV2 (false-play
-  0.9918) into the decision destroys the one property that makes DINOv2 worth having
-  (0.3086): the ensembles call **100% of 243 held-out empty frames** a match. On the balanced
-  view the ensemble is *strictly worse than DINOv2 alone*.
+- **Blending is disqualified outright on the second axis** — *under revision, 2026-09-08.*
+  Mixing ConvNeXtV2 (false-play 0.9918) into the decision destroyed the one property that
+  makes DINOv2 worth having (0.3086): the ensembles called **100% of 243 held-out empty
+  frames** a match.
+
+  **But 0.9918 appears to be an artefact of the input path.** Every cache behind it was built
+  from raw frames, which the HF processor crops to roughly the middle half of a 16:9 pitch.
+  Under `preprocess.py`'s letterbox ConvNeXtV2 measures **0.0206** false-play at **0.9841**
+  recall — better than DINOv2 on both axes, which inverts the premise. Not settled either
+  way: 243 frames are three to ten distinct scenes. Re-run WP5-T9 on the probe's
+  preprocessed caches before relying on this line.
 
 So a gate here cannot be a soft blend; only a hard router with DINOv2 as the default, which
 runs straight into the day/night confound (see RQ7). **WP5-T2 should be built and reported as
