@@ -12,6 +12,10 @@ So the numbers come from git. This rewrites the block between the two markers in
     uv run python scripts/branch_report.py           # show what it would write
     uv run python scripts/branch_report.py --write   # rewrite the block
     uv run python scripts/branch_report.py --check    # exit 1 if the block is stale
+
+**Run it after merging to main, not before.** The tip is read from git, so running it on a
+feature branch records that branch as the tip - true at that instant, and wrong as soon as
+the branch merges and main contains everything. That mistake has been made once already.
 """
 
 from __future__ import annotations
