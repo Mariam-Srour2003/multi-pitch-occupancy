@@ -1549,6 +1549,27 @@ set while being worse at the thing that actually matters. Recall on 100%-ACTIVE_
 rises by answering "playing" more often, and an ensemble is a very efficient way to answer
 "playing" more often.
 
+> ### ⚠ Finding 2 is under revision (2026-09-08). Do not quote it yet.
+>
+> It rests on ConvNeXtV2's false-play of **0.9918**, and the geometry probe run the next day
+> shows that figure is largely an artefact of the **input path** rather than a property of
+> the model. Every cache this experiment used was built from *raw frames* handed to the HF
+> processor, which resizes a 1920x1080 frame shortest-edge to 256 and centre-crops 224 -
+> keeping roughly the middle half of the pitch horizontally. Apply `preprocess.py`'s
+> aspect-preserving letterbox instead and ConvNeXtV2's false-play measures **0.0206**, the
+> lowest of any arm tried, with recall *rising* to 0.9841.
+>
+> If that holds, the premise of finding 2 inverts: under preprocessing ConvNeXtV2 is better
+> than DINOv2 on **both** axes, so "blending ConvNeXtV2 in destroys DINOv2's one valuable
+> property" describes the raw path only. Finding 1 - that a parameter-free average captures
+> 74% of the oracle headroom - is unaffected, since it is a recall-side result.
+>
+> **Neither version is settled**, and the reason is the same for both: this false-play column
+> is 243 frames that the effective-sample audit found to be **three to ten distinct scenes**.
+> A swing from 0.99 to 0.02 on ten observations is a strong signal and not an established
+> number. The honest next step is to re-run WP5-T9 on the probe's preprocessed caches, which
+> already exist, and report both together.
+
 ### What this does to WP5-T2
 
 It removes the version of the module that was easiest to build. **Blending is disqualified**:
