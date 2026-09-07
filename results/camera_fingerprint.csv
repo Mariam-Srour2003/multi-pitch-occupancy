@@ -1,0 +1,155 @@
+question,view,other,dist,note
+camera_identity,slot_20260711_1000_camA,slot_20260712_2030_camB,0.1113,mutual-NN cross-day opposite suffix
+camera_identity,slot_20260711_1000_camB,slot_20260712_2030_camA,0.2773,mutual-NN cross-day opposite suffix
+camera_identity,,,,"the suffix swaps between the two days - gotcha 2.7 is MEASURED, not remembered"
+assignment_descriptor,cb_1788518680610,ch_1788518162577,0.3183,MISS: clipvenue_b_floodlit_track -> clipvenue_h_teal_pitch
+assignment_descriptor,cg_1788518155619,ce_1788518718116,0.3379,MISS: clipvenue_g_netting -> clipvenue_e_pink_boards
+assignment_descriptor,ci_1788518712737,ca_1788518168281,0.2889,MISS: clipvenue_i_outdoor_trees -> clipvenue_a_blue_barrier
+assignment_descriptor,,,0.8798,1NN venue accuracy 67/70 = 0.9571; separation AUC 0.8798; overlaps=True
+assignment_structure,cb_1788518680610,slot_20260712_2030_camA,0.3087,MISS: clipvenue_b_floodlit_track -> venue_01
+assignment_structure,cg_1788518155619,ca_1788518324229,0.2633,MISS: clipvenue_g_netting -> clipvenue_a_blue_barrier
+assignment_structure,ci_1788518712737,ch_1788518036387,0.2903,MISS: clipvenue_i_outdoor_trees -> clipvenue_h_teal_pitch
+assignment_structure,,,0.8437,1NN venue accuracy 67/70 = 0.9571; separation AUC 0.8437; overlaps=True
+assignment_chroma,cb_1788518680610,ch_1788518070457,0.1341,MISS: clipvenue_b_floodlit_track -> clipvenue_h_teal_pitch
+assignment_chroma,cb_1788518694984,ch_1788518162577,0.0711,MISS: clipvenue_b_floodlit_track -> clipvenue_h_teal_pitch
+assignment_chroma,cd_1788518102618,slot_20260712_2030_camA,0.13,MISS: clipvenue_d_indoor_dome -> venue_01
+assignment_chroma,cg_1788518055948,ca_1788518318235,0.188,MISS: clipvenue_g_netting -> clipvenue_a_blue_barrier
+assignment_chroma,cg_1788518136880,cb_1788518742645,0.0344,MISS: clipvenue_g_netting -> clipvenue_b_floodlit_track
+assignment_chroma,cg_1788518155619,ch_1788518162577,0.1013,MISS: clipvenue_g_netting -> clipvenue_h_teal_pitch
+assignment_chroma,ch_1788518162577,cg_1788518136880,0.0344,MISS: clipvenue_h_teal_pitch -> clipvenue_g_netting
+assignment_chroma,ci_1788518712737,ca_1788518168281,0.1197,MISS: clipvenue_i_outdoor_trees -> clipvenue_a_blue_barrier
+assignment_chroma,slot_20260711_1000_camB,cg_1788518136880,0.0475,MISS: venue_01 -> clipvenue_g_netting
+assignment_chroma,slot_20260712_2030_camA,cd_1788518102618,0.13,MISS: venue_01 -> clipvenue_d_indoor_dome
+assignment_chroma,slot_20260712_2030_camB,cd_1788518082821,0.1166,MISS: venue_01 -> clipvenue_d_indoor_dome
+assignment_chroma,,,0.8002,1NN venue accuracy 59/70 = 0.8429; separation AUC 0.8002; overlaps=True
+grouping,ca_1788518168281,,,venue=clipvenue_a_blue_barrier cluster=7
+grouping,ca_1788518174157,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518270455,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518278573,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518284135,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518291422,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518296205,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518302270,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518312798,,,venue=clipvenue_a_blue_barrier cluster=7
+grouping,ca_1788518318235,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518324229,,,venue=clipvenue_a_blue_barrier cluster=7
+grouping,ca_1788518332036,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518338406,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518343632,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518349117,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518356572,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518475528,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518480806,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518486158,,,venue=clipvenue_a_blue_barrier cluster=7
+grouping,ca_1788518528712,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518533961,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518546012,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518551408,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518557362,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518563639,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518570250,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518575705,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,ca_1788518581547,,,venue=clipvenue_a_blue_barrier cluster=5
+grouping,cb_1788518043376,,,venue=clipvenue_b_floodlit_track cluster=9
+grouping,cb_1788518049658,,,venue=clipvenue_b_floodlit_track cluster=9
+grouping,cb_1788518452957,,,venue=clipvenue_b_floodlit_track cluster=9
+grouping,cb_1788518463024,,,venue=clipvenue_b_floodlit_track cluster=9
+grouping,cb_1788518469145,,,venue=clipvenue_b_floodlit_track cluster=9
+grouping,cb_1788518680610,,,venue=clipvenue_b_floodlit_track cluster=3
+grouping,cb_1788518688922,,,venue=clipvenue_b_floodlit_track cluster=11
+grouping,cb_1788518694984,,,venue=clipvenue_b_floodlit_track cluster=11
+grouping,cb_1788518700749,,,venue=clipvenue_b_floodlit_track cluster=11
+grouping,cb_1788518706532,,,venue=clipvenue_b_floodlit_track cluster=11
+grouping,cb_1788518736613,,,venue=clipvenue_b_floodlit_track cluster=9
+grouping,cb_1788518742645,,,venue=clipvenue_b_floodlit_track cluster=9
+grouping,cb_1788518748061,,,venue=clipvenue_b_floodlit_track cluster=11
+grouping,cc_1788518491617,,,venue=clipvenue_c_teal_boards cluster=9
+grouping,cc_1788518496823,,,venue=clipvenue_c_teal_boards cluster=9
+grouping,cc_1788518502597,,,venue=clipvenue_c_teal_boards cluster=9
+grouping,cc_1788518508545,,,venue=clipvenue_c_teal_boards cluster=9
+grouping,cc_1788518513386,,,venue=clipvenue_c_teal_boards cluster=9
+grouping,cc_1788518518750,,,venue=clipvenue_c_teal_boards cluster=9
+grouping,cd_1788518082821,,,venue=clipvenue_d_indoor_dome cluster=1
+grouping,cd_1788518094123,,,venue=clipvenue_d_indoor_dome cluster=1
+grouping,cd_1788518102618,,,venue=clipvenue_d_indoor_dome cluster=1
+grouping,ce_1788518718116,,,venue=clipvenue_e_pink_boards cluster=10
+grouping,ce_1788518723558,,,venue=clipvenue_e_pink_boards cluster=10
+grouping,ce_1788518730311,,,venue=clipvenue_e_pink_boards cluster=10
+grouping,cf_1788517934401,,,venue=clipvenue_f_outdoor_bldg cluster=1
+grouping,cf_1788518024202,,,venue=clipvenue_f_outdoor_bldg cluster=1
+grouping,cg_1788518055948,,,venue=clipvenue_g_netting cluster=4
+grouping,cg_1788518136880,,,venue=clipvenue_g_netting cluster=4
+grouping,cg_1788518144607,,,venue=clipvenue_g_netting cluster=4
+grouping,cg_1788518149492,,,venue=clipvenue_g_netting cluster=4
+grouping,cg_1788518155619,,,venue=clipvenue_g_netting cluster=12
+grouping,ch_1788518036387,,,venue=clipvenue_h_teal_pitch cluster=8
+grouping,ch_1788518070457,,,venue=clipvenue_h_teal_pitch cluster=8
+grouping,ch_1788518162577,,,venue=clipvenue_h_teal_pitch cluster=8
+grouping,ci_1788517881838,,,venue=clipvenue_i_outdoor_trees cluster=8
+grouping,ci_1788517913957,,,venue=clipvenue_i_outdoor_trees cluster=8
+grouping,ci_1788518712737,,,venue=clipvenue_i_outdoor_trees cluster=7
+grouping,slot_20260711_1000_camA,,,venue=venue_01 cluster=6
+grouping,slot_20260711_1000_camB,,,venue=venue_01 cluster=2
+grouping,slot_20260712_2030_camA,,,venue=venue_01 cluster=2
+grouping,slot_20260712_2030_camB,,,venue=venue_01 cluster=6
+grouping_curve,,,0.05,clusters=31; mixed=0; homogeneity=1.000; ari=0.276
+grouping_curve,,,0.06,clusters=30; mixed=0; homogeneity=1.000; ari=0.284
+grouping_curve,,,0.07,clusters=29; mixed=0; homogeneity=1.000; ari=0.324
+grouping_curve,,,0.08,clusters=28; mixed=0; homogeneity=1.000; ari=0.326
+grouping_curve,,,0.09,clusters=26; mixed=0; homogeneity=1.000; ari=0.339
+grouping_curve,,,0.1,clusters=25; mixed=0; homogeneity=1.000; ari=0.343
+grouping_curve,,,0.11,clusters=25; mixed=0; homogeneity=1.000; ari=0.343
+grouping_curve,,,0.12,clusters=23; mixed=0; homogeneity=1.000; ari=0.351
+grouping_curve,,,0.13,clusters=22; mixed=0; homogeneity=1.000; ari=0.443
+grouping_curve,,,0.14,clusters=21; mixed=0; homogeneity=1.000; ari=0.447
+grouping_curve,,,0.15,clusters=21; mixed=0; homogeneity=1.000; ari=0.447
+grouping_curve,,,0.16,clusters=21; mixed=0; homogeneity=1.000; ari=0.447
+grouping_curve,,,0.17,clusters=21; mixed=0; homogeneity=1.000; ari=0.447
+grouping_curve,,,0.18,clusters=21; mixed=0; homogeneity=1.000; ari=0.447
+grouping_curve,,,0.19,clusters=21; mixed=0; homogeneity=1.000; ari=0.447
+grouping_curve,,,0.2,clusters=20; mixed=0; homogeneity=1.000; ari=0.454
+grouping_curve,,,0.21,clusters=20; mixed=0; homogeneity=1.000; ari=0.454
+grouping_curve,,,0.22,clusters=20; mixed=0; homogeneity=1.000; ari=0.454
+grouping_curve,,,0.23,clusters=20; mixed=0; homogeneity=1.000; ari=0.454
+grouping_curve,,,0.24,clusters=19; mixed=1; homogeneity=0.974; ari=0.447
+grouping_curve,,,0.25,clusters=19; mixed=1; homogeneity=0.974; ari=0.447
+grouping_curve,,,0.26,clusters=18; mixed=2; homogeneity=0.949; ari=0.441
+grouping_curve,,,0.27,clusters=18; mixed=2; homogeneity=0.949; ari=0.441
+grouping_curve,,,0.28,clusters=17; mixed=2; homogeneity=0.949; ari=0.443
+grouping_curve,,,0.29,clusters=16; mixed=3; homogeneity=0.881; ari=0.398
+grouping_curve,,,0.3,clusters=15; mixed=3; homogeneity=0.881; ari=0.456
+grouping_curve,,,0.31,clusters=14; mixed=3; homogeneity=0.881; ari=0.463
+grouping_curve,,,0.32,clusters=12; mixed=4; homogeneity=0.862; ari=0.714
+grouping_curve,,,0.33,clusters=11; mixed=5; homogeneity=0.822; ari=0.697
+grouping_curve,,,0.34,clusters=10; mixed=4; homogeneity=0.741; ari=0.629
+grouping_curve,,,0.35,clusters=9; mixed=5; homogeneity=0.727; ari=0.627
+grouping_curve,,,0.36,clusters=9; mixed=5; homogeneity=0.727; ari=0.627
+grouping_curve,,,0.37,clusters=9; mixed=5; homogeneity=0.727; ari=0.627
+grouping_curve,,,0.38,clusters=9; mixed=5; homogeneity=0.727; ari=0.627
+grouping_curve,,,0.39,clusters=7; mixed=5; homogeneity=0.671; ari=0.609
+grouping_curve,,,0.4,clusters=7; mixed=5; homogeneity=0.671; ari=0.609
+grouping_curve,,,0.41,clusters=7; mixed=5; homogeneity=0.671; ari=0.609
+grouping_curve,,,0.42,clusters=5; mixed=4; homogeneity=0.564; ari=0.617
+grouping_curve,,,0.43,clusters=4; mixed=3; homogeneity=0.524; ari=0.605
+grouping_curve,,,0.44,clusters=4; mixed=3; homogeneity=0.524; ari=0.605
+grouping_curve,,,0.45,clusters=4; mixed=3; homogeneity=0.524; ari=0.605
+grouping_curve,,,0.46,clusters=4; mixed=3; homogeneity=0.524; ari=0.605
+grouping_curve,,,0.47,clusters=3; mixed=2; homogeneity=0.234; ari=0.176
+grouping_curve,,,0.48,clusters=3; mixed=2; homogeneity=0.234; ari=0.176
+grouping_curve,,,0.49,clusters=2; mixed=2; homogeneity=0.141; ari=0.107
+grouping_curve,,,0.5,clusters=2; mixed=2; homogeneity=0.141; ari=0.107
+grouping_curve,,,0.51,clusters=2; mixed=2; homogeneity=0.141; ari=0.107
+grouping_curve,,,0.52,clusters=2; mixed=2; homogeneity=0.141; ari=0.107
+grouping_curve,,,0.53,clusters=2; mixed=2; homogeneity=0.141; ari=0.107
+grouping_curve,,,0.54,clusters=2; mixed=2; homogeneity=0.141; ari=0.107
+grouping_curve,,,0.55,clusters=2; mixed=2; homogeneity=0.141; ari=0.107
+grouping_curve,,,0.56,clusters=2; mixed=2; homogeneity=0.141; ari=0.107
+grouping_curve,,,0.57,clusters=1; mixed=1; homogeneity=0.000; ari=0.000
+grouping_curve,,,0.58,clusters=1; mixed=1; homogeneity=0.000; ari=0.000
+grouping_curve,,,0.59,clusters=1; mixed=1; homogeneity=0.000; ari=0.000
+grouping_curve,,,0.6,clusters=1; mixed=1; homogeneity=0.000; ari=0.000
+grouping_curve,,,0.61,clusters=1; mixed=1; homogeneity=0.000; ari=0.000
+grouping_curve,,,0.62,clusters=1; mixed=1; homogeneity=0.000; ari=0.000
+grouping_curve,,,0.63,clusters=1; mixed=1; homogeneity=0.000; ari=0.000
+grouping_curve,,,0.64,clusters=1; mixed=1; homogeneity=0.000; ari=0.000
+grouping_summary,,,0.32,best_ari=0.714; AUC=0.8798; overlaps=True; clusters=12; hand_venues=10; mixed=4; coarsest_pure_threshold=0.23

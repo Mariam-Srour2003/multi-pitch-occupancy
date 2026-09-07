@@ -1252,3 +1252,114 @@ lacked.
 Every frame-level statistic in this project should be reported with its effective sample
 size beside it. The dataset is 1,692 frames and roughly **150 distinct scenes**; the second
 number is the one that governs how confident any frame-level claim may be.
+
+---
+
+## 2026-09-07 · WP2-T10: camera-view fingerprinting
+
+`uv run python experiments/camera_fingerprint_audit.py`
+-> `results/camera_fingerprint.csv` | module `vision/fingerprint.py`, 25 tests
+
+A camera view is reduced to the per-pixel **median background** of its frames (players move,
+the pitch does not) and described by a coarse grid of gradient-orientation histograms plus
+rg-chromaticity histograms, watermark corner masked. 70 views: 66 clip cameras + venue_01's
+four camera-slots.
+
+**Correction to how this was first written up: the camera-identity half was already
+done.** `vision/camera_id.py` (built earlier, same WP2-T10) had already measured the suffix
+swap by gradient-magnitude similarity - 0.88 cross-day against 0.70 own-suffix - and
+`db/seed.py` already encodes it. This module was written without noticing that, so its
+first claim to have "measured Gotcha 2.7" was wrong: it *replicated* the measurement. What
+follows is corrected to say so, and the duplication was turned into a cross-check rather
+than deleted (see point 4).
+
+**1. The suffix swap, independently replicated.** The `(1).mp4` suffix does swap which
+physical camera it means between the two venue_01 recording days:
+
+| view | mutual nearest neighbour | distance |
+|---|---|---|
+| `slot_20260711_1000_camA` | `slot_20260712_2030_camB` | **0.111** |
+| `slot_20260711_1000_camB` | `slot_20260712_2030_camA` | **0.277** |
+
+Both pairings are *mutual* nearest neighbours across days with opposite suffixes, and both
+distances sit below the same-venue mean (0.256), while same-day camA-vs-camB sit at 0.46 and
+0.57 — far apart, as two cameras on opposite halves should be. A hand-maintained metadata
+convention was wrong and the pixels caught it. Anything keyed on the suffix (fusion pairing,
+per-camera ROIs) must key on the fingerprint instead.
+
+**2. Venue assignment from pixels works; venue *discovery* does not.**
+
+| descriptor block | 1-NN venue assignment | separation AUC |
+|---|---|---|
+| structure + 0.5x chroma | **67/70 = 0.957** | **0.880** |
+| structure only | **67/70 = 0.957** | 0.844 |
+| chromaticity only | 59/70 = 0.843 | 0.800 |
+
+> **Corrected 2026-09-07 — the AUC column was wrong and the conclusion drawn from it was
+> backwards.** This table originally read 0.799 for structure-only and **0.970** for
+> chromaticity-only, and argued from those: *"the two blocks are good at different things —
+> structure identifies, chromaticity separates."* Neither figure was reproducible, because
+> `suggest_threshold` was only ever called on the combined descriptor, so **just one of the
+> three AUCs came from the artefact** and the other two came from somewhere unrecorded. The
+> audit script now computes the AUC per block (`assignment_*` rows in
+> `results/camera_fingerprint.csv` carry it), and measured: structure-only **0.844**,
+> chromaticity-only **0.800**.
+>
+> **Chromaticity does not separate better — it is worse on both axes.** The claimed ordering
+> (chroma 0.970 > combined 0.880 > structure 0.799) is in fact the reverse
+> (combined 0.880 > structure 0.844 > chroma 0.800). The "different things" story does not
+> survive.
+>
+> **The decision it was supporting survives anyway, on a plainer argument.** The combination
+> beats *both* of its components on separation (0.880 against 0.844 and 0.800) while matching
+> the better one on assignment (67/70). That is ordinary complementarity and it is sufficient
+> reason to keep both blocks — it simply is not the reason the entry gave. The lesson is the
+> one this project keeps relearning: a number quoted in a write-up but not emitted by the
+> script is a number nobody has checked.
+
+Both blocks are kept, at the weight that costs nothing on assignment (measured over 0.3–1.5).
+Same-venue and different-venue distances **overlap** (0.194 min vs 0.644 max), so no
+threshold settles venue identity on its own. Unsupervised clustering peaks at ARI 0.714 with
+**4 clusters still mixing two facilities each** — enough to break a leave-one-venue-out split
+if it were trusted. The coarsest grouping with zero mixing needs threshold 0.23 and 20
+clusters for 70 views.
+
+**Accept criterion partly met, and recorded as such.** WP2-T10 asked for "all existing
+footage auto-assigned correctly": 67/70, not 70/70. The three misses are `cb_...680610`,
+`cg_...155619` and `ci_...712737` — all day or dusk clips whose nearest neighbour is a
+different facility. Use the module to *check* a hand grouping and to assign new footage
+against known references, with a human confirming; not to invent a grouping.
+
+**3. It confirms the visual audit's load-bearing claim.** `clipvenue_g_netting` and
+`clipvenue_h_teal_pitch` share no cluster at any threshold — they are different facilities,
+as the visual audit concluded, so the leave-one-venue-out folds are not leaking between them.
+The audit's other claim (that `g` is one facility) is **not testable this way and must not be
+read as contradicted**: `g` splits into 2 view-clusters because it *is* two pitches at one
+site, which is what a view fingerprint should do — `venue_01` splits the same way, into its
+two cameras. The audit established `g` from a pitch number visible across the fence, and a
+descriptor cannot read a number board.
+
+Two metrics were tried and discarded before this: ARI alone punishes the correct
+multi-pitch splitting, and homogeneity alone is gamed by splitting into singletons (it
+maximises at 30 clusters for 70 views). The reported pair — coarsest pure threshold and best
+agreement — is what survives both objections.
+
+**4. The duplication became a cross-check.** `camera_id` and `fingerprint` share only the
+median-background step: one keeps gradient *magnitude* on a 48x27 grid with no colour, the
+other keeps gradient *orientation* histograms plus rg-chromaticity with the watermark
+masked. `tests/test_camera_id_agreement.py` (6 tests) asserts that both reach the same
+pairing and that `db/seed.py`'s `PHYSICAL_CAMERA` still encodes it, and one test guards the
+premise by failing if the two descriptors ever converge into the same measurement. Two
+independent descriptors agreeing is stronger evidence for the write-up than one measured
+twice — which is the only reason keeping both modules is defensible. If they are ever
+merged, that test must go with them.
+
+**What each module is for, so the next reader does not pick the wrong one:** `camera_id`
+answers *which physical camera is this recording* (video files, references, greedy
+matching) and is the one wired into the system. `fingerprint` answers *how do these 70
+views group into venues* (extracted frames, distance matrices, clustering, threshold
+search) and is an audit tool, not a runtime component.
+
+- 2026-09-07 | WP2-T10 camera fingerprinting | `python experiments/camera_fingerprint_audit.py` | `camera_fingerprint.csv` | 70 views, 10 venues
+
+- 2026-09-07 | WP2-T10 camera fingerprinting | `python experiments/camera_fingerprint_audit.py` | `camera_fingerprint.csv` | 70 views, 10 venues
