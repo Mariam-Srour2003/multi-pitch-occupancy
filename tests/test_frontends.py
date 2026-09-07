@@ -186,7 +186,9 @@ def test_models_view_marks_the_clock_rule_as_using_no_pixels(client) -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["confound_matrix", "blocked_questions", "pipeline", "protocols", "schema"]
+    "name",
+    ["confound_matrix", "blocked_questions", "pipeline", "protocols", "schema",
+     "augmentation_axes"],
 )
 def test_every_diagram_stays_inside_its_viewbox(name) -> None:
     """Content drawn past the viewBox is clipped, and clipping is invisible in code."""
@@ -204,7 +206,9 @@ def test_every_diagram_stays_inside_its_viewbox(name) -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["confound_matrix", "blocked_questions", "pipeline", "protocols", "schema"]
+    "name",
+    ["confound_matrix", "blocked_questions", "pipeline", "protocols", "schema",
+     "augmentation_axes"],
 )
 def test_every_diagram_is_captioned_and_labelled(name) -> None:
     """A diagram nobody can read is worse than a sentence."""
@@ -269,3 +273,41 @@ def test_database_tab_is_present(client) -> None:
     html = client.get("/").text
     assert 'data-view="database"' in html
     assert "Database" in html
+
+
+# --- augmentation tab and figure serving -------------------------------------
+
+
+def test_augmentation_tab_exists_and_renders(client) -> None:
+    html = client.get("/").text
+    assert 'data-view="augmentation"' in html
+    assert html.count('data-view="augmentation"') >= 2  # a tab button and a view section
+    assert "discards nothing" in html
+
+
+def test_augmentation_tab_states_what_is_not_measured(client) -> None:
+    """The module is built but unbenchmarked. A page that showed the presets without saying
+    so would imply a result that does not exist."""
+    html = client.get("/").text
+    assert "Not measured yet" in html
+    assert "no footage in this dataset" in html.lower()
+
+
+def test_figures_are_served(client) -> None:
+    r = client.get("/figs/augmentation_grid.jpg")
+    if r.status_code == 404:
+        pytest.skip("grid not generated in this checkout")
+    assert r.headers["content-type"] == "image/jpeg"
+    assert len(r.content) > 1000
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["../../.gitignore", "..%2F..%2Fpyproject.toml", "venue_check/x.jpg", ".env",
+     "EXPERIMENT_LOG.md"],
+)
+def test_figure_route_refuses_anything_but_a_figure_filename(client, name) -> None:
+    """`results/figs/venue_check/` holds cropped pitch frames - operator footage that must
+    never be published. A subpath or a traversal must not reach them, and nor must any
+    non-image file."""
+    assert client.get(f"/figs/{name}").status_code in (404, 405)

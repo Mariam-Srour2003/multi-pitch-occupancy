@@ -16,8 +16,8 @@ Endpoints arrive with their work packages:
 
 from __future__ import annotations
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
 from pitch_occupancy import __version__
@@ -54,6 +54,29 @@ def dashboard() -> HTMLResponse:
     page has privileged access: anything it can show, the API can serve.
     """
     return dashboard_response()
+
+
+#: Only these load from `results/figs`. An allowlist by extension rather than a static mount,
+#: because `results/figs/venue_check/` holds cropped **pitch frames** - operator-supplied
+#: footage that must never be published (see `thesis/ethics.md`). A blanket mount would put
+#: them one guessed URL away from anyone who reaches the server.
+FIGURE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml"}
+
+
+@app.get("/figs/{name}", include_in_schema=False)
+def figure(name: str) -> FileResponse:
+    """Serve one generated figure from `results/figs`, by filename only.
+
+    No subpaths: `name` must be a bare filename, so a traversal like `../../data/...`
+    cannot escape the directory even before the resolved path is re-checked against it.
+    """
+    if "/" in name or "\\" in name or name.startswith("."):
+        raise HTTPException(404)
+    figs = (settings.results_dir / "figs").resolve()
+    path = (figs / name).resolve()
+    if path.parent != figs or path.suffix.lower() not in FIGURE_TYPES or not path.is_file():
+        raise HTTPException(404)
+    return FileResponse(path, media_type=FIGURE_TYPES[path.suffix.lower()])
 
 
 class Health(BaseModel):

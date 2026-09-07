@@ -17,7 +17,8 @@ from functools import lru_cache
 from pathlib import Path
 
 from pitch_occupancy.api.diagrams import (
-    DIAGRAM_STYLES, blocked_questions, confound_matrix, pipeline, protocols, schema,
+    DIAGRAM_STYLES, augmentation_axes, blocked_questions, confound_matrix, pipeline,
+    protocols, schema,
 )
 from pitch_occupancy.api.markdown import render
 from pitch_occupancy.api.models_view import STYLES as MODEL_STYLES
@@ -119,6 +120,70 @@ def _prompt_summary() -> str:
             f"<tbody>{body}</tbody></table></div>")
 
 
+def _augmentation() -> str:
+    """The augmentation tab: the argument, then the sheet that tests it.
+
+    The grid is the point of the tab. Augmentation code fails silently - a preset that
+    does nothing, a fog veil that flattens the pitch, streaks the wrong size - and every
+    one of those still passes a shape and dtype check. The only reliable check is a person
+    looking, so the sheet is what the page leads with.
+    """
+    grid = RESULTS / "figs" / "augmentation_grid.jpg"
+    image = (
+        '<figure class="fig"><img src="/figs/augmentation_grid.jpg" alt="Each augmentation '
+        'preset applied three times to a night active-play frame and a day empty frame">'
+        "<figcaption>Every preset, three draws each, over a night play frame and a day empty "
+        "frame. Probability is forced to 1 so the sheet shows the effect rather than the coin "
+        "flip that gates it; in training each effect fires with probability <code>p</code>, so "
+        "a real batch mixes these with untouched originals.</figcaption></figure>"
+    ) if grid.exists() else (
+        "<p class='missing'>No grid yet. Run "
+        "<code>uv run python experiments/augmentation_grid.py</code>.</p>"
+    )
+    return (
+        "<h1>Augmentation</h1>"
+        "<p><strong>Preprocessing removes information permanently; augmentation varies it "
+        "and keeps every pixel at inference.</strong> That difference is why both exist. The "
+        "input ablation established that removal has a floor - grayscale alone gained recall, "
+        "a centre crop alone gained more, and <em>both together scored below the untouched "
+        "baseline</em>. Augmentation cannot cross that floor, because nothing is discarded "
+        "when a prediction is made.</p>"
+        "<p>So the same shortcut is targeted from the other side. Turf hue encodes venue "
+        "identity and does not transfer; grayscale answered that by throwing colour away, "
+        "jitter answers it by making colour unreliable. The pixels stay.</p>"
+        + augmentation_axes() +
+        "<h2>The two geometric decisions</h2>"
+        "<p><strong>No rotations, warps or perspective changes.</strong> The cameras are "
+        "bolted to a post and see one view forever. A rotated pitch is not a harder example, "
+        "it is an impossible one, and training on it spends capacity on a case that never "
+        "arrives.</p>"
+        "<p><strong>Horizontal flip is the one exception, deliberately.</strong> It produces "
+        "a mirror the camera never sees, which is exactly why it helps: flipping cannot "
+        "change whether people are playing, but it breaks memorisation of <em>this</em> "
+        "pitch's layout - the failure the cross-venue evaluation exists to catch. Both rules "
+        "are pinned by tests, not left in a comment.</p>"
+        "<h2>What the sheet is for</h2>" + image +
+        "<h2>What it caught on the first run</h2>"
+        "<p>Rain streak geometry was written in absolute pixels. At 320&times;180 that drew "
+        "white poles spanning a tenth of the frame; on 1080p source they would have been "
+        "hairlines, invisible the moment preprocessing resized to 224. Density was then a "
+        "26% whiteout at full strength, now 4.6% at the heaviest preset. <strong>No shape or "
+        "dtype assertion could have found either.</strong> Every dimension is now a fraction "
+        "of frame height, and a test compares 180p against 1080p output to keep it so.</p>"
+        "<h2>Not measured yet, and why that is stated rather than hidden</h2>"
+        "<p>Every experiment here fits a probe on <strong>cached</strong> embeddings, one "
+        "vector per frame. Augmentation happens before the backbone, so each augmented view "
+        "needs its own forward pass and the cache stops being a cache - roughly 8 minutes per "
+        "model per epoch-equivalent, against seconds for a probe fit. This is not a switch to "
+        "flip inside the existing runs; it needs its own extraction budget.</p>"
+        "<p>There is also an ordering trap worth naming. <strong>No footage in this dataset "
+        "is wet</strong>, so synthetic rain can currently only be validated against synthetic "
+        "rain - which would test the generator, not the weather. The claim available today is "
+        "the narrower one: whether colour jitter improves <em>cross-venue</em> recall, which "
+        "needs no weather at all and follows directly from the ablation.</p>"
+    )
+
+
 @lru_cache(maxsize=1)
 def _shell() -> str:
     return SHELL
@@ -136,6 +201,10 @@ def page() -> str:
         '<section class="view" data-view="models" hidden><div class="doc">'
         + render_models() + "</div></section>"
     )
+    augmentation = (
+        '<section class="view" data-view="augmentation" hidden><div class="doc">'
+        + _augmentation() + "</div></section>"
+    )
     searches = (
         '<section class="view" data-view="searches" hidden><div class="doc">'
         "<h1>Configuration searches</h1>"
@@ -150,8 +219,9 @@ def page() -> str:
         "</div></section>"
     )
     return (_shell()
-            .replace("__TABS__", '<button data-view="models">Models</button>' + tabs)
-            .replace("__VIEWS__", models + views + searches)
+            .replace("__TABS__", '<button data-view="models">Models</button>' + tabs
+                     + '<button data-view="augmentation">Augmentation</button>')
+            .replace("__VIEWS__", models + views + augmentation + searches)
             .replace("__MODEL_STYLES__", MODEL_STYLES + PANEL_STYLES + DIAGRAM_STYLES)
             .replace("__PANEL_SCRIPT__", PANEL_SCRIPT))
 
@@ -204,6 +274,9 @@ main{max-width:1000px;margin:0 auto;padding:30px 24px 80px}
 .doc p{max-width:72ch;color:var(--ink-2);margin:0 0 12px}
 .doc strong{color:var(--ink);font-weight:600}
 .doc a{color:var(--accent)}
+.fig{margin:20px 0}
+.fig img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:8px;
+ background:var(--surface-2)}
 .doc ul{color:var(--ink-2);max-width:72ch;padding-left:20px;margin:0 0 14px}
 .doc li{margin-bottom:6px}
 .doc hr{border:0;border-top:1px solid var(--line);margin:26px 0}

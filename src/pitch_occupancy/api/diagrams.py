@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[3]
 MANIFEST = ROOT / "data" / "processed" / "manifest.csv"
 
 __all__ = ["confound_matrix", "blocked_questions", "pipeline", "protocols", "schema",
-           "DIAGRAM_STYLES"]
+           "augmentation_axes", "DIAGRAM_STYLES"]
 
 DIAGRAM_STYLES = """
 figure{margin:20px 0}
@@ -247,6 +247,81 @@ def protocols() -> str:
 <figcaption>The protocols disagree because they partition differently, not because one is
 noisier. Shuffling puts frames sampled seconds apart on both sides; holding out whole
 venues is the only cut that asks whether the model transfers.</figcaption>
+</figure>"""
+
+
+def augmentation_axes() -> str:
+    """Why preprocessing has a floor and augmentation does not.
+
+    The prose can only assert the difference. Drawn, it is one asymmetry: preprocessing's
+    arrows all point away from the source and never come back, so whatever they discarded
+    is gone at prediction time too. Augmentation's arrows fan out for *training* and the
+    source still reaches inference untouched - which is exactly why removal can fall below
+    the baseline and variation cannot.
+    """
+    w, h = 820, 300
+    bx = "dg-box"
+
+    def box(x, y, bw, bh, title, sub="", hot=False):
+        cls = "dg-hot" if hot else bx
+        t = (f'<rect class="{cls}" x="{x}" y="{y}" width="{bw}" height="{bh}" rx="5" '
+             f'{"fill=\"var(--surface)\"" if hot else ""}/>'
+             f'<text class="dg-t" x="{x + bw / 2}" y="{y + (19 if sub else bh / 2 + 4)}" '
+             f'text-anchor="middle">{title}</text>')
+        if sub:
+            t += (f'<text class="dg-s" x="{x + bw / 2}" y="{y + 33}" '
+                  f'text-anchor="middle">{sub}</text>')
+        return t
+
+    def arrow(x1, y1, x2, y2):
+        return (f'<path class="dg-line" d="M {x1} {y1} L {x2} {y2}" '
+                f'marker-end="url(#ar4)"/>')
+
+    # --- removal: a one-way chain that ends below where it started
+    a = (box(40, 36, 124, 40, "source frame", "everything")
+         + arrow(170, 56, 200, 56)
+         + box(206, 36, 124, 40, "grayscale", "+0.022")
+         + arrow(336, 56, 366, 56)
+         + box(372, 36, 150, 40, "gray + crop50", "&minus;0.061")
+         + f'<text class="dg-l" x="536" y="52" fill="var(--warn)">below the untouched</text>'
+         + f'<text class="dg-l" x="536" y="67" fill="var(--warn)">baseline &mdash; the floor</text>')
+
+    # --- variation: a fan for training, and the source still reaches inference
+    views = "".join(
+        box(206, y, 124, 24, f"view {i + 1}")
+        for i, y in enumerate((148, 178, 208))
+    )
+    b = (box(40, 170, 124, 40, "source frame", "everything")
+         + arrow(170, 186, 200, 162) + arrow(170, 190, 200, 190)
+         + arrow(170, 194, 200, 218)
+         + views
+         + arrow(336, 162, 366, 186) + arrow(336, 190, 366, 190)
+         + arrow(336, 218, 366, 194)
+         + box(372, 170, 150, 40, "probe training", "sees all three")
+         + box(560, 170, 224, 40, "inference", "the source frame, unchanged", hot=True)
+         + '<path class="dg-line" stroke-dasharray="5 4" marker-end="url(#ar4)" '
+           'd="M 102 214 L 102 262 L 672 262 L 672 216"/>'
+         + '<text class="dg-s" x="330" y="256" text-anchor="middle">'
+           'nothing was discarded, so nothing is missing here</text>')
+
+    return f"""<figure>
+<svg viewBox="0 0 {w} {h}" role="img"
+  aria-label="Preprocessing chains one-way transforms that discard information and can fall
+  below the baseline, while augmentation fans the source into several training views and
+  still passes the unchanged source to inference.">
+  <defs><marker id="ar4" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7"
+    orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor" opacity="0.55"/></marker></defs>
+  <text class="dg-t" x="40" y="24">preprocessing &mdash; one way, and it has a floor</text>
+  {a}
+  <line class="dg-line" x1="40" y1="104" x2="784" y2="104" opacity="0.25"/>
+  <text class="dg-t" x="40" y="132">augmentation &mdash; varies the input, discards nothing</text>
+  {b}
+</svg>
+<figcaption>The asymmetry is the whole argument. Every preprocessing arrow points away from
+the source and never returns, so what it discarded is missing at prediction time - which is
+how grayscale and a centre crop, each helpful alone, combined to score below the untouched
+baseline. Augmentation's fan exists only during training; inference still receives the
+original frame, so there is no floor to cross.</figcaption>
 </figure>"""
 
 
