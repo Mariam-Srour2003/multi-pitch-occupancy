@@ -640,8 +640,13 @@ bookkeeping note if preprocessing effects transferred between backbones. They do
 
 Both numbers come from the *same operation* — `cv2.COLOR_BGR2GRAY` then back to three
 channels; `_apply_saturation(0.0)` and the ablation's `grayscale=True` are the same code
-path. The aggregation differs slightly (per-venue mean against pooled recall), but not by
-anything like enough to flip a sign or halve a worst fold.
+path.
+
+They also come from the same aggregation, which was worth checking rather than assuming.
+When the DINOv2 search started, its baseline scored **0.9595** — identical to the input
+ablation's `full` variant, to four decimal places. Same folds, same averaging, same
+untouched input. So the comparison is exact: **nothing differs between these two numbers
+except the backbone.**
 
 **So preprocessing choices are model-specific, and this search's recommendation must not be
 applied to the default model.** Doing so would have taken a step that helps DINOv2 and
