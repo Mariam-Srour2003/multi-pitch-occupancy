@@ -77,6 +77,7 @@ class SearchStatus(BaseModel):
     best_recall: float | None = None
     results: list[dict] = []
     warning: str | None = None
+    rescore_warning: str | None = None
 
 
 def _read_state() -> dict:
@@ -116,7 +117,24 @@ def status() -> SearchStatus:
 
     frames = sorted({e["n_frames"] for e in evals if e.get("n_frames")})
     baseline = next((e["play_recall"] for e in evals if e["label"] == "baseline"), None)
-    ranked = sorted(evals, key=lambda e: -e["play_recall"])
+
+    # Rank on the balanced score, never on recall alone. Every cross-venue fold is 100%
+    # active play, so recall is buyable by answering "playing" more often - which is the
+    # entire reason the false-play control exists, and this endpoint was sorting by
+    # `-play_recall` regardless of it.
+    #
+    # `"balanced" in e` is the only reliable test for whether an entry was scored by the
+    # *repaired* control. Entries from before the repair carry `false_play: 0.0` for
+    # everything, and 0.0 is not a low rate there - it is a broken measurement. It cannot
+    # be detected from the value, because four DINOv2 configurations genuinely score 0.0.
+    # In the current state file 45 of 88 entries are un-rescored, all convnextv2, and the
+    # highest-recall row among them is a baseline at 0.9841 with a fabricated 0.0000.
+    rescored = [e for e in evals if "balanced" in e]
+    unscored = [e for e in evals if "balanced" not in e]
+    ranked = sorted(rescored, key=lambda e: -e["balanced"]) + sorted(
+        unscored, key=lambda e: -e["play_recall"]
+    )
+    best = ranked[0] if rescored else None
 
     # Pace is measured from this run rather than assumed: the same search is roughly three
     # times slower on 1,578 frames than on 500, and slower again on a heavier backbone.
@@ -127,6 +145,20 @@ def status() -> SearchStatus:
     eta = None
     if running and per_eval and evals:
         eta = max(0.0, (expected - len(evals)) * per_eval)
+
+    # Kept as a separate field rather than folded into `warning`. Mixed or subsampled
+    # frame counts mean the numbers are not comparable *at all* - "discard this state file
+    # and rerun" - and an un-rescored subset must not displace that from the one slot the
+    # front end reads. The first draft of this used `elif` and buried the worse problem.
+    rescore_warning = None
+    if unscored:
+        rescore_warning = (
+            f"{len(unscored)} of {len(evals)} evaluations predate the repair of the "
+            f"false-play control, which scored probes on their own training data and read "
+            f"0.0000 for everything. They are listed after the scored ones, without a "
+            f"false-play figure, and excluded from 'best' - a fabricated zero is not a low "
+            f"rate. Re-running the search re-scores them from cache."
+        )
 
     warning = None
     if len(frames) > 1:
@@ -153,21 +185,28 @@ def status() -> SearchStatus:
         n_frames=frames,
         rounds_done=sorted({e["round"] for e in evals}),
         baseline=baseline,
-        best_label=ranked[0]["label"] if ranked else None,
-        best_recall=ranked[0]["play_recall"] if ranked else None,
+        best_label=best["label"] if best else None,
+        best_recall=best["play_recall"] if best else None,
         results=[
             {
                 "label": e["label"],
                 "recall": round(e["play_recall"], 4),
                 "delta": round(e["play_recall"] - baseline, 4) if baseline else 0.0,
                 "worst": round(e["worst_fold"], 4),
-                "false_play": round(e["false_play"], 4),
+                # `None`, not 0.0, for an entry the repaired control never scored. Sending
+                # the placeholder zero is what let the front end render 45 broken rows as
+                # clean wins: its flag condition is `false_play > 0.001`, so a fabricated
+                # 0.0 passed as the best possible result.
+                "false_play": round(e["false_play"], 4) if "balanced" in e else None,
+                "balanced": round(e["balanced"], 4) if "balanced" in e else None,
+                "rescored": "balanced" in e,
                 "round": e["round"],
                 "describe": e.get("describe", ""),
             }
             for e in ranked
         ],
         warning=warning,
+        rescore_warning=rescore_warning,
     )
 
 

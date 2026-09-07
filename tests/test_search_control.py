@@ -34,12 +34,31 @@ def write_state(path: Path, evals: list[dict]) -> None:
     path.write_text(json.dumps({"generated": "", "evaluations": evals, "best": {}}))
 
 
-def ev(label: str, recall: float, *, n_frames: int = 1578, rnd: int = 1, fp: float = 0.0) -> dict:
-    return {
+def ev(
+    label: str,
+    recall: float,
+    *,
+    n_frames: int = 1578,
+    rnd: int = 1,
+    fp: float = 0.0,
+    rescored: bool = True,
+) -> dict:
+    """One evaluation as the search writes it.
+
+    ``rescored=False`` omits ``balanced``, which is how entries written *before* the
+    false-play control was repaired look: they carry ``false_play: 0.0`` for everything,
+    and that zero is a broken measurement rather than a clean sheet. The presence of
+    ``balanced`` is the only reliable way to tell the two apart, because some
+    configurations genuinely do score 0.0.
+    """
+    out = {
         "model": "convnextv2", "n_frames": n_frames, "hash": label, "label": label,
         "round": rnd, "config": {}, "describe": label, "seconds": 1.0,
         "play_recall": recall, "worst_fold": recall - 0.05, "false_play": fp,
     }
+    if rescored:
+        out["balanced"] = recall - fp
+    return out
 
 
 # --- status -----------------------------------------------------------------
@@ -176,3 +195,79 @@ def test_progress_never_exceeds_one(env, client) -> None:
     s = client.get("/api/v1/search/preprocess").json()
     assert s["progress"] == 1.0
     assert s["eta_seconds"] == 0.0
+
+
+# --- the false-play control has to reach the front end ---------------------
+#
+# The safeguard existed in thesis_site._search_summary(), which nothing but a test ever
+# called. The panel that is actually rendered took its data from here, and here ranked by
+# `-play_recall` with no reference to false-play at all - so 45 un-rescored entries in the
+# real state file, all carrying the placeholder 0.0, were served as clean top results.
+
+
+def test_ranking_uses_the_balanced_score_not_recall(env, client) -> None:
+    """Recall is buyable on a 100%-active-play fold; that is why balanced exists."""
+    write_state(search_control.STATE, [
+        ev("baseline", 0.90, fp=0.02),
+        ev("bought_it", 0.99, fp=0.60),   # higher recall, far worse false-play
+        ev("earned_it", 0.95, fp=0.03),
+    ])
+    s = client.get("/api/v1/search/preprocess").json()
+    assert s["best_label"] == "earned_it", "the highest recall must not win by itself"
+    assert [r["label"] for r in s["results"]][0] == "earned_it"
+
+
+def test_an_un_rescored_entry_is_never_reported_as_best(env, client) -> None:
+    write_state(search_control.STATE, [
+        ev("legacy_high", 0.99, rescored=False),
+        ev("scored_low", 0.80, fp=0.01),
+    ])
+    s = client.get("/api/v1/search/preprocess").json()
+    assert s["best_label"] == "scored_low"
+
+
+def test_an_un_rescored_entry_carries_no_false_play_figure(env, client) -> None:
+    """`None`, not 0.0. Sending the placeholder is what made the panel render it green."""
+    write_state(search_control.STATE, [ev("legacy", 0.9, rescored=False)])
+    r = client.get("/api/v1/search/preprocess").json()["results"][0]
+    assert r["false_play"] is None
+    assert r["balanced"] is None
+    assert r["rescored"] is False
+
+
+def test_a_rescored_entry_keeps_its_figures(env, client) -> None:
+    write_state(search_control.STATE, [ev("fresh", 0.9, fp=0.04)])
+    r = client.get("/api/v1/search/preprocess").json()["results"][0]
+    assert r["false_play"] == pytest.approx(0.04)
+    assert r["rescored"] is True
+
+
+def test_un_rescored_entries_are_listed_after_the_scored_ones(env, client) -> None:
+    write_state(search_control.STATE, [
+        ev("legacy_a", 0.99, rescored=False),
+        ev("scored", 0.70, fp=0.01),
+        ev("legacy_b", 0.98, rescored=False),
+    ])
+    labels = [r["label"] for r in client.get("/api/v1/search/preprocess").json()["results"]]
+    assert labels[0] == "scored"
+    assert set(labels[1:]) == {"legacy_a", "legacy_b"}
+
+
+def test_the_rescore_notice_does_not_displace_a_frame_count_warning(env, client) -> None:
+    """Mixed frame counts mean the numbers are not comparable at all.
+
+    That is the worse problem and it must keep the slot the front end reads. The first
+    draft of this used `elif` and buried it behind the rescore notice.
+    """
+    write_state(search_control.STATE, [
+        ev("a", 0.9, n_frames=500, rescored=False),
+        ev("b", 0.9, n_frames=1578, rescored=False),
+    ])
+    s = client.get("/api/v1/search/preprocess").json()
+    assert "not comparable" in s["warning"]
+    assert "predate the repair" in s["rescore_warning"]
+
+
+def test_no_rescore_notice_when_everything_was_scored(env, client) -> None:
+    write_state(search_control.STATE, [ev("a", 0.9, fp=0.02)])
+    assert client.get("/api/v1/search/preprocess").json()["rescore_warning"] is None

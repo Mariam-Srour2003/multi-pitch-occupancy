@@ -348,6 +348,30 @@ def test_the_search_table_never_shows_a_broken_false_play_as_a_number() -> None:
     assert "Balanced" in html
 
 
+def test_the_search_safeguard_is_actually_rendered(client) -> None:
+    """The bug this pins: the assertion above passed while nothing rendered it.
+
+    `_search_summary` was called by that test and by nothing else - `page()` never
+    included it - so a test certified a safeguard no reader ever saw, while the panel that
+    *was* rendered served the same un-rescored entries as clean top results. Testing a
+    function is not testing a page.
+    """
+    from pitch_occupancy.api.thesis_site import _search_summary
+
+    summary = _search_summary()
+    page = client.get("/").text
+
+    marker = next(
+        (m for m in ("not re-scored", "Balanced", "balanced = recall") if m in summary),
+        None,
+    )
+    assert marker, "the summary rendered nothing identifiable to look for"
+    assert marker in page, (
+        f"_search_summary() produces {marker!r} but the served page does not contain it - "
+        f"the safeguard is dead code again"
+    )
+
+
 def test_the_model_view_reports_false_play_not_only_recall() -> None:
     """Cross-venue recall is measured on folds with no empty pitch in them, so a page that
     ranks on it alone recommends the model that says PLAY most often."""

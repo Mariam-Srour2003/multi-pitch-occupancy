@@ -238,6 +238,13 @@ def page() -> str:
         "saying &ldquo;playing&rdquo; more often.</p>"
         "<h2>Zero-shot prompt search</h2>" + _prompt_summary() +
         "<h2>Preprocessing search</h2>"
+        # Server-rendered first, then the live panel. `_search_summary` holds the rule that
+        # an entry predating the false-play repair is shown as "not re-scored" rather than
+        # with its placeholder 0.0000 - and it was **called by nothing but a test**, so the
+        # test certified a safeguard no reader ever saw while the rendered panel served
+        # those same entries as clean top results. It is wired in now, and it is also what
+        # a reader with JavaScript off, or an examiner opening a saved copy, gets.
+        + _search_summary() +
         "<p>Run it here. Each candidate needs a fresh embedding pass, so a full-size run "
         "takes a few hours - it keeps going if you close the tab.</p>"
         + PANEL_HTML +

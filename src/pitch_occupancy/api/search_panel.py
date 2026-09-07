@@ -60,6 +60,7 @@ PANEL_STYLES = """
 .axis{stroke:var(--line);stroke-width:1} .zero{stroke:var(--ink-3);stroke-width:1}
 .b-up{fill:var(--up,#2c7a52)} .b-down{fill:var(--down,#a8512f)}
 .b-base{fill:var(--ink-3)} .b-flag{fill:var(--warn,#8a6d1f)}
+.b-stale{fill:none;stroke:var(--ink-3);stroke-width:1;stroke-dasharray:3 2}
 .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--ink-3)}
 .legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:5px;
  vertical-align:-1px}
@@ -118,12 +119,18 @@ function barChart(rows, baseline) {
     const x = r.delta >= 0 ? zero : zero - len;
     // gained recall but also raised false alarms -> boundary shift, not better sight
     const flagged = r.delta > 0.002 && r.false_play > 0.001;
-    const cls = r.label === "baseline" ? "b-base" : flagged ? "b-flag" : r.delta >= 0 ? "b-up" : "b-down";
+    // An entry the repaired control never scored gets its own class and is never drawn as
+    // a win. `false_play > 0.001` treated the old placeholder 0.0 as a clean sheet, so 45
+    // broken rows rendered green - the opposite of the safeguard this panel describes.
+    const stale = r.rescored === false;
+    const cls = r.label === "baseline" ? "b-base"
+      : stale ? "b-stale"
+      : flagged ? "b-flag" : r.delta >= 0 ? "b-up" : "b-down";
     const name = r.label.length > 26 ? r.label.slice(0, 25) + "\\u2026" : r.label;
     return `
       <text class="lbl" x="${padL - 10}" y="${y + 15}" text-anchor="end">${esc(name)}</text>
       <rect class="${cls}" x="${x}" y="${y + 5}" width="${Math.max(len, 1.5)}" height="14" rx="2">
-        <title>${esc(r.label)} — recall ${r.recall.toFixed(4)}, worst fold ${r.worst.toFixed(3)}, false-play ${r.false_play.toFixed(4)}</title>
+        <title>${esc(r.label)} — recall ${r.recall.toFixed(4)}, worst fold ${r.worst.toFixed(3)}, false-play ${stale ? "not re-scored" : r.false_play.toFixed(4)}</title>
       </rect>
       <text class="val" x="${w - padR + 8}" y="${y + 15}">${r.recall.toFixed(3)}</text>`;
   }).join("");
@@ -146,6 +153,8 @@ function barChart(rows, baseline) {
       <span><i class="b-flag" style="background:var(--warn,#8a6d1f)"></i>gained recall but also
         raised false alarms</span>
       <span><i class="b-base" style="background:var(--ink-3)"></i>baseline</span>
+      <span><i class="b-stale" style="background:transparent;border:1px dashed var(--ink-3)"></i>not
+        re-scored - predates the false-play repair, so it has no usable false-play figure</span>
     </div>
     <p class="note">Every cross-venue test set is entirely active play, so recall can be
     bought by predicting &ldquo;playing&rdquo; more often. Amber bars did exactly that and
