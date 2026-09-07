@@ -106,12 +106,17 @@ published figure.
 
 ## Where the code is
 
-**`main` holds only the planning documents.** All 39 commits of code sit on a stacked chain
+**`main` holds only the planning documents.** Every commit of code sits on a stacked chain
 of feature branches; the tip has everything:
 
 ```bash
-git checkout feat/prompt-search
+git checkout docs/branch-reference-refresh
 ```
+
+The tip moves as work lands, and this line has been stale before - pointing at a branch that
+was sixteen commits behind, which a reader would have checked out with no sign anything was
+missing. `docs/CODEBASE.md` generates its copy from git, and a test asserts the named branch
+really does contain every other branch.
 
 **[docs/CODEBASE.md](docs/CODEBASE.md)** is the reference: what each branch contains, what
 every module does, and how to run all of it.
