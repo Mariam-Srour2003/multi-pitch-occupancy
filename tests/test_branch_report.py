@@ -122,3 +122,17 @@ def test_no_document_tells_a_reader_to_check_out_a_stale_branch() -> None:
         named = set(re.findall(r"git checkout ([\w/.-]+)", text))
         stale = {b for b in named if b in branches() and b not in DELIBERATE | {tip}}
         assert not stale, f"{name} tells the reader to check out {stale}, not {tip}"
+
+
+def test_a_branch_identical_to_main_documents_nothing() -> None:
+    """A branch created from main and not yet committed to points at main's own tip.
+    `git branch --merged` calls it merged, which is true and useless - it carries no commits,
+    so a table row for it would describe main's last commit a second time. It caught this
+    class of failure once already, on the branch that introduced the rule."""
+    head = git("rev-parse", "main")
+    for name in documented_branches():
+        if name == "main":
+            continue
+        assert git("rev-parse", name) != head, (
+            f"{name} points at main's tip and carries nothing of its own"
+        )

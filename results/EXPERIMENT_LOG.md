@@ -1189,3 +1189,66 @@ statistical backing for its most striking model comparison.
 
 Until then the false-play column should be presented as **observed behaviour on one pitch**,
 with the effective sample stated beside it.
+
+---
+
+## Effective sample size across the reported tests (WP4-T4b) — 2026-09-07
+
+`experiments/effective_sample_audit.py` → `results/effective_sample_audit.csv`. All six
+published accuracies reproduce exactly before anything is qualified, and the script now
+refuses to continue if they ever stop.
+
+The false-play work showed 243 frames were three to ten distinct scenes. This asks the same
+question of the H1/H2 test sets.
+
+| split | nominal test frames | distinct scenes | share |
+|---|---|---|---|
+| random (leaky) | 394 | **62** | 15.7% |
+| grouped | 907 | **94** | 10.4% |
+
+### The one comparison that does not survive
+
+| split | comparison | p (all frames) | p (distinct scenes) | survives |
+|---|---|---|---|---|
+| random | **DINOv2 vs colour histogram** | 7.4e-03 | **1.00** | **no** |
+| random | DINOv2 vs clock rule | 8.2e-07 | 6.1e-05 | yes |
+| random | colour histogram vs clock rule | 1.5e-02 | 6.1e-05 | yes |
+| grouped | DINOv2 vs colour histogram | 1.9e-171 | 1.2e-15 | yes |
+| grouped | DINOv2 vs clock rule | 1.2e-03 | **2.2e-02** | yes, marginally |
+| grouped | colour histogram vs clock rule | 2.8e-157 | 4.2e-11 | yes |
+
+**On the 62 distinct scenes of the leaky split, DINOv2 and a 16-bin colour histogram both
+score 1.0000.** Not "close" — identical. The 0.9873 against 0.9594 difference, and its
+p = 0.0074, come entirely from near-duplicate frames on which one model happened to slip.
+
+### This strengthens H1 rather than undermining it
+
+H1's claim is that the random split measures the dataset rather than the models. The
+significance test attached to it was inflated, but removing the inflation makes the point
+harder, not softer: under the leaky protocol a **colour histogram is statistically
+indistinguishable from a deep self-supervised backbone**. The original phrasing — that the
+histogram *beat* the deep probe on macro-F1 — should become *"the protocol cannot tell them
+apart"*, which is a cleaner statement of the same finding and no longer depends on a
+difference that is not there.
+
+### H2 survives, and it is worth saying it is now marginal
+
+Under the grouped split DINOv2 (0.9846) still beats the clock rule (0.9636) significantly,
+but the p-value moves from 1.2e-03 to **2.2e-02** — from comfortable to just inside the
+threshold, on 94 scenes. H2's point was always that the gap is *small*; it is now small and
+weakly evidenced, which is the honest version.
+
+### H3 is sound, and for a specific reason
+
+H3 is deliberately out of scope here. Its intervals bootstrap over the **seven venue folds**,
+not over frames, so seven different facilities count as seven observations and the width
+already reflects that — the clock rule's interval is [0.029, 0.505], which is not the
+interval of an over-confident test. **Choosing the resampling unit to match the thing being
+generalised over is what made H3 robust**, and it is the practice the frame-level tests
+lacked.
+
+### The rule this settles for the thesis
+
+Every frame-level statistic in this project should be reported with its effective sample
+size beside it. The dataset is 1,692 frames and roughly **150 distinct scenes**; the second
+number is the one that governs how confident any frame-level claim may be.

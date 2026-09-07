@@ -170,6 +170,14 @@ STAGES: list[Stage] = [
         minutes=3,
     ),
     Stage(
+        name="effective-sample-audit",
+        command=[*PY, "-m", "experiments.effective_sample_audit"],
+        produces=[RESULTS / "effective_sample_audit.csv"],
+        requires=[RESULTS / "h1_h2_baseline_floor.csv", DATA / "cache" / "dinov2.npz"],
+        note="how many distinct scenes each reported test actually rests on",
+        minutes=5,
+    ),
+    Stage(
         name="end-to-end-slots",
         command=[*PY, str(ROOT / "experiments" / "end_to_end_slots.py")],
         produces=[RESULTS / "end_to_end_slots.csv"],

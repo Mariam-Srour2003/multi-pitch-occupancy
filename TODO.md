@@ -417,8 +417,15 @@ tagged with the question it answers. Fix that first — it is what turns a build
         views of one camera and amount to **3-10 distinct scenes**. De-duplicated, **0 of 6**
         survive. The point estimates stand as observed behaviour; the ranking is not
         statistically established. Underpowered, *not* null - the gap is 0.99 vs 0.31.
-  - [ ] ★ Apply the same treatment to H1/H2/H3's own significance claims, which were
-        computed on the same near-duplicate-heavy frames.
+  - [x] ★ Same treatment applied to H1/H2 (`experiments/effective_sample_audit.py`). The
+        394-frame leaky test set is **62 distinct scenes**, the 907-frame grouped set **94**.
+        One comparison dies: on distinct scenes DINOv2 and the colour histogram both score
+        **1.0000** under the leaky split, so H1 should say the protocol *cannot tell them
+        apart* rather than that the histogram beat the probe - a cleaner form of the same
+        finding. H2 survives but is now marginal (p 1.2e-3 -> 2.2e-2).
+  - [x] **H3 needs no correction**: its intervals bootstrap over the seven venue folds, not
+        over frames. Matching the resampling unit to the thing being generalised over is
+        what made it robust.
 - [ ] **WP4-T4b Statistical testing for the remaining hypotheses.** Bootstrap CIs + McNemar (frame level) + paired bootstrap (slot
       level) for every headline pair. *Accept:* every claim carries CI + p-value columns.
   - [ ] ★ Apply the Holm–Bonferroni correction from WP0-T6 and say so in the caption.

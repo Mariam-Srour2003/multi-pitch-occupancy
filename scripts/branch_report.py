@@ -56,7 +56,15 @@ def documented_branches() -> list[str]:
     Merging is what adds a branch to the story, so merging is what updates the document.
     """
     merged = set(git("branch", "--merged", "main").replace("*", "").split())
-    return [b for b in branches() if b in merged]
+    # A branch just created from main points at main's own tip. `--merged` calls it merged,
+    # which is true and useless: it carries no commits, so it documents no step, and listing
+    # it would add a table row describing main's last commit twice. It joins the history when
+    # it has something of its own - which is also when it stops matching this tip.
+    head = git("rev-parse", "main")
+    return [
+        b for b in branches()
+        if b in merged and (b == "main" or git("rev-parse", b) != head)
+    ]
 
 
 def contains_everything(branch: str) -> bool:
