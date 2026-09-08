@@ -35,7 +35,6 @@ from __future__ import annotations
 import argparse
 import csv
 from pathlib import Path
-from datetime import datetime, timezone
 
 import numpy as np
 
@@ -43,6 +42,7 @@ from pitch_occupancy.config import settings
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.data.splits import development_rows, leave_one_group_out
 from pitch_occupancy.db.seed import PHYSICAL_CAMERA
+from pitch_occupancy.evaluation.experiment_log import record
 from pitch_occupancy.vision.heads import LinearProbe
 
 PLAY, EMPTY = "C2_ACTIVE_PLAY", "C1_EMPTY"
@@ -291,12 +291,12 @@ def main() -> None:
         w.writerow(["ORACLE_per_fold_best", "MEAN_ACROSS_FOLDS", f"{oracle:.4f}", "", "", "ceiling"])
     print(f"\nwrote {OUT.name}")
 
-    with (settings.results_dir / "EXPERIMENT_LOG.md").open("a", encoding="utf-8") as fh:
-        fh.write(
-            f"\n- {datetime.now(timezone.utc):%Y-%m-%d} | WP5-T9 logit-average baseline | "
-            f"`python experiments/logit_average_baseline.py` | `{OUT.name}` | "
-            f"best single {best_single} {means[best_single]:.4f}, oracle {oracle:.4f}\n"
-        )
+    record(
+        "WP5-T9 logit-average baseline",
+        "`python experiments/logit_average_baseline.py`",
+        f"`{OUT.name}`",
+        f"best single {best_single} {means[best_single]:.4f}, oracle {oracle:.4f}",
+    )
 
 
 if __name__ == "__main__":

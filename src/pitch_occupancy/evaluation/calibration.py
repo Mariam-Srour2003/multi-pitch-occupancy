@@ -28,6 +28,8 @@ __all__ = [
     "fit_temperature",
     "apply_temperature",
     "risk_coverage_curve",
+    "risk_coverage_band",
+    "confidence_ties",
     "coverage_for_target_accuracy",
 ]
 
@@ -136,10 +138,20 @@ def risk_coverage_curve(
 
     Coverage is the fraction answered automatically; review rate is its complement - the
     share of slots a human has to look at.
+
+    **Read :func:`risk_coverage_band` before quoting a point on this curve.** "The most
+    confident k" is only defined when the k-th and (k+1)-th confidences differ. Where they
+    tie, this function returns *one* of the orderings that confidence permits, and which one
+    depends on the order the arrays arrived in. On this project's DINOv2 probe the fitted
+    temperature hits its grid boundary and **890 of 907 calibrated confidences collapse to
+    exactly 1.0**, so almost the whole curve was an arbitrary choice among tied frames -
+    and it moved by up to 0.125 between runs for that reason alone.
     """
     conf = np.asarray(confidence, dtype=float)
     ok = np.asarray(correct, dtype=bool)
-    order = np.argsort(-conf)  # most confident first
+    # Stable sort so a given input order always gives the same answer. It does not make the
+    # answer *identified* - that is what the band is for - only reproducible.
+    order = np.argsort(-conf, kind="stable")  # most confident first
     ok_sorted = ok[order]
 
     n = len(conf)
@@ -151,6 +163,66 @@ def risk_coverage_curve(
     return out
 
 
+def confidence_ties(confidence: np.ndarray) -> tuple[int, int]:
+    """``(n_tied, largest_group)`` - how much of a confidence vector is not orderable.
+
+    A diagnostic to run *before* a risk-coverage curve is plotted. ``n_tied`` counts the
+    scores sharing their exact value with at least one other, so it is the number of frames
+    whose position in the curve is decided by something other than the model.
+    """
+    conf = np.asarray(confidence, dtype=float)
+    if conf.size == 0:
+        return 0, 0
+    _, counts = np.unique(conf, return_counts=True)
+    return int(counts[counts > 1].sum()), int(counts.max())
+
+
+def risk_coverage_band(
+    confidence: np.ndarray, correct: np.ndarray, *, points: int = 50
+) -> list[tuple[float, float, float, float]]:
+    """``(coverage, accuracy_worst, accuracy_best, review_rate)`` - the curve as a band.
+
+    The honest form of :func:`risk_coverage_curve`. At a coverage whose boundary falls
+    inside a group of equally confident frames, the model does not say which of them to
+    answer, so accuracy there is not a number but an interval: best case answers the
+    correct members of the tie group first, worst case answers the incorrect ones first.
+    Where confidences are distinct the two bounds coincide and the band is the curve.
+
+    **Report the lower bound against any target.** A promise of "99% precision at 40%
+    coverage" that only holds for a favourable ordering of indistinguishable frames is not
+    a promise about the model.
+    """
+    conf = np.asarray(confidence, dtype=float)
+    ok = np.asarray(correct, dtype=bool)
+    if conf.shape != ok.shape:
+        raise ValueError(f"paired inputs must align: {conf.shape} vs {ok.shape}")
+    n = conf.size
+    if n == 0:
+        raise ValueError("cannot build a risk-coverage band from an empty sample")
+
+    order = np.argsort(-conf, kind="stable")
+    conf_sorted, ok_sorted = conf[order], ok[order]
+
+    # Within each run of equal confidence, sort correct-first for the best case and
+    # incorrect-first for the worst. Every prefix of the result is then the most (and least)
+    # favourable answer set of that size that confidence alone permits.
+    best = ok_sorted.copy()
+    worst = ok_sorted.copy()
+    start = 0
+    for end in [*np.flatnonzero(np.diff(conf_sorted) != 0) + 1, n]:
+        group = ok_sorted[start:end]
+        n_ok = int(group.sum())
+        best[start:end] = [True] * n_ok + [False] * (len(group) - n_ok)
+        worst[start:end] = [False] * (len(group) - n_ok) + [True] * n_ok
+        start = end
+
+    cum_best, cum_worst = np.cumsum(best), np.cumsum(worst)
+    out: list[tuple[float, float, float, float]] = []
+    for k in np.unique(np.linspace(1, n, points).astype(int)):
+        out.append((k / n, float(cum_worst[k - 1] / k), float(cum_best[k - 1] / k), 1.0 - k / n))
+    return out
+
+
 def coverage_for_target_accuracy(
     confidence: np.ndarray, correct: np.ndarray, target: float = 0.99
 ) -> tuple[float, float] | None:
@@ -158,7 +230,12 @@ def coverage_for_target_accuracy(
 
     Returns ``(coverage, review_rate)``, or ``None`` if even the single most confident
     prediction misses the target - which is itself a reportable result.
+
+    **Judged on the band's lower bound**, so the answer is one the model can be held to
+    however tied frames happen to be ordered. This is the number that sets how much human
+    review the facility is billed for; taking the favourable ordering of indistinguishable
+    frames would quote an operating point that does not exist.
     """
-    curve = risk_coverage_curve(confidence, correct, points=200)
-    feasible = [(cov, rev) for cov, acc, rev in curve if acc >= target]
+    band = risk_coverage_band(confidence, correct, points=200)
+    feasible = [(cov, rev) for cov, acc_lo, _, rev in band if acc_lo >= target]
     return max(feasible, key=lambda t: t[0]) if feasible else None

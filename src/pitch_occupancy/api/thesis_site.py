@@ -17,8 +17,14 @@ from functools import lru_cache
 from pathlib import Path
 
 from pitch_occupancy.api.diagrams import (
-    DIAGRAM_STYLES, augmentation_axes, blocked_questions, confound_matrix,
-    empty_blindness, pipeline, protocols, schema,
+    DIAGRAM_STYLES,
+    augmentation_axes,
+    blocked_questions,
+    confound_matrix,
+    empty_blindness,
+    pipeline,
+    protocols,
+    schema,
 )
 from pitch_occupancy.api.markdown import render
 from pitch_occupancy.api.models_view import STYLES as MODEL_STYLES

@@ -41,7 +41,7 @@ stating plainly rather than reporting a filter that has never fired as if it wer
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from statistics import median
 
 import cv2

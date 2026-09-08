@@ -17,14 +17,16 @@ from __future__ import annotations
 
 import csv
 from collections import defaultdict
-from pathlib import Path
 
 import cv2
 
 from pitch_occupancy.config import settings
 from pitch_occupancy.db.seed import PHYSICAL_CAMERA
 from pitch_occupancy.vision.quality import (
-    FrameQuality, assess, build_baseline, measure,
+    FrameQuality,
+    assess,
+    build_baseline,
+    measure,
 )
 
 RESULTS = settings.results_dir

@@ -22,11 +22,10 @@ import json
 
 import numpy as np
 
+from experiments.preprocess_search import CACHE, OUT_JSON, false_play_rate
 from pitch_occupancy.config import settings
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.data.splits import development_rows
-
-from experiments.preprocess_search import CACHE, OUT_JSON, false_play_rate
 
 OUT = settings.results_dir / "false_play_rescored.csv"
 

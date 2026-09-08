@@ -88,9 +88,8 @@ class LinearProbe:
 
     def fit(self, X: np.ndarray, rows: Sequence[ManifestRow]) -> "LinearProbe":
         from sklearn.linear_model import LogisticRegression
-        from sklearn.preprocessing import StandardScaler
-
         from sklearn.pipeline import make_pipeline
+        from sklearn.preprocessing import StandardScaler
 
         self._model = make_pipeline(
             StandardScaler(),

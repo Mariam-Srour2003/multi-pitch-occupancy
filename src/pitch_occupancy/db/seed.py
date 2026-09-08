@@ -20,7 +20,7 @@ from pathlib import Path
 
 from pitch_occupancy.config import settings
 from pitch_occupancy.data.manifest import read_manifest
-from pitch_occupancy.data.taxonomy import Class3, SlotStatus
+from pitch_occupancy.data.taxonomy import Class3
 from pitch_occupancy.db.schema import connect, initialise, transaction
 from pitch_occupancy.db.store import Sample, record_slot
 from pitch_occupancy.slots.aggregate import aggregate_slot

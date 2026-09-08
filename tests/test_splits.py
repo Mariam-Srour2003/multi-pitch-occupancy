@@ -4,6 +4,9 @@ a leaked group or a single-class test set still produces a plausible accuracy.""
 from __future__ import annotations
 
 import csv
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -116,9 +119,56 @@ def test_grouped_split_keeps_groups_whole(rows) -> None:
 
 
 def test_grouped_split_is_deterministic(rows) -> None:
+    """Two calls in one process agree.
+
+    Kept, but read the next test before trusting it. This one passed for the entire life
+    of the defect it was written to prevent: set iteration order is fixed *within* a
+    process, so calling the function twice here could never have detected that the order
+    changed between processes.
+    """
     a = grouped_split(rows, seed=7)
     b = grouped_split(rows, seed=7)
     assert [r.file for r in a.test] == [r.file for r in b.test]
+
+
+@pytest.mark.parametrize("group_key", ["slot_id", "venue"])
+def test_grouped_split_order_survives_a_different_hash_seed(group_key: str) -> None:
+    """The same seed must give the same *sequence* in a fresh process, not just the same set.
+
+    `test_names` is a set, and `PYTHONHASHSEED` is randomised per process, so iterating it
+    to build the test side returned identical frames in a different order on every run.
+    Point estimates were unaffected - which is why nothing caught it - but
+    `bootstrap_metric_ci` resamples positions, so every confidence interval computed on a
+    grouped split was a draw from a different ordering and none of them reproduced.
+
+    This has to spawn interpreters. Any assertion made inside one process compares two
+    orderings that are equal by construction.
+    """
+    script = (
+        "import sys, hashlib;"
+        "sys.path.insert(0, 'src');"
+        "from pitch_occupancy.data.manifest import ManifestRow;"
+        "from pitch_occupancy.data.splits import grouped_split;"
+        "rows=[ManifestRow(file=f'f{i}.jpg', class4='1_empty', class3='C1_EMPTY',"
+        " venue=f'v{i%4}', camera='c', slot_date='2026-07-11', slot_time='10:00',"
+        " slot_id=f's{i%12}', t_s=i, source='regular', labeled_by='human',"
+        " lighting='day', quality='unknown', split_role='') for i in range(240)];"
+        f"s=grouped_split(rows, group_key='{group_key}', seed=7);"
+        "print(hashlib.md5('|'.join(r.file for r in s.test).encode()).hexdigest(),"
+        " hashlib.md5('|'.join(r.file for r in s.train).encode()).hexdigest())"
+    )
+    seen = set()
+    for hash_seed in ("0", "1", "12345"):
+        env = {**os.environ, "PYTHONHASHSEED": hash_seed}
+        out = subprocess.run(
+            [sys.executable, "-c", script], capture_output=True, text=True,
+            cwd=Path(__file__).resolve().parents[1], env=env, check=True,
+        )
+        seen.add(out.stdout.strip())
+    assert len(seen) == 1, (
+        f"grouped_split(group_key={group_key!r}) produced {len(seen)} different orderings "
+        f"across hash seeds: {seen}"
+    )
 
 
 def test_different_seeds_give_different_splits(rows) -> None:

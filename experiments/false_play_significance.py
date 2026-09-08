@@ -31,14 +31,13 @@ from itertools import combinations
 
 import numpy as np
 
+from experiments.h3_with_false_play import CACHES, load
 from pitch_occupancy.config import settings
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.data.splits import development_rows
 from pitch_occupancy.db.seed import PHYSICAL_CAMERA
 from pitch_occupancy.evaluation.stats import bootstrap_ci, holm_bonferroni, mcnemar
 from pitch_occupancy.vision.heads import ClockRule, LinearProbe
-
-from experiments.h3_with_false_play import CACHES, load
 
 PLAY, EMPTY = "C2_ACTIVE_PLAY", "C1_EMPTY"
 SEED = 42

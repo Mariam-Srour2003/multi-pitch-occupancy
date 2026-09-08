@@ -14,7 +14,6 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 from datetime import date
-from pathlib import Path
 
 from pitch_occupancy.data.manifest import ManifestRow
 from pitch_occupancy.data.taxonomy import CLASS3_ORDER, Class3

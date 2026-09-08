@@ -22,7 +22,6 @@ which contain no EMPTY frames at all, then testing on the only venue that has th
 from __future__ import annotations
 
 import csv
-from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -30,6 +29,7 @@ import numpy as np
 from pitch_occupancy.data.feature_cache import features_for, load_cache
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.data.splits import development_rows, leave_one_group_out
+from pitch_occupancy.evaluation.experiment_log import record
 from pitch_occupancy.evaluation.stats import bootstrap_ci
 from pitch_occupancy.vision.backbones import BACKBONES
 from pitch_occupancy.vision.heads import ClockRule, LinearProbe
@@ -130,12 +130,13 @@ def main() -> None:
         w.writerows(records)
     print(f"wrote {out}")
 
-    with (RESULTS / "EXPERIMENT_LOG.md").open("a", encoding="utf-8") as fh:
-        fh.write(
-            f"\n- {datetime.now(timezone.utc):%Y-%m-%d} | H3 | "
-            f"`python experiments/h3_cross_venue_recall.py` | seed {SEED} | "
-            f"`{out.name}` | {len(folds)} folds x {len(models)} models\n"
-        )
+    record(
+        "H3",
+        "`python experiments/h3_cross_venue_recall.py`",
+        f"seed {SEED}",
+        f"`{out.name}`",
+        f"{len(folds)} folds x {len(models)} models",
+    )
 
 
 if __name__ == "__main__":

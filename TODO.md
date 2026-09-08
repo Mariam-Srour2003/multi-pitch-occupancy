@@ -156,6 +156,24 @@ tagged with the question it answers. Fix that first — it is what turns a build
         reports an unrunnable group check instead of crashing on one; and `write_split`'s
         default directory is package-relative rather than cwd-relative — the same fail-open
         path bug as the lock, in the same folder as the lock.
+  - [x] ★ **`grouped_split(seed=42)` was not reproducible across processes** (2026-09-08).
+        It built the test side by iterating `test_names`, a **set** — and `PYTHONHASHSEED` is
+        randomised per process, so the same seed returned the same frames in a different
+        *order* every run. Membership was right, which is exactly why nothing caught it:
+        accuracy and macro-F1 do not depend on row order, so every point estimate reproduced
+        exactly while **every bootstrap interval computed on a grouped split was a different
+        draw**. Regenerating moved CI bounds by up to 0.0073, `n_distinct` by one, and the
+        risk-coverage curve by 0.125 — no point estimate anywhere.
+    - [x] `test_grouped_split_is_deterministic` had guarded this since the module was written
+          and passed throughout, because it called the function twice **in one process**,
+          where set order is fixed for the process's lifetime. Its replacement spawns
+          interpreters under three `PYTHONHASHSEED` values; verified failing on the old line
+          and passing on the new one. A static sweep of the package found this the only site.
+    - [x] It also settles the sub-item above with evidence rather than preference: the 94-vs-95
+          drift recorded there was **not** the row-list difference it was attributed to. Both
+          scripts now count 95. That does not make materialisation unnecessary — but the
+          example that motivated (a) was this defect, and it is worth re-reading before the
+          ~20-script retrofit is costed.
   - [x] ★ `temporal_split` added — drift was listed as a risk but never measured.
   - [x] ★ Final-venue lock enforced in code, not discipline (see 0.4).
   - [x] ★ `check_split()` reports what would make results misleading: group overlap, duplicate
@@ -678,6 +696,11 @@ tagged with the question it answers. Fix that first — it is what turns a build
       point where automated verdicts reach ≥99% precision, and the REVIEW rate it costs. **This is
       the number a facility manager actually buys**, it directly answers RQ6, and it is the natural
       home for the selective-prediction citations from WP1-T1. Nearly free once calibration is done.
+  - [x] The machinery is done and honest: `risk_coverage_band` reports the curve as a band,
+        because on a saturated probe confidence does not order the frames it is being asked
+        to order. The **figure** is still to draw, and it must be drawn as a band — a line
+        through the middle of a 0.957–1.000 interval would be the most misleading plot in
+        the thesis. Blocked on the same class mix as WP4-T5.
 
 ### 4.B Making the numbers defensible
 - [x] **WP4-T4 Statistical testing.** *(applied to the false-play finding; see below)*
@@ -735,10 +758,20 @@ tagged with the question it answers. Fix that first — it is what turns a build
         established from it. **Needs a decision on handling the selection bias** (a prompt set
         fixed before evaluation) before it is worth running. See A6.
 - [x] **WP4-T5 Calibration — built, answer blocked.** `evaluation/calibration.py` (ECE,
-      reliability bins, temperature scaling, risk-coverage), 16 tests. The run produces
+      reliability bins, temperature scaling, risk-coverage), 25 tests. The run produces
       "99% precision at 0% review", which is an artifact of the 99% single-class test set.
       A boundary warning caught DINOv2's temperature pinning at the grid floor. **No further
       engineering unblocks this** — it needs a test set with a real class mix.
+  - [x] ★ **And that boundary warning was pointing at something the curve was hiding**
+        (2026-09-08). The pinned temperature sharpens DINOv2's probabilities until **890 of
+        907** calibrated confidences are *exactly* 1.0. "The most confident k" is undefined
+        inside a tie, so the published curve was one arbitrary ordering of a single tied
+        block — which is why 57 of its 180 rows moved, by up to **0.125**, once the split's
+        row order was made reproducible. `risk_coverage_band` replaces it: best and worst
+        accuracy at each coverage, coinciding wherever confidences are distinct.
+        `coverage_for_target_accuracy` now reads the **lower** bound. Reported operating
+        points are unchanged (99% precision at 97.9% coverage) but are now identified rather
+        than coincidental, and the tie counts ship in both CSVs.
 - [ ] ~~WP4-T5 original~~ Reliability diagrams + ECE per model; temperature scaling fitted
       on validation (within training venues only); effect on REVIEW-band volume. *Accept:*
       `results/calibration.csv` + figures; calibrated heads saved with `temperature` in the pkl.

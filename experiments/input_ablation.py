@@ -31,7 +31,6 @@ in-venue grouped split is too degenerate to read anything from.
 from __future__ import annotations
 
 import csv
-from datetime import datetime, timezone
 from pathlib import Path
 
 import cv2
@@ -41,6 +40,7 @@ from PIL import Image
 from pitch_occupancy.data.feature_cache import preprocessing_hash
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.data.splits import development_rows, leave_one_group_out
+from pitch_occupancy.evaluation.experiment_log import record
 from pitch_occupancy.vision.backbones import BACKBONES, POOLING_STAMP, embed_batch, load_backbone
 from pitch_occupancy.vision.heads import LinearProbe
 from pitch_occupancy.vision.preprocess import PreprocessConfig, preprocess
@@ -181,12 +181,12 @@ def main() -> None:
         w.writerows(records)
     print(f"\nwrote {out}")
 
-    with (RESULTS / "EXPERIMENT_LOG.md").open("a", encoding="utf-8") as fh:
-        fh.write(
-            f"\n- {datetime.now(timezone.utc):%Y-%m-%d} | input ablation | "
-            f"`python experiments/input_ablation.py` | `{out.name}` | "
-            f"{len(VARIANTS)} variants x {len(folds)} folds, {BACKBONE}\n"
-        )
+    record(
+        "input ablation",
+        "`python experiments/input_ablation.py`",
+        f"`{out.name}`",
+        f"{len(VARIANTS)} variants x {len(folds)} folds, {BACKBONE}",
+    )
 
 
 if __name__ == "__main__":

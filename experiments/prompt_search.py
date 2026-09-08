@@ -26,7 +26,6 @@ import argparse
 import csv
 import itertools
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -36,6 +35,7 @@ from PIL import Image
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.data.splits import development_rows, leave_one_group_out
 from pitch_occupancy.data.taxonomy import CLASS3_ORDER, Class3
+from pitch_occupancy.evaluation.experiment_log import record
 from pitch_occupancy.vision.zeroshot import (
     DESCRIPTORS,
     TEMPLATES,
@@ -229,12 +229,12 @@ def main() -> int:
     )
     print(f"\nwrote {out}")
 
-    with (RESULTS / "EXPERIMENT_LOG.md").open("a", encoding="utf-8") as fh:
-        fh.write(
-            f"\n- {datetime.now(timezone.utc):%Y-%m-%d} | zero-shot prompt search | "
-            f"`python experiments/prompt_search.py` | `{out.name}` | "
-            f"{len(records)} prompt sets\n"
-        )
+    record(
+        "zero-shot prompt search",
+        "`python experiments/prompt_search.py`",
+        f"`{out.name}`",
+        f"{len(records)} prompt sets",
+    )
     return 0
 
 

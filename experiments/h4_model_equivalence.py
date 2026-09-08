@@ -35,7 +35,6 @@ from __future__ import annotations
 
 import csv
 from collections import Counter
-from datetime import datetime, timezone
 from itertools import combinations
 
 import cv2
@@ -45,6 +44,7 @@ from pitch_occupancy.config import settings
 from pitch_occupancy.data.dedup import DEFAULT_THRESHOLD, dhash, distinct_subset
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.data.splits import development_rows, grouped_split
+from pitch_occupancy.evaluation.experiment_log import record
 from pitch_occupancy.evaluation.metrics import evaluate
 from pitch_occupancy.evaluation.stats import (
     holm_bonferroni,
@@ -247,12 +247,12 @@ def main() -> None:
         w.writerows(records)
     print(f"\nwrote {OUT.name}")
 
-    with (settings.results_dir / "EXPERIMENT_LOG.md").open("a", encoding="utf-8") as fh:
-        fh.write(
-            f"\n- {datetime.now(timezone.utc):%Y-%m-%d} | H4 model equivalence | "
-            f"`python experiments/h4_model_equivalence.py` | `{OUT.name}` | "
-            f"ConvNeXtV2 vs ViT: {h4['equivalence_verdict']} at margin {MARGIN}\n"
-        )
+    record(
+        "H4 model equivalence",
+        "`python experiments/h4_model_equivalence.py`",
+        f"`{OUT.name}`",
+        f"ConvNeXtV2 vs ViT: {h4['equivalence_verdict']} at margin {MARGIN}",
+    )
 
 
 if __name__ == "__main__":

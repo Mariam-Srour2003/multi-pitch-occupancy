@@ -12,6 +12,7 @@ its name says, and C3 currently has 6 frames in the entire dataset.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Sequence
 
@@ -19,7 +20,48 @@ import numpy as np
 
 from pitch_occupancy.data.taxonomy import CLASS3_ORDER
 
-__all__ = ["ClassScore", "Report", "evaluate", "confusion_matrix"]
+__all__ = [
+    "ClassScore", "Report", "evaluate", "confusion_matrix",
+    "MIN_SUPPORT_FOR_MACRO", "evaluable_subset",
+]
+
+
+#: A class needs at least this many test frames to enter the macro average.
+#:
+#: :func:`evaluate` excludes zero-support classes, which is right, but a bootstrap that
+#: calls it once per resample re-derives the *class set* every time, so the estimand moves
+#: with the resample. On the random split C3 has support **1** and appears in **63.4%** of
+#: resamples: two thirds averaged three classes, one third averaged two, and one interval
+#: covered both quantities. Fixing the class set once from the full test set closed a
+#: fifteen-fold overstatement of the interval width.
+#:
+#: Support 1 is not evaluable in any case — one frame gives an F1 of 0 or 1 with nothing in
+#: between, and no resampling scheme manufactures the missing information. Support 1 simply
+#: slipped through a rule written for support 0.
+MIN_SUPPORT_FOR_MACRO = 2
+
+
+def evaluable_subset(
+    y_true: Sequence[str], y_pred: Sequence[str]
+) -> tuple[list[str], list[str], list[str]]:
+    """Restrict to classes with enough support to be averaged, and name what was dropped.
+
+    **Restrict the macro average, never accuracy.** The estimand problem belongs to the
+    average *over classes*: an undefined per-class F1 must be either excluded or invented.
+    Accuracy has no such difficulty — every frame has a right answer whatever its class's
+    support — so dropping a frame from it discards a real observation for nothing. A first
+    version of this did restrict accuracy too, and moved published figures by up to 0.0025.
+
+    Lives here rather than in the experiment that first needed it, because a second
+    experiment now needs the identical rule and two copies meant to agree are two that can
+    drift apart.
+    """
+    counts = Counter(y_true)
+    dropped = sorted(c for c, n in counts.items() if n < MIN_SUPPORT_FOR_MACRO)
+    if not dropped:
+        return list(y_true), list(y_pred), []
+    keep = [i for i, t in enumerate(y_true) if t not in dropped]
+    return [y_true[i] for i in keep], [y_pred[i] for i in keep], dropped
 
 
 @dataclass(frozen=True, slots=True)

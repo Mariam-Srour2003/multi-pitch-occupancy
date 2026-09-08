@@ -11,7 +11,9 @@ from pitch_occupancy.evaluation.calibration import (
     coverage_for_target_accuracy,
     expected_calibration_error,
     fit_temperature,
+    confidence_ties,
     reliability_bins,
+    risk_coverage_band,
     risk_coverage_curve,
 )
 
@@ -152,3 +154,74 @@ def test_boundary_temperature_warns() -> None:
     y = np.zeros(50, dtype=int)
     with pytest.warns(RuntimeWarning, match="grid boundary"):
         fit_temperature(logits, y)
+
+
+# --- ties: the curve is a band where confidence does not distinguish frames ---
+
+
+def test_the_band_collapses_to_the_curve_when_every_confidence_is_distinct() -> None:
+    """No ties, nothing to be uncertain about: the two bounds must coincide exactly."""
+    rng = np.random.default_rng(0)
+    conf, ok = rng.random(200), rng.random(200) < 0.9
+    band = risk_coverage_band(conf, ok, points=20)
+    curve = risk_coverage_curve(conf, ok, points=20)
+    for (cov_b, lo, hi, rev_b), (cov_c, acc, rev_c) in zip(band, curve, strict=True):
+        assert cov_b == pytest.approx(cov_c)
+        assert lo == pytest.approx(acc)
+        assert hi == pytest.approx(acc)
+
+
+def test_a_fully_tied_vector_gives_the_widest_possible_band() -> None:
+    """When every frame is equally confident the model has said nothing about which to
+    answer first, so at low coverage accuracy is anywhere between 0 and 1."""
+    conf = np.ones(10)
+    ok = np.array([True] * 6 + [False] * 4)
+    band = risk_coverage_band(conf, ok, points=10)
+    assert band[0][1] == 0.0 and band[0][2] == 1.0
+    # and at full coverage the ordering cannot matter any more
+    assert band[-1][1] == pytest.approx(0.6)
+    assert band[-1][2] == pytest.approx(0.6)
+
+
+def test_the_band_never_inverts() -> None:
+    rng = np.random.default_rng(1)
+    conf = np.round(rng.random(120), 1)  # deliberately tie-heavy
+    ok = rng.random(120) < 0.7
+    for _, lo, hi, _ in risk_coverage_band(conf, ok, points=25):
+        assert lo <= hi
+
+
+def test_the_band_is_invariant_to_the_input_order() -> None:
+    """The defect this exists for: the point curve moved when the same frames arrived in a
+    different sequence, because a tie group was ordered by position. Bounds cannot."""
+    rng = np.random.default_rng(2)
+    conf = np.round(rng.random(150), 1)
+    ok = rng.random(150) < 0.8
+    perm = rng.permutation(150)
+    assert risk_coverage_band(conf, ok, points=20) == risk_coverage_band(
+        conf[perm], ok[perm], points=20
+    )
+
+
+def test_confidence_ties_counts_frames_not_groups() -> None:
+    n_tied, largest = confidence_ties(np.array([1.0, 1.0, 1.0, 0.5, 0.5, 0.2]))
+    assert (n_tied, largest) == (5, 3)
+    assert confidence_ties(np.array([0.9, 0.8, 0.7])) == (0, 1)
+    assert confidence_ties(np.array([])) == (0, 0)
+
+
+def test_the_operating_point_is_read_off_the_worst_case() -> None:
+    """A target met only under a favourable ordering of indistinguishable frames is not an
+    operating point the facility can be held to."""
+    conf = np.ones(10)
+    ok = np.array([True] * 6 + [False] * 4)
+    assert coverage_for_target_accuracy(conf, ok, target=0.99) is None
+    cov, review = coverage_for_target_accuracy(conf, ok, target=0.55)
+    assert cov == pytest.approx(1.0) and review == pytest.approx(0.0)
+
+
+def test_the_band_rejects_misaligned_or_empty_input() -> None:
+    with pytest.raises(ValueError, match="align"):
+        risk_coverage_band(np.ones(3), np.ones(4, dtype=bool))
+    with pytest.raises(ValueError, match="empty"):
+        risk_coverage_band(np.array([]), np.array([], dtype=bool))

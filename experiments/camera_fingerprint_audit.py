@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import csv
 from collections import defaultdict
-from datetime import datetime, timezone
 from pathlib import Path
 
 import cv2
@@ -27,6 +26,7 @@ import numpy as np
 from sklearn.metrics import adjusted_rand_score, homogeneity_score
 
 from pitch_occupancy.data.manifest import read_manifest
+from pitch_occupancy.evaluation.experiment_log import record
 from pitch_occupancy.vision.fingerprint import (
     ViewFingerprint,
     cluster_views,
@@ -360,12 +360,12 @@ def main() -> None:
         writer.writerows(rows)
     print(f"wrote {out}")
 
-    with (RESULTS / "EXPERIMENT_LOG.md").open("a", encoding="utf-8") as fh:
-        fh.write(
-            f"\n- {datetime.now(timezone.utc):%Y-%m-%d} | WP2-T10 camera fingerprinting | "
-            f"`python experiments/camera_fingerprint_audit.py` | `{out.name}` | "
-            f"{len(prints)} views, {n_venues} venues\n"
-        )
+    record(
+        "WP2-T10 camera fingerprinting",
+        "`python experiments/camera_fingerprint_audit.py`",
+        f"`{out.name}`",
+        f"{len(prints)} views, {n_venues} venues",
+    )
 
 
 if __name__ == "__main__":

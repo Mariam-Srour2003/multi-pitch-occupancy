@@ -36,7 +36,6 @@ because it reuses the existing cache.
 from __future__ import annotations
 
 import csv
-from datetime import datetime, timezone
 
 import numpy as np
 
@@ -45,6 +44,7 @@ from pitch_occupancy.data.feature_cache import build_cache, cache_path, load_cac
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.data.splits import development_rows, leave_one_group_out
 from pitch_occupancy.db.seed import PHYSICAL_CAMERA
+from pitch_occupancy.evaluation.experiment_log import record
 from pitch_occupancy.vision.heads import LinearProbe
 from pitch_occupancy.vision.preprocess import PreprocessConfig, preprocess
 
@@ -174,12 +174,12 @@ def main() -> None:
         print(f"  {b:<12} recall {best[0] - raw[0]:+.4f}   false-play {best[1] - raw[1]:+.4f}"
               f"   (preproc+nogeom vs the published raw+geom)")
 
-    with (settings.results_dir / "EXPERIMENT_LOG.md").open("a", encoding="utf-8") as fh:
-        fh.write(
-            f"\n- {datetime.now(timezone.utc):%Y-%m-%d} | WP3-T3 geometry probe | "
-            f"`python experiments/geometry_convention_probe.py` | `{OUT.name}` | "
-            f"three arms x {len(BACKBONES)} backbones, both axes\n"
-        )
+    record(
+        "WP3-T3 geometry probe",
+        "`python experiments/geometry_convention_probe.py`",
+        f"`{OUT.name}`",
+        f"three arms x {len(BACKBONES)} backbones, both axes",
+    )
 
 
 if __name__ == "__main__":

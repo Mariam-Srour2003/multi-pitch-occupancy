@@ -47,8 +47,9 @@ from PIL import Image
 
 from pitch_occupancy.data.manifest import ManifestRow, read_manifest
 from pitch_occupancy.data.splits import development_rows, leave_one_group_out
-from pitch_occupancy.vision.backbones import BACKBONES, embed_batch, load_backbone
 from pitch_occupancy.db.seed import PHYSICAL_CAMERA
+from pitch_occupancy.evaluation.experiment_log import record
+from pitch_occupancy.vision.backbones import BACKBONES, embed_batch, load_backbone
 from pitch_occupancy.vision.heads import LinearProbe
 from pitch_occupancy.vision.preprocess import SWITCHES, PreprocessConfig, preprocess
 
@@ -385,12 +386,12 @@ def _search(args, rows, folds, state: dict) -> int:
               f"  false-play {current['false_play']:.4f}")
 
     print(f"\nwrote {OUT_JSON}")
-    with (RESULTS / "EXPERIMENT_LOG.md").open("a", encoding="utf-8") as fh:
-        fh.write(
-            f"\n- {datetime.now(timezone.utc):%Y-%m-%d} | preprocessing search | "
-            f"`python experiments/preprocess_search.py` | `{OUT_JSON.name}` | "
-            f"{len(state['evaluations'])} evaluations\n"
-        )
+    record(
+        "preprocessing search",
+        "`python experiments/preprocess_search.py`",
+        f"`{OUT_JSON.name}`",
+        f"{len(state['evaluations'])} evaluations",
+    )
     return 0
 
 

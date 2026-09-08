@@ -60,7 +60,6 @@ from __future__ import annotations
 import argparse
 import csv
 import math
-from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -70,6 +69,7 @@ from pitch_occupancy.data.dedup import DEFAULT_THRESHOLD, dhash, distinct_subset
 from pitch_occupancy.data.manifest import ManifestRow, read_manifest
 from pitch_occupancy.data.splits import development_rows, leave_one_group_out
 from pitch_occupancy.db.seed import PHYSICAL_CAMERA
+from pitch_occupancy.evaluation.experiment_log import record
 from pitch_occupancy.evaluation.stats import (
     bootstrap_ci,
     holm_bonferroni,
@@ -584,18 +584,12 @@ def main() -> None:
         w.writerows(records)
     print(f"\nwrote {OUT.name}")
 
-    # The log is an index, so an entry is written once per day's run rather than once per
-    # invocation. Debugging this script appended the same line three times before the guard
-    # existed, which is how a log stops being read.
-    log = settings.results_dir / "EXPERIMENT_LOG.md"
-    entry = (
-        f"- {datetime.now(timezone.utc):%Y-%m-%d} | WP3-T3(b) input path under protocol | "
-        f"`python experiments/input_path_protocol.py` | `{OUT.name}` | "
-        f"paired over {len(folds)} venues + both camera directions, with the effective sample"
+    record(
+        "WP3-T3(b) input path under protocol",
+        "`python experiments/input_path_protocol.py`",
+        f"`{OUT.name}`",
+        f"paired over {len(folds)} venues + both camera directions, with the effective sample",
     )
-    if entry not in log.read_text(encoding="utf-8"):
-        with log.open("a", encoding="utf-8") as fh:
-            fh.write(f"\n{entry}\n")
 
 
 if __name__ == "__main__":

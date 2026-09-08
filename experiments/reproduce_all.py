@@ -39,6 +39,13 @@ class Stage:
     requires: list[Path] = field(default_factory=list)
     note: str = ""
     minutes: int = 1
+    #: Measures the machine rather than the data. `--force` skips these: a benchmark
+    #: swept into a batch alongside other work reports the load, not the hardware, and
+    #: overwriting a careful measurement with a contended one loses information. Naming
+    #: it explicitly rather than remembering it, because it has already happened once -
+    #: ConvNeXtV2 read 150.9 ms mid-batch against 101.2 ms idle, moving a ratio quoted in
+    #: three documents. Run these with `--only`, deliberately, on an idle machine.
+    machine_dependent: bool = False
 
     def satisfied(self) -> bool:
         return all(p.exists() for p in self.produces)
@@ -197,7 +204,8 @@ STAGES: list[Stage] = [
         command=[*PY, str(ROOT / "experiments" / "efficiency_latency.py")],
         produces=[RESULTS / "efficiency_latency.csv"],
         requires=[DATA / "processed" / "manifest.csv"],
-        note="latency and 20-camera throughput - hardware-specific, rerun per machine",
+        note="latency and 20-camera throughput - hardware-specific, run --only on an idle machine",
+        machine_dependent=True,
         minutes=5,
     ),
     Stage(
@@ -315,12 +323,19 @@ def main() -> int:
     print(f"{'stage':<24}{'state':<12}{'~min':>6}  note")
     print("-" * 96)
     todo: list[Stage] = []
+    held: list[str] = []
     blocked: list[tuple[Stage, list[Path]]] = []
     for s in stages:
         missing = s.blocked_by()
         if missing:
             state = "BLOCKED"
             blocked.append((s, missing))
+        elif s.satisfied() and args.force and s.machine_dependent and not args.only:
+            # --force means "distrust the cached output". For a benchmark the cached output
+            # is the trustworthy one and the rerun is the suspect, so it is held back and
+            # said so rather than silently skipped.
+            state = "held (machine)"
+            held.append(s.name)
         elif s.satisfied() and not args.force:
             state = "done"
         else:
@@ -340,6 +355,12 @@ def main() -> int:
         for s, missing in blocked:
             for m in missing:
                 print(f"  {s.name}: missing {m.relative_to(ROOT)}")
+
+    if held:
+        print(
+            "\nheld back from --force because they measure the machine, not the data:\n"
+            + "\n".join(f"  --only {n}   (run on an idle machine)" for n in held)
+        )
 
     if outstanding:
         print(

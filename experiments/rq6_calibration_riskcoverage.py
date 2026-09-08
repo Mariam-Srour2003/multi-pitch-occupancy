@@ -9,9 +9,20 @@ facility has to inspect by hand. Two measurements follow:
    Temperature only rescales logits, so accuracy is untouched by construction; that is
    asserted here rather than assumed.
 
-2. **Risk-coverage.** Sweep the confidence threshold: answer the most confident fraction
-   automatically, defer the rest. The output is the operating point a manager can act on -
-   *"to reach 99% precision on automated verdicts, expect to review N% of slots."*
+2. **Risk-coverage, as a band rather than a line.** Sweep the confidence threshold: answer
+   the most confident fraction automatically, defer the rest. The output is the operating
+   point a manager can act on - *"to reach 99% precision on automated verdicts, expect to
+   review N% of slots."*
+
+   **"The most confident k" is only defined when the k-th and (k+1)-th confidences differ**,
+   and on this data they very often do not: DINOv2's fitted temperature hits its grid
+   boundary at 0.05, which sharpens the probabilities until **890 of 907** calibrated
+   confidences are exactly 1.0. Sorting them puts equally confident frames in an order the
+   model never expressed, and the published curve moved by up to 0.125 between runs for that
+   reason alone. So each coverage now carries the best and worst accuracy that confidence
+   permits, and the operating point is read off the **lower** bound - a promise that holds
+   whichever way the ties fall. Where confidences are distinct the band is a line and
+   nothing changes.
 
     uv run python experiments/rq6_calibration_riskcoverage.py
 """
@@ -19,7 +30,6 @@ facility has to inspect by hand. Two measurements follow:
 from __future__ import annotations
 
 import csv
-from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -28,12 +38,14 @@ from pitch_occupancy.data.feature_cache import features_for, load_cache
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.data.splits import development_rows, grouped_split
 from pitch_occupancy.evaluation.calibration import (
+    confidence_ties,
     coverage_for_target_accuracy,
     expected_calibration_error,
     fit_temperature,
     reliability_bins,
-    risk_coverage_curve,
+    risk_coverage_band,
 )
+from pitch_occupancy.evaluation.experiment_log import record
 from pitch_occupancy.vision.backbones import BACKBONES
 from pitch_occupancy.vision.heads import LinearProbe
 
@@ -117,15 +129,24 @@ def main() -> None:
             f"confidence {worst.mean_confidence:.3f} vs accuracy {worst.accuracy:.3f}\n"
         )
 
-        for cov, acc, review in risk_coverage_curve(conf_cal, ok_cal, points=60):
+        n_tied, largest_tie = confidence_ties(conf_cal)
+        if n_tied:
+            print(f"  ! {n_tied}/{len(conf_cal)} calibrated confidences are tied "
+                  f"(largest group {largest_tie}) - the curve below is a band, not a line")
+        for cov, acc_lo, acc_hi, review in risk_coverage_band(conf_cal, ok_cal, points=60):
             curve_records.append(
                 {"model": key, "coverage": round(cov, 4),
-                 "accuracy": round(acc, 4), "review_rate": round(review, 4)}
+                 "accuracy_worst": round(acc_lo, 4), "accuracy_best": round(acc_hi, 4),
+                 "review_rate": round(review, 4),
+                 "n_tied": n_tied, "largest_tie_group": largest_tie}
             )
         row = {
             "model": key, "accuracy": round(float(ok_raw.mean()), 4),
             "temperature": round(temperature, 3),
             "ece_raw": round(ece_raw, 4), "ece_calibrated": round(ece_cal, 4),
+            "n_tied_confidences": confidence_ties(conf_cal)[0],
+            "largest_tie_group": confidence_ties(conf_cal)[1],
+            "n_test": int(conf_cal.size),
         }
         for target in TARGETS:
             hit = coverage_for_target_accuracy(conf_cal, ok_cal, target=target)
@@ -139,17 +160,19 @@ def main() -> None:
         w.writeheader()
         w.writerows(summary)
     with (RESULTS / "rq6_risk_coverage.csv").open("w", newline="", encoding="utf-8") as fh:
-        w = csv.DictWriter(fh, fieldnames=["model", "coverage", "accuracy", "review_rate"])
+        w = csv.DictWriter(fh, fieldnames=[
+            "model", "coverage", "accuracy_worst", "accuracy_best", "review_rate",
+            "n_tied", "largest_tie_group"])
         w.writeheader()
         w.writerows(curve_records)
     print("wrote results/rq6_calibration.csv and results/rq6_risk_coverage.csv")
 
-    with (RESULTS / "EXPERIMENT_LOG.md").open("a", encoding="utf-8") as fh:
-        fh.write(
-            f"\n- {datetime.now(timezone.utc):%Y-%m-%d} | RQ6 | "
-            f"`python experiments/rq6_calibration_riskcoverage.py` | seed {SEED} | "
-            f"`rq6_calibration.csv`, `rq6_risk_coverage.csv`\n"
-        )
+    record(
+        "RQ6",
+        "`python experiments/rq6_calibration_riskcoverage.py`",
+        f"seed {SEED}",
+        "`rq6_calibration.csv`, `rq6_risk_coverage.csv`",
+    )
 
 
 if __name__ == "__main__":

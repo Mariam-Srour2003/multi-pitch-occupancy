@@ -22,9 +22,9 @@ from pydantic import BaseModel
 
 from pitch_occupancy import __version__
 from pitch_occupancy.api.dashboard import dashboard_response
-from pitch_occupancy.api.thesis_site import page as thesis_page
 from pitch_occupancy.api.routes import router
 from pitch_occupancy.api.search_control import router as search_router
+from pitch_occupancy.api.thesis_site import page as thesis_page
 from pitch_occupancy.config import settings
 
 app = FastAPI(

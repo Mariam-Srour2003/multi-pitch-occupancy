@@ -189,8 +189,19 @@ def grouped_split(
         test_names.add(g)
         got += len(groups[g])
 
+    # Both sides are emitted in `groups` insertion order - which follows the manifest -
+    # rather than by iterating `test_names`.
+    #
+    # **A set is a membership test here, never an ordering.** Iterating it put the test rows
+    # in an order that depends on `PYTHONHASHSEED`, so `grouped_split(seed=42)` returned the
+    # same *frames* in a different *sequence* on every process. Point estimates were
+    # unaffected, and that is exactly why it survived: every macro-F1 and accuracy in
+    # `h1_h2_baseline_floor.csv` reproduced exactly while the bootstrap intervals beside them
+    # did not, because `bootstrap_metric_ci` resamples positions and a reordered vector is a
+    # different resample. A seeded function that is not reproducible across processes
+    # defeats the claim the reproduction pipeline exists to back.
     train = [r for g, rs in groups.items() if g not in test_names for r in rs]
-    test = [r for g in test_names for r in groups[g]]
+    test = [r for g, rs in groups.items() if g in test_names for r in rs]
     return Split(
         name=name or f"grouped_{group_key}_seed{seed}",
         train=tuple(train),

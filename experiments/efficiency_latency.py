@@ -12,17 +12,24 @@ sampling cycle. Note this is a *development laptop*, not the target Mini-PC - WP
 repeats it on the real hardware, and only that run settles the deployment claim.
 
     uv run python experiments/efficiency_latency.py
+
+**Run it on an otherwise idle machine, and never as part of a batch.** Unlike every other
+experiment here it measures the *machine*, not the data, so it is the one stage a
+"regenerate everything" sweep makes worse rather than better. Swept into a batch alongside
+other work in flight, ConvNeXtV2's single-frame median read 150.9 ms against 101.2 ms idle,
+and H4's speed ratio moved from 1.83x to 1.64x - a number quoted in three documents, moved
+by nothing but load. `reproduce_all.py` therefore leaves this stage out of `--force`.
 """
 
 from __future__ import annotations
 
 import csv
-from datetime import datetime, timezone
 from pathlib import Path
 
 from PIL import Image
 
 from pitch_occupancy.data.manifest import read_manifest
+from pitch_occupancy.evaluation.experiment_log import record
 from pitch_occupancy.evaluation.latency import measure_concurrent, measure_latency
 from pitch_occupancy.vision.backbones import BACKBONES, embed_batch, load_backbone
 
@@ -93,12 +100,12 @@ def main() -> None:
         w.writerows(records)
     print(f"wrote {out}")
 
-    with (RESULTS / "EXPERIMENT_LOG.md").open("a", encoding="utf-8") as fh:
-        fh.write(
-            f"\n- {datetime.now(timezone.utc):%Y-%m-%d} | efficiency | "
-            f"`python experiments/efficiency_latency.py` | `{out.name}` | "
-            f"dev laptop, {records[0]['threads']} threads\n"
-        )
+    record(
+        "efficiency",
+        "`python experiments/efficiency_latency.py`",
+        f"`{out.name}`",
+        f"dev laptop, {records[0]['threads']} threads",
+    )
 
 
 if __name__ == "__main__":

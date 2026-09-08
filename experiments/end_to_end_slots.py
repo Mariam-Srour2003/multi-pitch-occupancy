@@ -24,11 +24,11 @@ from __future__ import annotations
 
 import csv
 from collections import defaultdict
-from datetime import datetime, timezone
 from pathlib import Path
 
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.data.taxonomy import Class3, SlotStatus
+from pitch_occupancy.evaluation.experiment_log import record
 from pitch_occupancy.slots.aggregate import Thresholds, aggregate_slot
 from pitch_occupancy.slots.fusion import fuse
 from pitch_occupancy.slots.reconcile import Booking, reconcile
@@ -120,12 +120,12 @@ def main() -> None:
         w.writerows(records)
     print(f"wrote {out}")
 
-    with (RESULTS / "EXPERIMENT_LOG.md").open("a", encoding="utf-8") as fh:
-        fh.write(
-            f"\n- {datetime.now(timezone.utc):%Y-%m-%d} | end-to-end slots | "
-            f"`python experiments/end_to_end_slots.py` | `{out.name}` | "
-            f"{len(slots)} real slots, ground-truth labels\n"
-        )
+    record(
+        "end-to-end slots",
+        "`python experiments/end_to_end_slots.py`",
+        f"`{out.name}`",
+        f"{len(slots)} real slots, ground-truth labels",
+    )
 
 
 if __name__ == "__main__":

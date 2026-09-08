@@ -110,3 +110,28 @@ def test_cache_dependent_stages_declare_the_cache(name: str) -> None:
     rather than reporting BLOCKED."""
     stage = next(s for s in STAGES if s.name == name)
     assert any("cache" in p.parts for p in stage.requires), name
+
+
+def test_the_benchmark_stage_is_marked_machine_dependent() -> None:
+    """`--force` means "distrust the cached output". For a stage that measures the machine
+    the cached output is the trustworthy one and the rerun is the suspect: swept into a
+    batch, ConvNeXtV2's median read 150.9 ms against 101.2 ms idle, moving a ratio quoted
+    in three documents."""
+    efficiency = next(s for s in STAGES if s.name == "efficiency")
+    assert efficiency.machine_dependent
+
+
+def test_only_stages_that_measure_the_machine_are_exempt_from_force() -> None:
+    """The exemption weakens reproduction, so it must stay a short, deliberate list."""
+    exempt = {s.name for s in STAGES if s.machine_dependent}
+    assert exempt == {"efficiency"}, exempt
+
+
+def test_a_machine_dependent_stage_still_runs_when_its_output_is_missing() -> None:
+    """Held back from --force, never from a genuine reproduction: a missing CSV must still
+    be produced or the pipeline would report success having skipped it."""
+    stage = reproduce_all.Stage(
+        name="bench", command=["true"], produces=[ROOT / "results" / "does_not_exist.csv"],
+        machine_dependent=True,
+    )
+    assert not stage.satisfied()

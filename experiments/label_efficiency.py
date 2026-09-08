@@ -24,7 +24,6 @@ from __future__ import annotations
 import csv
 import random
 from collections import defaultdict
-from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -32,6 +31,7 @@ import numpy as np
 from pitch_occupancy.data.feature_cache import features_for, load_cache
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.data.splits import development_rows, grouped_split
+from pitch_occupancy.evaluation.experiment_log import record
 from pitch_occupancy.evaluation.metrics import evaluate
 from pitch_occupancy.vision.backbones import BACKBONES
 from pitch_occupancy.vision.heads import ClockRule, LinearProbe
@@ -134,12 +134,12 @@ def main() -> None:
         w.writerows(records)
     print(f"wrote {out}")
 
-    with (RESULTS / "EXPERIMENT_LOG.md").open("a", encoding="utf-8") as fh:
-        fh.write(
-            f"\n- {datetime.now(timezone.utc):%Y-%m-%d} | label efficiency | "
-            f"`python experiments/label_efficiency.py` | `{out.name}` | "
-            f"{len(SIZES) + 1} sizes x {len(SEEDS)} seeds\n"
-        )
+    record(
+        "label efficiency",
+        "`python experiments/label_efficiency.py`",
+        f"`{out.name}`",
+        f"{len(SIZES) + 1} sizes x {len(SEEDS)} seeds",
+    )
 
 
 if __name__ == "__main__":

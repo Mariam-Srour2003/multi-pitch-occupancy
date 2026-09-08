@@ -304,8 +304,6 @@ per clip plus cross-comparison against every other venue group. Comparison sheet
 
 - 2026-09-06 | venue audit | visual, sheets in `results/figs/venue_check/` | `configs/clip_venues.csv` | cg low→high, ch low→medium
 
-- 2026-09-06 | RQ6 | `python experiments/rq6_calibration_riskcoverage.py` | seed 42 | `rq6_calibration.csv`, `rq6_risk_coverage.csv`
-
 ---
 
 ## 2026-09-06 - End-to-end decision layer on the real slots
@@ -1371,8 +1369,6 @@ search) and is an audit tool, not a runtime component.
 
 - 2026-09-07 | WP2-T10 camera fingerprinting | `python experiments/camera_fingerprint_audit.py` | `camera_fingerprint.csv` | 70 views, 10 venues
 
-- 2026-09-07 | WP2-T10 camera fingerprinting | `python experiments/camera_fingerprint_audit.py` | `camera_fingerprint.csv` | 70 views, 10 venues
-
 ---
 
 ## H1/H2 re-reported on a stable estimand (WP4-T4b) — 2026-09-07
@@ -1601,8 +1597,6 @@ real. A paired bootstrap over folds belongs with WP4-T4b.
 - 2026-09-07 | WP5-T9 logit-average baseline | `python experiments/logit_average_baseline.py` | `logit_average_baseline.csv` | naive ensemble takes 74% of oracle headroom; false-play 1.0000, worse than every single backbone
 
 - 2026-09-07 | WP5-T9 logit-average baseline | `python experiments/logit_average_baseline.py` | `logit_average_baseline.csv` | best single dinov2 0.9297, oracle 0.9603
-
-- 2026-09-07 · H1/H2 · `python experiments/h1_h2_baseline_floor.py` · seed 42 · `h1_h2_baseline_floor.csv` · 14 rows over 2 splits
 
 ---
 
@@ -2118,3 +2112,120 @@ confidence thresholds: **empty-pitch footage from more than one venue**. That is
 `thesis/data_requests.md`, not an experiment.
 
 - 2026-09-08 | WP3-T3(b) input path under protocol | `python experiments/input_path_protocol.py` | `input_path_protocol.csv` | paired over 7 venues + both camera directions, with the effective sample
+
+- 2026-09-08 | H4 model equivalence | `python experiments/h4_model_equivalence.py` | `h4_model_equivalence.csv` | ConvNeXtV2 vs ViT: equivalent at margin 0.02
+
+- 2026-09-08 | label efficiency | `python experiments/label_efficiency.py` | `label_efficiency.csv` | 7 sizes x 5 seeds
+
+- 2026-09-08 | RQ6 | `python experiments/rq6_calibration_riskcoverage.py` | seed 42 | `rq6_calibration.csv`, `rq6_risk_coverage.csv`
+
+---
+
+## 2026-09-08 — a seeded split that was not reproducible, and what it was hiding
+
+Found while refactoring `evaluable_subset` out of `h1_h2_baseline_floor.py` into the library.
+The refactor was checked the way this project checks refactors — regenerate the CSV and
+require it byte-identical — and it was not. Point estimates matched exactly; **the confidence
+intervals beside them did not.**
+
+Then the control run: the *unmodified* code did not reproduce its own committed CSV either,
+and two consecutive runs of it disagreed with each other. So the refactor was innocent and
+something older was wrong.
+
+### `grouped_split` returned the same frames in a different order every process
+
+```python
+test_names: set[str] = set()          # membership
+...
+test = [r for g in test_names for r in groups[g]]   # ...used as an ordering
+```
+
+`PYTHONHASHSEED` is randomised per process, so iterating a set of strings gives a different
+order each run. The *membership* was identical, which is exactly why it survived:
+
+- every accuracy, macro-F1 and balanced accuracy reproduced exactly — they do not depend on
+  row order;
+- every **bootstrap interval** did not, because `bootstrap_metric_ci` resamples *positions*,
+  and a reordered vector is a different resample.
+
+`test_grouped_split_is_deterministic` had existed all along and passed throughout, because it
+called the function twice **in one process**, where set order is fixed for the process's
+lifetime. The replacement spawns interpreters under three `PYTHONHASHSEED` values and
+compares hashes of the emitted sequence; verified both ways — it fails on the old line and
+passes on the new one. A static sweep of the package for sets iterated into ordered
+structures found this to be the only site.
+
+**What moved on regeneration** (point estimates: nothing, anywhere):
+
+| file | column | largest change |
+|---|---|---|
+| `h1_h2_baseline_floor.csv` | `macro_f1_lo` / `macro_f1_hi` | 0.0073 |
+| `effective_sample_audit.csv` | `n_distinct` (grouped) | 94 → 95 |
+| `rq6_risk_coverage.csv` | `accuracy` | **0.125**, on 57 of 180 rows |
+
+The first two are what a reordering defect is expected to cost. The third was not, and it
+turned out to be a second defect underneath.
+
+### The risk–coverage curve was ordering frames the model had not ordered
+
+A risk–coverage curve answers "how accurate is the most confident *k*?" — which is only a
+question when the *k*-th and (*k*+1)-th confidences differ. Measured:
+
+| model | fitted T | distinct calibrated confidences | largest exact tie |
+|---|---|---|---|
+| convnextv2 | 0.95 | 907 / 907 | 1 |
+| **dinov2** | **0.05** | **18 / 907** | **890** |
+| vit | 1.30 | 907 / 907 | 1 |
+
+DINOv2's temperature hits the search grid's lower boundary — the code **already warns** about
+this at runtime — and sharpens the probabilities until 890 of 907 calibrated confidences are
+exactly 1.0. Its whole curve was a single arbitrary ordering of one tied block, which is why
+all 57 moved rows were DINOv2's and why fixing the split order changed them so much.
+
+Fixing the ordering makes that curve *reproducible*. It does not make it *identified*, and
+publishing a reproducible arbitrary number would have been the worse outcome of the two.
+
+So `risk_coverage_band` replaces it: at each coverage, the best and worst accuracy the
+confidences permit — order the correct members of a straddled tie group first, or last.
+Where confidences are distinct the two bounds coincide and it is the old curve exactly.
+`coverage_for_target_accuracy` now reads the **lower** bound, since an operating point that
+holds only for a favourable ordering of indistinguishable frames is not one the facility can
+be held to.
+
+The band is wide where it matters:
+
+| DINOv2, coverage | accuracy |
+|---|---|
+| 0.20 | 0.957 – 1.000 |
+| 0.41 | 0.978 – 1.000 |
+| 0.81 | 0.989 – 1.000 |
+| 1.00 | 0.9857 (identified) |
+
+The reported operating points are unchanged — 99% precision at 97.9% coverage — because the
+tie block is large enough that the worst case lands on the same coverage. They are now
+*identified* rather than coincidental, and the tie counts ship in both CSVs so the next
+reader can see the curve is a band before quoting a point on it.
+
+### What this says about the rest
+
+RQ6 was already "blocked by data", and this sharpens why: with a 99% single-class test set
+the probe saturates, temperature scaling runs to its boundary trying to correct it, and
+selective prediction has nothing left to select on. The band is the honest picture of a
+measurement this dataset cannot support — not a new problem, a visible one.
+
+- 2026-09-08 | reproducibility | set-order leak in `grouped_split` | `h1_h2_baseline_floor.csv`, `effective_sample_audit.csv`, `rq6_risk_coverage.csv` | seeded split was not reproducible across processes; every bootstrap CI on a grouped split was a different draw
+- 2026-09-08 | RQ6 | risk-coverage as a band | `rq6_risk_coverage.csv` | 890/907 of DINOv2's calibrated confidences are exactly tied; the curve is a band and the operating point is its lower bound
+
+- 2026-09-08 | H1/H2 | `python experiments/h1_h2_baseline_floor.py` | seed 42 | `h1_h2_baseline_floor.csv` | 14 rows over 2 splits
+
+- 2026-09-08 | H3 | `python experiments/h3_cross_venue_recall.py` | seed 42 | `h3_cross_venue_recall.csv` | 7 folds x 4 models
+
+- 2026-09-08 | H3 sensitivity (cg+ch merged) | `python experiments/h3_sensitivity_merged_venues.py` | seed 42 | `h3_sensitivity_merged_venues.csv` | 6 folds x 4 models
+
+- 2026-09-08 | end-to-end slots | `python experiments/end_to_end_slots.py` | `end_to_end_slots.csv` | 2 real slots, ground-truth labels
+
+- 2026-09-08 | efficiency | `python experiments/efficiency_latency.py` | `efficiency_latency.csv` | dev laptop, 4 threads
+
+- 2026-09-08 | WP2-T10 camera fingerprinting | `python experiments/camera_fingerprint_audit.py` | `camera_fingerprint.csv` | 70 views, 10 venues
+
+- 2026-09-08 | WP5-T9 logit-average baseline | `python experiments/logit_average_baseline.py` | `logit_average_baseline.csv` | best single dinov2 0.9297, oracle 0.9603
