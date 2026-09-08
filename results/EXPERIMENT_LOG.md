@@ -3138,3 +3138,38 @@ feature; the system takes no financial action of any kind and cannot be made to
 - 2026-09-09 | WP6-T10 reconciliation value | `python -m experiments.reconciliation_value` | `reconciliation_value.csv` | break-even flag precision 94.7% on stated assumptions; below a EUR20 slot price the feature never pays at any precision
 
 - 2026-09-08 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 26 claims verified against their artefacts, 0 recorded as unsupported
+
+---
+
+## 2026-09-09 — WP8-T2b: the leakage decomposition, and a reliability diagram that cannot exist
+
+**`results/figs/leakage_decomposition.{png,pdf}`.** The thesis's stated first key figure, and
+the raw drop on its own overstates the case. Each model's fall from the leaky split to the
+honest one is drawn as **one stacked bar**, because the question is how a single quantity
+divides rather than how two compare: the pale segment is the 0.183 that a model which *never
+trains* shows on the same change of test set, the solid segment is what is left for leakage.
+OpenCLIP is drawn as a fourth bar so the subtraction is visible rather than taken on trust.
+
+About **two thirds** of the penalty is attributable (0.332–0.395 of 0.516–0.578), and the
+title derives that fraction from the data rather than stating it — a ratio in a title is a
+claim, and a claim typed into a generated figure is exactly what let an earlier plot
+contradict its own source table.
+
+**And a reliability diagram that is not worth drawing.** `rq6_calibration_riskcoverage.py` now
+persists its bins to `rq6_reliability.csv` — previously only the worst bin was printed, so the
+figure would have had to recompute the probes and could have silently disagreed with the
+table. With the bins in hand the answer is that there is no diagram:
+
+| model | bins occupied | largest |
+|---|---|---|
+| convnextv2 | **1** | 907 of 907 in [0.9, 1.0] |
+| dinov2 | 2 | 905 of 907 in [0.9, 1.0] |
+| vit | 1 | 907 of 907 |
+
+A ten-bin reliability plot would be a single dot on the right-hand edge. That is the same fact
+the risk–coverage band already reports from the other side — 890 of 907 confidences identical
+— so the figure is **deliberately not drawn**, the bins are committed as the artefact behind
+the "worst bin" claim, and the reason is recorded here rather than left as a gap in WP8-T2b's
+list.
+
+- 2026-09-09 | WP8-T2b leakage figure | `python -m experiments.make_figures` | `figs/leakage_decomposition.png`, `rq6_reliability.csv` | the leakage penalty split into composition and attributable; a reliability diagram would be one dot, so it is not drawn and the bins are committed instead

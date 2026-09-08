@@ -135,7 +135,8 @@ STAGES: list[Stage] = [
     Stage(
         name="rq6-calibration",
         command=[*PY, "-m", "experiments.rq6_calibration_riskcoverage"],
-        produces=[RESULTS / "rq6_calibration.csv", RESULTS / "rq6_risk_coverage.csv"],
+        produces=[RESULTS / "rq6_calibration.csv", RESULTS / "rq6_risk_coverage.csv",
+                  RESULTS / "rq6_reliability.csv"],
         requires=[DATA / "cache" / "dinov2.npz"],
         note="calibration and risk-coverage (reports as blocked - see the log)",
         minutes=2,
@@ -336,7 +337,8 @@ STAGES: list[Stage] = [
         produces=[
             RESULTS / "figs" / f"{n}.png"
             for n in ("label_efficiency", "ranking_inversion", "cross_venue_recall",
-                      "risk_coverage_band", "baseline_floor", "accuracy_vs_latency")
+                      "risk_coverage_band", "baseline_floor", "accuracy_vs_latency",
+                      "leakage_decomposition")
         ],
         requires=[RESULTS / "label_efficiency.csv", RESULTS / "h3_cross_venue_recall.csv",
                   RESULTS / "rq6_risk_coverage.csv", RESULTS / "benchmark_v2.csv",

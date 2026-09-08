@@ -20,6 +20,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.patheffects as patheffects
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -557,6 +558,81 @@ def fig_accuracy_vs_latency() -> None:
     save(fig, "accuracy_vs_latency")
 
 
+def fig_leakage_decomposition() -> None:
+    """The thesis's first key figure: what the honest protocol costs, and how much is leakage.
+
+    The raw random-to-grouped drop is the headline, and on its own it overstates the case.
+    A model that never trains cannot leak, so OpenCLIP scored zero-shot on the *identical*
+    test sets measures what changing the test set does by itself - and it drops 0.183. Each
+    bar is therefore split: the pale segment is that composition effect, the solid segment is
+    what is left for leakage.
+
+    Drawn as one stacked bar per model rather than two bars, because the question is how a
+    single quantity divides, not how two quantities compare. The control is drawn too, as its
+    own bar, so a reader can see the subtraction rather than take it on trust.
+
+    A control and not a proof: it assumes the composition effect is additive and similar
+    across models, which the caption says.
+    """
+    df = pd.read_csv(RESULTS / "benchmark_v2.csv")
+    rows = df[df.protocol == "random_minus_grouped"]
+    if rows.empty:
+        return
+    composition = float(rows.majority_share_test.iloc[0])
+
+    models = [m for m in ("convnextv2", "vit", "dinov2") if m in set(rows.model)]
+    drops = {m: float(rows.loc[rows.model == m, "macro_f1"].iloc[0]) for m in models}
+
+    fig, ax = plt.subplots(figsize=(7.6, 4.4))
+    style(ax)
+    ax.grid(axis="y", visible=False)
+
+    ys = list(range(len(models) + 1))
+    height = 0.55
+    for i, model in enumerate(models):
+        total = drops[model]
+        attributable = total - composition
+        ax.barh(i, composition, height, color=BLUE, alpha=0.28, zorder=3,
+                edgecolor=SURFACE, linewidth=1.5)
+        ax.barh(i, attributable, height, left=composition, color=BLUE, zorder=3,
+                edgecolor=SURFACE, linewidth=1.5)
+        ax.text(total + 0.012, i, f"{total:.3f} total", color=INK_2, fontsize=9,
+                va="center")
+        ax.text(composition + attributable / 2, i, f"{attributable:.3f}", color=SURFACE,
+                fontsize=9, ha="center", va="center", fontweight="semibold")
+
+    # The control, as its own bar: the same fall measured on a model that cannot leak.
+    ax.barh(len(models), composition, height, color=INK_MUTED, alpha=0.5, zorder=3,
+            edgecolor=SURFACE, linewidth=1.5)
+    ax.text(composition + 0.012, len(models), f"{composition:.3f}  (cannot leak)",
+            color=INK_2, fontsize=9, va="center")
+
+    ax.set_yticks(ys)
+    ax.set_yticklabels([LABELS[m] for m in models] + ["OpenCLIP zero-shot\n(the control)"],
+                       fontsize=9.5)
+    ax.invert_yaxis()
+    ax.set_xlim(0, max(drops.values()) * 1.28)
+    ax.set_xlabel("macro-F1 lost moving from the leaky split to the honest one",
+                  color=INK_2, fontsize=10)
+    # Derived, not typed: a title stating a ratio is a claim, and a claim in a generated
+    # figure is exactly what let an earlier plot contradict its own source table.
+    share = np.mean([(d - composition) / d for d in drops.values()])
+    words = {2: "half", 3: "two thirds", 4: "three quarters"}
+    fraction = words.get(round(1 / (1 - share)) if share < 1 else 0, f"{share:.0%}")
+    ax.set_title(
+        f"About {fraction} of the leakage penalty is leakage; the rest is the test set",
+        color=INK, fontsize=13, fontweight="semibold", loc="left", pad=48,
+    )
+    ax.text(
+        0, 1.015,
+        "Pale: the fall a model that never trains shows on the same change of test set, so it cannot be\n"
+        "leakage. Solid: what is left, and attributable. A control rather than a proof - it assumes the\n"
+        "composition effect is additive and similar across models.",
+        transform=ax.transAxes, color=INK_2, fontsize=8.5, va="bottom", linespacing=1.5,
+    )
+    save(fig, "leakage_decomposition")
+
+
 def main() -> None:
     print("figures:")
     fig_label_efficiency()
@@ -565,6 +641,7 @@ def main() -> None:
     fig_risk_coverage_band()
     fig_baseline_floor()
     fig_accuracy_vs_latency()
+    fig_leakage_decomposition()
 
 
 if __name__ == "__main__":

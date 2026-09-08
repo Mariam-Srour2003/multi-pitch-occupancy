@@ -48,6 +48,7 @@ OUT_OF_SCOPE = {
     "logit_average_baseline.csv": "WP5-T9 on raw caches; refuted",
     "logit_average_baseline_preproc.csv": "WP5-T9 on letterboxed caches",
     "rq6_calibration.csv": "RQ6: blocked by the class mix",
+    "rq6_reliability.csv": "RQ6: the reliability bins - 905 of 907 frames land in one, so there is no diagram to draw",
     "rq6_risk_coverage.csv": "RQ6: shown as figs/risk_coverage_band rather than as a table",
     "label_efficiency.csv": "shown as a figure rather than a table",
     "end_to_end_slots.csv": "two real slots; too few to tabulate",

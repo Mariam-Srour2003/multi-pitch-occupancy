@@ -1418,6 +1418,17 @@ tagged with the question it answers. Fix that first — it is what turns a build
       validated palette, PNG + PDF.
 - [ ] **WP8-T2b Remaining figures.** Label-efficiency curve · leakage comparison bar · ablation tables ·
       reliability diagrams · XAI overlays · reconciliation matrix with real (blurred) evidence.
+  - [x] **Leakage comparison bar** → `figs/leakage_decomposition`. One stacked bar per model —
+        the question is how a single quantity divides, not how two compare — with the
+        zero-shot control drawn as its own bar so the subtraction is visible. The title's
+        "about two thirds" is **derived from the data**, not typed.
+  - [x] ★ **Reliability diagrams: deliberately not drawn, and the reason is recorded.**
+        `rq6_reliability.csv` now persists the bins (only the worst was printed before), and
+        they show 907 of 907 frames in a single bin for two models and 905 of 907 for the
+        third. A ten-bin plot would be one dot on the right-hand edge. The risk–coverage band
+        already reports the same fact from the other side.
+  - [ ] Remaining: ablation tables; XAI overlays (blocked on WP1-T5); reconciliation matrix
+        with blurred evidence (same block).
   - [x] ★ Risk–coverage / REVIEW-rate curve (WP4-T9). **Done** → `figs/risk_coverage_band`.
         Drawn as a band, with a second panel for the width the confidences leave.
   - [x] ★ Trivial-baseline floor chart (WP4-T10). **Done** → `figs/baseline_floor`. Four

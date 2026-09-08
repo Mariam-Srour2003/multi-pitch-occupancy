@@ -77,7 +77,7 @@ def test_the_operating_bound_drawn_is_the_worst_case(monkeypatch) -> None:
 @pytest.mark.parametrize(
     "name",
     ["label_efficiency", "ranking_inversion", "cross_venue_recall", "risk_coverage_band",
-     "baseline_floor", "accuracy_vs_latency"],
+     "baseline_floor", "accuracy_vs_latency", "leakage_decomposition"],
 )
 def test_each_figure_is_written_in_both_formats(name: str) -> None:
     """PNG for the site, PDF for the thesis. A missing PDF is only noticed at submission."""
@@ -153,3 +153,26 @@ def test_the_rq2_figure_draws_the_budget_line_beyond_every_model(monkeypatch) ->
     ax = captured["fig"].axes[0]
     slowest = pd.read_csv(ROOT / "results" / "efficiency_latency.csv").round_wall_s.max()
     assert ax.get_xlim()[1] > 60.0 > slowest, "the 60 s budget is not on the axis"
+
+
+def test_the_leakage_figure_derives_its_own_headline() -> None:
+    """A title stating a ratio is a claim, and a claim typed into a generated figure is what
+    let an earlier plot contradict its own source table."""
+    import inspect
+
+    source = inspect.getsource(mf.fig_leakage_decomposition)
+    assert "Two thirds of the leakage" not in source
+    assert "share = np.mean" in source
+
+
+def test_the_leakage_figure_shows_the_control_as_its_own_bar(monkeypatch) -> None:
+    """The subtraction has to be visible rather than taken on trust: one bar per model plus
+    one for the model that cannot leak."""
+    if not (ROOT / "results" / "benchmark_v2.csv").exists():
+        pytest.skip("benchmark not present")
+    captured = {}
+    monkeypatch.setattr(mf, "save", lambda fig, name: captured.setdefault("fig", fig))
+    mf.fig_leakage_decomposition()
+    labels = [t.get_text() for t in captured["fig"].axes[0].get_yticklabels()]
+    assert any("control" in x for x in labels), labels
+    assert len(labels) == 4

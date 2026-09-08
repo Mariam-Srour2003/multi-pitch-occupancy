@@ -71,6 +71,7 @@ def main() -> None:
     print(f"fit {len(fit_rows)} | calibrate {len(cal_rows)} | test {len(split.test)}\n")
 
     curve_records, summary = [], []
+    reliability_records: list[dict] = []
 
     for key in sorted(BACKBONES):
         try:
@@ -123,6 +124,15 @@ def main() -> None:
                 print(f"  {target:.0%} precision: automate {cov:.1%}, review {review:.1%}")
 
         bins = reliability_bins(conf_cal, ok_cal)
+        # Persisted so the reliability diagram can be drawn from a CSV rather than by
+        # recomputing the probes inside the figure script - the rule every other figure here
+        # follows, and the reason a figure cannot silently disagree with its source.
+        for b in bins:
+            reliability_records.append({
+                "model": key, "bin_lo": round(b.lo, 4), "bin_hi": round(b.hi, 4),
+                "n": b.n, "mean_confidence": round(b.mean_confidence, 4),
+                "accuracy": round(b.accuracy, 4), "gap": round(b.gap, 4),
+            })
         worst = max(bins, key=lambda b: abs(b.gap))
         print(
             f"  worst bin [{worst.lo:.1f},{worst.hi:.1f}] n={worst.n}: "
@@ -159,6 +169,10 @@ def main() -> None:
         w = csv.DictWriter(fh, fieldnames=list(summary[0]))
         w.writeheader()
         w.writerows(summary)
+    with (RESULTS / "rq6_reliability.csv").open("w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(reliability_records[0]))
+        w.writeheader()
+        w.writerows(reliability_records)
     with (RESULTS / "rq6_risk_coverage.csv").open("w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=[
             "model", "coverage", "accuracy_worst", "accuracy_best", "review_rate",
