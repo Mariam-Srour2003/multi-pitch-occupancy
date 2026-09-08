@@ -49,6 +49,8 @@ OUT_OF_SCOPE = {
     "label_efficiency.csv": "shown as a figure rather than a table",
     "end_to_end_slots.csv": "two real slots; too few to tabulate",
     "benchmark_v2_protocols.json": "diagnostics behind benchmark_v2.csv",
+    "search_resolution.csv": "WP3-T8: re-scoring that says which searched margins mean nothing",
+    "search_resolution_gate.json": "the CLAHE gate's measured contrast distribution",
     "preprocess_search_500frame_UNTRUSTWORTHY.json": "withdrawn run, kept for the record",
 }
 

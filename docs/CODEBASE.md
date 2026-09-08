@@ -237,6 +237,7 @@ library; the dependency points one way.
 | `geometry_convention_probe.py` | Does the processor's own resize-and-crop cost anything? |
 | `input_path_protocol.py` | Does the input-path finding survive a paired test and a camera swap? |
 | `preprocess_search.py` | Which preprocessing combination transfers best? |
+| `search_resolution.py` | What can that search actually resolve, and does the fold weighting change its winners? |
 | `prompt_search.py` | How well can zero-shot do with no labels at all? |
 | `h6_zero_shot_gap.py` | H6: does zero-shot lag the trained probes? (the prompt matters more than the model) |
 | `efficiency_latency.py` | Does one CPU serve 20 cameras in a 60-second cycle? |

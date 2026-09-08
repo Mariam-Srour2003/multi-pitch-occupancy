@@ -302,6 +302,14 @@ STAGES: list[Stage] = [
         minutes=740,
     ),
     Stage(
+        name="search-resolution",
+        command=[*PY, "-m", "experiments.search_resolution"],
+        produces=[RESULTS / "search_resolution.csv", RESULTS / "search_resolution_gate.json"],
+        requires=[RESULTS / "preprocess_search.json", DATA / "cache" / "search"],
+        note="WP3-T8: floor 0.0119; weighting changes 3 of 6 winners; CLAHE gate fires on 78%",
+        minutes=14,
+    ),
+    Stage(
         name="rescore-false-play",
         command=[*PY, "-m", "experiments.rescore_false_play"],
         produces=[RESULTS / "false_play_rescored.csv"],

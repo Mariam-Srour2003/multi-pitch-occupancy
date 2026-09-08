@@ -608,27 +608,45 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [x] The first control used 9 EMPTY frames and said 0.000 for both — it would have led to
         the wrong recommendation. Splitting on physical camera gives 243 and reverses it.
 - [ ] **WP3-T8 Preprocessing ablation (E-PRE).** *(search done; see the correction below)* Best model + grouped split; toggle
-  - [ ] ★ **[B] Before quoting any searched result: the search's resolution floor is ~0.02,
-        and it has been adopting switches on margins of that size** (2026-09-08 diagnostic).
-        Found by checking whether `clahe='auto'` gates on a venue proxy, as an audit
-        suspected. It does not — it fires on **99.81%** of frames, because the threshold is
-        40.0 and this footage's median RMS contrast is **20.5**. So `auto` and `on` are the
-        same transform, differing on **3 frames of 1,578** — two switch values that are one
-        switch.
-    - [ ] **Yet round 1 reports them 0.021 (ConvNeXtV2) and 0.018 (DINOv2) apart.** Not probe
-          noise — the fits are seeded — but the fold structure: the headline is an
-          *unweighted* mean over seven folds of 12 to 168 frames, so one frame in
-          `f_outdoor_bldg` (n=12) is worth **0.0119** of it, and three frames in small folds
-          reach 0.036.
-    - [ ] ★ **Two fixes, neither of which is "re-run the search".** (a) Weight the fold mean
-          by fold size for *configuration ranking*, or report both — H3's unweighted mean is
-          deliberate because it bootstraps over **venues**, but ranking configurations is a
-          different question and does not want that leverage. (b) Quote the resolution floor
-          beside searched results: a configuration beating the baseline by under ~0.02 has
-          not been shown to beat it.
-    - [ ] `clahe_contrast_below = 40.0` joins the hand-picked constants never calibrated
+  - [x] ★ **[B] Before quoting any searched result: the search's resolution floor is
+        0.0119, and it has adopted switches on margins below it** — measured 2026-09-08 by
+        `experiments/search_resolution.py` → `results/search_resolution.csv`, 11 tests, stage
+        `search-resolution`. **Neither fix was "re-run the search":** all 88 evaluations still
+        have their caches, so this is re-scoring. Both published tables reproduce first — 88
+        unweighted recalls and all 52 repaired false-play rates.
+    - [x] ★ **RETRACTION: the CLAHE gate is weak, not vacuous.** The diagnostic this bullet
+          used to quote said `auto` fires on **99.81%** of frames and differs from `on` on
+          **3**. It measured contrast on the letterboxed 224×224 *output*; the gate runs in
+          the photometric stage, **before** the resize, so it tests the full-resolution
+          frame. Counted by running the switch both ways — which assumes nothing about which
+          image is measured — it fires on **78.33%** and the two differ on **342** frames.
+          The "0.19% of the input moves the metric 0.02" argument collapses with it.
+          `preprocess.py`'s docstring and the log entry both carry the correction.
+    - [x] **The floor survives, on independent evidence.** It falls straight out of the fold
+          structure: one frame in `f_outdoor_bldg` (n=12) is worth **0.0119** of an
+          unweighted mean over seven folds. And the bootstrap interval over folds is
+          **0.092** wide at the median configuration — the more honest floor, and wider than
+          almost everything that separates these configurations.
+    - [x] ★ **(a) Weighting changes what the search adopted, in 3 of 6 rounds.** Re-ranked on
+          pooled recall over held-out play frames: ConvNeXtV2 rounds 2 and 3 and DINOv2
+          round 3 all pick a different configuration. Two rounds were decided on margins
+          **below the floor** (0.0094 and 0.0110). The greedy search compounds it — a round-2
+          choice conditions every round after it.
+    - [x] ★ **(b) The floor is now quotable beside searched results**, and the CSV carries
+          `unweighted`, `weighted`, `ci_low`, `ci_high` and a recomputed `false_play` per
+          evaluation, so no configuration can be quoted without its width.
+    - [ ] ★ **What follows: treat the search's output as candidates, not a ranking.** A
+          configuration is adopted on evidence only when its margin clears the floor *and*
+          its false-play control agrees. Re-read WP3-T2's adopted switches against this
+          before any of them reaches the thesis as a finding.
+    - [x] `clahe_contrast_below = 40.0` joins the hand-picked constants never calibrated
           against this footage, alongside the two confidence thresholds that default to 0.0
           (WP6-T5). Set it from the measured distribution as part of this ablation.
+          **Measured:** the distribution the gate tests runs 18.9–56.8, median **30.9**, p90
+          **43.2** — so 40.0 sits above the 90th percentile and applies CLAHE almost
+          everywhere while claiming to be selective. Calibrated candidates: median 30.9
+          ("the darker half") or p10 20.4 ("the worst tenth"). Which one is the ablation's
+          decision; 40.0 is not among them.
       {ROI, letterbox-vs-thumbnail, CLAHE, augmentation, balancing} one at a time; deltas with CIs
       → `results/ablation_preprocessing.csv`. *Accept:* table + one-paragraph finding per switch.
   - [x] ★ **Regenerated 2026-09-07, once the run finished.** The search completed at 88

@@ -1966,6 +1966,13 @@ hypothesis is worth one line to save the next person testing it.)
 Two of the search's switch values are one switch, and every evaluation spent separating them
 was spent on nothing.
 
+> **RETRACTED 2026-09-08** - everything in this section that rests on the gate being
+> vacuous is wrong. Contrast was measured on the letterboxed 224x224 *output*; the gate runs
+> before the resize and tests the full-resolution frame. Counted rather than derived, it
+> fires on **78.33%** of frames and `auto` differs from `on` on **342**. The resolution-floor
+> conclusion survives on independent evidence - see the WP3-T8 entry below - but the
+> "0.19% of the input moves the metric 0.02" argument does not.
+
 ### And the search still reports them 0.02 apart
 
 Round 1 is the clean comparison - its base configuration is the default, exactly what was
@@ -2012,7 +2019,7 @@ calibrated against this footage, alongside the two confidence thresholds that de
 Setting it from the measured distribution (median 20.5) would make `auto` mean something; the
 right value is a decision, not a number to guess, and it belongs with the WP3 ablation.
 
-- 2026-09-08 | clahe auto-gate diagnostic | `python -c` over the manifest | *(no CSV - diagnostic)* | gate fires on 99.81% of frames; auto == on within 3 frames, yet the search reports them 0.02 apart
+- 2026-09-08 | clahe auto-gate diagnostic | `python -c` over the manifest | *(no CSV - diagnostic)* | **RETRACTED** - measured contrast on the resized output, not the frame the gate tests. Gate fires on 78.33%, not 99.81%; auto and on differ on 342 frames, not 3. See the WP3-T8 entry below
 
 ---
 
@@ -2453,3 +2460,93 @@ summary line is what the test checks, because the body quotes the old wording to
 it changed.
 
 - 2026-09-08 | site coverage | `python experiments/make_site.py` | `project_site.html` | export had silently omitted 11 experiments; WP4-T1 added, coverage inventory now tested
+
+- 2026-09-08 | WP3-T8 search resolution and ranking | `python -m experiments.search_resolution` | `search_resolution.csv` | floor 0.0119 per frame; weighting changes 3 adopted configuration(s); clahe gate fires on 78.33% of frames
+
+---
+
+## 2026-09-08 — WP3-T8: the search re-ranked, and a retraction
+
+`experiments/search_resolution.py` → `results/search_resolution.csv`,
+`search_resolution_gate.json`
+
+Two fixes were named for the preprocessing search, and the note attached said the important
+thing: **neither is "re-run it"**. All 88 evaluations still have their feature caches, so
+this is re-scoring — minutes against the twelve hours the search cost. Both published tables
+are reproduced first: all 88 unweighted recalls, and all 52 repaired false-play rates.
+
+### Retraction: the CLAHE gate is weak, not vacuous
+
+The 2026-09-08 diagnostic recorded above reported that `clahe='auto'` fires on **99.81%** of
+frames, so `auto` and `on` were "the same transform, differing on 3 frames of 1,578". **That
+is wrong.** It measured RMS contrast on the letterboxed 224×224 *output*, but the gate runs
+in the photometric stage — **before** the resize — so it tests the full-resolution frame,
+whose contrast distribution is a different one.
+
+Settled by counting rather than deriving: run `preprocess` with `clahe='auto'` and with
+`clahe='on'` and compare the outputs. Wherever they differ, the gate did not fire. No
+assumption about which image is measured survives that.
+
+| | claimed | measured |
+|---|---|---|
+| gate fires on | 99.81% | **78.33%** |
+| `auto` vs `on` differ on | 3 frames | **342 frames** |
+| median RMS contrast of the gate's input | 20.46 | **30.9** (range 18.9–56.8) |
+
+So `auto` is a **weak** switch, not a vacuous one, and the sub-claim it supported — that a
+0.19% difference in input moved the searched metric by 0.02 — collapses with it. A 21.67%
+difference in input moving the metric by 0.02 is unremarkable.
+
+`preprocess.py`'s docstring carried the wrong figures too and now carries the corrected
+ones plus the retraction. The calibration is counted in code from now on, and the
+experiment prints the derived rate beside the counted one so a future disagreement is
+visible instead of silent.
+
+### The resolution floor survives, on better evidence
+
+The floor was the point of the diagnostic, and it does not depend on the CLAHE argument. It
+is derivable directly from the fold structure:
+
+| fold | play frames | one frame moves the unweighted mean by |
+|---|---|---|
+| `f_outdoor_bldg` | 12 | **0.0119** |
+| four folds | 18 | 0.0079 |
+| `g_netting` | 30 | 0.0048 |
+| `a_blue_barrier` | 168 | 0.0009 |
+
+**Floor: 0.0119** — a margin below that is one frame in the smallest fold. And the bootstrap
+interval over the seven folds is **0.092** wide at the median configuration, which is the
+more honest floor: most of what separates these configurations is inside it.
+
+### Frame-weighting changes what the search adopted
+
+The unweighted mean is right for H3, which bootstraps over *venues*. Ranking configurations
+is a different question and does not want a 12-frame fold carrying fourteen times the
+per-frame leverage of a 168-frame one. Re-ranked on pooled recall over held-out play frames:
+
+| model | round | winner changes? | winning margin |
+|---|---|---|---|
+| convnextv2 | 1 | same | 0.0145 |
+| convnextv2 | 2 | **different** | 0.0231 |
+| convnextv2 | 3 | **different** | 0.0094 *(below the floor)* |
+| dinov2 | 1 | same | 0.0110 *(below the floor)* |
+| dinov2 | 2 | same | 0.0371 |
+| dinov2 | 3 | **different** | 0.0141 |
+
+**Three of six rounds adopt a different configuration**, and two rounds were decided on
+margins smaller than one frame in the smallest fold. The greedy search compounds this: a
+round-2 choice conditions everything after it.
+
+Nothing here says the search was run wrongly. It says its output is a set of candidates, not
+a ranking — and that a configuration is adopted on evidence only when its margin clears the
+floor and its false-play control agrees.
+
+### The gate threshold, for the ablation
+
+`clahe_contrast_below = 40.0` sits above the 90th percentile (43.2) of the distribution it
+tests, so it applies CLAHE almost everywhere while claiming to be selective. Calibrated
+candidates from the footage: the median **30.9** makes `auto` mean "the darker half", the
+10th percentile **20.4** makes it "the worst tenth". Which one is a decision for the
+ablation; 40.0 is not among them.
+
+- 2026-09-08 | WP3-T8 search resolution and ranking | `python -m experiments.search_resolution` | `search_resolution.csv` | floor 0.0119 per frame; weighting changes 3 of 6 adopted configurations; CLAHE gate fires on 78.33% (retracting 99.81%)
