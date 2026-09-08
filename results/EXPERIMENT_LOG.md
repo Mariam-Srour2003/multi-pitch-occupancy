@@ -3069,3 +3069,72 @@ but nothing reacts to a full disk and nothing runs retention on a schedule. Both
 WP7-T2's service units, and the row says so rather than implying the problem is solved.
 
 - 2026-09-09 | WP6-T8 retention worker | `pitch retention` | `src/pitch_occupancy/retention.py` | the ethics doc claimed code enforced retention and none existed; the corpus is protected by explicit refusal, tested by trying to delete from it
+
+- 2026-09-08 | WP6-T10 reconciliation value | `python -m experiments.reconciliation_value` | `reconciliation_value.csv` | break-even flag precision 95.0% on stated assumptions; precision itself is unmeasurable here (WP6-T11)
+
+- 2026-09-08 | WP6-T10 reconciliation value | `python -m experiments.reconciliation_value` | `reconciliation_value.csv` | break-even flag precision 94.7% on stated assumptions; precision itself is unmeasurable here (WP6-T11)
+
+---
+
+## 2026-09-09 — WP6-T10: what reconciliation is worth, and how good it has to be
+
+`experiments/reconciliation_value.py` → `results/reconciliation_value.csv`
+
+The task asks for *"expected € recovered per 1,000 slots at the chosen operating point, with
+the assumptions stated"*. Two of the three inputs that figure needs are assumptions, and the
+third cannot be measured on this corpus at all — so a single euro figure would be a number
+invented out of a parameter nobody has measured. **The honest form of the answer is a
+break-even.**
+
+| | status |
+|---|---|
+| **what the system flags** | **known** — `reconcile.py` is deterministic given (booking, record, verdict), so the flag rate follows from the rule table; only the assumed case mix enters |
+| **prices and costs** | **assumed** — every one is a parameter with a default and a sensitivity sweep |
+| **flag precision** | **unknown, and unknowable here** — WP6-T11: it needs adjudicated slots, and this corpus has two |
+
+### The result
+
+On the stated defaults (€40 slot, 10 staff-minutes to investigate, €120 for a wrong
+accusation, 5% unbooked usage), the system produces **200 flags per 1,000 slots** — of which
+only the 50 `UNBOOKED_USAGE` ones recover money.
+
+**Break-even precision: 94.7%.** Below that, flagging costs more than it recovers.
+
+That is a high bar, and it is the finding. The arithmetic is not subtle: 200 investigations
+cost €600 whether or not they are right, and every wrong flag costs €120 more, against at most
+€2,000 of recoverable revenue. **The viability of the reconciliation feature hinges almost
+entirely on how often a flag is right**, and that is exactly the quantity WP6-T11 says cannot
+be estimated without adjudicated slots.
+
+It also gives the human-in-the-loop design a number rather than a principle: at a break-even
+of 95%, no automated action could ever be justified on this cost structure.
+
+### Sensitivity
+
+| assumption | half | default | double |
+|---|---|---|---|
+| slot price | 98.5% | **94.7%** | 87.9% |
+| minutes to investigate | 93.5% | **94.7%** | 97.0% |
+| cost of a wrong accusation | 90.0% | **94.7%** | 97.2% |
+
+And below roughly a €20 slot price there is no bar to clear at all: the feature cannot pay at
+*any* precision, because the investigations cost more than the recoverable revenue is worth
+even when every flag is right. The sign of the result depends on a number the facility
+supplies, which is the clearest argument for reporting a break-even rather than a euro figure.
+
+### A modelling error worth recording
+
+The first version multiplied by precision **twice** — once to count the true flags, and again
+against the total recoverable — which halved the recovery at p=0.5 and moved the break-even by
+several points. Caught by writing the test that says doubling precision must double recovery.
+Recovery is now per anomaly *type*, since an unbooked slot is revenue never invoiced while a
+no-show is a correction to a record, and flattening them credited the system with money it did
+not find.
+
+**This is an evaluation, not an action.** Attaching money to the confusion matrix sizes the
+feature; the system takes no financial action of any kind and cannot be made to
+(`slots/authority.py`, WP6-T12). The two are easy to conflate and are opposites.
+
+- 2026-09-09 | WP6-T10 reconciliation value | `python -m experiments.reconciliation_value` | `reconciliation_value.csv` | break-even flag precision 94.7% on stated assumptions; below a EUR20 slot price the feature never pays at any precision
+
+- 2026-09-08 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 26 claims verified against their artefacts, 0 recorded as unsupported

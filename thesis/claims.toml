@@ -282,3 +282,25 @@ where = ["thesis/defence_redteam.md"]
 source = "results/h6_zero_shot_gap.csv"
 select = { split = "SELECTION_BIAS" }
 column = "delta_macro_f1"
+
+# --- WP6-T10 ----------------------------------------------------------------------------
+
+[[claim]]
+id = "reconciliation-break-even"
+statement = "On the stated cost assumptions a flag must be right 94.7% of the time before reconciliation pays for itself."
+value = 0.947
+tolerance = 0.002
+where = []
+source = "results/reconciliation_value.csv"
+select = { kind = "break_even" }
+column = "precision"
+note = "A break-even under assumptions, not a measurement. Flag precision itself is unmeasurable on this corpus (WP6-T11), which is why the answer takes this form."
+
+[[claim]]
+id = "reconciliation-flag-rate"
+statement = "The rule table produces 200 flags per 1,000 slots on the assumed booking-case mix."
+value = 200.0
+where = []
+source = "results/reconciliation_value.csv"
+select = { kind = "break_even" }
+column = "flags_per_1000"

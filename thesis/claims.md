@@ -11,7 +11,7 @@ any draft goes out:
 uv run python -m experiments.verify_claims --check
 ```
 
-**24 claims are checked against an artefact. 0 are not, and say why.**
+**26 claims are checked against an artefact. 0 are not, and say why.**
 
 ## Checked
 
@@ -41,6 +41,8 @@ uv run python -m experiments.verify_claims --check
 | On the grouped split a rule that reads only the clock scores 0.4907, within 0.0068 of ConvNeXtV2's 0.4975. | `0.4907` | `results/h1_h2_baseline_floor.csv` | `thesis/rq_matrix.md`, `thesis/preregistration.md`, `thesis/defence_redteam.md` | ✔ |
 | Under the leaky random split the colour histogram scores 0.9616 - below ConvNeXtV2's 0.9879, reversing the pre-A8 figures. | `0.9616` | `results/h1_h2_baseline_floor.csv` | `thesis/rq_matrix.md`, `thesis/defence_redteam.md` | ✔ |
 | The prompt search's winner leads a pre-declared prompt set by 0.4474 balanced score on the folds it was selected from - A6's 'optimistically biased' as a number. | `0.4474` | `results/h6_zero_shot_gap.csv` | `thesis/defence_redteam.md` | ✔ |
+| On the stated cost assumptions a flag must be right 94.7% of the time before reconciliation pays for itself. | `0.947` | `results/reconciliation_value.csv` | — | ✔ |
+| The rule table produces 200 flags per 1,000 slots on the assumed booking-case mix. | `200.0` | `results/reconciliation_value.csv` | — | ✔ |
 
 ## Notes on individual claims
 
@@ -54,3 +56,4 @@ uv run python -m experiments.verify_claims --check
 - **prompt-space-span** — The extremes were absent from the CSV until the ledger flagged this claim unsupported; `h6_zero_shot_gap.py` now stores worst, best and their span. The documents state the two endpoints rather than the span - they are exact where the difference rounds ambiguously - so those are the checked claims and this one records the derived quantity.
 - **leaky-errors-had-a-near-duplicate** — Reported as a share (100%) in the write-up; the count is what the artefact carries. The complement - zero on the grouped split - is asserted by tests/test_error_taxonomy.py, which checks the rows directly rather than a summary figure.
 - **floor-histogram-random** — A12: this claim previously read 0.686 against ConvNeXtV2's 0.657 and concluded the histogram won. Both numbers were superseded by A8's estimand fix.
+- **reconciliation-break-even** — A break-even under assumptions, not a measurement. Flag precision itself is unmeasurable on this corpus (WP6-T11), which is why the answer takes this form.

@@ -358,6 +358,14 @@ STAGES: list[Stage] = [
         minutes=12,
     ),
     Stage(
+        name="reconciliation-value",
+        command=[*PY, "-m", "experiments.reconciliation_value"],
+        produces=[RESULTS / "reconciliation_value.csv"],
+        requires=[],
+        note="WP6-T10: break-even flag precision ~95%; a EUR10 slot never pays at any precision",
+        minutes=1,
+    ),
+    Stage(
         name="claims-ledger",
         command=[*PY, "-m", "experiments.verify_claims"],
         produces=[ROOT / "thesis" / "claims.md"],

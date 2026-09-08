@@ -1,0 +1,17 @@
+kind,precision,flags_per_1000,recovered_eur,investigation_eur,false_accusation_eur,net_eur
+sweep,0.1,200.0,200.0,600.0,21600.0,-22000.0
+sweep,0.25,200.0,500.0,600.0,18000.0,-18100.0
+sweep,0.5,200.0,1000.0,600.0,12000.0,-11600.0
+sweep,0.75,200.0,1500.0,600.0,6000.0,-5100.0
+sweep,0.9,200.0,1800.0,600.0,2400.0,-1200.0
+sweep,1.0,200.0,2000.0,600.0,0.0,1400.0
+break_even,0.9465,200.0,,,,
+sensitivity,0.9845,,,slot_price_eurx0.5,,
+sensitivity,0.9465,,,slot_price_eurx1.0,,
+sensitivity,0.879,,,slot_price_eurx2.0,,
+sensitivity,0.935,,,investigate_minutesx0.5,,
+sensitivity,0.9465,,,investigate_minutesx1.0,,
+sensitivity,0.9695,,,investigate_minutesx2.0,,
+sensitivity,0.9,,,false_accusation_eurx0.5,,
+sensitivity,0.9465,,,false_accusation_eurx1.0,,
+sensitivity,0.9725,,,false_accusation_eurx2.0,,

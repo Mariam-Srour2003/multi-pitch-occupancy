@@ -1246,7 +1246,27 @@ tagged with the question it answers. Fix that first — it is what turns a build
       `UNBOOKED_USAGE`, `BLOCKED_SLOT_SOLD`; REVIEW routes to an inspector, never a hard anomaly.
       Low-confidence / low-contrast slots → REVIEW, so the audit never over-accuses on poor footage.
       *Accept:* synthetic fixtures produce exactly the expected anomaly types. **(RQ4)**
-- [ ] **WP6-T10 ★ Cost-sensitive evaluation of reconciliation.** Attach money to the confusion
+- [x] **WP6-T10 ★ Cost-sensitive evaluation — done, as a break-even rather than a figure.**
+      `experiments/reconciliation_value.py` → `results/reconciliation_value.csv`, 13 tests,
+      stage `reconciliation-value`.
+  - [x] ★ **A single € figure would be invented.** Of the three inputs it needs, the flag
+        *rate* is known (the rule table is deterministic), prices are **assumed** (parameters
+        with a sensitivity sweep), and flag **precision** is unknowable here — WP6-T11, it
+        needs adjudicated slots and there are two. So the reported answer is the question a
+        facility actually has to answer: *how often must a flag be right before this pays?*
+  - [x] ★ **Break-even precision: 94.7%** on the stated defaults. 200 flags per 1,000 slots,
+        of which only 50 recover money; €600 of investigations regardless, €120 per wrong
+        flag, against at most €2,000 recoverable. **The feature's viability hinges almost
+        entirely on precision** — the one quantity this corpus cannot supply.
+  - [x] It gives the human-in-the-loop design a number rather than a principle: at a 95%
+        break-even no automated action could be justified on this cost structure.
+  - [x] **Below roughly a €20 slot price there is no bar at all** — the feature cannot pay at
+        any precision. The sign of the result depends on a number the facility supplies,
+        which is the clearest argument for a break-even over a euro figure.
+  - [x] A modelling error caught by its own test: the first version multiplied by precision
+        twice, halving recovery at p=0.5. Recovery is per anomaly *type* now — an unbooked
+        slot is revenue never invoiced, a no-show is a correction to a record.
+- [ ] ~~WP6-T10 original~~ Attach money to the confusion
       matrix: what does a missed `UNBOOKED_USAGE` cost in unbilled revenue? What does a false
       accusation cost in staff trust and dispute handling? Report **expected € recovered per 1,000
       slots** at your chosen operating point, with the assumptions stated. This turns Chapter 7 from

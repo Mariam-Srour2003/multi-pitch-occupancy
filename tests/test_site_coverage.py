@@ -51,6 +51,7 @@ OUT_OF_SCOPE = {
     "rq6_risk_coverage.csv": "RQ6: shown as figs/risk_coverage_band rather than as a table",
     "label_efficiency.csv": "shown as a figure rather than a table",
     "end_to_end_slots.csv": "two real slots; too few to tabulate",
+    "reconciliation_value.csv": "WP6-T10: a break-even under stated assumptions, not a measurement",
     "benchmark_v2_protocols.json": "diagnostics behind benchmark_v2.csv",
     "search_resolution.csv": "WP3-T8: re-scoring that says which searched margins mean nothing",
     "search_resolution_gate.json": "the CLAHE gate's measured contrast distribution",
