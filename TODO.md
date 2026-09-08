@@ -1184,6 +1184,22 @@ tagged with the question it answers. Fix that first — it is what turns a build
       final consistency pass an afternoon instead of a week.
 
 ### 8.B Figures
+- [x] ★ **The standalone site had stopped covering the thesis, silently** (2026-09-08).
+      `make_site.py` reads a fixed list of eight result files while its docstring claimed
+      "the whole thesis"; the eleven experiments added since it was written were omitted with
+      no signal — regenerating produced a byte-identical page. Found because H6's 79 log lines
+      changed nothing. The **served** front end was never affected: `api/thesis_site.py`
+      renders `EXPERIMENT_LOG.md` directly.
+  - [x] WP4-T1 added to the page, where it overtakes the existing headline ("the protocol
+        reverses the ranking" — on one protocol there is no ranking to reverse). Both new
+        tables read from `benchmark_v2.csv`, including the figure quoted in the prose.
+  - [x] `tests/test_site_coverage.py` makes omission a **decision**: every committed result
+        file is either rendered or named in `OUT_OF_SCOPE` with a reason. 21 are out of scope.
+        A companion test asserts the sections reach the **generated HTML**, not just the
+        builder — the distinction the search-viewer safeguard failed on.
+  - [ ] ★ Decide what else belongs on the export before the defence. The list is now
+        explicit, so this is a review rather than an archaeology exercise; `rq6_risk_coverage`
+        in particular needs its band drawn as a band (WP4-T9) before it can go on.
 - [x] **WP8-T2 Figure set — three done.** `results/figs/`: label-efficiency curve,
       ranking-inversion slope chart, cross-venue per-fold recall. Regenerated from the CSVs,
       validated palette, PNG + PDF.

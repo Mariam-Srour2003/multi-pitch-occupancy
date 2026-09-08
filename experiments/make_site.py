@@ -1,12 +1,23 @@
-"""Generate the project site - one browsable page covering the whole thesis (WP8).
+"""Generate the standalone project site - a self-contained export of the headline results (WP8).
 
-Every number is read from `results/`, never typed in, so the page cannot drift from the
-data. Figures are embedded as data URIs so the page is a single self-contained file that
+Every number on the page is read from `results/`, never typed in, so nothing here can drift
+from the data it reports. Figures are embedded as data URIs, so the page is one file that
 works offline and can be published as an Artifact.
+
+**It is an export of selected results, not of all of them, and that distinction was worth
+one bug to learn.** The docstring used to say "covering the whole thesis". It reads a fixed
+list of result files, so every experiment added after it was written was omitted in silence
+- the page regenerated happily and said nothing about what was missing. The served front end
+(`api/thesis_site.py`) is the complete one: it renders `EXPERIMENT_LOG.md` and the thesis
+documents directly, so a new finding appears there the moment it is logged.
+
+`tests/test_site_coverage.py` now holds the inventory: every committed result file is either
+rendered here or listed as deliberately out of scope, so adding one forces the choice
+instead of defaulting to omission.
 
     uv run python experiments/make_site.py
 
-Regenerate after any experiment and republish; the content follows the results.
+Regenerate after any experiment it covers, and republish.
 """
 
 from __future__ import annotations
@@ -56,6 +67,31 @@ def collect() -> dict:
     prompts = read_csv("prompt_search.csv")
     search = read_json("preprocess_search.json")
     best_prompt = read_json("prompt_search_best.json")
+    bench = read_csv("benchmark_v2.csv")
+
+    # WP4-T1's floor rows, which say what each protocol can and cannot distinguish. The
+    # page led on "the protocol reverses the ranking" and that understates it: on one
+    # protocol a constant predictor wins outright, so there is no ranking to reverse.
+    floor = []
+    for r in bench:
+        if r.get("replicate") != "SUMMARY" or not r.get("model", "").startswith("floor:"):
+            continue
+        trivial, backbone = r["model"][len("floor:"):].split("_vs_")
+        floor.append({
+            "protocol": r["protocol"].replace("_", " "),
+            "trivial": trivial, "backbone": backbone,
+            "gap": f(r["macro_f1"], 3),
+            "beaten": bool(r.get("warnings")),
+        })
+
+    composition = [
+        {"model": r["model"], "raw": f(r["macro_f1"], 3),
+         "composition": f(r["majority_share_test"], 3),
+         "attributable": f(float(r["macro_f1"]) - float(r["majority_share_test"]), 3)}
+        for r in bench
+        if r.get("protocol") == "random_minus_grouped" and r.get("model") in
+        ("convnextv2", "dinov2", "vit")
+    ]
 
     def by(rows, key, val):
         return [r for r in rows if r.get(key) == val]
@@ -114,6 +150,8 @@ def collect() -> dict:
 
     return {
         "models": models + [clock],
+        "floor": floor,
+        "composition": composition,
         "ablation": ablation,
         "per_fold": per_fold,
         "fold_models": ["dinov2", "convnextv2", "vit", "clock_rule"],
@@ -157,6 +195,18 @@ def build(d: dict) -> str:
         f'<td class="num">{m["ms"]}</td>',
         f'<td class="num">{m["conc"]}</td>',
     ])
+    floor_rows = rows(d["floor"], lambda x: [
+        f'<td class="name">{x["protocol"]}</td>',
+        f'<td class="sw">{x["trivial"]}</td>',
+        f'<td class="sw">{x["backbone"]}</td>',
+        f'<td class="num {"bad" if x["beaten"] else ""}">{x["gap"]}</td>',
+    ])
+    comp_rows = rows(d["composition"], lambda x: [
+        f'<td class="name">{x["model"]}</td>',
+        f'<td class="num">{x["raw"]}</td>',
+        f'<td class="num">{x["composition"]}</td>',
+        f'<td class="num strong">{x["attributable"]}</td>',
+    ])
     fold_rows = rows(d["per_fold"], lambda r: [f'<td class="sw">{r["venue"]}</td>'] + [
         f'<td class="num">{r.get(m, "—")}</td>' for m in d["fold_models"]
     ])
@@ -191,6 +241,8 @@ def build(d: dict) -> str:
 
     return TEMPLATE.format(
         model_rows=model_rows, fold_rows=fold_rows, sens_rows=sens_rows,
+        floor_rows=floor_rows, comp_rows=comp_rows,
+        composition_drop=(d["composition"][0]["composition"] if d["composition"] else "—"),
         abl_rows=abl_rows, prompt_rows=prompt_rows, search_rows=search_rows,
         search_n=d["search_n"], best_prompt=best_prompt_text,
         best_prompt_recall=best_prompt_recall,
@@ -370,6 +422,36 @@ li {{ margin-bottom:7px; }}
   <figure><img src="{fig_rank}" alt="Model rank under three evaluation protocols: ViT first under the leaky random split and third under cross-venue evaluation.">
   <figcaption>Ranks rather than scores, because the three metrics are not comparable. Each
   protocol&rsquo;s score is printed beside its point.</figcaption></figure>
+
+  <h2>The protocol a constant predictor wins</h2>
+  <p>Stronger than &ldquo;the ranking reverses&rdquo;, and it came from running a fourth
+  protocol beside the three above. <b>Under leave-one-venue-out a model that reads no
+  pixels and always answers &ldquo;playing&rdquo; scores a perfect macro-F1</b>, ahead of
+  every backbone &mdash; because every held-out venue is 100% active play, so the macro
+  average is taken over the one class present. There is no ranking there to reverse.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Protocol</th><th>Best trivial baseline</th><th>Best backbone</th>
+    <th class="num">Gap</th></tr></thead>
+    <tbody>{floor_rows}</tbody>
+  </table></div>
+  <p class="note">A negative gap means the trivial baseline is not beaten. Diagnostics for
+  every row &mdash; test size, class count, majority share &mdash; are in
+  <code>benchmark_v2.csv</code>; no number here is quotable without them.</p>
+
+  <h2>How much of the leakage penalty is leakage</h2>
+  <p>A model that never trains cannot leak, so OpenCLIP scored zero-shot on the identical
+  test sets measures what changing the test set does on its own. It drops
+  <b>{composition_drop}</b> from the leaky split to the honest one. Subtracting that leaves
+  the part attributable to
+  leakage &mdash; about a third of the score rather than the two thirds the raw delta
+  implies.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Model</th><th class="num">Raw drop</th>
+    <th class="num">Composition</th><th class="num">Attributable</th></tr></thead>
+    <tbody>{comp_rows}</tbody>
+  </table></div>
+  <p class="note">A control, not a proof: it assumes the composition effect is additive and
+  similar across models.</p>
 
   <h2>Every model, every protocol</h2>
   <div class="scroll"><table>

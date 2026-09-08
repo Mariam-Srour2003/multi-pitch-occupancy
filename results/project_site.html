@@ -169,6 +169,36 @@ li { margin-bottom:7px; }
   <figcaption>Ranks rather than scores, because the three metrics are not comparable. Each
   protocol&rsquo;s score is printed beside its point.</figcaption></figure>
 
+  <h2>The protocol a constant predictor wins</h2>
+  <p>Stronger than &ldquo;the ranking reverses&rdquo;, and it came from running a fourth
+  protocol beside the three above. <b>Under leave-one-venue-out a model that reads no
+  pixels and always answers &ldquo;playing&rdquo; scores a perfect macro-F1</b>, ahead of
+  every backbone &mdash; because every held-out venue is 100% active play, so the macro
+  average is taken over the one class present. There is no ranking there to reverse.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Protocol</th><th>Best trivial baseline</th><th>Best backbone</th>
+    <th class="num">Gap</th></tr></thead>
+    <tbody><tr><td class="name">random</td><td class="sw">cheap_histogram</td><td class="sw">vit</td><td class="num ">0.023</td></tr><tr><td class="name">grouped slot</td><td class="sw">clock_rule</td><td class="sw">dinov2</td><td class="num ">0.071</td></tr><tr><td class="name">lo venue out</td><td class="sw">majority</td><td class="sw">dinov2</td><td class="num bad">-0.041</td></tr><tr><td class="name">temporal</td><td class="sw">cheap_intensity</td><td class="sw">dinov2</td><td class="num ">0.182</td></tr></tbody>
+  </table></div>
+  <p class="note">A negative gap means the trivial baseline is not beaten. Diagnostics for
+  every row &mdash; test size, class count, majority share &mdash; are in
+  <code>benchmark_v2.csv</code>; no number here is quotable without them.</p>
+
+  <h2>How much of the leakage penalty is leakage</h2>
+  <p>A model that never trains cannot leak, so OpenCLIP scored zero-shot on the identical
+  test sets measures what changing the test set does on its own. It drops
+  <b>0.183</b> from the leaky split to the honest one. Subtracting that leaves
+  the part attributable to
+  leakage &mdash; about a third of the score rather than the two thirds the raw delta
+  implies.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Model</th><th class="num">Raw drop</th>
+    <th class="num">Composition</th><th class="num">Attributable</th></tr></thead>
+    <tbody><tr><td class="name">convnextv2</td><td class="num">0.578</td><td class="num">0.183</td><td class="num strong">0.395</td></tr><tr><td class="name">dinov2</td><td class="num">0.516</td><td class="num">0.183</td><td class="num strong">0.332</td></tr><tr><td class="name">vit</td><td class="num">0.536</td><td class="num">0.183</td><td class="num strong">0.352</td></tr></tbody>
+  </table></div>
+  <p class="note">A control, not a proof: it assumes the composition effect is additive and
+  similar across models.</p>
+
   <h2>Every model, every protocol</h2>
   <div class="scroll"><table>
     <thead><tr><th>Model</th><th class="num">Random split<br>macro-F1</th>

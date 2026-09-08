@@ -2412,3 +2412,44 @@ was selected from:
 "optimistically biased"; that is the number. It is not an unbiased estimate of the bias — no
 held-out prompt data exists — but it bounds what the search's headline can be worth as a
 model claim, and it is why H6 does not use it.
+
+---
+
+## 2026-09-08 — the standalone site had stopped covering the thesis, silently
+
+`experiments/make_site.py` → `results/project_site.html`
+
+Noticed while committing H6: the log grew by 79 lines, the site regenerated, and the output
+was **byte-identical**. `make_site.py` reads a fixed list of eight result files, so the
+eleven experiments added since it was written — the false-play control, H4, the geometry
+probe, the input-path protocol, WP4-T1, H6 and the rest — were absent from a page whose
+docstring said it covered *"the whole thesis"*. Regenerating did nothing and reported
+nothing. Same shape as the branch reference that named a stale tip and the search viewer that
+served a withdrawn run: a generated artefact whose claim outran what it did.
+
+The served front end was never affected — `api/thesis_site.py` renders `EXPERIMENT_LOG.md`
+directly, so a finding appears there as soon as it is logged. It is the standalone export
+that had fallen behind.
+
+**Two changes, and deliberately not "render everything".**
+
+The page's own headline was *"the protocol reverses the ranking"*, and WP4-T1 had just
+overtaken it, so that result goes on: the four-protocol floor table showing **a constant
+predictor winning leave-one-venue-out**, and the zero-shot subtraction separating leakage
+from composition. Both read from `benchmark_v2.csv`; the composition figure quoted in the
+prose is pulled from the same rows rather than typed, since a hardcoded number in a
+generated page is the defect this project has already fixed twice.
+
+And `tests/test_site_coverage.py` makes omission a decision instead of a default: every
+committed result file must be either read by the exporter or named in an `OUT_OF_SCOPE` list
+with the reason. Twenty-one are out of scope and say why — most because their value is the
+argument rather than the row, and the served site carries the argument. Adding an experiment
+now fails the test until someone chooses. A companion test asserts the new sections are in
+the **generated HTML**, not merely producible by the builder, which is the distinction the
+search-viewer safeguard failed on.
+
+The docstring is corrected too. It now says what the page is — a curated export — and the
+summary line is what the test checks, because the body quotes the old wording to record why
+it changed.
+
+- 2026-09-08 | site coverage | `python experiments/make_site.py` | `project_site.html` | export had silently omitted 11 experiments; WP4-T1 added, coverage inventory now tested
