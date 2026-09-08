@@ -8,7 +8,7 @@ What exists, where it lives, what each file does, and how to run it.
 
 <!-- branch-report:start -->
 `main` carries the whole project — 49 source modules,
-27 experiment scripts, 35 test files. Clone it and everything is
+29 experiment scripts, 36 test files. Clone it and everything is
 there; no branch to check out first.
 
 ```bash
@@ -251,7 +251,7 @@ library; the dependency points one way.
 ```bash
 uv sync                             # creates .venv from uv.lock
 uv run pitch info                   # check paths resolve
-uv run pytest -q -m "not slow"      # 578 tests
+uv run pytest -q -m "not slow"      # 597 tests
 ```
 
 `uv sync` pulls ~2 GB on first run. If it times out, raise the timeout and reduce
