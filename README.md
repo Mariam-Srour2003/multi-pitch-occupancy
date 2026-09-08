@@ -115,6 +115,7 @@ a later measurement retracted.
 | **[results/EXPERIMENT_LOG.md](results/EXPERIMENT_LOG.md)** | **What every run found**, in order, with the reasoning and the retractions. |
 | [thesis/claims.md](thesis/claims.md) | **The claims ledger** — every quantitative claim mapped to the artefact that produced it, re-derived on every run |
 | [thesis/defence_redteam.md](thesis/defence_redteam.md) | The ten hardest questions and the evidence for each answer |
+| [thesis/ch2_related_work.md](thesis/ch2_related_work.md) | Chapter 2 scaffolding — nine strands, what each must establish, and no invented citations |
 | [thesis/alternatives.md](thesis/alternatives.md) | Why computer vision rather than a motion sensor, a turnstile or an app check-in |
 | [thesis/data_requests.md](thesis/data_requests.md) | What to ask the facility for, in priority order |
 | [docs/backup.md](docs/backup.md) | The backup policy for the one irreplaceable thing |

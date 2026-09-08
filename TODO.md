@@ -241,7 +241,18 @@ tagged with the question it answers. Fix that first — it is what turns a build
       remove "dataset" from the contributions list. Do not claim a contribution you cannot deliver.
 
 ### 1.B Literature
-- [ ] **WP1-T1 Related-work skeleton** → `thesis/ch2_related_work.md`, the 7 strands from the thesis
+- [x] **WP1-T1 Related-work skeleton — scaffolded** → `thesis/ch2_related_work.md`. **Nine**
+      strands, not seven: §2.8 prior art and §2.9 selective prediction were added because the
+      work produced results that need them. Each strand states *what it must establish* and
+      *why this project needs it*, with the project's own findings placed against it, so the
+      literature search has a target rather than a topic.
+  - [x] ★ **No references are invented, and the document says why in bold at the top.** A
+        fabricated citation is the one error in a thesis that cannot be defended at all, and
+        it is the specific failure an LLM-assisted draft is most likely to introduce. Every
+        `[CITE]` is a placeholder for a paper the author has opened.
+  - [ ] **[H] Fill the placeholders.** §2.8 first if time is short — it is the only strand
+        that can change what the thesis claims.
+- [ ] ~~WP1-T1 original~~ Related-work skeleton → `thesis/ch2_related_work.md`, the 7 strands from the thesis
       doc §2.1–2.7, 3–5 bullet claims + candidate citations each, placeholders marked `[CITE]`.
   - [ ] ★ **Strand 8 — prior art / competitors.** Search for existing commercial and academic
         sports-facility occupancy systems. The §2.7 "research gap" claim is exposed until you have

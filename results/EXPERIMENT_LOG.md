@@ -3173,3 +3173,38 @@ the "worst bin" claim, and the reason is recorded here rather than left as a gap
 list.
 
 - 2026-09-09 | WP8-T2b leakage figure | `python -m experiments.make_figures` | `figs/leakage_decomposition.png`, `rq6_reliability.csv` | the leakage penalty split into composition and attributable; a reliability diagram would be one dot, so it is not drawn and the bins are committed instead
+
+---
+
+## 2026-09-09 — WP1-T1: the related-work scaffolding, and one rule about citations
+
+`thesis/ch2_related_work.md`. Scaffolding, not a draft: each strand states *what it has to
+establish* and *why this project needs it*, with the project's own findings placed against it,
+so the literature search has a target rather than a topic.
+
+**Nine strands, not the seven the plan listed.** Two were added because the work produced
+results that need them:
+
+- **§2.8 prior art.** The gap statement is exposed until someone has actually looked for a
+  commercial or academic system that already does facility occupancy audit. If one exists the
+  gap narrows to CPU-only on existing CCTV, leakage-free evaluation, and reconciliation with a
+  human in the loop — which is still a gap, and much better stated deliberately than heard at
+  the defence. Flagged as the strand to do first if time is short, because it is the only one
+  that can change what the thesis claims.
+- **§2.9 selective prediction.** The REVIEW band *is* selective prediction with a human
+  fallback. Citing that literature upgrades it from an engineering convenience to a principled
+  design, and supplies the vocabulary for the risk–coverage work — including why the curve
+  here has to be a band.
+
+**One rule, in bold at the top of the document: no references are invented.** A fabricated or
+half-remembered citation is the single error in a thesis that cannot be defended, and it is
+the specific failure an LLM-assisted draft is most likely to introduce. Every `[CITE]` is a
+placeholder for a paper the author has opened. The same discipline as the claims ledger,
+applied to the claims that have authors attached.
+
+Where the strands are most load-bearing, the project's own numbers are placed against them so
+the chapter can *narrow* its claims rather than imply novelty by omission — §2.3 carries the
+100%-vs-0% near-duplicate result, §2.4 the constant predictor scoring 1.000, §2.6 the 905-of-907
+single reliability bin, §2.7 the 95% break-even.
+
+- 2026-09-09 | WP1-T1 related-work skeleton | *(document)* | `thesis/ch2_related_work.md` | nine strands with what each must establish; two added from this project's own results; no citations invented
