@@ -754,9 +754,21 @@ tagged with the question it answers. Fix that first — it is what turns a build
       home for the selective-prediction citations from WP1-T1. Nearly free once calibration is done.
   - [x] The machinery is done and honest: `risk_coverage_band` reports the curve as a band,
         because on a saturated probe confidence does not order the frames it is being asked
-        to order. The **figure** is still to draw, and it must be drawn as a band — a line
-        through the middle of a 0.957–1.000 interval would be the most misleading plot in
-        the thesis. Blocked on the same class mix as WP4-T5.
+        to order.
+  - [x] ★ **The figure is drawn** (2026-09-08) → `results/figs/risk_coverage_band.{png,pdf}`,
+        8 tests in `tests/test_figures.py`, declared in the `figures` stage. Two panels:
+        accuracy with the band shaded and the **worst case** as the solid edge — the same
+        bound `coverage_for_target_accuracy` reads — and beneath it the width the confidences
+        leave, because one axis cannot carry both "what is the accuracy" and "how determined
+        is that answer".
+    - [x] ★ **The figure's own finding: the two best-looking curves belong to the two models
+          that never predict EMPTY.** ConvNeXtV2 and ViT sit at 1.000 until 88% coverage
+          because they are right on all 898 active-play frames and wrong on all 9 empty ones,
+          so confidence ranks the nine last. A plot of curves alone would recommend them.
+    - [x] The test renders the figure and asserts the heavy line's y-values are the
+          worst-case column — the property, not the source text. Verified both ways.
+  - [ ] The **operating point** still needs the class mix WP4-T5 is blocked on; what the
+        figure reports now is what this test set can support, which is a band.
 
 ### 4.B Making the numbers defensible
 - [x] **WP4-T4 Statistical testing.** *(applied to the false-play finding; see below)*
@@ -1223,7 +1235,8 @@ tagged with the question it answers. Fix that first — it is what turns a build
       validated palette, PNG + PDF.
 - [ ] **WP8-T2b Remaining figures.** Label-efficiency curve · leakage comparison bar · ablation tables ·
       reliability diagrams · XAI overlays · reconciliation matrix with real (blurred) evidence.
-  - [ ] ★ Risk–coverage / REVIEW-rate curve (WP4-T9).
+  - [x] ★ Risk–coverage / REVIEW-rate curve (WP4-T9). **Done** → `figs/risk_coverage_band`.
+        Drawn as a band, with a second panel for the width the confidences leave.
   - [ ] ★ Trivial-baseline floor chart (WP4-T10).
   - [ ] ★ Accuracy-vs-latency scatter with the CPU budget drawn as a vertical line — one picture that
         answers RQ2 completely.

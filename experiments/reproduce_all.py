@@ -213,9 +213,11 @@ STAGES: list[Stage] = [
         command=[*PY, "-m", "experiments.make_figures"],
         produces=[
             RESULTS / "figs" / f"{n}.png"
-            for n in ("label_efficiency", "ranking_inversion", "cross_venue_recall")
+            for n in ("label_efficiency", "ranking_inversion", "cross_venue_recall",
+                      "risk_coverage_band")
         ],
-        requires=[RESULTS / "label_efficiency.csv", RESULTS / "h3_cross_venue_recall.csv"],
+        requires=[RESULTS / "label_efficiency.csv", RESULTS / "h3_cross_venue_recall.csv",
+                  RESULTS / "rq6_risk_coverage.csv"],
         note="thesis figures, regenerated from the CSVs",
     ),
     # --- three experiments the log quotes that this pipeline used not to reach ----------

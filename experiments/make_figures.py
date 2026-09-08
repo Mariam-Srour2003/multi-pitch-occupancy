@@ -290,11 +290,132 @@ def fig_cross_venue() -> None:
     save(fig, "cross_venue_recall")
 
 
+def fig_risk_coverage_band() -> None:
+    """Risk-coverage, drawn as a band because a line would be a claim the data cannot make.
+
+    Two things have to survive this figure, and a conventional risk-coverage line destroys
+    both. **DINOv2's calibrated confidences are 890/907 identical**, so "the most confident
+    k" is undefined over most of the range and its accuracy there is an interval - a line
+    through the middle of it would be the most misleading plot in the thesis. And
+    **ConvNeXtV2 and ViT trace a near-perfect curve while never predicting EMPTY at all**:
+    right on all 898 active-play frames, wrong on all 9 empty ones, so confidence ranks the
+    nine last and the curve looks ideal. The two best-looking lines belong to the two models
+    that cannot do the job.
+
+    Two panels, because one axis cannot carry both. The upper panel is the operational
+    region, where a manager reads an operating point. The lower panel is how *undetermined*
+    that reading is - the width the confidences leave - and it is the reason the upper panel
+    must be shaded rather than drawn.
+    """
+    df = pd.read_csv(RESULTS / "rq6_risk_coverage.csv")
+    fig, (ax, ax2) = plt.subplots(
+        2, 1, figsize=(7.6, 6.0), sharex=True,
+        gridspec_kw={"height_ratios": [2.4, 1], "hspace": 0.16},
+    )
+    for a in (ax, ax2):
+        style(a)
+
+    #: Where each model's name sits. Every series ends at almost the same value, so labels
+    #: are spread along the curves instead of stacked at the right edge - and each is placed
+    #: *on* its own line rather than a fixed distance below it, because below DINOv2's line
+    #: is the band, and a name floating inside the band reads as a curve that is not there.
+    label_at = {"dinov2": 0.62, "convnextv2": 0.22, "vit": 0.58}
+    floor = 0.95
+
+    for model in ("dinov2", "convnextv2", "vit"):
+        sub = df[df.model == model].sort_values("coverage")
+        if sub.empty:
+            continue
+        c = COLOURS[model]
+        tied = int(sub.n_tied.iloc[0])
+
+        if tied:
+            ax.fill_between(sub.coverage, sub.accuracy_worst, sub.accuracy_best,
+                            color=c, alpha=0.22, linewidth=0, zorder=2)
+            ax.plot(sub.coverage, sub.accuracy_best, color=c, linewidth=1.1,
+                    linestyle=(0, (3, 2)), alpha=0.8, zorder=3)
+        ax.plot(sub.coverage, sub.accuracy_worst, color=c, linewidth=2.2, zorder=4)
+        ax2.plot(sub.coverage, sub.accuracy_best - sub.accuracy_worst,
+                 color=c, linewidth=2.2, zorder=4)
+
+        row = sub.iloc[(sub.coverage - label_at[model]).abs().argmin()]
+        y = float(row.accuracy_worst)
+        # On the line for the identified curves; below it for the banded one, where the
+        # space above belongs to the band.
+        offset, va = (-0.006, "top") if tied else (0.0, "center")
+        ax.text(
+            float(row.coverage), y + offset, LABELS[model],
+            color=c, fontsize=9.5, fontweight="semibold", ha="center", va=va,
+            path_effects=[patheffects.withStroke(linewidth=3.5, foreground=SURFACE)],
+            zorder=6,
+        )
+
+    ax.axhline(0.99, color=INK_MUTED, linewidth=1.3, linestyle=(0, (4, 3)), zorder=1)
+    ax.text(0.006, 0.9905, "99% precision target", color=INK_2, fontsize=8.5,
+            va="bottom", ha="left",
+            path_effects=[patheffects.withStroke(linewidth=3, foreground=SURFACE)])
+
+    dv = df[df.model == "dinov2"].sort_values("coverage")
+    tied = int(dv.n_tied.iloc[0]) if not dv.empty else 0
+    if tied:
+        at = dv.iloc[(dv.coverage - 0.45).abs().argmin()]
+        ax.annotate(
+            f"{tied} of {len(dv) and 907} confidences are identical, so\n"
+            f"anywhere in {at.accuracy_worst:.3f}-{at.accuracy_best:.3f} is consistent with them",
+            xy=(float(at.coverage), float((at.accuracy_worst + at.accuracy_best) / 2)),
+            xytext=(0.44, 0.9605), color=INK_2, fontsize=8.5, linespacing=1.5,
+            arrowprops=dict(arrowstyle="-", color=INK_MUTED, linewidth=1),
+        )
+
+    below = dv[dv.accuracy_worst < floor]
+    if not below.empty:
+        edge = float(below.coverage.max())
+        ax.annotate(
+            f"below {edge:.0%} coverage the band\nreaches {below.accuracy_worst.min():.2f}, "
+            f"off this panel",
+            xy=(edge, floor + 0.002), xytext=(0.03, 0.9515),
+            color=INK_2, fontsize=8, linespacing=1.4, va="bottom",
+            path_effects=[patheffects.withStroke(linewidth=3, foreground=SURFACE)],
+        )
+
+    # The two identified curves coincide until they separate near full coverage; without
+    # saying so, one of them looks missing.
+    ax.text(
+        0.22, 0.9965, "(ConvNeXtV2 and ViT coincide until 88% coverage)",
+        color=INK_MUTED, fontsize=8, ha="center", va="top",
+        path_effects=[patheffects.withStroke(linewidth=3, foreground=SURFACE)],
+    )
+
+    ax.set_xlim(0, 1.0)
+    ax.set_ylim(floor, 1.005)
+    ax.set_ylabel("Accuracy on the answered slots", color=INK_2, fontsize=10)
+    ax2.set_ylim(-0.02, 1.02)
+    ax2.set_xlabel("Coverage - share of slots answered automatically "
+                   "(review rate is the complement)", color=INK_2, fontsize=10)
+    ax2.set_ylabel("Width the\nconfidences leave", color=INK_2, fontsize=9.5)
+    ax2.text(0.995, 0.9, "zero width = the curve is a curve", color=INK_2,
+             fontsize=8.5, ha="right", va="top")
+
+    ax.set_title(
+        "The curve a manager buys cannot be drawn as a curve",
+        color=INK, fontsize=13, fontweight="semibold", loc="left", pad=52,
+    )
+    ax.text(
+        0, 1.015,
+        "Shaded: every accuracy the model's confidences permit at that coverage. The solid edge is the worst\n"
+        "case, the only bound an operator can be held to. ConvNeXtV2 and ViT look ideal because they never\n"
+        "predict EMPTY - right on all 898 active-play frames, wrong on all 9 empty ones.",
+        transform=ax.transAxes, color=INK_2, fontsize=8.5, va="bottom", linespacing=1.5,
+    )
+    save(fig, "risk_coverage_band")
+
+
 def main() -> None:
     print("figures:")
     fig_label_efficiency()
     fig_ranking_inversion()
     fig_cross_venue()
+    fig_risk_coverage_band()
 
 
 if __name__ == "__main__":

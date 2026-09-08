@@ -2550,3 +2550,46 @@ candidates from the footage: the median **30.9** makes `auto` mean "the darker h
 ablation; 40.0 is not among them.
 
 - 2026-09-08 | WP3-T8 search resolution and ranking | `python -m experiments.search_resolution` | `search_resolution.csv` | floor 0.0119 per frame; weighting changes 3 of 6 adopted configurations; CLAHE gate fires on 78.33% (retracting 99.81%)
+
+---
+
+## 2026-09-08 — WP4-T9: the risk–coverage figure, drawn as a band
+
+`experiments/make_figures.py` → `results/figs/risk_coverage_band.{png,pdf}`
+
+The machinery existed; the figure did not, and it is the one plot in this project where the
+conventional form would actively mislead. Two things had to survive it.
+
+**DINOv2's calibrated confidences are 890 of 907 identical**, so "the most confident *k*" is
+undefined across most of the range and its accuracy there is an interval. A line through the
+middle of 0.981–1.000 would be a claim the data cannot make. The upper panel shades every
+accuracy the confidences permit and draws the **worst case** as the solid edge — the same
+bound `coverage_for_target_accuracy` reads, so what a reader traces is what an operator can
+be held to.
+
+**ConvNeXtV2 and ViT trace a near-perfect curve while never predicting EMPTY at all.** They
+are right on all 898 ACTIVE_PLAY frames and wrong on all 9 empty ones, so confidence ranks
+the nine last and the curve sits at 1.000 until 88% coverage. *The two best-looking lines
+belong to the two models that cannot do the job* — and a figure that showed only the curves
+would recommend them.
+
+A second panel carries **the width the confidences leave**, because one axis cannot hold both
+"what is the accuracy" and "how determined is that answer". ConvNeXtV2 and ViT sit flat at
+zero there; DINOv2 starts at 1.00 and never reaches zero. That panel is the reason the upper
+one is shaded rather than drawn.
+
+Design notes worth keeping: the y-axis is clipped to 0.95 so the operational region is
+legible, with the excursion below it labelled rather than hidden; names sit *on* their own
+lines rather than a fixed distance below, because below DINOv2's line is the band and a name
+floating inside it reads as a curve that is not there; and the two identified curves are
+noted as coinciding until 88% coverage, since otherwise one of them looks missing.
+
+`tests/test_figures.py` checks the property rather than the source text: it renders the
+figure, finds the heavy line, and asserts its y-values are the worst-case column.
+Verified both ways — swap the heavy line to the best-case edge and the test fails.
+
+It is on the standalone site too, in the Findings view, and a test asserts it reached the
+page. `rq6_risk_coverage.csv` is listed there as "shown as a figure rather than a table",
+and a reason like that is a fiction unless the figure is actually present.
+
+- 2026-09-08 | WP4-T9 risk-coverage figure | `python -m experiments.make_figures` | `figs/risk_coverage_band.png` | drawn as a band; the two best-looking curves belong to the models that never predict EMPTY

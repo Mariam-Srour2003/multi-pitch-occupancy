@@ -45,7 +45,7 @@ OUT_OF_SCOPE = {
     "logit_average_baseline.csv": "WP5-T9 on raw caches; refuted",
     "logit_average_baseline_preproc.csv": "WP5-T9 on letterboxed caches",
     "rq6_calibration.csv": "RQ6: blocked by the class mix",
-    "rq6_risk_coverage.csv": "RQ6: a band, and it needs its own figure (WP4-T9)",
+    "rq6_risk_coverage.csv": "RQ6: shown as figs/risk_coverage_band rather than as a table",
     "label_efficiency.csv": "shown as a figure rather than a table",
     "end_to_end_slots.csv": "two real slots; too few to tabulate",
     "benchmark_v2_protocols.json": "diagnostics behind benchmark_v2.csv",
@@ -118,3 +118,15 @@ def test_the_wp4t1_result_reached_the_page() -> None:
     html = page.read_text(encoding="utf-8")
     assert "The protocol a constant predictor wins" in html
     assert "How much of the leakage penalty is leakage" in html
+
+
+def test_the_risk_coverage_band_reached_the_page_as_a_figure() -> None:
+    """`OUT_OF_SCOPE` says this result is shown as a figure rather than a table, so the
+    figure has to actually be on the page - otherwise the reason is a fiction and the
+    result is simply missing."""
+    page = RESULTS / "project_site.html"
+    if not page.exists():
+        return
+    html = page.read_text(encoding="utf-8")
+    assert "How much human review buys a given reliability" in html
+    assert "890 of 907 identical" in html

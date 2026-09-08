@@ -175,3 +175,15 @@ def test_a_machine_dependent_stage_still_runs_when_its_output_is_missing() -> No
         machine_dependent=True,
     )
     assert not stage.satisfied()
+
+
+def test_the_risk_coverage_figure_declares_the_band_it_draws() -> None:
+    """It reads the worst/best columns, so it must wait for the experiment that writes them.
+
+    Without the requirement the stage would run against an older two-column CSV and fail
+    inside pandas rather than reporting BLOCKED - and the figure's whole point is the band,
+    which those columns are.
+    """
+    figs = next(s for s in STAGES if s.name == "figures")
+    assert any(p.name == "rq6_risk_coverage.csv" for p in figs.requires)
+    assert any(p.name == "risk_coverage_band.png" for p in figs.produces)

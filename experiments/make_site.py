@@ -177,7 +177,8 @@ def collect() -> dict:
         )[:10],
         "figs": {
             n: data_uri(RESULTS / "figs" / f"{n}.png")
-            for n in ("ranking_inversion", "label_efficiency", "cross_venue_recall")
+            for n in ("ranking_inversion", "label_efficiency", "cross_venue_recall",
+                      "risk_coverage_band")
         },
     }
 
@@ -249,6 +250,7 @@ def build(d: dict) -> str:
         fig_rank=d["figs"]["ranking_inversion"],
         fig_label=d["figs"]["label_efficiency"],
         fig_cross=d["figs"]["cross_venue_recall"],
+        fig_band=d["figs"]["risk_coverage_band"],
     )
 
 
@@ -422,6 +424,19 @@ li {{ margin-bottom:7px; }}
   <figure><img src="{fig_rank}" alt="Model rank under three evaluation protocols: ViT first under the leaky random split and third under cross-venue evaluation.">
   <figcaption>Ranks rather than scores, because the three metrics are not comparable. Each
   protocol&rsquo;s score is printed beside its point.</figcaption></figure>
+
+  <h2>How much human review buys a given reliability</h2>
+  <p>The operational question, and the one plot here that a conventional drawing would get
+  wrong. DINOv2&rsquo;s calibrated confidences are <b>890 of 907 identical</b>, so
+  &ldquo;the most confident <i>k</i>&rdquo; is undefined over most of the range and the
+  accuracy there is an interval rather than a point. The shading is every accuracy those
+  confidences permit; the solid edge is the worst case, which is the only bound an operator
+  can be held to.</p>
+  <figure><img src="{fig_band}" alt="Risk-coverage as a shaded band for DINOv2 and as lines for ConvNeXtV2 and ViT, with a second panel showing the width the confidences leave.">
+  <figcaption>The two best-looking curves belong to the two models that never predict
+  EMPTY: right on all 898 active-play frames, wrong on all 9 empty ones, so confidence ranks
+  the nine last and the curve sits at 1.000 until 88% coverage. A figure of curves alone
+  would recommend them.</figcaption></figure>
 
   <h2>The protocol a constant predictor wins</h2>
   <p>Stronger than &ldquo;the ranking reverses&rdquo;, and it came from running a fourth
