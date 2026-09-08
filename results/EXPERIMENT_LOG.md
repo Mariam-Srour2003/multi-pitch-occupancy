@@ -2593,3 +2593,38 @@ page. `rq6_risk_coverage.csv` is listed there as "shown as a figure rather than 
 and a reason like that is a fiction unless the figure is actually present.
 
 - 2026-09-08 | WP4-T9 risk-coverage figure | `python -m experiments.make_figures` | `figs/risk_coverage_band.png` | drawn as a band; the two best-looking curves belong to the models that never predict EMPTY
+
+---
+
+## 2026-09-08 — the README said the implementation had not started
+
+`README.md`, `scripts/branch_report.py`
+
+The first thing a supervisor or an examiner reads said **"Planning complete. Implementation
+starting."** It said that throughout the period in which the implementation was written, all
+six pre-registered hypotheses were reported, and four defects were found in the evaluation
+itself. Nobody edits a status line while doing the work it describes.
+
+It is the same failure as the branch reference that named a stale tip and the export that
+stopped covering the thesis — a claim with nothing checking it — and it had the widest
+audience of the three.
+
+**Fixed in two halves, because a status has two kinds of content.** The countable part is now
+generated: `scripts/branch_report.py` maintains a `<!-- status:start -->` block in `README.md`
+alongside the one it already maintained in `docs/CODEBASE.md`, so module, experiment, test and
+result counts come from git. `--check` now reports either file stale, and `--write` rewrites
+both.
+
+The judgement — *what state is this project in* — cannot be generated, so it is written by
+hand and guarded instead. Three tests: the block is current, the counts in it match git, and
+the README does not claim the work has not started while results exist. Verified by breaking
+each: reinstate the old phrase and the guard fires; change a count and it fires.
+
+**And the README had no results section at all.** A reader got the pilot's superseded
+accuracy table and nothing about what the project has actually found. It now leads with the
+findings — the leakage decomposition, the constant predictor that wins the cross-venue
+protocol, the prompt variance, the risk–coverage band — each linked to its artefact, with the
+pilot table demoted to history. The section naming the defects is deliberately included: they
+are a result of this project, not an embarrassment to be kept out of the front page.
+
+- 2026-09-08 | README status | `python scripts/branch_report.py --write` | `README.md` | status block generated from git; findings section added; three staleness guards

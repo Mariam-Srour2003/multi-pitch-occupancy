@@ -1,4 +1,4 @@
-"""Regenerate the branch summary in `docs/CODEBASE.md` from git itself.
+"""Regenerate the generated blocks in `docs/CODEBASE.md` and `README.md` from git itself.
 
 The summary had already drifted once, and silently: it named `feat/prompt-search` as the
 tip long after sixteen further commits had landed, so anyone following the checkout
@@ -6,8 +6,15 @@ instruction - a supervisor, an examiner, a future reader - would have got a copy
 entire front end, the database and both searches, with nothing to indicate anything was
 absent. Hand-maintained counts in a document that changes every session cannot stay true.
 
-So the numbers come from git. This rewrites the block between the two markers in
-`docs/CODEBASE.md` and leaves the rest of the file alone.
+The README drifted the same way and worse: it read *"Planning complete. Implementation
+starting."* for the whole period in which the implementation was written, six pre-registered
+hypotheses were reported and four defects were found in the evaluation itself. Nobody edits a
+status line while doing the work it describes.
+
+So the numbers come from git. This rewrites the blocks between their markers in
+`docs/CODEBASE.md` and `README.md` and leaves the rest of both files alone. The prose around
+the README block is still written by hand - a status is a judgement - but it can no longer
+sit beside counts that contradict it.
 
     uv run python scripts/branch_report.py           # show what it would write
     uv run python scripts/branch_report.py --write   # rewrite the block
@@ -42,6 +49,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DOC = ROOT / "docs" / "CODEBASE.md"
+README = ROOT / "README.md"
 START = "<!-- branch-report:start -->"
 END = "<!-- branch-report:end -->"
 
@@ -193,6 +201,45 @@ git checkout main && git merge {tip}
 {END}"""
 
 
+STATUS_START = "<!-- status:start -->"
+STATUS_END = "<!-- status:end -->"
+
+
+def status_block() -> str:
+    """The README's size-of-the-thing line, from git rather than from memory.
+
+    The README said *"Planning complete. Implementation starting."* for the whole of the
+    period in which the implementation was written, the six pre-registered hypotheses were
+    reported and four defects were found in the evaluation itself. Nobody edits a status
+    line while doing the work it describes, and the first reader of this repository is a
+    supervisor or an examiner who takes it at face value.
+
+    So the counts come from the same place the branch block's do. The prose around this
+    block is still written by hand - a status is a judgement - but it can no longer sit
+    beside numbers that contradict it.
+    """
+    c = counts(tip_branch())
+    results = len([
+        line for line in git("ls-tree", "-r", "--name-only", tip_branch()).splitlines()
+        if line.startswith("results/") and line.endswith((".csv", ".json"))
+    ])
+    return f"""{STATUS_START}
+**{c['src']} source modules · {c['experiments']} experiment scripts · {c['tests']} test files
+· {results} committed result files.** Counts come from git, so this line cannot drift from
+the repository; the assessment above it is written by hand. What each module and experiment
+does is in [docs/CODEBASE.md](docs/CODEBASE.md); what each run found is in
+[results/EXPERIMENT_LOG.md](results/EXPERIMENT_LOG.md).
+{STATUS_END}"""
+
+
+def rewrite_status(text: str) -> str:
+    before, _, rest = text.partition(STATUS_START)
+    _, _, after = rest.partition(STATUS_END)
+    if not rest:
+        raise SystemExit(f"markers {STATUS_START} / {STATUS_END} not found in README.md")
+    return before + status_block() + after
+
+
 TABLE_START = "<!-- branch-table:start -->"
 TABLE_END = "<!-- branch-table:end -->"
 
@@ -278,16 +325,29 @@ def main() -> None:
 
     current = DOC.read_text(encoding="utf-8")
     updated = rewrite_table(rewrite(current))
+    readme_current = README.read_text(encoding="utf-8")
+    readme_updated = rewrite_status(readme_current)
+
     if args.write:
         DOC.write_text(updated, encoding="utf-8")
         print(f"rewrote the branch block in {DOC.relative_to(ROOT)}")
+        if readme_updated != readme_current:
+            README.write_text(readme_updated, encoding="utf-8")
+            print(f"rewrote the status block in {README.relative_to(ROOT)}")
     elif args.check:
+        stale = []
         if updated != current:
-            print("the branch block in docs/CODEBASE.md is stale; run with --write")
+            stale.append("docs/CODEBASE.md (branch block)")
+        if readme_updated != readme_current:
+            stale.append("README.md (status block)")
+        if stale:
+            print(f"stale: {', '.join(stale)}; run with --write")
             sys.exit(1)
-        print("branch block is current")
+        print("branch block and README status are current")
     else:
         print(block())
+        print()
+        print(status_block())
 
 
 if __name__ == "__main__":

@@ -136,3 +136,50 @@ def test_a_branch_identical_to_main_documents_nothing() -> None:
         assert git("rev-parse", name) != head, (
             f"{name} points at main's tip and carries nothing of its own"
         )
+
+
+# --- the README's status block ----------------------------------------------
+
+
+def test_the_readme_status_block_is_current() -> None:
+    """Regenerate with `uv run python scripts/branch_report.py --write` when this fails."""
+    from scripts.branch_report import README, rewrite_status
+
+    text = README.read_text(encoding="utf-8")
+    assert rewrite_status(text) == text, (
+        "the README status block is stale; run scripts/branch_report.py --write"
+    )
+
+
+def test_the_readme_does_not_claim_the_work_has_not_started() -> None:
+    """The specific drift this block exists to prevent.
+
+    The README read "Planning complete. Implementation starting." throughout the period in
+    which the implementation was written, six pre-registered hypotheses were reported and
+    four defects were found in the evaluation itself. Nobody edits a status line while doing
+    the work it describes, and the first reader of this repository is a supervisor or an
+    examiner who takes it at face value.
+    """
+    from scripts.branch_report import README, ROOT
+
+    results = list((ROOT / "results").glob("*.csv"))
+    if len(results) < 5:
+        pytest.skip("too few results for the claim to be wrong")
+    text = README.read_text(encoding="utf-8").lower()
+    for stale in ("implementation starting", "planning complete"):
+        assert stale not in text, f"the README still says {stale!r} with {len(results)} results"
+
+
+def test_the_readme_status_counts_match_the_repository() -> None:
+    """The numbers are generated, so this checks they were generated from the right thing
+    rather than typed into the block by hand at some point."""
+    import re
+
+    from scripts.branch_report import README, ROOT, counts, tip_branch
+
+    block = README.read_text(encoding="utf-8").split("<!-- status:start -->")[1]
+    c = counts(tip_branch())
+    for value, noun in ((c["src"], "source modules"), (c["experiments"], "experiment scripts"),
+                        (c["tests"], "test files")):
+        assert re.search(rf"{value} {noun}", block), f"{noun} disagrees with git"
+    assert (ROOT / "results" / "EXPERIMENT_LOG.md").exists()

@@ -27,15 +27,28 @@ surfaces no-shows, unbooked usage, and data-entry errors — with a human confir
 
 ## Status
 
-**Planning complete. Implementation starting.**
+**The system is built and the evaluation is the finding.** Sampling, classification, slot
+aggregation, reconciliation, the API and the dashboard all run; every experiment regenerates from
+the manifest and the cached features through one reproduction pipeline. All six pre-registered
+hypotheses have been reported.
 
-The model-selection pilot is finished — it chose four models to build on and produced an end-to-end
-prototype. That work lives on its own branch and is not carried into `main`; the real system is
-built from scratch against the plan, with leakage-free evaluation from the start.
+**What is not done is the data.** Every EMPTY frame in the corpus comes from one venue, two
+cameras, two days — so the questions that matter operationally (can it recognise an empty pitch
+somewhere new? what does a REVIEW threshold cost?) are blocked on footage, not on method. The
+honest headline of this project is a set of results about *how to evaluate this problem*, several
+of which are negative and most of which were found by checking whether a guard actually guarded.
+
+<!-- status:start -->
+**49 source modules · 31 experiment scripts · 40 test files
+· 33 committed result files.** Counts come from git, so this line cannot drift from
+the repository; the assessment above it is written by hand. What each module and experiment
+does is in [docs/CODEBASE.md](docs/CODEBASE.md); what each run found is in
+[results/EXPERIMENT_LOG.md](results/EXPERIMENT_LOG.md).
+<!-- status:end -->
 
 | Branch | Contains |
 |---|---|
-| `main` | The thesis plan and the real implementation as it is built |
+| `main` | The whole project — plan, implementation, experiments and results |
 | `pilot/model-selection` | The first-step bake-off that chose the models — code, results, and a full run guide in its own README |
 
 To read or re-run the pilot:
@@ -46,11 +59,62 @@ git checkout pilot/model-selection
 
 ---
 
-## Planning documents
+## What has been found
+
+The contribution is the evaluation. Each of these was measured, and each is written up with its
+own reasoning in [results/EXPERIMENT_LOG.md](results/EXPERIMENT_LOG.md).
+
+**On evaluating this problem**
+
+- **Same-scene evaluation roughly halves when made honest** — macro-F1 falls from ~0.99 to ~0.50
+  moving from a random split to one that holds whole slots out. It also *reverses the ranking*: a
+  reader following the pilot's protocol would have shipped the weakest generaliser.
+- **But only about two thirds of that fall is leakage.** A model that never trains cannot leak, so
+  OpenCLIP scored zero-shot on the identical test sets measures what changing the test set does on
+  its own — it drops 0.183. The leakage-attributable part is 0.33–0.40, not 0.52–0.58.
+- **On the cross-venue protocol a constant predictor wins.** `majority` reads no pixels, always
+  answers "playing", and scores macro-F1 **1.000** — ahead of every backbone — because every
+  held-out venue is 100% active play. There is no ranking there to reverse.
+- **Cross-venue recall is free unless you measure false play too.** Held-out folds contain no empty
+  pitch, so a model that always says "playing" scores perfectly; the control shows one backbone
+  calling 99.2% of held-out empty frames a match while a rule that never looks at the image calls
+  2.1%.
+- **Frame counts overstate the evidence.** 907 frames are 95 distinct scenes, and 243 held-out
+  empty frames are three to ten. Most frame-level significance in this project does not survive
+  being recounted by scene, and that is reported rather than caveated.
+
+**On the models**
+
+- **DINOv2** is the production recommendation, on cross-venue evidence rather than latency —
+  latency is not the binding constraint, with 10–24× headroom in the 60 s cycle. The pick was
+  challenged on an input-path finding and the challenge was tested and did not survive.
+- **The prompt matters ~9× more than the model.** Zero-shot with a pre-declared prompt beats every
+  trained probe, but across the whole prompt space macro-F1 spans 0.021–0.747 where the three
+  backbones span 0.082. The cost of a no-label deployment is a distribution, not a penalty.
+- **Selective prediction cannot be drawn as a curve here.** One model's calibrated confidences are
+  890/907 identical, so its risk–coverage "curve" is a band; the two models with the best-looking
+  curves are the two that never predict EMPTY.
+  ([figure](results/figs/risk_coverage_band.png))
+
+**On the code that produced the numbers**
+
+Several results moved because a guard existed and did not operate: a final-test-set lock that
+failed open from any other directory, a seeded split that returned a different row *order* every
+process (so every bootstrap interval was a different draw), a false-play control scored against
+training data, a figure with its ranks hardcoded, and a site export that had silently stopped
+covering the thesis. Each is fixed, tested, and written up — including one finding of my own that
+a later measurement retracted.
+
+---
+
+## Documents
 
 | File | What it is |
 |---|---|
 | **[TODO.md](TODO.md)** | **The working checklist.** Every task, WP0→WP8, with milestone gates. Start here. |
+| **[results/EXPERIMENT_LOG.md](results/EXPERIMENT_LOG.md)** | **What every run found**, in order, with the reasoning and the retractions. |
+| [thesis/preregistration.md](thesis/preregistration.md) | The six hypotheses, their decision rules, and every amendment — including the two decision rules that were disowned |
+| [thesis/rq_matrix.md](thesis/rq_matrix.md) | Each research question, the evidence for it, and how far it is answered |
 | [thesis/mvt.md](thesis/mvt.md) | **The minimum viable thesis** — the four load-bearing items, and what the floor deliberately does *not* require. Read before any scope decision. |
 | [docs/PM_REVIEW_2026-09-08.md](docs/PM_REVIEW_2026-09-08.md) | **Latest review.** What day two overturned — including two of day one's conclusions — and the six open decisions |
 | [docs/PM_REVIEW_2026-09-07.md](docs/PM_REVIEW_2026-09-07.md) | The first review, kept as written |

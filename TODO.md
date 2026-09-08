@@ -1214,6 +1214,23 @@ tagged with the question it answers. Fix that first — it is what turns a build
       final consistency pass an afternoon instead of a week.
 
 ### 8.B Figures
+- [x] ★ **The README said the implementation had not started** (2026-09-08). It read
+      "Planning complete. Implementation starting." through the whole period in which the
+      implementation was written, six hypotheses were reported and four evaluation defects
+      were found — the same failure as the stale branch tip and the stale export, with the
+      widest audience of the three.
+  - [x] The countable half is generated: `scripts/branch_report.py` now maintains a status
+        block in `README.md` as well as the branch block in `docs/CODEBASE.md`, and
+        `--check` reports either stale.
+  - [x] The judgement half is written by hand and guarded: three tests — block current,
+        counts match git, and the README does not claim the work has not started while
+        results exist. Each verified by breaking it.
+  - [x] ★ **A findings section added.** The README had none: a reader got the pilot's
+        superseded accuracy table and nothing about what the project found. It now leads with
+        the leakage decomposition, the constant predictor that wins cross-venue, the prompt
+        variance and the risk–coverage band, each linked to its artefact — and names the
+        defects, which are a result of this project rather than something to keep off the
+        front page.
 - [x] ★ **The standalone site had stopped covering the thesis, silently** (2026-09-08).
       `make_site.py` reads a fixed list of eight result files while its docstring claimed
       "the whole thesis"; the eleven experiments added since it was written were omitted with
