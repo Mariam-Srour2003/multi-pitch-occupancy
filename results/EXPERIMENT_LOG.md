@@ -1939,3 +1939,83 @@ probe. The revision flags placed on WP5-T9 in `TODO.md` and `rq_matrix.md` are r
 this entry; the RQ2 flag stays.
 
 - 2026-09-08 | WP5-T9 on preprocessed caches | `python experiments/logit_average_baseline.py --cache-dir data/cache/geom_probe --suffix _preproc` | `logit_average_baseline_preproc.csv` | finding 2 refuted (ensemble false-play 1.0000 -> 0.0288); finding 1 strengthened to 100% of headroom
+
+---
+
+## The `clahe='auto'` gate is vacuous, and what that reveals about the search's resolution — 2026-09-08
+
+Checked because the geometry probe made preprocessing consequential: if a *searched* switch
+fires selectively on some venues, a leave-one-venue-out protocol would be applying different
+transforms to train and test. The audit that raised it suspected the gate was "close to a
+venue indicator". **It is not** - and what is actually wrong is more useful.
+
+### The gate fires on 99.81% of frames
+
+`clahe='auto'` applies CLAHE when RMS contrast falls below `clahe_contrast_below = 40.0`.
+Measured over all 1,578 development frames: **1,575 fire (0.9981)**.
+
+| slice | fire rate |
+|---|---|
+| every venue except one | 1.0000 |
+| `clipvenue_f_outdoor_bldg` | 0.7500 (n=12) |
+| day / night | 0.9950 / 1.0000 |
+| EMPTY / ACTIVE_PLAY / C3 | 1.0000 / 0.9972 / 1.0000 |
+
+So it is *not* a venue or lighting discriminator - it fires nearly everywhere, near-uniformly.
+The threshold is simply **far too high for this footage**: median RMS contrast is **20.46** on
+the raw frame and 23.12 after letterboxing, against a cut-off of 40.0. (My first guess was
+that the letterbox's grey padding was depressing the contrast; the data says otherwise - the
+raw frames are already at 20, so the padding is not the cause. Recorded because the wrong
+hypothesis is worth one line to save the next person testing it.)
+
+**Consequence: `auto` and `on` are the same transform here**, differing on 3 frames of 1,578.
+Two of the search's switch values are one switch, and every evaluation spent separating them
+was spent on nothing.
+
+### And the search still reports them 0.02 apart
+
+Round 1 is the clean comparison - its base configuration is the default, exactly what was
+measured above:
+
+| model | `clahe=on` | `clahe=auto` | Δ |
+|---|---|---|---|
+| convnextv2 | 0.9348 | 0.9561 | **+0.0213** |
+| dinov2 | 0.9752 | 0.9932 | **+0.0180** |
+
+A **0.19% difference in the input** moves the searched metric by **0.02**. That is not noise in
+the probe - the fits are seeded and deterministic - it is the fold structure amplifying three
+frames:
+
+| fold | n | one frame is worth, in the reported mean |
+|---|---|---|
+| `f_outdoor_bldg` | 12 | **0.0119** |
+| four folds | 18 | 0.0079 |
+| `g_netting` | 30 | 0.0048 |
+| `a_blue_barrier` | 168 | 0.0009 |
+
+The headline is an *unweighted* mean over seven folds, so a single frame in the smallest fold
+is worth 1.2 points of it. Three frames in small folds reach **0.036**.
+
+### What this means for reading the preprocessing search
+
+**The search's resolution floor is about 0.02, and it has been adopting switches on margins of
+that order.** Round 2 adopted `sharpen=0.6` for ConvNeXtV2 and round 3 `gamma=0.7`; the
+non-additivity finding already recorded here turns on differences of similar size. None of
+that is wrong, but none of it is separable from a three-frame perturbation either.
+
+Two things follow, and neither is "re-run the search":
+
+1. **Weight the fold mean by fold size, or report both.** An unweighted mean over folds of 12
+   and 168 frames hands the 12-frame fold fourteen times the leverage per frame. H3 uses the
+   same unweighted mean deliberately - it is bootstrapping over *venues*, where equal weight
+   is the point - but the search is using it to rank *configurations*, which is a different
+   question and does not want that property.
+2. **Quote a resolution floor beside searched results.** A configuration that beats the
+   baseline by less than ~0.02 has not been shown to beat it.
+
+`clahe_contrast_below = 40.0` also joins the list of hand-picked constants that were never
+calibrated against this footage, alongside the two confidence thresholds that default to 0.0.
+Setting it from the measured distribution (median 20.5) would make `auto` mean something; the
+right value is a decision, not a number to guess, and it belongs with the WP3 ablation.
+
+- 2026-09-08 | clahe auto-gate diagnostic | `python -c` over the manifest | *(no CSV - diagnostic)* | gate fires on 99.81% of frames; auto == on within 3 frames, yet the search reports them 0.02 apart

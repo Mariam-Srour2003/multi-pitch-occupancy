@@ -70,6 +70,21 @@ class PreprocessConfig:
     daylight morning from a floodlit night - i.e. attacks the day/night confound directly."""
 
     clahe: str = "off"  # off | on | auto
+    #: RMS-contrast cut-off for ``clahe='auto'``.
+    #:
+    #: **40.0 is far too high for this footage, so `auto` is effectively `on`.** Measured
+    #: over all 1,578 development frames the gate fires on **99.81%** of them: median RMS
+    #: contrast is 20.46 raw and 23.12 letterboxed. It is not selective by venue, lighting
+    #: or class - it fires near-uniformly everywhere - so `auto` and `on` differ on **3
+    #: frames**, and two of the search's switch values are one switch.
+    #:
+    #: Uncalibrated rather than wrong: nothing here was ever measured against this
+    #: footage's contrast distribution. Setting it from that distribution would make `auto`
+    #: mean something, and the value is a decision rather than a number to guess - it
+    #: belongs with the WP3 ablation. See the diagnostic in `EXPERIMENT_LOG.md`, which also
+    #: records why this matters beyond the switch: the search still reports `on` and `auto`
+    #: 0.02 apart, because an unweighted mean over folds of 12 to 168 frames makes a single
+    #: frame in the smallest fold worth 1.2 points of the headline.
     clahe_contrast_below: float = 40.0
 
     gamma: float = 1.0

@@ -534,6 +534,27 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [x] The first control used 9 EMPTY frames and said 0.000 for both — it would have led to
         the wrong recommendation. Splitting on physical camera gives 243 and reverses it.
 - [ ] **WP3-T8 Preprocessing ablation (E-PRE).** *(search done; see the correction below)* Best model + grouped split; toggle
+  - [ ] ★ **[B] Before quoting any searched result: the search's resolution floor is ~0.02,
+        and it has been adopting switches on margins of that size** (2026-09-08 diagnostic).
+        Found by checking whether `clahe='auto'` gates on a venue proxy, as an audit
+        suspected. It does not — it fires on **99.81%** of frames, because the threshold is
+        40.0 and this footage's median RMS contrast is **20.5**. So `auto` and `on` are the
+        same transform, differing on **3 frames of 1,578** — two switch values that are one
+        switch.
+    - [ ] **Yet round 1 reports them 0.021 (ConvNeXtV2) and 0.018 (DINOv2) apart.** Not probe
+          noise — the fits are seeded — but the fold structure: the headline is an
+          *unweighted* mean over seven folds of 12 to 168 frames, so one frame in
+          `f_outdoor_bldg` (n=12) is worth **0.0119** of it, and three frames in small folds
+          reach 0.036.
+    - [ ] ★ **Two fixes, neither of which is "re-run the search".** (a) Weight the fold mean
+          by fold size for *configuration ranking*, or report both — H3's unweighted mean is
+          deliberate because it bootstraps over **venues**, but ranking configurations is a
+          different question and does not want that leverage. (b) Quote the resolution floor
+          beside searched results: a configuration beating the baseline by under ~0.02 has
+          not been shown to beat it.
+    - [ ] `clahe_contrast_below = 40.0` joins the hand-picked constants never calibrated
+          against this footage, alongside the two confidence thresholds that default to 0.0
+          (WP6-T5). Set it from the measured distribution as part of this ablation.
       {ROI, letterbox-vs-thumbnail, CLAHE, augmentation, balancing} one at a time; deltas with CIs
       → `results/ablation_preprocessing.csv`. *Accept:* table + one-paragraph finding per switch.
   - [x] ★ **Regenerated 2026-09-07, once the run finished.** The search completed at 88
