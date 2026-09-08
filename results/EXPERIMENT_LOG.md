@@ -2904,3 +2904,68 @@ class. A chart of any single protocol would answer the examiner's question with 
 four answer it with *it depends entirely on which protocol you ask*, which is the finding.
 
 - 2026-09-08 | WP4-T10 floor chart | `python -m experiments.make_figures` | `figs/baseline_floor.png` | four protocols; the cross-venue floor is not cleared. Drawing it surfaced A12: A8 reversed the histogram-vs-ConvNeXtV2 comparison and three documents still quoted the old one
+
+- 2026-09-08 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 24 claims verified against their artefacts, 0 recorded as unsupported
+
+---
+
+## 2026-09-09 — the four documents the plan kept pointing at, and one constraint made real
+
+Four items were referenced repeatedly by other tasks and did not exist. Writing them cost less
+than continuing to route around them.
+
+**WP6-T12 — "the system must never bill", enforced rather than stated.**
+`src/pitch_occupancy/slots/authority.py`, 13 tests. Reconciliation can implicate a named member
+of staff, so the constraint matters, and a sentence in a chapter is worth very little at an
+examination.
+
+`Advisory` is the only output a discrepancy can produce. It carries no monetary field, and
+`requires_human_confirmation` is a **property rather than a parameter** — there is no way to
+construct one that does not need a person. The permitted vocabulary is three actions
+(`flag_for_review`, `record_observation`, `aggregate_by_field`) and `FORBIDDEN` names what was
+deliberately left out, so the omission is legible rather than an oversight waiting to be
+filled in.
+
+The boundary is **walked, not asserted**: the tests parse every FastAPI decorator and fail if a
+financial route, a booking write, or an unexpected mutating route appears, and scan the
+database layer for a monetary column. Verified by adding a `POST /slots/{id}/charge` route —
+two guards fire.
+
+It is a statement about what the software *offers*, kept true by tests. It is not a safeguard
+against a determined operator, and the docstring says so; claiming otherwise would be the
+weaker position at an examination.
+
+**WP0-T8 — `docs/backup.md`.** Three copies, two media, one off-site; `data/cache/` excluded as
+derived, `data/raw/` and `data/processed/` never; encrypted at rest because the footage shows
+identifiable people. Deliberately **manual rather than a sync** — a two-way sync propagates a
+deletion as faithfully as it propagates a file, and the failure mode this exists to prevent is
+losing footage. The restore procedure is checkable rather than hopeful: a restore has succeeded
+when `reproduce_all --check` reports nothing missing and the committed CSVs reproduce.
+
+*The policy is written. The backup is still not made.*
+
+**WP2-T2 — `thesis/data_requests.md`.** Seven items in priority order with what each unblocks.
+Empty pitches at any second venue leads, because it is twenty minutes of a camera pointing at
+nothing and it unblocks four separate questions. Then 30–40 labelled slots, because frames are
+not the bottleneck and the slot-level test set is n=2. There is a §7 saying what is *not* being
+asked for — no names, no payment data, no staff identifiers, no continuous recording — since an
+over-broad request is harder to approve than a narrow one.
+
+**WP1-T6 — `thesis/alternatives.md`.** PIR, turnstile, floodlight draw, app check-in and manual
+logging, compared on cost, accuracy, failure modes and retrofit. Four arguments that survive
+scrutiny; four concessions where the alternatives genuinely win; and a closing section naming
+where the argument is weakest — the comparison is *argued rather than measured*, no PIR was
+ever deployed alongside the cameras, and "the cameras are already there" is a property of this
+client rather than of the problem.
+
+**WP8-T6 — `thesis/defence_redteam.md`.** Ten questions with the evidence and a pointer for
+each, four more worth having ready, and a rehearsal note. Every figure in it is in the claims
+ledger, so the document cannot drift from the results — and three claims gained
+`thesis/defence_redteam.md` in their `where` list, which is what makes that true rather than
+intended. One number was removed while writing it: a count of the ledger's own entries, which
+would have drifted the moment a claim was added.
+
+The answers in it are arguments, and they are the candidate's to own. An argument in someone
+else's phrasing collapses on the first follow-up, and the document says so at the top.
+
+- 2026-09-09 | WP6-T12, WP0-T8, WP2-T2, WP1-T6, WP8-T6 | `pytest tests/test_authority.py` | `slots/authority.py`, `docs/backup.md`, `thesis/{data_requests,alternatives,defence_redteam}.md` | the never-bill constraint enforced at the HTTP and database boundary; four referenced-but-absent documents written

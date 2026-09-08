@@ -114,7 +114,12 @@ tagged with the question it answers. Fix that first — it is what turns a build
 - [x] **WP0-T1 Git init.** Repo on GitHub (`multi-pitch-occupancy`, private) with the pilot
       preserved on its own branch. `.gitignore` anchors `/data/` to the root - unanchored it also
       swallowed the `src/pitch_occupancy/data/` package.
-- [ ] **WP0-T8 ★ Backup policy documented.** Formalise 0.2 into `docs/backup.md`: what is backed up,
+- [x] **WP0-T8 ★ Backup policy documented.** → `docs/backup.md`. 3-2-1, encrypted off-site,
+      `data/cache/` excluded as derived, deliberately manual rather than a sync (a two-way sync
+      propagates a deletion as faithfully as a file). Includes the restore procedure, which is
+      checkable: a restore succeeds when `reproduce_all --check` reports nothing missing.
+      **The policy is written; the backup is still not made — that is 0.2 and it is still first.**
+- [ ] ~~WP0-T8 original~~ Formalise 0.2 into `docs/backup.md`: what is backed up,
       where, how often, and the last verified restore date. Re-verify monthly.
 - [x] **WP0-T9 ★ Environment pinning.** `uv.lock` + `.python-version` committed. torch pinned to
       the **CPU wheel index** on every platform, so a CUDA build cannot silently invalidate a
@@ -246,7 +251,13 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [ ] ★ **Strand 9 — selective prediction / learning-to-defer.** Your REVIEW band *is*
         selective prediction with a human fallback. There is a literature for it, and citing it
         upgrades REVIEW from an engineering hack to a principled design choice (supports RQ6).
-- [ ] **WP1-T6 ★ Alternative-solutions analysis** → one page in Chapter 1. Why computer vision
+- [x] **WP1-T6 ★ Alternative-solutions analysis** → `thesis/alternatives.md`. PIR, turnstile,
+      floodlight draw, app check-in and manual logging on cost, accuracy, failure modes and
+      retrofit. Four arguments that survive scrutiny, four concessions where the alternatives
+      genuinely win, and a section naming where the argument is weakest — the comparison is
+      argued rather than measured, and "the cameras are already there" is a property of this
+      client rather than of the problem.
+- [ ] ~~WP1-T6 original~~ → one page in Chapter 1. Why computer vision
       rather than: PIR/motion sensors, door counters/turnstiles, floodlight power draw, app
       check-ins, or manual logging? Compare on cost, accuracy, failure modes, retrofit difficulty.
       **"Why do you need CV at all?" is the single most dangerous question you can be asked**, and it
@@ -300,7 +311,12 @@ tagged with the question it answers. Fix that first — it is what turns a build
       It currently reads EMPTY 100% venue_01 / 98% day.
 
 ### 2.B The collection request
-- [ ] **WP2-T2 [H] Collection request doc** → `thesis/data_requests.md`. Ask for:
+- [x] **WP2-T2 [H] Collection request doc — drafted** → `thesis/data_requests.md`. Seven items in
+      priority order, with what each unblocks; a §7 saying what is *not* being asked for (no
+      names, no payment data, no staff identifiers, no continuous recording), because an
+      over-broad request is harder to approve; and an "if only one thing" closing. **Needs a
+      human to send it.** Original checklist kept below.
+- [ ] ~~WP2-T2 original~~ [H] Collection request doc → `thesis/data_requests.md`. Ask for:
   - [ ] Maintenance windows (brooming, line-painting, mowing, seeding), day **and** night — currently
         **0 frames**, and this is the class that makes macro-F1 meaningful.
   - [ ] Idle-people slots (walk-throughs, events, photo sessions) — currently **6 frames**.
@@ -1225,7 +1241,20 @@ tagged with the question it answers. Fix that first — it is what turns a build
 - [ ] **WP6-T7 Override → retraining loop.** Overridden slots' evidence frames auto-copy into
       `data/dataset/_incoming/<corrected_class>/`; document the periodic head re-fit (cached
       features → seconds). *Accept:* override produces the file + log row.
-- [ ] **WP6-T12 ★ "The system must never bill" design constraint.** Write it into the architecture
+- [x] **WP6-T12 ★ "The system must never bill" — enforced, not stated.**
+      `src/pitch_occupancy/slots/authority.py` + 13 tests. `Advisory` is the only output a
+      discrepancy can produce, carries no monetary field, and
+      `requires_human_confirmation` is a **property rather than a parameter** — there is no way
+      to construct one that does not need a person. The permitted vocabulary is three actions;
+      `FORBIDDEN` names what was left out so the omission is legible rather than an oversight
+      waiting to be filled in.
+  - [x] The boundary is **walked, not asserted**: tests parse every FastAPI decorator and fail
+        if a financial route, a booking write, or an unexpected mutating route appears, and
+        scan the db layer for a monetary column. Verified by adding a `POST /charge` route —
+        two guards fire.
+  - [x] It is a statement about what the software offers, kept true by tests — **not** a
+        safeguard against a determined operator, and the docstring says so.
+- [ ] ~~WP6-T12 original~~ Write it into the architecture
       chapter and enforce it in code: output is decision support, a human confirms every anomaly, no
       automated financial action. Cheap to state, and it is the answer to the ethics question you
       *will* be asked about auditing staff.
@@ -1340,7 +1369,12 @@ tagged with the question it answers. Fix that first — it is what turns a build
 - [ ] **WP8-T4 Defence deck.** The pilot story (the spec's chosen model lost; the pooler-output
       harness bug and its lesson; the leakage number), the novel modules, a live demo of the
       dashboard and reconciliation.
-- [ ] **WP8-T6 ★ Red-team your own defence.** Write down the ten hardest questions and your answers.
+- [x] **WP8-T6 ★ Red-team your own defence — drafted** → `thesis/defence_redteam.md`. Ten
+      questions with the evidence and a pointer for each, plus four more worth having ready and
+      a rehearsal note. Every figure in it is in the claims ledger, so the document cannot
+      drift from the results. **The answers are arguments and are yours to make your own** —
+      an argument in someone else's phrasing collapses on the first follow-up.
+- [ ] ~~WP8-T6 original~~ Write down the ten hardest questions and your answers.
       Starting set: *Why CV rather than a €20 motion sensor?* (WP1-T6) · *Is your novelty just
       temporal smoothing?* (WP5-T7) · *Your STAN test set is how many slots?* (WP2-T8) · *Would a
       colour histogram do this?* (WP4-T10) · *How many comparisons did you run before p < 0.05?*

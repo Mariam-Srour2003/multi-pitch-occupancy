@@ -11,7 +11,7 @@ any draft goes out:
 uv run python -m experiments.verify_claims --check
 ```
 
-**23 claims are checked against an artefact. 0 are not, and say why.**
+**24 claims are checked against an artefact. 0 are not, and say why.**
 
 ## Checked
 
@@ -24,7 +24,7 @@ uv run python -m experiments.verify_claims --check
 | The clock rule collapses to 0.219 across unseen venues, while the backbones hold above 0.86. | `0.219` | `results/h3_cross_venue_recall.csv` | `thesis/rq_matrix.md` | ✔ |
 | ConvNeXtV2 calls 99.2% of held-out empty pitches a match. | `0.9918` | `results/h3_with_false_play.csv` | `README.md`, `thesis/rq_matrix.md` | ✔ |
 | The clock rule, which never looks at the image, calls 2.1% of held-out empty pitches a match. | `0.0206` | `results/h3_with_false_play.csv` | `README.md` | ✔ |
-| Under leave-one-venue-out a constant predictor scores macro-F1 1.000, ahead of every backbone, because every held-out venue is 100% active play. | `1.0` | `results/benchmark_v2.csv` | `README.md`, `thesis/rq_matrix.md` | ✔ |
+| Under leave-one-venue-out a constant predictor scores macro-F1 1.000, ahead of every backbone, because every held-out venue is 100% active play. | `1.0` | `results/benchmark_v2.csv` | `README.md`, `thesis/rq_matrix.md`, `thesis/defence_redteam.md` | ✔ |
 | A model that never trains drops 0.183 macro-F1 on the same change of test set, so that much of every leakage penalty is test-set composition. | `0.1834` | `results/benchmark_v2.csv` | `README.md`, `thesis/rq_matrix.md` | ✔ |
 | DINOv2's leakage-attributable drop is 0.3323 once the composition effect is subtracted, against a raw drop of 0.5158. | `0.5158` | `results/benchmark_v2.csv` | `thesis/rq_matrix.md` | ✔ |
 | CLAHE costs DINOv2 0.2712 macro-F1 on the grouped split — the clause predicted an improvement. | `-0.2712` | `results/h5_preprocessing_switches.csv` | `thesis/rq_matrix.md` | ✔ |
@@ -38,8 +38,9 @@ uv run python -m experiments.verify_claims --check
 | On the leaky random split every error is a frame the model had seen a near-duplicate of: 12 of 12. | `12.0` | `results/error_taxonomy_summary.csv` | — | ✔ |
 | All 32 grouped-split errors across the three backbones come from a single slot - a single failure counted many times, not a taxonomy. | `32.0` | `results/error_taxonomy_summary.csv` | — | ✔ |
 | Under the day-to-night temporal shift DINOv2 makes 92 errors of 799, against ConvNeXtV2's 11. | `92.0` | `results/error_taxonomy_summary.csv` | — | ✔ |
-| On the grouped split a rule that reads only the clock scores 0.4907, within 0.0068 of ConvNeXtV2's 0.4975. | `0.4907` | `results/h1_h2_baseline_floor.csv` | `thesis/rq_matrix.md`, `thesis/preregistration.md` | ✔ |
-| Under the leaky random split the colour histogram scores 0.9616 - below ConvNeXtV2's 0.9879, reversing the pre-A8 figures. | `0.9616` | `results/h1_h2_baseline_floor.csv` | `thesis/rq_matrix.md` | ✔ |
+| On the grouped split a rule that reads only the clock scores 0.4907, within 0.0068 of ConvNeXtV2's 0.4975. | `0.4907` | `results/h1_h2_baseline_floor.csv` | `thesis/rq_matrix.md`, `thesis/preregistration.md`, `thesis/defence_redteam.md` | ✔ |
+| Under the leaky random split the colour histogram scores 0.9616 - below ConvNeXtV2's 0.9879, reversing the pre-A8 figures. | `0.9616` | `results/h1_h2_baseline_floor.csv` | `thesis/rq_matrix.md`, `thesis/defence_redteam.md` | ✔ |
+| The prompt search's winner leads a pre-declared prompt set by 0.4474 balanced score on the folds it was selected from - A6's 'optimistically biased' as a number. | `0.4474` | `results/h6_zero_shot_gap.csv` | `thesis/defence_redteam.md` | ✔ |
 
 ## Notes on individual claims
 
