@@ -8,7 +8,7 @@ What exists, where it lives, what each file does, and how to run it.
 
 <!-- branch-report:start -->
 `main` carries the whole project — 48 source modules,
-26 experiment scripts, 33 test files. Clone it and everything is
+27 experiment scripts, 34 test files. Clone it and everything is
 there; no branch to check out first.
 
 ```bash
@@ -229,6 +229,8 @@ library; the dependency points one way.
 | `label_efficiency.py` | How many labels does a new site need? |
 | `rq6_calibration_riskcoverage.py` | How much human review buys a given reliability? |
 | `input_ablation.py` | What is the model actually reading? |
+| `geometry_convention_probe.py` | Does the processor's own resize-and-crop cost anything? |
+| `input_path_protocol.py` | Does the input-path finding survive a paired test and a camera swap? |
 | `preprocess_search.py` | Which preprocessing combination transfers best? |
 | `prompt_search.py` | How well can zero-shot do with no labels at all? |
 | `efficiency_latency.py` | Does one CPU serve 20 cameras in a 60-second cycle? |
@@ -246,7 +248,7 @@ library; the dependency points one way.
 ```bash
 uv sync                             # creates .venv from uv.lock
 uv run pitch info                   # check paths resolve
-uv run pytest -q -m "not slow"      # 391 tests
+uv run pytest -q -m "not slow"      # 556 tests
 ```
 
 `uv sync` pulls ~2 GB on first run. If it times out, raise the timeout and reduce
