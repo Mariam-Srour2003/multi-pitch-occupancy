@@ -52,7 +52,8 @@ git checkout pilot/model-selection
 |---|---|
 | **[TODO.md](TODO.md)** | **The working checklist.** Every task, WP0→WP8, with milestone gates. Start here. |
 | [thesis/mvt.md](thesis/mvt.md) | **The minimum viable thesis** — the four load-bearing items, and what the floor deliberately does *not* require. Read before any scope decision. |
-| [docs/PM_REVIEW_2026-09-07.md](docs/PM_REVIEW_2026-09-07.md) | Project-management review: what was fixed, what the plan changed to, and the open decisions |
+| [docs/PM_REVIEW_2026-09-08.md](docs/PM_REVIEW_2026-09-08.md) | **Latest review.** What day two overturned — including two of day one's conclusions — and the six open decisions |
+| [docs/PM_REVIEW_2026-09-07.md](docs/PM_REVIEW_2026-09-07.md) | The first review, kept as written |
 | [SUPER_PLAN.md](SUPER_PLAN.md) | Reference plan — research questions, architecture, hard-won gotchas |
 | [PLAN.md](PLAN.md) | The original engineering plan from the pilot phase, kept for history |
 | `Thesis_Plan_Multi-Pitch_Occupancy (4).docx` | Full thesis plan — abstract, related work, methodology, contributions |
