@@ -1,0 +1,22 @@
+{
+  "random": {
+    "replicates": 5,
+    "median_n_test": 394,
+    "mean_majority_share": 0.6822
+  },
+  "grouped_slot": {
+    "replicates": 5,
+    "median_n_test": 853,
+    "mean_majority_share": 0.9758
+  },
+  "lo_venue_out": {
+    "replicates": 7,
+    "median_n_test": 18,
+    "mean_majority_share": 1.0
+  },
+  "temporal": {
+    "replicates": 1,
+    "median_n_test": 799,
+    "mean_majority_share": 0.9887
+  }
+}

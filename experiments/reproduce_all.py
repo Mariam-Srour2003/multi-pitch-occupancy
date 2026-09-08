@@ -81,7 +81,7 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="h1-h2-baseline-floor",
-        command=[*PY, str(ROOT / "experiments" / "h1_h2_baseline_floor.py")],
+        command=[*PY, "-m", "experiments.h1_h2_baseline_floor"],
         produces=[RESULTS / "h1_h2_baseline_floor.csv"],
         requires=[DATA / "cache" / "dinov2.npz"],
         note="split leakage and the trivial-baseline floor",
@@ -89,7 +89,7 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="h3-cross-venue",
-        command=[*PY, str(ROOT / "experiments" / "h3_cross_venue_recall.py")],
+        command=[*PY, "-m", "experiments.h3_cross_venue_recall"],
         produces=[RESULTS / "h3_cross_venue_recall.csv"],
         requires=[DATA / "cache" / "dinov2.npz"],
         note="cross-venue play recall",
@@ -97,7 +97,7 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="h3-sensitivity",
-        command=[*PY, str(ROOT / "experiments" / "h3_sensitivity_merged_venues.py")],
+        command=[*PY, "-m", "experiments.h3_sensitivity_merged_venues"],
         produces=[RESULTS / "h3_sensitivity_merged_venues.csv"],
         requires=[DATA / "cache" / "dinov2.npz"],
         note="H3 with the two audited venues merged",
@@ -105,7 +105,7 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="label-efficiency",
-        command=[*PY, str(ROOT / "experiments" / "label_efficiency.py")],
+        command=[*PY, "-m", "experiments.label_efficiency"],
         produces=[RESULTS / "label_efficiency.csv"],
         requires=[DATA / "cache" / "dinov2.npz"],
         note="macro-F1 against labelling budget",
@@ -113,7 +113,7 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="rq6-calibration",
-        command=[*PY, str(ROOT / "experiments" / "rq6_calibration_riskcoverage.py")],
+        command=[*PY, "-m", "experiments.rq6_calibration_riskcoverage"],
         produces=[RESULTS / "rq6_calibration.csv", RESULTS / "rq6_risk_coverage.csv"],
         requires=[DATA / "cache" / "dinov2.npz"],
         note="calibration and risk-coverage (reports as blocked - see the log)",
@@ -121,7 +121,7 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="input-ablation",
-        command=[*PY, str(ROOT / "experiments" / "input_ablation.py")],
+        command=[*PY, "-m", "experiments.input_ablation"],
         produces=[RESULTS / "input_ablation.csv"],
         requires=[DATA / "processed" / "manifest.csv"],
         note="what the model reads - re-embeds per variant",
@@ -129,7 +129,7 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="camera-health",
-        command=[*PY, str(ROOT / "experiments" / "camera_health.py")],
+        command=[*PY, "-m", "experiments.camera_health"],
         produces=[RESULTS / "camera_health.csv", RESULTS / "frame_quality.csv"],
         requires=[DATA / "processed" / "manifest.csv"],
         note="per-camera frame quality; a global threshold would flag one venue",
@@ -137,7 +137,7 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="near-duplicate-audit",
-        command=[*PY, str(ROOT / "experiments" / "near_duplicate_audit.py")],
+        command=[*PY, "-m", "experiments.near_duplicate_audit"],
         produces=[RESULTS / "near_duplicates.csv"],
         requires=[DATA / "processed" / "manifest.csv"],
         note="quantifies H1's leakage: 37.1% of duplicate pairs straddle a random split",
@@ -145,7 +145,7 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="camera-fingerprint",
-        command=[*PY, str(ROOT / "experiments" / "camera_fingerprint_audit.py")],
+        command=[*PY, "-m", "experiments.camera_fingerprint_audit"],
         produces=[RESULTS / "camera_fingerprint.csv"],
         requires=[DATA / "processed" / "manifest.csv"],
         note="proves the (1).mp4 camera suffix swaps between venue_01's two days",
@@ -153,14 +153,14 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="augmentation-grid",
-        command=[*PY, str(ROOT / "experiments" / "augmentation_grid.py")],
+        command=[*PY, "-m", "experiments.augmentation_grid"],
         produces=[RESULTS / "figs" / "augmentation_grid.jpg"],
         requires=[DATA / "processed" / "manifest.csv"],
         note="every augmentation preset over two real frames - the visual check",
     ),
     Stage(
         name="class-balancing",
-        command=[*PY, str(ROOT / "experiments" / "class_balancing.py")],
+        command=[*PY, "-m", "experiments.class_balancing"],
         produces=[RESULTS / "class_balancing.csv"],
         # the input ablation writes this cache; class balancing only reads it
         requires=[DATA / "cache" / "ablate_dinov2_full.npz"],
@@ -169,7 +169,7 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="h3-false-play",
-        command=[*PY, str(ROOT / "experiments" / "h3_with_false_play.py")],
+        command=[*PY, "-m", "experiments.h3_with_false_play"],
         produces=[RESULTS / "h3_with_false_play.csv"],
         # needs the published table too - it reproduces that column before adding its own
         requires=[DATA / "cache" / "dinov2.npz", RESULTS / "h3_cross_venue_recall.csv"],
@@ -194,14 +194,14 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="end-to-end-slots",
-        command=[*PY, str(ROOT / "experiments" / "end_to_end_slots.py")],
+        command=[*PY, "-m", "experiments.end_to_end_slots"],
         produces=[RESULTS / "end_to_end_slots.csv"],
         requires=[DATA / "processed" / "manifest.csv"],
         note="decision layer on the real slots",
     ),
     Stage(
         name="efficiency",
-        command=[*PY, str(ROOT / "experiments" / "efficiency_latency.py")],
+        command=[*PY, "-m", "experiments.efficiency_latency"],
         produces=[RESULTS / "efficiency_latency.csv"],
         requires=[DATA / "processed" / "manifest.csv"],
         note="latency and 20-camera throughput - hardware-specific, run --only on an idle machine",
@@ -210,7 +210,7 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="figures",
-        command=[*PY, str(ROOT / "experiments" / "make_figures.py")],
+        command=[*PY, "-m", "experiments.make_figures"],
         produces=[
             RESULTS / "figs" / f"{n}.png"
             for n in ("label_efficiency", "ranking_inversion", "cross_venue_recall")
@@ -226,7 +226,7 @@ STAGES: list[Stage] = [
     # the exact failure the header warns about, one level up.
     Stage(
         name="prompt-search",
-        command=[*PY, str(ROOT / "experiments" / "prompt_search.py")],
+        command=[*PY, "-m", "experiments.prompt_search"],
         produces=[RESULTS / "prompt_search.csv", RESULTS / "prompt_search_best.json"],
         requires=[DATA / "processed" / "manifest.csv"],
         note="zero-shot prompt sweep - the RQ1 cold-start baseline",
@@ -234,15 +234,23 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="geometry-probe",
-        command=[*PY, str(ROOT / "experiments" / "geometry_convention_probe.py")],
+        command=[*PY, "-m", "experiments.geometry_convention_probe"],
         produces=[RESULTS / "geometry_convention_probe.csv"],
         requires=[DATA / "processed" / "manifest.csv"],
         note="WP3-T3: keep the processor geometry; ConvNeXtV2 false-play 0.99 -> 0.02 letterboxed",
         minutes=50,
     ),
     Stage(
+        name="benchmark-v2",
+        command=[*PY, "-m", "experiments.benchmark_v2"],
+        produces=[RESULTS / "benchmark_v2.csv", RESULTS / "benchmark_v2_protocols.json"],
+        requires=[DATA / "cache" / "dinov2.npz", RESULTS / "h1_h2_baseline_floor.csv"],
+        note="WP4-T1: four split protocols; a constant predictor scores 1.000 cross-venue",
+        minutes=12,
+    ),
+    Stage(
         name="input-path-protocol",
-        command=[*PY, str(ROOT / "experiments" / "input_path_protocol.py")],
+        command=[*PY, "-m", "experiments.input_path_protocol"],
         produces=[RESULTS / "input_path_protocol.csv"],
         requires=[DATA / "cache" / "convnextv2.npz",
                   DATA / "cache" / "geom_probe" / "convnextv2.npz",
@@ -252,7 +260,7 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="h4-equivalence",
-        command=[*PY, str(ROOT / "experiments" / "h4_model_equivalence.py")],
+        command=[*PY, "-m", "experiments.h4_model_equivalence"],
         produces=[RESULTS / "h4_model_equivalence.csv"],
         requires=[DATA / "cache" / "vit.npz", RESULTS / "h1_h2_baseline_floor.csv",
                   RESULTS / "efficiency_latency.csv"],
@@ -261,7 +269,7 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="logit-average",
-        command=[*PY, str(ROOT / "experiments" / "logit_average_baseline.py")],
+        command=[*PY, "-m", "experiments.logit_average_baseline"],
         produces=[RESULTS / "logit_average_baseline.csv"],
         requires=[DATA / "cache" / "dinov2.npz", RESULTS / "h3_cross_venue_recall.csv"],
         note="WP5-T9 on raw caches; its false-play half is refuted - see logit-average-preproc",
@@ -269,7 +277,7 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="logit-average-preproc",
-        command=[*PY, str(ROOT / "experiments" / "logit_average_baseline.py"),
+        command=[*PY, "-m", "experiments.logit_average_baseline",
                  "--cache-dir", str(DATA / "cache" / "geom_probe"), "--suffix", "_preproc"],
         produces=[RESULTS / "logit_average_baseline_preproc.csv"],
         requires=[DATA / "cache" / "geom_probe" / "dinov2.npz"],
@@ -278,7 +286,7 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="preprocess-search",
-        command=[*PY, str(ROOT / "experiments" / "preprocess_search.py")],
+        command=[*PY, "-m", "experiments.preprocess_search"],
         produces=[RESULTS / "preprocess_search.json"],
         requires=[DATA / "processed" / "manifest.csv"],
         note="740-min preprocessing sweep - named so it is reported, not omitted; run it deliberately with --only",
@@ -286,7 +294,7 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="rescore-false-play",
-        command=[*PY, str(ROOT / "experiments" / "rescore_false_play.py")],
+        command=[*PY, "-m", "experiments.rescore_false_play"],
         produces=[RESULTS / "false_play_rescored.csv"],
         requires=[RESULTS / "preprocess_search.json"],
         note="repairs the search's false-play control, which scored probes on their own training data",

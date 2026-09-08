@@ -110,6 +110,8 @@ amendment A9.
 | evidence | file / figure | finding |
 |---|---|---|
 | Split comparison | `h1_h2_baseline_floor.csv` | macro-F1 roughly **halves**, random -> grouped: ConvNeXtV2 0.988 -> 0.498, ViT 0.994 -> 0.498, DINOv2 0.988 -> 0.579 |
+| Four protocols side by side | `benchmark_v2.csv` | 8 models x {random, grouped, cross-venue, temporal}; **a constant predictor scores macro-F1 1.000 cross-venue** |
+| Zero-shot composition control | same | an untrained model drops **0.183** on the same change of test set, so the leakage-attributable drop is **0.332-0.395**, not 0.516-0.578 |
 | Split validation | `check_split()` | the honest grouped split is 99% single-class - degenerate on this data |
 | Ranking inversion | `figs/ranking_inversion.png` | ViT 1st under the leaky protocol, tied 2nd/3rd under the honest one |
 
@@ -131,6 +133,41 @@ leakage, because the grouped test set is near-single-class - the direction is so
 number is now clean but not attributable. And the ranking inversion is a fact about **rank,
 not margin**: ViT's apparent 0.339 lead under the leaky protocol was almost entirely the
 single C3 frame it happened to get right; on equal footing that lead is **0.006**.
+
+> ### The first caveat now has a number against it (2026-09-08, `benchmark_v2.csv`)
+>
+> "Not attributable" was the right call and it can be sharpened rather than only repeated.
+> **A model that never trains cannot leak**, so OpenCLIP scored zero-shot on the *identical*
+> test sets isolates how much of the fall is the change in what is being tested. It drops
+> **0.1834** from random to grouped. Subtracting it:
+>
+> | | raw drop | composition | leakage-attributable |
+> |---|---|---|---|
+> | ConvNeXtV2 | 0.5784 | 0.1834 | **0.3950** |
+> | ViT | 0.5357 | 0.1834 | **0.3522** |
+> | DINOv2 | 0.5158 | 0.1834 | **0.3323** |
+> | `cheap_intensity` | 0.1929 | 0.1834 | 0.0094 |
+>
+> So H1's effect survives and stays large - about a third of the score rather than the two
+> thirds the raw delta implies. The last row is the sanity check: a model with almost
+> nothing to memorise loses almost nothing to leakage. **This is a control, not a proof** -
+> it assumes the composition effect is additive and similar across models, and CLIP's errors
+> are not a probe's.
+>
+> ### And a fourth protocol makes the degeneracy impossible to miss
+>
+> Under **leave-one-venue-out**, `majority` - which reads no pixels and always answers
+> "playing" - scores macro-F1 **1.0000**, ahead of DINOv2's 0.9595. Every held-out clip venue
+> is 100% ACTIVE_PLAY, so the macro average is over one class and the metric cannot separate
+> a backbone from a constant. H3 had shown cross-venue *recall* was free on single-class
+> folds; this is the same defect reaching the headline metric.
+>
+> Two further limits, both from the same table. The **temporal** protocol does not measure
+> drift here - day one is 97.6% EMPTY and daylit, day two 98.9% ACTIVE_PLAY and floodlit, so
+> it is a class-and-lighting flip. And across five seeds the grouped protocol's spread is
+> **±0.240** for DINOv2, the same order as the differences between models, so **no ranking on
+> the grouped split is supported by a single split** - and every published grouped number
+> uses one.
 
 ## RQ4 - reconciliation
 

@@ -6,6 +6,7 @@ quietly if a stage stops being reachable, so the graph is checked rather than tr
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 
@@ -60,10 +61,49 @@ def test_requirements_are_met_by_an_earlier_stage_or_are_data() -> None:
 
 
 def test_every_stage_command_points_at_a_real_target() -> None:
+    """Every stage names a module file that exists.
+
+    This used to test `command[-1].endswith(".py")` against a path. Once the stages moved
+    to `-m experiments.<name>` no command ended in `.py` any more and the loop passed
+    without asserting anything - so it checks the module now, and the next test checks
+    that the module actually imports, which is the property that failed in practice.
+    """
     for s in STAGES:
-        target = s.command[-1]
-        if target.endswith(".py"):
-            assert Path(target).exists(), f"{s.name} -> missing {target}"
+        if "-m" not in s.command:
+            continue
+        module = s.command[s.command.index("-m") + 1]
+        if not module.startswith("experiments."):
+            continue
+        assert (ROOT / "experiments" / f"{module.split('.', 1)[1]}.py").exists(), s.name
+
+
+@pytest.mark.slow
+def test_every_experiment_imports_under_the_invocation_the_pipeline_uses() -> None:
+    """The pipeline's claim is that every number is recomputable *from here*.
+
+    `false_play_significance` and `rescore_false_play` import from a sibling experiment,
+    and running them as `python experiments/x.py` puts `experiments/` on `sys.path` rather
+    than the repository root - so both raised `ModuleNotFoundError` and neither could run
+    at all. `--check` reported them done regardless, because their CSVs existed from an
+    earlier run and nothing verified the command that produced them still worked.
+
+    Import only: `-c "import experiments.x"` does not execute `main()`, so this costs
+    seconds and still catches the failure.
+    """
+    modules = sorted(
+        f"experiments.{p.stem}" for p in (ROOT / "experiments").glob("*.py")
+        if p.stem != "__init__"
+    )
+    broken = []
+    for module in modules:
+        result = subprocess.run(
+            [sys.executable, "-c", f"import {module}"],
+            cwd=ROOT, capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            last = [l for l in result.stderr.strip().splitlines() if l.strip()]
+            broken.append(f"{module}: {last[-1] if last else 'no output'}")
+    assert not broken, "these cannot be run by the pipeline: " + "; ".join(broken)
 
 
 def test_expensive_stages_are_flagged() -> None:

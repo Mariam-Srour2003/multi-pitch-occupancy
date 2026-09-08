@@ -253,15 +253,39 @@ def random_split(
     )
 
 
-def temporal_split(rows: list[ManifestRow], *, cutoff_date: str) -> Split:
+def temporal_split(
+    rows: list[ManifestRow], *, cutoff_date: str, undated: str = "exclude"
+) -> Split:
     """Train on everything before ``cutoff_date`` (ISO), test on and after it.
 
     Measures drift: does a model fitted on earlier recordings hold up later? Needs
     recordings spread over time to mean anything.
+
+    **A frame with no ``slot_date`` has no position on the timeline**, so ``undated``
+    says what to do with it rather than letting string comparison decide. This is not
+    hypothetical: ``"" < "2026-07-12"`` is true, so the original version put every undated
+    frame in *train* silently — and on this corpus all 282 undated frames come from the
+    seven clip venues, none of which appear in the test side. The split called "temporal"
+    was a venue-and-time split, and nothing said so.
+
+    * ``"exclude"`` (default) — leave them out and let the split be about time alone.
+    * ``"train"`` — the old behaviour, available deliberately rather than by accident.
+    * ``"error"`` — refuse, for a caller that believes its data is fully dated.
     """
+    if undated not in {"exclude", "train", "error"}:
+        raise ValueError(f"undated must be exclude/train/error, not {undated!r}")
     rows = development_rows(rows)
-    train = [r for r in rows if r.slot_date < cutoff_date]
-    test = [r for r in rows if r.slot_date >= cutoff_date]
+
+    missing = [r for r in rows if not r.slot_date]
+    if missing and undated == "error":
+        raise ValueError(
+            f"{len(missing)} row(s) have no slot_date and cannot be placed on a timeline; "
+            "pass undated='exclude' or undated='train'"
+        )
+    dated = rows if undated == "train" else [r for r in rows if r.slot_date]
+
+    train = [r for r in dated if r.slot_date < cutoff_date]
+    test = [r for r in dated if r.slot_date >= cutoff_date]
     return Split(
         name=f"temporal_{cutoff_date}",
         train=tuple(train),

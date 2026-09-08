@@ -226,6 +226,7 @@ library; the dependency points one way.
 | Script | Question |
 |---|---|
 | `h1_h2_baseline_floor.py` | Does the split leak, and do trivial baselines already do the job? |
+| `benchmark_v2.py` | Four split protocols side by side - and what each one actually measures. |
 | `h3_cross_venue_recall.py` | Does play detection transfer to unseen venues? |
 | `h3_sensitivity_merged_venues.py` | Does H3 survive merging the two audited venues? |
 | `label_efficiency.py` | How many labels does a new site need? |

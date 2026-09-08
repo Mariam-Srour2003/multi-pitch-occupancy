@@ -192,6 +192,52 @@ def test_temporal_split_respects_the_cutoff(rows) -> None:
     assert all(r.slot_date >= "2026-08-01" for r in s.test)
 
 
+def test_undated_frames_are_excluded_from_a_temporal_split_by_default(rows) -> None:
+    """`"" < "2026-08-01"` is true, so undated frames used to land in *train* silently.
+
+    On the real corpus all 282 undated frames are the seven clip venues, none of which
+    appear on the test side - so the split named "temporal" was a venue-and-time split and
+    nothing in its output said so. A frame with no date has no position on a timeline.
+    """
+    undated = [row(f"nodate_{i}.jpg", venue="v9", slot="s9", date="") for i in range(6)]
+    late = [row(f"late_{i}.jpg", date="2026-08-01", cls="C2_ACTIVE_PLAY") for i in range(5)]
+    s = temporal_split(rows + undated + late, cutoff_date="2026-08-01")
+    placed = {r.file for r in s.train} | {r.file for r in s.test}
+    assert not any(r.file in placed for r in undated)
+
+
+def test_the_old_behaviour_is_still_available_but_has_to_be_asked_for(rows) -> None:
+    undated = [row(f"nodate_{i}.jpg", venue="v9", slot="s9", date="") for i in range(6)]
+    late = [row(f"late_{i}.jpg", date="2026-08-01", cls="C2_ACTIVE_PLAY") for i in range(5)]
+    s = temporal_split(rows + undated + late, cutoff_date="2026-08-01", undated="train")
+    assert {r.file for r in undated} <= {r.file for r in s.train}
+
+
+def test_undated_error_names_how_many_rows_are_undated(rows) -> None:
+    undated = [row(f"nodate_{i}.jpg", venue="v9", slot="s9", date="") for i in range(6)]
+    with pytest.raises(ValueError, match="6 row"):
+        temporal_split(rows + undated, cutoff_date="2026-08-01", undated="error")
+
+
+def test_a_fully_dated_corpus_is_unaffected_by_the_policy(rows) -> None:
+    late = [row(f"late_{i}.jpg", date="2026-08-01", cls="C2_ACTIVE_PLAY") for i in range(5)]
+    data = rows + late
+    everything = [
+        temporal_split(data, cutoff_date="2026-08-01", undated=policy)
+        for policy in ("exclude", "train", "error")
+    ]
+    assert all(
+        [r.file for r in s.train] == [r.file for r in everything[0].train]
+        and [r.file for r in s.test] == [r.file for r in everything[0].test]
+        for s in everything
+    )
+
+
+def test_an_unknown_undated_policy_raises_rather_than_silently_excluding(rows) -> None:
+    with pytest.raises(ValueError, match="exclude/train/error"):
+        temporal_split(rows, cutoff_date="2026-08-01", undated="keep")
+
+
 def test_random_split_is_leaky_by_design(rows) -> None:
     """Documented behaviour: it exists as H1's control arm, so it must NOT be group-safe."""
     s = random_split(rows)

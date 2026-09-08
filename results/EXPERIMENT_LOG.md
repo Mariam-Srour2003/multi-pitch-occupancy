@@ -2229,3 +2229,107 @@ measurement this dataset cannot support — not a new problem, a visible one.
 - 2026-09-08 | WP2-T10 camera fingerprinting | `python experiments/camera_fingerprint_audit.py` | `camera_fingerprint.csv` | 70 views, 10 venues
 
 - 2026-09-08 | WP5-T9 logit-average baseline | `python experiments/logit_average_baseline.py` | `logit_average_baseline.csv` | best single dinov2 0.9297, oracle 0.9603
+
+- 2026-09-08 | WP4-T1 benchmark v2 | `python experiments/benchmark_v2.py` | `benchmark_v2.csv` | 8 models x 4 protocols; every protocol degenerate, each differently
+
+---
+
+## 2026-09-08 — WP4-T1: four split protocols, and a constant predictor that wins one
+
+`experiments/benchmark_v2.py` → `results/benchmark_v2.csv`, `benchmark_v2_protocols.json`
+
+Eight predictors under four protocols. The plan asks for the random-vs-grouped delta as
+"the thesis's first key figure"; running all four side by side gives that and two things it
+could not give alone.
+
+### Macro-F1 by protocol (mean ± sd over replicates)
+
+| model | random (leaky) | grouped_slot | lo_venue_out | temporal |
+|---|---|---|---|---|
+| majority | 0.4059 ±0.004 | 0.0166 ±0.015 | **1.0000 ±0.000** | 0.0111 |
+| clock_rule | 0.9147 ±0.011 | 0.4005 ±0.200 | 0.2619 ±0.383 | 0.0111 |
+| cheap_intensity | 0.3487 ±0.048 | 0.1558 ±0.084 | 0.0000 ±0.000 | 0.3645 |
+| cheap_histogram | 0.9695 ±0.008 | 0.1269 ±0.092 | 0.8535 ±0.262 | 0.0000 |
+| convnextv2 | 0.9849 ±0.004 | 0.4064 ±0.203 | 0.9493 ±0.071 | 0.4965 |
+| dinov2 | 0.9873 ±0.002 | 0.4715 ±0.240 | 0.9595 ±0.074 | 0.5463 |
+| vit | 0.9926 ±0.004 | 0.4569 ±0.090 | 0.9148 ±0.147 | 0.4936 |
+| clip_zeroshot *(control)* | 0.7612 ±0.026 | 0.5778 ±0.108 | 0.9907 ±0.016 | 0.6332 |
+
+### 1. A model that always answers "playing" scores a perfect cross-venue macro-F1
+
+`majority` predicts the most frequent training class and reads no pixels. Every held-out
+clip venue is **100% ACTIVE_PLAY**, so it is right on every frame, and the macro average is
+over the one class present: **1.0000**, ahead of DINOv2's 0.9595.
+
+H3 and the false-play control had already shown cross-venue *recall* is free on single-class
+folds. This is the same defect reaching the headline metric: on this protocol macro-F1 does
+not distinguish a backbone from a constant, and the ordering it produces is not about
+occupancy. `clip_zeroshot` scoring 0.9907 — above every trained backbone — is the same
+artefact from the other side.
+
+The floor is quantified per protocol now rather than asserted:
+
+| protocol | best trivial | best backbone | gap |
+|---|---|---|---|
+| random | cheap_histogram 0.9695 | vit 0.9926 | +0.0231 |
+| grouped_slot | clock_rule 0.4005 | dinov2 0.4715 | +0.0710 |
+| **lo_venue_out** | **majority 1.0000** | dinov2 0.9595 | **−0.0405** |
+| temporal | cheap_intensity 0.3645 | dinov2 0.5463 | +0.1818 |
+
+### 2. A third of H1's drop is test-set composition, not leakage
+
+The random→grouped drop is 0.52–0.58 for the backbones. But **a model that never trains
+cannot leak**, and OpenCLIP scored zero-shot on the identical test sets drops **0.1834** on
+the same change of protocol. That part of the fall is what any model would show from the
+change in what is being tested.
+
+| model | raw drop | composition (control) | leakage-attributable |
+|---|---|---|---|
+| convnextv2 | 0.5784 | 0.1834 | **0.3950** |
+| vit | 0.5357 | 0.1834 | **0.3522** |
+| dinov2 | 0.5158 | 0.1834 | **0.3323** |
+| cheap_intensity | 0.1929 | 0.1834 | 0.0094 |
+| cheap_histogram | 0.8426 | 0.1834 | 0.6592 |
+
+H1's effect survives and is still large — a third of the score, not the two-thirds the raw
+delta suggests. `cheap_intensity`'s attributable drop of 0.0094 is a sanity check pointing
+the right way: a model with almost nothing to memorise loses almost nothing to leakage.
+
+**This is a control, not a proof.** It assumes the composition effect is additive and
+similar across models. CLIP's errors are not a probe's, and the subtraction is stated as an
+assumption in the script and here. Its prompt set was fixed in advance — the first
+descriptor of each class, all five templates — and is deliberately *not* the prompt search's
+winner, which was selected on the folds it reports.
+
+### 3. One grouped split is a sample of size one
+
+Across five seeds the grouped protocol's spread is **±0.240** for DINOv2 and ±0.203 for
+ConvNeXtV2 — on a mean of 0.47. Every published grouped-split number in this project comes
+from `seed=42` alone. They reproduce exactly (the guard checks 14 of them before anything
+else runs), but the seed-to-seed variation is of the same order as the differences between
+models, so **no ranking on the grouped split is supported by one split**. The plan's ★ item
+asked for ≥5 splits; this is why.
+
+### 4. The temporal protocol does not measure drift
+
+venue_01's day one is 97.6% EMPTY and entirely daylight; day two is 98.9% ACTIVE_PLAY and
+entirely floodlit. Training before the cut and testing after it is a class-and-lighting
+flip, and every model lands between 0.49 and 0.55 — including a `cheap_histogram` at exactly
+**0.0000**, which predicts C3 for everything after six upweighted maintenance frames in
+training. Report it as a demonstration that the corpus cannot measure drift, not as drift.
+
+Setting it up found that `temporal_split` placed undated frames in *train* by string
+comparison (`"" < "2026-07-12"`), and on this corpus all 282 undated frames are the seven
+clip venues — none of which appear on the test side. The split called "temporal" was a
+venue-and-time split and nothing in its output said so. It now takes an explicit `undated`
+policy, defaulting to excluding them.
+
+### What this protocol table is for
+
+Not to pick a winner. Read together the four columns say the same thing from four sides:
+**this corpus can measure whether a pitch has people on it only inside one venue, and can
+measure generalisation only in the one direction where the answer is always yes.** Every
+number above is quotable only with its diagnostics — test size, class count, majority
+share — which is why they ship in the same CSV rows.
+
+- 2026-09-08 | WP4-T1 benchmark v2 | `python -m experiments.benchmark_v2` | `benchmark_v2.csv` | 8 models x 4 protocols; a constant predictor scores macro-F1 1.000 cross-venue; a third of H1's drop is composition

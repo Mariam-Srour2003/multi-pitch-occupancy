@@ -668,13 +668,51 @@ tagged with the question it answers. Fix that first — it is what turns a build
         ConvNeXtV2 calls **99.2%** of held-out empty pitches a match, ViT 83.5%, DINOv2
         30.9%, and the clock rule — the straw man — just **2.1%**. On `recall − false-play`
         ConvNeXtV2 scores *below* a rule that never looks at the image.
-- [ ] **WP4-T1 Same-scene vs grouped vs leave-one-venue-out.** 4 models × 3 split strategies ×
-      3 classes. *Accept:* `results/benchmark_v2.csv`; the random-vs-grouped delta is the thesis's
-      first key figure. **(RQ3)**
-  - [ ] ★ Add the **temporal split** as a 4th strategy (from WP0-T4) — measures drift, costs one
-        extra run on cached features. **(RQ3)**
-  - [ ] ★ Report **mean ± std over ≥5 grouped splits**, not one split. A single split's number is a
-        sample of size one, and reviewers treat it as such.
+- [x] **WP4-T1 Same-scene vs grouped vs leave-one-venue-out — done, 8 models × 4 protocols.**
+      `experiments/benchmark_v2.py` → `results/benchmark_v2.csv` +
+      `benchmark_v2_protocols.json`, 14 tests, stage `benchmark-v2`. The seed-42 random and
+      grouped rows are checked against `h1_h2_baseline_floor.csv` before anything else runs.
+      Full write-up in `results/EXPERIMENT_LOG.md`. **(RQ3)**
+  - [x] ★ **The headline is not the delta — it is that a constant predictor wins a
+        protocol.** `majority` reads no pixels and scores macro-F1 **1.0000** on
+        leave-one-venue-out, ahead of DINOv2's 0.9595, because every held-out clip venue is
+        100% ACTIVE_PLAY and the macro average is over the one class present. H3 and the
+        false-play control had shown cross-venue *recall* was free on single-class folds;
+        this is the same defect reaching the headline metric. `clip_zeroshot` at 0.9907,
+        above every trained backbone, is the same artefact from the other side.
+    - [x] The floor is now quantified per protocol rather than asserted: trivial-vs-best-
+          backbone gaps are +0.023 (random), +0.071 (grouped), **−0.041 (cross-venue)**,
+          +0.182 (temporal).
+  - [x] ★ **A third of H1's drop is test-set composition, not leakage.** A model that never
+        trains cannot leak, so OpenCLIP scored zero-shot on the identical test sets measures
+        the composition effect directly: it drops **0.1834** from random to grouped. Raw
+        drops of 0.516–0.578 become leakage-attributable drops of **0.332–0.395**.
+        `cheap_intensity`, with almost nothing to memorise, has an attributable drop of
+        0.0094 — a sanity check pointing the right way. Stated as a **control, not a
+        proof**: it assumes the composition effect is additive and similar across models.
+    - [x] The control's prompt set is fixed in advance (first descriptor per class, five
+          templates) and is deliberately **not** the prompt search's winner, which was
+          selected on the folds it reports. A test pins that they differ.
+  - [x] ★ Add the **temporal split** as a 4th strategy (from WP0-T4) — measures drift, costs one
+        extra run on cached features. **(RQ3)** *Done, and it does not measure drift:* day one
+        is 97.6% EMPTY and all daylight, day two 98.9% ACTIVE_PLAY and all floodlit, so it is
+        a class-and-lighting flip. Report it as a demonstration that this corpus cannot
+        measure drift.
+    - [x] Setting it up found `temporal_split` placing **undated frames in train** by string
+          comparison (`"" < "2026-07-12"`) — and all 282 undated frames are the seven clip
+          venues, none of which appear on the test side. The split called "temporal" was a
+          venue-and-time split and said nothing. It now takes an explicit `undated` policy,
+          default `exclude`; 5 tests.
+  - [x] ★ Report **mean ± std over ≥5 grouped splits**, not one split. A single split's number is a
+        sample of size one, and reviewers treat it as such. *Done, and the spread is large:*
+        **±0.240** for DINOv2 and ±0.203 for ConvNeXtV2 on a mean of 0.47. Every published
+        grouped-split number uses `seed=42` alone; they reproduce exactly, but the
+        seed-to-seed variation is the same order as the between-model differences, so **no
+        ranking on the grouped split is supported by one split.**
+  - [ ] ★ **[B] Quote no benchmark_v2 number without its diagnostics.** Test size, class
+        count and majority share ship in the same CSV row for exactly this reason. The four
+        columns together say: this corpus can measure occupancy only inside one venue, and
+        generalisation only in the direction where the answer is always yes.
 - [x] **WP4-T10 ★ Trivial-baseline floor — done, and it fired.** `experiments/h1_h2_baseline_floor.py`.
       Under the random split a **16-bin colour histogram beat ConvNeXtV2 on macro-F1** (0.686 vs
       0.657); under the grouped split the **clock rule came within 0.007** of it using no pixels at
