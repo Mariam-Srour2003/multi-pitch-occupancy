@@ -671,6 +671,30 @@ tagged with the question it answers. Fix that first — it is what turns a build
         for 88), and the source is not the withdrawn 500-frame run, so re-publishing that one
         needs a deliberate edit. Verified both ways: green on the current page, and it fires when
         the stamp is rolled back.
+- [x] ★ **H5 reported (2026-09-08) — one clause unrunnable, one refuted.**
+      `experiments/h5_preprocessing_switches.py` → `results/h5_preprocessing_switches.csv`,
+      7 tests, stage `h5-preprocessing`, amendment A11. Every arm's published recall
+      reproduces first. **All six pre-registered hypotheses are now reported.**
+  - [x] **ROI clause: unrunnable, not refuted.** No `configs/cameras.json`, `roi_mask`
+        returns the frame untouched without a polygon, all 88 evaluations carry `roi:
+        False`, and `SWITCHES` deliberately excludes `roi` so the search cannot record a
+        false null. A null result here would be manufactured. **Blocked on WP3-T1.**
+  - [x] ★ **CLAHE clause: refuted, and in the opposite direction.** Grouped split, macro-F1,
+        paired, Holm over the realised family of 4: **all four significant, all four
+        negative.** ConvNeXtV2 −0.008/−0.009; DINOv2 **−0.27**, which collapses it onto
+        roughly the score of a model that never recognises an empty pitch. Cohen's g ≈ 0.5,
+        so the disagreements are wholly one-sided; 0 of 4 night splits improve.
+  - [x] ★ **And "on the night subset specifically" is untestable here.** It needs a day
+        column, and venue_01 has exactly two recording days — holding whole slots out fills
+        the test side from one of them. Across five seeds four test sets are entirely night
+        and the fifth entirely day; **no grouped split holds both**. The day figures come
+        from a different partition and are reported as an observation, never a contrast.
+        This is a scope limit, and belongs on the preregistration's "not answerable" list.
+  - [ ] ★ **What this means for adopting any switch.** CLAHE was a candidate on the search's
+        cross-venue metric and is harmful on the grouped one. Read with WP3-T8's floor, the
+        rule is now explicit: **a switch is adopted only if it clears the resolution floor on
+        the ranking metric *and* does not lose macro-F1 on the honest split.** Re-read
+        WP3-T2's adopted switches against both before any reaches the thesis.
 - [ ] **WP3-T9 ★ ROI ablation gets its own figure.** Of all preprocessing steps, ROI masking is the
       one with a *visual* story (adjacent pitches firing false ACTIVE_PLAY). Pair the number with
       side-by-side example frames — it will be one of the most quoted figures in your defence.

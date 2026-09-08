@@ -37,6 +37,7 @@ OUT_OF_SCOPE = {
     # EXPERIMENT_LOG.md, which the served site renders in full.
     "h4_model_equivalence.csv": "H4: refuted; the reasoning is the result",
     "h6_zero_shot_gap.csv": "H6: inconclusive; the prompt-space distribution is the result",
+    "h5_preprocessing_switches.csv": "H5: one clause unrunnable, one refuted - the clauses are the result",
     "false_play_significance.csv": "significance that does not survive the effective sample",
     "false_play_rescored.csv": "repair of the search's false-play control",
     "h3_with_false_play.csv": "H3 re-reported with its control",

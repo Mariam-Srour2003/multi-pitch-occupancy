@@ -30,6 +30,7 @@ Updated 2026-09-06.
 | Label efficiency | `label_efficiency.csv` | 10-25 labels already beat the zero-label rule |
 | Efficiency | `efficiency_latency.csv` | 20 cameras in 2.5-5.7 s against a 60 s cycle |
 | H6 zero-shot (cold start) | `h6_zero_shot_gap.csv` | **prompt choice moves macro-F1 by 0.726; the three backbones span 0.082** |
+| H5 preprocessing switches | `h5_preprocessing_switches.csv` | CLAHE is significantly **worse** on the honest split (DINOv2 −0.27 macro-F1); ROI never ran |
 
 **Partly answered, and the limit is the data, not the method.** Active play is detected
 reliably across nine venues in both lighting conditions. Whether an *empty* pitch is

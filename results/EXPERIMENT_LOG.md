@@ -2628,3 +2628,76 @@ pilot table demoted to history. The section naming the defects is deliberately i
 are a result of this project, not an embarrassment to be kept out of the front page.
 
 - 2026-09-08 | README status | `python scripts/branch_report.py --write` | `README.md` | status block generated from git; findings section added; three staleness guards
+
+- 2026-09-08 | H5 preprocessing switches | `python -m experiments.h5_preprocessing_switches` | `h5_preprocessing_switches.csv` | ROI clause unrunnable (no polygon); CLAHE clause 4/4 significant
+
+---
+
+## 2026-09-08 — H5 reported: one clause unrunnable, one refuted
+
+`experiments/h5_preprocessing_switches.py` → `results/h5_preprocessing_switches.csv`
+
+The sixth and last pre-registered hypothesis. Its two clauses fail in different ways, and
+keeping them apart is the whole point: collapsing them into one verdict would either invent a
+null result or bury a real one. Every arm's published cross-venue recall reproduces before
+anything new is computed.
+
+### Clause 1 — ROI masking: **unrunnable**, not refuted
+
+ROI masking has never been evaluated and cannot be. `configs/cameras.json` does not exist,
+WP3-T1 needs a human to draw one polygon per camera, and `roi_mask` returns the frame
+untouched when the polygon is absent. All 88 search evaluations carry `roi: False`, and
+`SWITCHES` **deliberately excludes** `roi` for exactly this reason — a switch that cannot
+change the image must never enter a search, or the search records "ROI masking does not help"
+from a transform that never ran.
+
+Reported unrunnable. A null result here would be manufactured, and the project already has a
+test (`test_preprocess_switches.py`) whose stated purpose is preventing that.
+
+### Clause 2 — CLAHE: **refuted**, and in the opposite direction
+
+`clahe='on'` and `clahe='auto'` differ from the baseline in that switch alone and their caches
+survive, so this is re-scoring. Grouped split, seed 42, macro-F1, paired throughout:
+
+| model | switch | n | baseline | arm | Δ | 95% CI | p (Holm) | g |
+|---|---|---|---|---|---|---|---|---|
+| convnextv2 | auto | 799 | 0.4972 | 0.4888 | **−0.0084** | [−0.0117, −0.0054] | 9.4e−07 | 0.500 |
+| convnextv2 | on | 799 | 0.4972 | 0.4878 | **−0.0093** | [−0.0129, −0.0061] | 4.0e−07 | 0.500 |
+| dinov2 | auto | 799 | 0.7617 | 0.4946 | **−0.2671** | [−0.4012, −0.0500] | 1.3e−24 | 0.468 |
+| dinov2 | on | 799 | 0.7617 | 0.4904 | **−0.2712** | [−0.4054, −0.0532] | 1.5e−21 | 0.456 |
+
+**4 of 4 significant after Holm, and CLAHE is worse in all four.** The clause predicted an
+improvement; every interval lies entirely below zero and Cohen's g of ~0.5 means the
+disagreements are wholly one-sided. On DINOv2 it costs 0.27 macro-F1 — it collapses the model
+onto roughly the score of one that never recognises an empty pitch. Across five splits it
+improves in **0 of 4** night test sets for either model.
+
+Realised family **4**, not the 5 switches the hypothesis anticipated: only CLAHE has arms.
+
+### And the clause's "specifically" cannot be tested at all
+
+The clause says CLAHE helps *on the night subset specifically*, which needs a day column to
+compare against. This corpus cannot supply one. venue_01 has exactly two recording days — a
+daylight morning and a floodlit night — and holding whole slots out fills the test side from
+one of them:
+
+| seed | 42 | 43 | 44 | 45 | 46 |
+|---|---|---|---|---|---|
+| test set | night 799 | night 799 | night 799 | night 799 | **day 497** |
+
+**No grouped split has both.** So the day figures come from a different partition and are
+reported as a second observation, never as a contrast. (Read that way: on the one day split,
+CLAHE *helps* ConvNeXtV2 by ~+0.10 and hurts DINOv2 by ~−0.15 — which is a reason to want the
+contrast, not a substitute for it.)
+
+The lighting stratification is restricted to venue_01 deliberately: `lighting` elsewhere is a
+brightness proxy WP3-T5 found wrong for at least three clip venues, while within venue_01 it
+is the recording day. The grouped split's test set is venue_01 anyway, so the restriction
+costs nothing and removes the label error.
+
+### The effective sample, as always
+
+799 night frames are **71 distinct scenes**. The intervals above are frame-level and narrower
+than the truth.
+
+- 2026-09-08 | H5 preprocessing switches | `python -m experiments.h5_preprocessing_switches` | `h5_preprocessing_switches.csv` | ROI clause unrunnable (no polygon); CLAHE clause refuted - 4/4 significant and all negative

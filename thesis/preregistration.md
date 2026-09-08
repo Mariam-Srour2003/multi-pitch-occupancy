@@ -194,7 +194,7 @@ matrix, or the task list. Recorded now so they are visibly open rather than sile
 | | status | what it needs |
 |---|---|---|
 | **H4** compact backbone not significantly worse | **outstanding** | pairwise McNemar under the grouped split (WP4-T4b). Note it is now partly *superseded*: latency stopped being the binding constraint (10–24× headroom), so a null result no longer hands the decision to speed the way the decision rule assumed |
-| **H5** preprocessing contributes measurably | **outstanding and complicated** | the 76-evaluation search ran, but WP3-T3 found the HF processor re-crops after `preprocess.py`, so every *geometric* switch was partly overwritten. H5 cannot be settled until the `processor_geometry` convention is decided by measurement |
+| **H5** preprocessing contributes measurably | **reported 2026-09-08 — clause 1 unrunnable, clause 2 refuted** | A11. ROI masking has no polygon and never ran, so a null there would be manufactured; CLAHE is significantly **worse** on all 4 comparisons (DINOv2 −0.27 macro-F1). The "night specifically" clause is untestable: no grouped split holds both lighting conditions |
 | **H6** zero-shot lags trained probes | **reported 2026-09-08 — inconclusive** | A10. Direction is against it (zero-shot beats all three probes, Holm-corrected, on 5 of 5 splits), but the declared prompt set is above 85% of the prompt space and the median set loses. Prompt choice moves macro-F1 by 0.726 against the backbones' 0.082 |
 
 **A6 — Two large search families were run outside the declared family structure. Disclosed.**
@@ -350,3 +350,43 @@ bounds what the search's headline is worth as a claim about the model.
 it: it is reported as a distribution, and the only statistic taken from it is the fraction
 exceeding a threshold fixed by the trained probes. No correction is owed for it, and the
 declared set's result is stated separately and first.
+
+---
+
+### 2026-09-08 — A11: H5 reported; its two clauses fail differently, and all six are now in
+
+The last unreported hypothesis. `experiments/h5_preprocessing_switches.py` →
+`results/h5_preprocessing_switches.csv`.
+
+**The two clauses are reported separately, and must stay separate.** Collapsing them into one
+H5 verdict would either manufacture a null result or bury a real one.
+
+**Clause 1, ROI masking: unrunnable.** `configs/cameras.json` does not exist, WP3-T1 needs a
+human to draw a polygon per camera, and `roi_mask` returns the frame untouched without one.
+All 88 search evaluations carry `roi: False`, and `SWITCHES` deliberately excludes `roi` so
+the search cannot record "ROI masking does not help" from a transform that never ran. This is
+recorded as **unrunnable, not refuted** — the same distinction A9 drew for H4's decision rule
+and A10 for H6's prompt dependence.
+
+**Clause 2, CLAHE: refuted in the opposite direction.** On the grouped split, macro-F1,
+paired, Holm-corrected over the realised family of **4** (not the 5 switches anticipated —
+only CLAHE has arms): all four comparisons are significant and all four are **negative**.
+ConvNeXtV2 loses 0.008–0.009; DINOv2 loses **0.27**, collapsing onto roughly the score of a
+model that never recognises an empty pitch. Every interval lies entirely below zero, Cohen's
+g ≈ 0.5 means the disagreements are wholly one-sided, and across five splits CLAHE improves
+in 0 of 4 night test sets.
+
+**The clause's "specifically" is untestable on this corpus, and that is a scope limit rather
+than a result.** It needs a day column to contrast against, and venue_01 has exactly two
+recording days; holding whole slots out fills the test side from one of them. Across five
+seeds four test sets are entirely night and the fifth entirely day — **no grouped split holds
+both**. The day figures are therefore reported as a separate observation from a different
+partition and explicitly not as a contrast. This joins the "not answerable with the available
+data" list rather than being counted against the hypothesis.
+
+**All six pre-registered hypotheses are now reported**: H1 confirmed and its effect size
+corrected upward (A8) then decomposed against a zero-shot control; H2 confirmed; H3 confirmed
+and re-reported with the false-play control it lacked; H4 refuted with its decision rule
+disowned (A9); H5 as above; H6 inconclusive with the prompt-space distribution as the finding
+(A10). Three of the six required an amendment to the analysis as pre-registered, and every
+amendment is recorded above rather than folded into the result.

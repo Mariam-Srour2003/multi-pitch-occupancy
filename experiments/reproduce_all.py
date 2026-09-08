@@ -312,6 +312,14 @@ STAGES: list[Stage] = [
         minutes=14,
     ),
     Stage(
+        name="h5-preprocessing",
+        command=[*PY, "-m", "experiments.h5_preprocessing_switches"],
+        produces=[RESULTS / "h5_preprocessing_switches.csv"],
+        requires=[RESULTS / "preprocess_search.json", DATA / "cache" / "search"],
+        note="H5: ROI clause unrunnable (no polygon); CLAHE clause refuted - it hurts",
+        minutes=9,
+    ),
+    Stage(
         name="rescore-false-play",
         command=[*PY, "-m", "experiments.rescore_false_play"],
         produces=[RESULTS / "false_play_rescored.csv"],
