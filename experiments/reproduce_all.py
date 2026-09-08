@@ -259,6 +259,15 @@ STAGES: list[Stage] = [
         minutes=6,
     ),
     Stage(
+        name="h6-zero-shot",
+        command=[*PY, "-m", "experiments.h6_zero_shot_gap"],
+        produces=[RESULTS / "h6_zero_shot_gap.csv"],
+        requires=[DATA / "cache" / "clip_image_features.npz", DATA / "cache" / "dinov2.npz",
+                  RESULTS / "h1_h2_baseline_floor.csv", RESULTS / "prompt_search_best.json"],
+        note="H6: inconclusive - the prompt matters more than the model (0.021-0.747 macro-F1)",
+        minutes=9,
+    ),
+    Stage(
         name="h4-equivalence",
         command=[*PY, "-m", "experiments.h4_model_equivalence"],
         produces=[RESULTS / "h4_model_equivalence.csv"],

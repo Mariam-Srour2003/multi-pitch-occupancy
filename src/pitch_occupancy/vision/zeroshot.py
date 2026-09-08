@@ -29,7 +29,10 @@ import numpy as np
 
 from pitch_occupancy.data.taxonomy import Class3
 
-__all__ = ["PromptSet", "TEMPLATES", "DESCRIPTORS", "encode_prompts", "classify"]
+__all__ = [
+    "PromptSet", "TEMPLATES", "DESCRIPTORS", "DECLARED_PROMPT_SET",
+    "encode_prompts", "classify",
+]
 
 #: Framings. `{}` receives a descriptor.
 TEMPLATES: list[str] = [
@@ -107,3 +110,26 @@ def classify(
     """Nearest class direction by cosine similarity. Image features must be normalised."""
     scores = image_features @ class_directions.T
     return [classes[i].value for i in scores.argmax(axis=1)]
+
+
+def _declared() -> "PromptSet":
+    """The prompt set every *hypothesis test* uses: first descriptor per class, all templates.
+
+    Fixed by position rather than by choice, and deliberately **not** the winner of
+    `prompt_search.py`. That search scored 375 prompt sets on the same folds it reports, so
+    its winner's margin is optimistically biased - amendment A6 says as much - and reusing
+    it would carry that bias into H6, the hypothesis about whether zero-shot lags trained
+    probes. A selected number cannot test the selection.
+
+    Defined here rather than in an experiment because two now depend on it meaning the same
+    thing: `benchmark_v2.py` uses it as a composition control and `h6_zero_shot_gap.py` as
+    the hypothesis's zero-shot arm. Two copies of a pre-declared constant are two that can
+    drift, and the drift would be undetectable - both would still be "a fixed prompt set".
+    """
+    return PromptSet(
+        descriptors={cls: options[0] for cls, options in DESCRIPTORS.items()},
+        templates=tuple(TEMPLATES),
+    )
+
+
+DECLARED_PROMPT_SET = _declared()

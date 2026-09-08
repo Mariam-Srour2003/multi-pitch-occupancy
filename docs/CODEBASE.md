@@ -237,6 +237,7 @@ library; the dependency points one way.
 | `input_path_protocol.py` | Does the input-path finding survive a paired test and a camera swap? |
 | `preprocess_search.py` | Which preprocessing combination transfers best? |
 | `prompt_search.py` | How well can zero-shot do with no labels at all? |
+| `h6_zero_shot_gap.py` | H6: does zero-shot lag the trained probes? (the prompt matters more than the model) |
 | `efficiency_latency.py` | Does one CPU serve 20 cameras in a 60-second cycle? |
 | `end_to_end_slots.py` | Is the decision layer correct on the real recorded slots? |
 | `make_figures.py` | Regenerate the thesis figures from the CSVs. |

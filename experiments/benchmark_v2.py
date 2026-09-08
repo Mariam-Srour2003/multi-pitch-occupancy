@@ -72,9 +72,7 @@ from pitch_occupancy.vision.backbones import BACKBONES
 from pitch_occupancy.vision.cheap_features import build_cheap_features
 from pitch_occupancy.vision.heads import ClockRule, LinearProbe, MajorityClass
 from pitch_occupancy.vision.zeroshot import (
-    DESCRIPTORS,
-    TEMPLATES,
-    PromptSet,
+    DECLARED_PROMPT_SET,
     classify,
     encode_prompts,
 )
@@ -92,11 +90,9 @@ TOLERANCE = 5e-4
 TEMPORAL_CUTOFF = "2026-07-12"
 
 #: Fixed before any scoring, and deliberately not the prompt search's winner - that was
-#: chosen on the folds it reports, and this table is about protocols, not prompts.
-ZERO_SHOT_PROMPTS = PromptSet(
-    descriptors={cls: options[0] for cls, options in DESCRIPTORS.items()},
-    templates=tuple(TEMPLATES),
-)
+#: chosen on the folds it reports, and this table is about protocols, not prompts. Defined
+#: once in the library so H6 tests the same prompt set this table controls with.
+ZERO_SHOT_PROMPTS = DECLARED_PROMPT_SET
 ZERO_SHOT = "clip_zeroshot"
 
 #: Predictors that reach an answer without looking at the pitch. `clip_zeroshot` is not one

@@ -29,12 +29,35 @@ Updated 2026-09-06.
 | H3 cross-venue recall | `h3_cross_venue_recall.csv` | DINOv2 0.930, ConvNeXtV2 0.910 play-recall on unseen venues |
 | Label efficiency | `label_efficiency.csv` | 10-25 labels already beat the zero-label rule |
 | Efficiency | `efficiency_latency.csv` | 20 cameras in 2.5-5.7 s against a 60 s cycle |
+| H6 zero-shot (cold start) | `h6_zero_shot_gap.csv` | **prompt choice moves macro-F1 by 0.726; the three backbones span 0.082** |
 
 **Partly answered, and the limit is the data, not the method.** Active play is detected
 reliably across nine venues in both lighting conditions. Whether an *empty* pitch is
 recognised at an unseen venue is **unanswerable** - no empty pitch exists outside venue_01
 (`preregistration.md`, "not answerable"). Any RQ1 claim in the thesis must be scoped to
 active-play detection.
+
+> ### The cold-start cost is a distribution, not a number (2026-09-08, A10)
+>
+> RQ1 asks what a new site costs before anyone has labelled a frame there, and H6 was meant
+> to answer it as a penalty: *how far behind a trained probe is zero-shot?* Reported, it does
+> not have that shape.
+>
+> With a **prompt set declared in advance**, OpenCLIP zero-shot **beats** all three trained
+> probes on grouped-split macro-F1, significantly after Holm, on 5 of 5 splits. But across
+> all 375 prompt sets in the declared space the spread is **0.021 to 0.747**, only **22.9%**
+> beat the best probe, and the **median** set loses to it. The declared set happened to land
+> above 85% of the space. H6 is therefore **inconclusive** rather than refuted.
+>
+> **What that means for onboarding a site.** The no-label option is not reliably worse than
+> training a probe - and not reliably better either. Its quality is dominated by a choice
+> (the prompt) whose effect is **nine times** the spread between the backbones, and which
+> cannot be evaluated at a new venue without exactly the labels that would make zero-shot
+> unnecessary. So the honest operational statement is: *zero-shot can match a trained probe
+> here, but nothing in the method tells you in advance whether your prompt is one that does.*
+>
+> The 10-25 label figure above is the practical answer to the same question, and it is the
+> one to lead with.
 
 ## RQ2 - accuracy / latency / memory trade-off
 

@@ -2333,3 +2333,82 @@ number above is quotable only with its diagnostics — test size, class count, m
 share — which is why they ship in the same CSV rows.
 
 - 2026-09-08 | WP4-T1 benchmark v2 | `python -m experiments.benchmark_v2` | `benchmark_v2.csv` | 8 models x 4 protocols; a constant predictor scores macro-F1 1.000 cross-venue; a third of H1's drop is composition
+
+- 2026-09-08 | H6 zero-shot vs trained probes | `python -m experiments.h6_zero_shot_gap` | `h6_zero_shot_gap.csv` | declared prompt set; realised family 3; H6 refuted
+
+- 2026-09-08 | H6 zero-shot vs trained probes | `python -m experiments.h6_zero_shot_gap` | `h6_zero_shot_gap.csv` | declared prompt set; realised family 3; H6 inconclusive; prompt choice spans 0.021-0.747 macro-F1
+
+---
+
+## 2026-09-08 — H6 reported: the prompt matters more than the model
+
+`experiments/h6_zero_shot_gap.py` → `results/h6_zero_shot_gap.csv`
+
+The last of the six pre-registered hypotheses never to have been reported. It was blocked on
+two things and both had just been removed for other reasons: OpenCLIP's image cache now
+covers all 1,578 development frames (it held 600), and `benchmark_v2.py` needed a prompt set
+declared in advance, which is now `vision.zeroshot.DECLARED_PROMPT_SET` — first descriptor
+per class, all five templates, fixed by position and deliberately not the search's winner.
+
+> **H6.** OpenCLIP zero-shot is significantly worse than every trained probe on macro-F1.
+> **Family:** zero-shot vs trained. **Realised family: 3**, not the 4 anticipated.
+
+### The pre-registered comparison, grouped split, seed 42
+
+| comparison | zero-shot | trained | Δ | 95% CI | p (Holm) | g |
+|---|---|---|---|---|---|---|
+| vs ConvNeXtV2 | 0.6291 | 0.4975 | **+0.1316** | [+0.0538, +0.2059] | 1.4e−06 | 0.342 |
+| vs DINOv2 | 0.6291 | 0.5794 | **+0.0497** | [−0.1158, +0.1767] | 1.5e−05 | 0.293 |
+| vs ViT | 0.6291 | 0.4975 | **+0.1316** | [+0.0538, +0.2059] | 1.4e−06 | 0.342 |
+
+Zero-shot is significantly worse than **0 of 3** and significantly **better than 3**. Across
+five grouped splits it wins **5 of 5** against each probe. Read on the declared set alone the
+verdict is "refuted", and stopping there would have been the confident answer.
+
+### Two checks say stop there is wrong
+
+**The declared set is a lucky one.** Scoring *every* prompt set in the declared space — 375 of
+them, nothing selected, the distribution is the point:
+
+| | macro-F1 |
+|---|---|
+| best trained probe | 0.5794 |
+| **declared prompt set** | **0.6291** (above 85% of the space) |
+| prompt space, worst / median / best | 0.0207 / **0.4967** / 0.7472 |
+| 10th–90th percentile | 0.3524 – 0.6403 |
+
+**Only 22.9% of prompt sets beat the best trained probe, and the median one loses to it.**
+So the refutation depends on which prompt was declared, which means it is not a refutation.
+Declaring in advance was still the right procedure — it buys an unbiased point estimate — but
+an unbiased estimate of a quantity this variable does not settle a comparison.
+
+**And the significance is frame-level.** The 907-frame grouped test set is **95 distinct
+scenes**; recounted on one frame per scene, no comparison is significant (p = 0.69, 1.00,
+0.69). Same story as the false-play family.
+
+**Verdict: H6 is inconclusive.** Not confirmed — the direction is against it on every split
+and every seed. Not refuted — the margin belongs to a prompt at the 85th percentile.
+
+### The finding worth keeping is the spread, not the ranking
+
+Prompt choice moves macro-F1 by **0.726** (0.021 → 0.747). The three trained backbones span
+**0.082**. On this benchmark **the prompt matters roughly nine times more than the model** —
+which reframes what "the cost of a no-label deployment" means: it is not a fixed penalty for
+skipping labels, it is a wide distribution whose position nobody can know at a new site
+without labels to check against. That is a sharper answer to RQ1's onboarding question than
+H6 asked for, and a worse one operationally.
+
+### A6, quantified
+
+The search's winner and the declared set, scored on the winner's own protocol — the folds it
+was selected from:
+
+| prompt set | play recall | false play | balanced |
+|---|---|---|---|
+| declared | 0.9820 | 0.4595 | 0.5225 |
+| selected | 0.9739 | 0.0040 | **0.9699** |
+
+**+0.4474.** A6 said a searched configuration is "selected, not tested" and its margin
+"optimistically biased"; that is the number. It is not an unbiased estimate of the bias — no
+held-out prompt data exists — but it bounds what the search's headline can be worth as a
+model claim, and it is why H6 does not use it.

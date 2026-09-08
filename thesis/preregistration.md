@@ -195,7 +195,7 @@ matrix, or the task list. Recorded now so they are visibly open rather than sile
 |---|---|---|
 | **H4** compact backbone not significantly worse | **outstanding** | pairwise McNemar under the grouped split (WP4-T4b). Note it is now partly *superseded*: latency stopped being the binding constraint (10–24× headroom), so a null result no longer hands the decision to speed the way the decision rule assumed |
 | **H5** preprocessing contributes measurably | **outstanding and complicated** | the 76-evaluation search ran, but WP3-T3 found the HF processor re-crops after `preprocess.py`, so every *geometric* switch was partly overwritten. H5 cannot be settled until the `processor_geometry` convention is decided by measurement |
-| **H6** zero-shot lags trained probes | **outstanding** | the prompt search produced the zero-shot numbers; the pre-registered *comparison* against every trained probe, with correction, was never run |
+| **H6** zero-shot lags trained probes | **reported 2026-09-08 — inconclusive** | A10. Direction is against it (zero-shot beats all three probes, Holm-corrected, on 5 of 5 splits), but the declared prompt set is above 85% of the prompt space and the median set loses. Prompt choice moves macro-F1 by 0.726 against the backbones' 0.082 |
 
 **A6 — Two large search families were run outside the declared family structure. Disclosed.**
 Rule 5 requires the multiple-comparison family to be declared with its hypothesis. Two searches
@@ -303,3 +303,50 @@ beside an accuracy p-value that for one pair pointed the other way.
 `paired_bootstrap_metric_diff` now resamples once per draw and scores both models on the same
 frames; 8 tests, including two models with *identical accuracy* that macro-F1 separates.
 
+
+---
+
+### 2026-09-08 — A10: H6 reported; its family shrinks to 3 and its verdict is inconclusive
+
+The last unreported hypothesis. `experiments/h6_zero_shot_gap.py` →
+`results/h6_zero_shot_gap.csv`.
+
+**Realised family: 3, not 4.** H6 anticipated "zero-shot vs trained (4 comparisons)" from
+four carried-forward models, but OpenCLIP *is* the zero-shot arm, so the trained probes are
+ConvNeXtV2, DINOv2 and ViT. Holm corrects over 3. Declared here because a family that shrinks
+quietly is a family chosen after the fact — the same disclosure A9 made for H4.
+
+**The zero-shot arm is a prompt set declared in advance**, not the prompt search's winner:
+first descriptor per class, all five templates, fixed by position in
+`vision.zeroshot.DECLARED_PROMPT_SET`. A6 requires a searched configuration to be treated as
+selected rather than tested, and the winner was chosen as the best of 375 sets on the folds
+it reports. Using it would have tested the search.
+
+**Verdict: inconclusive**, and neither half of that is the obvious one.
+
+- *Not confirmed.* On the pre-registered comparison zero-shot is significantly worse than
+  **none** of the three probes and significantly **better** than all three (Δ +0.050 to
+  +0.132 macro-F1, Holm p ≤ 1.5e−05). It wins on all five grouped splits. The hypothesis's
+  direction is wrong.
+- *Not refuted.* Scoring all 375 prompt sets in the declared space, the declared set is above
+  **85%** of them, only **22.9%** beat the best trained probe, and the **median** prompt set
+  (0.4967) loses to it. A verdict that depends on which prompt was declared is not a verdict.
+- The frame-level significance also does not survive the effective sample: 907 frames are
+  **95 distinct scenes**, and recounted on those, no comparison is significant.
+
+**What replaces the hypothesis.** Prompt choice moves macro-F1 by **0.726** (0.021–0.747)
+where the three trained backbones span **0.082**. The reportable finding is that variance,
+not a ranking: the cost of a no-label deployment is not a fixed penalty but a wide
+distribution whose position cannot be known at a new site *without* the labels that would
+make it unnecessary. That is a sharper answer to RQ1's onboarding question than H6 posed, and
+an operationally worse one.
+
+**A6 quantified.** On the search's own protocol the selected prompt set leads the declared one
+by **+0.4474** balanced score. A6 called such a margin "optimistically biased"; this is how
+much. It is not an unbiased estimate of the bias — no held-out prompt data exists — but it
+bounds what the search's headline is worth as a claim about the model.
+
+**Rule 5 note.** The 375-set sweep run here is *not* a search and nothing is selected from
+it: it is reported as a distribution, and the only statistic taken from it is the fraction
+exceeding a threshold fixed by the trained probes. No correction is owed for it, and the
+declared set's result is stated separately and first.

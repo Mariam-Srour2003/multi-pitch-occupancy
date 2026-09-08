@@ -787,14 +787,31 @@ tagged with the question it answers. Fix that first — it is what turns a build
           was published with a macro-F1 delta beside an accuracy p-value that for one pair
           pointed the other way. `paired_bootstrap_metric_diff` added, 8 tests, including
           two models with identical accuracy that macro-F1 separates.
-  - [ ] ★ **H6 is blocked, and not for want of effort.** OpenCLIP image features cover 600 of
-        1,578 frames, and that slice of the grouped test set is **339 ACTIVE_PLAY against 6
-        EMPTY** — a macro-F1 there would rest on six frames. Worse, the prompt search selected
-        the best of **375** prompt sets on this same data and reports `play_recall 0.9883,
-        false_play 0.0`, which would beat every trained probe — a *selected* number, not a
-        tested one, so H6's pre-registered direction may well be refuted but cannot be
-        established from it. **Needs a decision on handling the selection bias** (a prompt set
-        fixed before evaluation) before it is worth running. See A6.
+  - [x] ★ **H6 reported (2026-09-08) — inconclusive, and the interesting part is why.**
+        `experiments/h6_zero_shot_gap.py` → `results/h6_zero_shot_gap.csv`, 9 tests, stage
+        `h6-zero-shot`, amendment A10. Both of its blockers had just been removed for other
+        reasons: the CLIP cache now covers all 1,578 frames (it held 600), and `benchmark_v2`
+        needed a prompt set declared in advance, now `vision.zeroshot.DECLARED_PROMPT_SET`.
+    - [x] **Not confirmed.** Zero-shot is significantly worse than **0 of 3** probes and
+          significantly **better** than all three (Δ +0.050 to +0.132 macro-F1, Holm
+          p ≤ 1.5e−05), winning on 5 of 5 grouped splits. Realised family **3**, not the 4
+          anticipated — declared in A10, since OpenCLIP *is* the zero-shot arm.
+    - [x] **Not refuted either, and this is the check that earns the experiment.** Scoring
+          all **375** prompt sets in the declared space (nothing selected — a distribution,
+          not a search): the declared set is above **85%** of them, only **22.9%** beat the
+          best trained probe, and the **median** set (0.4967) loses to it. A verdict that
+          depends on which prompt was declared is not a verdict.
+    - [x] The frame-level significance also fails the effective sample: 907 frames are **95
+          distinct scenes**, and recounted on those no comparison survives.
+    - [x] ★ **The finding worth keeping is the spread.** Prompt choice moves macro-F1 by
+          **0.726** (0.021–0.747); the three backbones span **0.082**. The prompt matters
+          roughly nine times more than the model, so the cost of a no-label deployment is not
+          a fixed penalty but a wide distribution whose position cannot be known at a new site
+          *without* the labels that would make it unnecessary. Sharper than H6 asked, and
+          operationally worse. Feeds RQ1.
+    - [x] ★ **A6 quantified.** The search's winner leads the declared set by **+0.4474**
+          balanced score on the folds it was selected from. A6 called that margin
+          "optimistically biased"; this is how much, and it is why H6 does not use it.
 - [x] **WP4-T5 Calibration — built, answer blocked.** `evaluation/calibration.py` (ECE,
       reliability bins, temperature scaling, risk-coverage), 25 tests. The run produces
       "99% precision at 0% review", which is an artifact of the 99% single-class test set.
