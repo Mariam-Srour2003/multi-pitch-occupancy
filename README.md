@@ -84,9 +84,17 @@ the pilot branch README.
 > the binding constraint — even the slowest backbone uses under 10% of the 60 s sampling cycle
 > for 20 cameras — so the choice falls to accuracy under honest evaluation, and that is
 > **DINOv2**, with ConvNeXtV2 the fallback if the target Mini-PC proves far slower (WP7-T1).
-> ConvNeXtV2 also calls 99.2% of held-out empty pitches a match, against DINOv2's 30.9%.
 > The "Role" column above is what the pilot concluded, kept for the record; `thesis/rq_matrix.md`
 > (RQ2, RQ7) holds the current answer.
+>
+> **And that answer is itself now in question** (2026-09-08). ConvNeXtV2's headline weakness —
+> calling 99.2% of held-out empty pitches a match, against DINOv2's 30.9% — turns out to be
+> largely an artefact of the **input path**, not the model. Every published number comes from
+> caches built by handing *raw* frames to the HF processor, which keeps roughly the middle half
+> of a 16:9 pitch. Letterbox the frame instead and ConvNeXtV2 measures **2.1%** false-play at
+> **98.4%** cross-venue recall — better than DINOv2 on both axes, and it is the fastest of the
+> three. Not acted on yet: that column rests on 243 frames amounting to three to ten distinct
+> scenes. See `docs/PM_REVIEW_2026-09-08.md`.
 
 ---
 
