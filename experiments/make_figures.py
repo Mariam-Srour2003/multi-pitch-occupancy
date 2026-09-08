@@ -488,6 +488,75 @@ def fig_baseline_floor() -> None:
     save(fig, "baseline_floor")
 
 
+def fig_accuracy_vs_latency() -> None:
+    """RQ2 in one picture: the budget is not binding, so the choice falls to accuracy.
+
+    The plan calls this "one picture that answers RQ2 completely", and the reason it can is
+    that the answer turns on a *negative*: 20 cameras take 2.5-5.7 s of a 60 s sampling
+    cycle, so every candidate sits in the leftmost tenth of the axis and latency cannot
+    discriminate between them. Drawing the budget line is what makes that visible - a scatter
+    without it invites the reader to compare 2.5 s against 5.7 s as though the difference
+    mattered.
+
+    The vertical axis is **recall minus false play**, not recall. Cross-venue folds contain
+    no empty pitch, so recall alone is earned by answering "playing" more often, and the
+    model with the best recall here has the worst balanced score by a wide margin. Plotting
+    recall would recommend it.
+    """
+    lat = pd.read_csv(RESULTS / "efficiency_latency.csv").set_index("backbone")
+    fp = pd.read_csv(RESULTS / "h3_with_false_play.csv")
+    fp = fp[fp.held_out_venue == "MEAN_ACROSS_FOLDS"].set_index("model")
+    budget = 60.0
+
+    fig, ax = plt.subplots(figsize=(7.6, 4.8))
+    style(ax)
+
+    ax.axvspan(budget, budget * 1.35, color=GRID, alpha=0.55, zorder=1)
+    ax.axvline(budget, color=INK_MUTED, linewidth=1.6, linestyle=(0, (4, 3)), zorder=2)
+    ax.text(budget * 0.985, -0.055, "60 s sampling cycle ", color=INK_2, fontsize=9,
+            ha="right", va="bottom", fontweight="medium")
+    ax.text(budget * 1.02, -0.055, " over budget", color=INK_MUTED, fontsize=9,
+            ha="left", va="bottom")
+
+    for model in ("dinov2", "convnextv2", "vit"):
+        if model not in lat.index or model not in fp.index:
+            continue
+        x = float(lat.loc[model, "round_wall_s"])
+        recall = float(fp.loc[model, "play_recall"])
+        balanced = recall - float(fp.loc[model, "false_play_rate"])
+        c = COLOURS[model]
+        # The pair, joined: where a model lands on recall alone, and where it lands once
+        # the false-play control is subtracted. The gap is the argument.
+        ax.plot([x, x], [balanced, recall], color=c, linewidth=1.2, alpha=0.45, zorder=3)
+        ax.plot(x, recall, "o", color=SURFACE, markersize=9, markeredgecolor=c,
+                markeredgewidth=1.8, zorder=4)
+        ax.plot(x, balanced, "o", color=c, markersize=11, markeredgecolor=SURFACE,
+                markeredgewidth=2, zorder=5)
+        # The seconds go in the label: the models are crammed into the leftmost tenth of
+        # the axis, which is the finding, but a reader still wants the number.
+        ax.text(x + 1.1, balanced, f"{LABELS[model]}  {balanced:+.3f}   ({x:.1f} s)",
+                color=c, fontsize=9.5, va="center", fontweight="semibold")
+
+    ax.set_xlim(0, budget * 1.32)
+    ax.set_ylim(-0.16, 1.06)
+    ax.axhline(0, color=INK_MUTED, linewidth=1, alpha=0.5, zorder=2)
+    ax.set_xlabel("Seconds to classify 20 cameras once (measured, not extrapolated)",
+                  color=INK_2, fontsize=10)
+    ax.set_ylabel("recall \u2212 false play", color=INK_2, fontsize=10)
+    ax.set_title(
+        "Latency is not the binding constraint, so the choice falls to accuracy",
+        color=INK, fontsize=13, fontweight="semibold", loc="left", pad=52,
+    )
+    ax.text(
+        0, 1.015,
+        "Hollow marker: cross-venue play recall. Filled marker: the same model once the false-play control\n"
+        "is subtracted. Held-out venues contain no empty pitch, so recall alone is earned by answering\n"
+        "\u201cplaying\u201d more often - and the model with the best recall has the worst balanced score.",
+        transform=ax.transAxes, color=INK_2, fontsize=8.5, va="bottom", linespacing=1.5,
+    )
+    save(fig, "accuracy_vs_latency")
+
+
 def main() -> None:
     print("figures:")
     fig_label_efficiency()
@@ -495,6 +564,7 @@ def main() -> None:
     fig_cross_venue()
     fig_risk_coverage_band()
     fig_baseline_floor()
+    fig_accuracy_vs_latency()
 
 
 if __name__ == "__main__":

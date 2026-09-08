@@ -118,6 +118,7 @@ a later measurement retracted.
 | [thesis/alternatives.md](thesis/alternatives.md) | Why computer vision rather than a motion sensor, a turnstile or an app check-in |
 | [thesis/data_requests.md](thesis/data_requests.md) | What to ask the facility for, in priority order |
 | [docs/backup.md](docs/backup.md) | The backup policy for the one irreplaceable thing |
+| [docs/runbook.md](docs/runbook.md) | What happens when a camera dies, and which rows of that are enforced |
 | [thesis/preregistration.md](thesis/preregistration.md) | The six hypotheses, their decision rules, and every amendment — including the two decision rules that were disowned |
 | [thesis/rq_matrix.md](thesis/rq_matrix.md) | Each research question, the evidence for it, and how far it is answered |
 | [thesis/mvt.md](thesis/mvt.md) | **The minimum viable thesis** — the four load-bearing items, and what the floor deliberately does *not* require. Read before any scope decision. |

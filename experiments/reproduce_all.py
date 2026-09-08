@@ -336,10 +336,11 @@ STAGES: list[Stage] = [
         produces=[
             RESULTS / "figs" / f"{n}.png"
             for n in ("label_efficiency", "ranking_inversion", "cross_venue_recall",
-                      "risk_coverage_band", "baseline_floor")
+                      "risk_coverage_band", "baseline_floor", "accuracy_vs_latency")
         ],
         requires=[RESULTS / "label_efficiency.csv", RESULTS / "h3_cross_venue_recall.csv",
-                  RESULTS / "rq6_risk_coverage.csv", RESULTS / "benchmark_v2.csv"],
+                  RESULTS / "rq6_risk_coverage.csv", RESULTS / "benchmark_v2.csv",
+                  RESULTS / "efficiency_latency.csv", RESULTS / "h3_with_false_play.csv"],
         note="thesis figures, regenerated from the CSVs",
     ),
     # --- three experiments the log quotes that this pipeline used not to reach ----------

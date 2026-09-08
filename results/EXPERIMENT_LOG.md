@@ -2969,3 +2969,52 @@ The answers in it are arguments, and they are the candidate's to own. An argumen
 else's phrasing collapses on the first follow-up, and the document says so at the top.
 
 - 2026-09-09 | WP6-T12, WP0-T8, WP2-T2, WP1-T6, WP8-T6 | `pytest tests/test_authority.py` | `slots/authority.py`, `docs/backup.md`, `thesis/{data_requests,alternatives,defence_redteam}.md` | the never-bill constraint enforced at the HTTP and database boundary; four referenced-but-absent documents written
+
+---
+
+## 2026-09-09 — the RQ2 figure, and a degraded mode that was reported but never enforced
+
+**WP8-T2b — `results/figs/accuracy_vs_latency.{png,pdf}`.** The plan calls this "one picture
+that answers RQ2 completely", and it can because the answer turns on a *negative*: 20 cameras
+take 2.5–5.7 s of a 60 s sampling cycle, so every candidate sits in the leftmost tenth of the
+axis and latency cannot discriminate between them. Drawing the budget line is what makes that
+visible — a scatter without it invites the reader to compare 2.5 s against 5.7 s as though the
+difference mattered.
+
+The vertical axis is **recall minus false play**, not recall, and each model is drawn twice:
+hollow at its cross-venue recall, filled at the same model once the control is subtracted, the
+two joined. The gap is the argument. Held-out venues contain no empty pitch, so recall alone is
+earned by answering "playing" more often — and the model with the **best recall has the worst
+balanced score**, by 0.70. A plot of recall would recommend it.
+
+**WP7-T5 — the runbook, and one row of it made real.** `docs/runbook.md` is an eight-row
+degraded-mode ladder, each row marked *enforced* or *not implemented*, because a runbook that
+does not distinguish those is a wish list.
+
+Writing it found row 3 was a gap. **`capture_rate` was computed, reported and flagged to the
+operator — and never gated the verdict.** A slot that lost 48 of its 60 minutes produced a
+confident `NOTUSED` from the fragment that survived, which is a claim about an hour made from a
+fifth of it. That is precisely the failure WP7-T5 names: a camera dies twenty minutes in and
+the system reports the pitch empty from the twenty minutes before it filled up.
+
+`Thresholds.review_below_capture` (0.5) now downgrades it to REVIEW, naming how many minutes of
+how many were captured. `worker.py` passes the slot's real length through — **without which the
+ratios are taken over whatever arrived and the check never fires**, which is the vacuous form
+this project has met three times and is covered by its own test.
+
+**It ships on, and the runbook explains why it differs from `review_below_confidence`**, which
+ships at 0.0 and is inert. Capture rate is not a model quantity: *"we saw eleven minutes of this
+hour"* is not a statement about a pitch whatever the classifier says about those eleven minutes,
+so a floor follows from first principles. A confidence threshold is a hyper-parameter, picking
+one by hand is the mistake `aggregate.py`'s header warns about, and it is blocked on RQ6. **0.5
+is a judgement and is recorded as one** — the weakest defensible reading, not a value calibrated
+against real degraded slots, of which the corpus contains none.
+
+The two real slots captured 59–60 of 60 minutes, so no published verdict moves.
+
+One implementation note worth keeping: the new field went in at the **end** of `Thresholds`,
+not the front. Inserting it before the three positional fields silently rebound
+`Thresholds(used_min, notused_max, notused_empty)` in `tune_thresholds` — caught immediately by
+an existing test, and a good argument for the ones that assert an invariant rather than a value.
+
+- 2026-09-09 | WP8-T2b RQ2 figure + WP7-T5 runbook | `python -m experiments.make_figures` | `figs/accuracy_vs_latency.png`, `docs/runbook.md` | capture rate was reported but never gated the verdict; a slot losing 48 of 60 minutes now goes to REVIEW instead of asserting NOTUSED

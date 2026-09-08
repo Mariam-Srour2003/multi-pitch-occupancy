@@ -120,7 +120,11 @@ def run_slot(
         if on_minute is not None:
             on_minute(minute, fused.state)
 
-    verdict = aggregate_slot(fused_states, fused_conf, thresholds)
+    # The slot's real length, so a slot that lost most of its minutes is downgraded to
+    # REVIEW rather than decided from the fragment that survived (WP7-T5).
+    verdict = aggregate_slot(
+        fused_states, fused_conf, thresholds, minutes_expected=source.n_minutes
+    )
     return SlotRun(
         slot_id=slot_id,
         verdict=verdict,

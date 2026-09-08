@@ -77,7 +77,7 @@ def test_the_operating_bound_drawn_is_the_worst_case(monkeypatch) -> None:
 @pytest.mark.parametrize(
     "name",
     ["label_efficiency", "ranking_inversion", "cross_venue_recall", "risk_coverage_band",
-     "baseline_floor"],
+     "baseline_floor", "accuracy_vs_latency"],
 )
 def test_each_figure_is_written_in_both_formats(name: str) -> None:
     """PNG for the site, PDF for the thesis. A missing PDF is only noticed at submission."""
@@ -128,3 +128,28 @@ def test_the_floor_chart_reads_all_four_protocols(monkeypatch) -> None:
     mf.fig_baseline_floor()
     ax = captured["fig"].axes[0]
     assert len(ax.get_xticks()) == 4, "the chart does not cover all four protocols"
+
+
+def test_the_rq2_figure_plots_the_balanced_score_not_recall() -> None:
+    """Cross-venue folds contain no empty pitch, so recall alone is earned by answering
+    "playing" more often - and the model with the best recall here has the worst balanced
+    score. A figure of recall would recommend it."""
+    import inspect
+
+    source = inspect.getsource(mf.fig_accuracy_vs_latency)
+    assert "false_play_rate" in source
+    assert "recall - float" in source or "balanced = recall" in source
+
+
+def test_the_rq2_figure_draws_the_budget_line_beyond_every_model(monkeypatch) -> None:
+    """The answer turns on a negative - the budget is not binding - which is only visible if
+    the line is on the axis. An axis that stopped at the slowest model would imply the
+    opposite."""
+    if not (ROOT / "results" / "efficiency_latency.csv").exists():
+        pytest.skip("latency results not present")
+    captured = {}
+    monkeypatch.setattr(mf, "save", lambda fig, name: captured.setdefault("fig", fig))
+    mf.fig_accuracy_vs_latency()
+    ax = captured["fig"].axes[0]
+    slowest = pd.read_csv(ROOT / "results" / "efficiency_latency.csv").round_wall_s.max()
+    assert ax.get_xlim()[1] > 60.0 > slowest, "the 60 s budget is not on the axis"

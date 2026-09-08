@@ -1277,7 +1277,28 @@ tagged with the question it answers. Fix that first — it is what turns a build
 - [ ] **WP7-T4 48-hour acceptance run.** Every slot verdict adjudicated with facility staff; measure
       slot accuracy, REVIEW rate, reconciliation precision/recall. Doubles as Chapter 7 case-study
       data. *Accept:* signed-off M6 + exported tables.
-- [ ] **WP7-T5 ★ Failure-mode runbook.** What happens when a camera dies mid-slot, the network drops,
+- [x] **WP7-T5 ★ Failure-mode runbook — written, and one row of it made real.**
+      `docs/runbook.md`: an eight-row degraded-mode ladder, each marked **enforced** or **not
+      implemented**, because a runbook that does not distinguish those is a wish list.
+  - [x] ★ **Row 3 was a gap and is now closed.** `capture_rate` was computed and reported but
+        **never gated the verdict**: a slot that lost 48 of 60 minutes produced a confident
+        `NOTUSED` from the fragment that survived. `Thresholds.review_below_capture` (0.5)
+        downgrades it to REVIEW, and `worker.py` passes the slot's real length through —
+        without which the ratios are taken over whatever arrived and the check is vacuous.
+        4 tests, including that one.
+  - [x] **It ships on, unlike `review_below_confidence`, and the runbook says why they
+        differ.** Capture rate is not a model quantity — "we saw eleven minutes of this hour"
+        is not a statement about a pitch — so a floor can be set from first principles.
+        A confidence threshold is a hyper-parameter, is blocked on RQ6, and a fourth silently
+        zero threshold would be the same defect this project has already met three times.
+        0.5 is recorded as a judgement, not a calibration.
+  - [x] The two real slots are unaffected (59–60 of 60 minutes captured), so no published
+        verdict moves.
+  - [ ] ★ **The rows still marked "not implemented"** — disk-full, facility-wide confidence
+        collapse, stale booking export, camera re-aimed — and the honest caveat that none of
+        this has met a real outage. WP7-T3's shadow run is where the ladder stops being a
+        prediction.
+- [ ] ~~WP7-T5 original~~ What happens when a camera dies mid-slot, the network drops,
       the disk fills, or the model's confidence collapses facility-wide? Define the degraded-mode
       behaviour (default to REVIEW, alert, never fabricate a verdict) and test at least the
       camera-offline case. Examiners ask about robustness; clients live it.
@@ -1359,7 +1380,13 @@ tagged with the question it answers. Fix that first — it is what turns a build
         protocols on one axis, best trivial against best backbone; the cross-venue column is
         marked **"the floor is not cleared"** because a constant predictor scores 1.000
         there. Drawing it surfaced A12 — see WP4-T10 above.
-  - [ ] ★ Accuracy-vs-latency scatter with the CPU budget drawn as a vertical line — one picture that
+  - [x] ★ Accuracy-vs-latency scatter with the CPU budget drawn as a vertical line. **Done**
+        → `figs/accuracy_vs_latency`. The answer turns on a negative — 20 cameras take
+        2.5–5.7 s of a 60 s cycle, so every candidate sits in the leftmost tenth and latency
+        cannot discriminate — which is only visible because the budget line is on the axis.
+        The vertical axis is **recall minus false play**, not recall: the model with the best
+        recall has the worst balanced score, and a plot of recall would recommend it.
+  - [ ] ~~original~~ Accuracy-vs-latency scatter with the CPU budget drawn as a vertical line — one picture that
         answers RQ2 completely.
   - [ ] ★ **Blur all faces in every published figure.** Check this twice before submission.
 

@@ -143,3 +143,71 @@ def test_on_minute_callback_sees_every_captured_minute() -> None:
     src = FakeSource({"camA": [1] * 12})
     run_slot("s1", src, constant(PLAY), on_minute=lambda m, s: seen.append(m))
     assert seen == list(range(12))
+
+
+# --- degraded mode: what happens when a camera dies mid-slot (WP7-T5) --------
+
+
+def test_a_slot_that_lost_most_of_its_minutes_is_reviewed_not_decided() -> None:
+    """The failure WP7-T5 asks about: a camera dies twenty minutes in and the system
+    confidently reports NOTUSED from the twenty minutes before the pitch filled up.
+
+    Degraded mode is REVIEW. The verdict says how much was captured, so an operator can see
+    why without opening the slot.
+    """
+    from pitch_occupancy.slots.aggregate import aggregate_slot
+    from pitch_occupancy.data.taxonomy import Class3, SlotStatus
+
+    empty_fragment = [Class3.EMPTY] * 12          # 12 of a 60-minute slot
+    decided = aggregate_slot(empty_fragment)
+    assert decided.status is SlotStatus.NOTUSED, "without the slot length, the ratios stand"
+
+    degraded = aggregate_slot(empty_fragment, minutes_expected=60)
+    assert degraded.status is SlotStatus.REVIEW
+    assert "12 of 60" in degraded.reason
+
+
+def test_a_slot_above_the_capture_floor_is_still_decided() -> None:
+    """The gate must not turn every imperfect slot into REVIEW; a few dropped frames are
+    ordinary and the verdict should survive them."""
+    from pitch_occupancy.slots.aggregate import aggregate_slot
+    from pitch_occupancy.data.taxonomy import Class3, SlotStatus
+
+    got = aggregate_slot([Class3.EMPTY] * 55, minutes_expected=60)
+    assert got.status is SlotStatus.NOTUSED
+
+
+def test_the_capture_gate_is_on_by_default_unlike_the_confidence_one() -> None:
+    """`review_below_confidence` defaults to 0.0 and is therefore inert - which this project
+    found the hard way, three times. A capture floor that shipped at 0.0 would be the same
+    defect, so the default is asserted rather than assumed."""
+    from pitch_occupancy.slots.aggregate import Thresholds
+
+    assert Thresholds().review_below_capture > 0.0
+
+
+def test_the_worker_passes_the_slot_length_through() -> None:
+    """The gate is only live if the caller supplies the expected length. A worker that
+    computed the ratios over whatever arrived would leave it silently vacuous - the camera
+    would die, the ratios would be taken over the surviving fragment, and the verdict would
+    look exactly as confident as one from a whole hour."""
+    # A camera that dies after twelve minutes of an empty pitch.
+    script = {"camA": [object()] * 12 + [None] * 48}
+    classify, order = classifier_from({"camA": [Class3.EMPTY] * 12})
+    source = FakeSource(script)
+
+    original_read = source.read
+
+    def read(camera_id: str, minute_index: int):
+        frame = original_read(camera_id, minute_index)
+        if frame is not None:
+            order.append(camera_id)
+        return frame
+
+    source.read = read  # type: ignore[method-assign]
+    run = run_slot("s", source, classify)
+
+    assert run.minutes_captured == 12
+    assert run.minutes_missed == 48
+    assert run.verdict.status is SlotStatus.REVIEW
+    assert "12 of 60" in run.verdict.reason

@@ -57,6 +57,27 @@ class Thresholds:
     #: false accusation.
     review_below_confidence: float = 0.0
 
+    #: A verdict computed from fewer than this share of the slot's minutes is downgraded
+    #: to REVIEW.
+    #:
+    #: **Unlike `review_below_confidence`, this one is on.** That distinction is the point.
+    #: A confidence threshold is a model hyper-parameter and picking one by hand is the
+    #: mistake this module's header warns about - it is blocked on RQ6's calibration, and it
+    #: sits at 0.0 with a note saying so. Capture rate is not a model quantity at all: it is
+    #: how much of the hour was observed, and "we saw eleven minutes of this hour" is not a
+    #: statement about a pitch whatever the classifier says about those eleven minutes.
+    #:
+    #: 0.5 is a judgement and is recorded as one. It is the weakest defensible reading -
+    #: a verdict from less than half the slot is not a verdict about the slot - rather than
+    #: the value that best separates anything, because nothing here has been calibrated
+    #: against real degraded slots. `SlotConditions.concerns()` already flags anything below
+    #: 0.8 for a human to look at; this is the floor below which the system stops asserting.
+    #:
+    #: The failure it exists for is the one WP7-T5 asks about: a camera dies twenty minutes
+    #: into a slot and the system confidently reports NOTUSED on the twenty minutes before
+    #: the pitch filled up. Degraded mode is REVIEW, never a fabricated verdict.
+    review_below_capture: float = 0.5
+
 
 @dataclass(frozen=True, slots=True)
 class SlotVerdict:
@@ -79,8 +100,18 @@ def aggregate_slot(
     states: Sequence[Class3 | str],
     confidences: Sequence[float] | None = None,
     thresholds: Thresholds | None = None,
+    *,
+    minutes_expected: int | None = None,
 ) -> SlotVerdict:
-    """Aggregate one slot's fused per-minute states into a verdict."""
+    """Aggregate one slot's fused per-minute states into a verdict.
+
+    ``minutes_expected`` is how long the slot was *supposed* to be. Without it the ratios
+    are computed over whatever arrived and the caller is asserting that is the whole slot;
+    with it, a slot that lost most of its minutes is downgraded to REVIEW rather than
+    decided from the fragment that survived. Optional rather than required so existing
+    callers keep working, and absent rather than defaulted to ``len(states)``, which would
+    make the check silently vacuous - the failure mode this project keeps meeting.
+    """
     th = thresholds or Thresholds()
     if not states:
         return SlotVerdict(
@@ -95,6 +126,13 @@ def aggregate_slot(
     maint = counts[Class3.MAINTENANCE_NON_SPORTING] / n
     conf = sum(confidences) / len(confidences) if confidences else 1.0
 
+    if minutes_expected and n / minutes_expected < th.review_below_capture:
+        return SlotVerdict(
+            SlotStatus.REVIEW,
+            f"only {n} of {minutes_expected} minutes captured "
+            f"({n / minutes_expected:.0%}); too little of the slot was observed to decide",
+            play, empty, maint, n, conf,
+        )
     if confidences and conf < th.review_below_confidence:
         return SlotVerdict(
             SlotStatus.REVIEW,
