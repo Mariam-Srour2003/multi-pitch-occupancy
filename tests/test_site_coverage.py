@@ -31,6 +31,8 @@ OUT_OF_SCOPE = {
     "frame_quality.csv": "audit: per-frame quality measures",
     "near_duplicates.csv": "audit: near-duplicate pairs behind the effective-sample counts",
     "effective_sample_audit.csv": "audit: distinct scenes per reported test",
+    "error_taxonomy.csv": "WP4-T6: one row per misclassification, too granular for the export",
+    "error_taxonomy_summary.csv": "WP4-T6: the per-protocol summary and its derived findings",
     "class_balancing.csv": "method: why class weighting stays on",
     "coverage.md": "method: the class x lighting x venue matrix",
     # Hypothesis reports whose value is the argument, not the row. They are written up in

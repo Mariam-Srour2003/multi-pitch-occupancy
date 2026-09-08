@@ -11,7 +11,7 @@ any draft goes out:
 uv run python -m experiments.verify_claims --check
 ```
 
-**18 claims are checked against an artefact. 0 are not, and say why.**
+**21 claims are checked against an artefact. 0 are not, and say why.**
 
 ## Checked
 
@@ -35,6 +35,9 @@ uv run python -m experiments.verify_claims --check
 | Prompt choice moves macro-F1 by 0.726 (0.021 to 0.747) where the three trained backbones span 0.082. | `0.7265` | `results/h6_zero_shot_gap.csv` | — | ✔ |
 | The worst prompt set in the declared space scores 0.021 macro-F1. | `0.0207` | `results/h6_zero_shot_gap.csv` | `README.md`, `thesis/rq_matrix.md` | ✔ |
 | The best prompt set in the declared space scores 0.747 macro-F1 - and it was not selected, only observed. | `0.7472` | `results/h6_zero_shot_gap.csv` | `README.md`, `thesis/rq_matrix.md` | ✔ |
+| On the leaky random split every error is a frame the model had seen a near-duplicate of: 12 of 12. | `12.0` | `results/error_taxonomy_summary.csv` | — | ✔ |
+| All 32 grouped-split errors across the three backbones come from a single slot - a single failure counted many times, not a taxonomy. | `32.0` | `results/error_taxonomy_summary.csv` | — | ✔ |
+| Under the day-to-night temporal shift DINOv2 makes 92 errors of 799, against ConvNeXtV2's 11. | `92.0` | `results/error_taxonomy_summary.csv` | — | ✔ |
 
 ## Notes on individual claims
 
@@ -46,3 +49,4 @@ uv run python -m experiments.verify_claims --check
 - **search-resolution-floor** — The floor lived only in the script's printed output until the claims ledger could not check it; `search_resolution.py` now stores it as a row.
 - **search-interval-width** — Stored beside the floor; the column names are reused from the per-configuration schema.
 - **prompt-space-span** — The extremes were absent from the CSV until the ledger flagged this claim unsupported; `h6_zero_shot_gap.py` now stores worst, best and their span. The documents state the two endpoints rather than the span - they are exact where the difference rounds ambiguously - so those are the checked claims and this one records the derived quantity.
+- **leaky-errors-had-a-near-duplicate** — Reported as a share (100%) in the write-up; the count is what the artefact carries. The complement - zero on the grouped split - is asserted by tests/test_error_taxonomy.py, which checks the rows directly rather than a summary figure.

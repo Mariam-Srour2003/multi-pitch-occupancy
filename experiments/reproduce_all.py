@@ -349,6 +349,14 @@ STAGES: list[Stage] = [
         minutes=10,
     ),
     Stage(
+        name="error-taxonomy",
+        command=[*PY, "-m", "experiments.error_taxonomy"],
+        produces=[RESULTS / "error_taxonomy.csv", RESULTS / "error_taxonomy_summary.csv"],
+        requires=[DATA / "cache" / "dinov2.npz"],
+        note="WP4-T6: 100% of leaky-split errors had a near-duplicate in training; 0% of honest ones",
+        minutes=12,
+    ),
+    Stage(
         name="claims-ledger",
         command=[*PY, "-m", "experiments.verify_claims"],
         produces=[ROOT / "thesis" / "claims.md"],

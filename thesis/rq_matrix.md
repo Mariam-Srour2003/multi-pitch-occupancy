@@ -136,6 +136,7 @@ amendment A9.
 | Split comparison | `h1_h2_baseline_floor.csv` | macro-F1 roughly **halves**, random -> grouped: ConvNeXtV2 0.988 -> 0.498, ViT 0.994 -> 0.498, DINOv2 0.988 -> 0.579 |
 | Four protocols side by side | `benchmark_v2.csv` | 8 models x {random, grouped, cross-venue, temporal}; **a constant predictor scores macro-F1 1.000 cross-venue** |
 | Zero-shot composition control | same | an untrained model drops **0.183** on the same change of test set, so the leakage-attributable drop is **0.332-0.395**, not 0.516-0.578 |
+| Error taxonomy | `error_taxonomy.csv` | **100%** of leaky-split errors had a near-duplicate on the training side; **0%** of honest-split errors did |
 | Split validation | `check_split()` | the honest grouped split is 99% single-class - degenerate on this data |
 | Ranking inversion | `figs/ranking_inversion.png` | ViT 1st under the leaky protocol, tied 2nd/3rd under the honest one |
 

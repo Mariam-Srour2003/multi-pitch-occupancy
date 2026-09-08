@@ -250,6 +250,7 @@ library; the dependency points one way.
 | `end_to_end_slots.py` | Is the decision layer correct on the real recorded slots? |
 | `make_figures.py` | Regenerate the thesis figures from the CSVs. |
 | `make_search_viewer.py` | Regenerate the search results page. |
+| `error_taxonomy.py` | What the models get wrong, and whether the error set is worth categorising. |
 | `verify_claims.py` | Re-derive every quantitative claim from the artefact that produced it. |
 | `reproduce_all.py` | Run everything, in dependency order. |
 

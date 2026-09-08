@@ -884,10 +884,36 @@ tagged with the question it answers. Fix that first — it is what turns a build
 - [ ] ~~WP4-T5 original~~ Reliability diagrams + ECE per model; temperature scaling fitted
       on validation (within training venues only); effect on REVIEW-band volume. *Accept:*
       `results/calibration.csv` + figures; calibrated heads saved with `temperature` in the pkl.
-- [ ] **WP4-T6 Error taxonomy & explainability.** Categorise every grouped-split misclassification by
-      (condition, confusion pair, camera) → `results/error_taxonomy.csv`. Attention rollout
-      (ViT/DINOv2) + Grad-CAM (ConvNeXt) on 20 errors and 20 correct frames → `results/figs/xai/`.
-      Confirm reliance on pitch, not background. *Accept:* figures + a finding sentence per class.
+- [x] **WP4-T6 Error taxonomy — done; the explainability half is blocked, not forgotten.**
+      `experiments/error_taxonomy.py` → `results/error_taxonomy.csv` +
+      `error_taxonomy_summary.csv`, 14 tests, stage `error-taxonomy`. Run across **all four**
+      protocols, because on the grouped split alone the table is nearly empty.
+  - [x] ★ **The headline is a direct measure of what leaked: 100% of leaky-split errors had
+        a near-duplicate on the training side (12 of 12); 0% of honest-split errors did (0 of
+        32).** On the leaky split even the frames the models get *wrong* are frames they had
+        seen a copy of. The near-duplicate audit said 37.1% of duplicate pairs straddle a
+        random split; this says what that means for the evaluation, and it is the cleanest
+        single number for H1 so far. It is also a check on the split — a non-zero count on
+        the grouped side would be a defect in the partition — and a test pins both halves.
+  - [x] ★ **Only one protocol has an error set worth categorising.** Grouped (32 errors, 1
+        slot) and temporal (127, 1 slot) are a single failure counted many times; cross-venue
+        (50 errors, 16 slots, both lighting conditions) is the only spread.
+        `clipvenue_h_teal_pitch` is the hardest venue, taking 25–43% of each model's
+        cross-venue errors.
+  - [x] **DINOv2 collapses under the day→night shift in a specific way**: 92 errors of 799
+        against ConvNeXtV2's 11, and **88% are C2→C3** — it calls active play *maintenance*.
+        ViT does the same more mildly; ConvNeXtV2's errors go the other way (82% C1→C2).
+  - [x] **The grouped split cannot separate the models.** Two of three make exactly nine
+        errors, all the same confusion, all in the same slot — not similar sizes, the same
+        failure.
+  - [x] The finding sentence per class is **derived from the counts**, not typed beside them:
+        a hand-written sentence next to a generated table is how a figure came to contradict
+        its own source.
+  - [ ] ★ **[B] Attention rollout + Grad-CAM → `results/figs/xai/` — blocked on WP1-T5.**
+        It writes frame images, and nine images are already permanent in git history
+        including five sheets of unblurred players. Publishing more frames is the open
+        data-release decision. Worth doing once that is settled; recorded rather than left
+        as a silent gap in the acceptance criterion.
 - [ ] **WP4-T11 ★ Efficiency table with honest methodology.** Using WP0-T10: median and p95 ms/frame,
       peak RAM, concurrent-20-camera throughput, PyTorch vs OpenVINO, on both the dev laptop and the
       target Mini-PC. **(RQ2)**

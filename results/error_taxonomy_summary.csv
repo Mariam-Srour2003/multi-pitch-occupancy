@@ -1,0 +1,31 @@
+protocol,replicate,model,n_test,n_errors,error_rate,distinct_pairs,distinct_slots,distinct_cameras,finding
+random,random_seed42,convnextv2,394,5,0.0127,3 (C2->C1 40%),2 (venue_01_2026-07-12_2030 60%),2 (camera_A 60%),5 errors of 394; C2->C1 is 40% of them across 3 pairs; from 2 slots; 100% had a near-duplicate in training
+random,random_seed42,dinov2,394,5,0.0127,3 (C2->C1 40%),2 (venue_01_2026-07-12_2030 60%),2 (camera_A 60%),5 errors of 394; C2->C1 is 40% of them across 3 pairs; from 2 slots; 100% had a near-duplicate in training
+random,random_seed42,vit,394,2,0.0051,2 (C2->C1 50%),2 (venue_01_2026-07-11_1000 50%),2 (camera_A 50%),2 errors of 394; C2->C1 is 50% of them across 2 pairs; from 2 slots; 100% had a near-duplicate in training
+grouped_slot,grouped_slot_id_seed42,convnextv2,907,9,0.0099,1 (C1->C2 100%),1 (venue_01_2026-07-12_2030 100%),2 (camera_B 56%),9 errors of 907; all C1->C2; from 1 slot; all night
+grouped_slot,grouped_slot_id_seed42,dinov2,907,14,0.0154,3 (C1->C2 57%),1 (venue_01_2026-07-12_2030 100%),2 (camera_A 64%),14 errors of 907; C1->C2 is 57% of them across 3 pairs; from 1 slot; all night
+grouped_slot,grouped_slot_id_seed42,vit,907,9,0.0099,1 (C1->C2 100%),1 (venue_01_2026-07-12_2030 100%),2 (camera_B 56%),9 errors of 907; all C1->C2; from 1 slot; all night
+lo_venue_out,lo_venue_out__clipvenue_a_blue_barrier,convnextv2,168,11,0.0655,1 (C2->C3 100%),5 (clipvenue_a_blue_barrier__clip_1788518356572 36%),5 (ca_1788518356572 36%),11 errors of 168; all C2->C3; from 5 slots; all night
+lo_venue_out,lo_venue_out__clipvenue_a_blue_barrier,dinov2,168,8,0.0476,1 (C2->C1 100%),4 (clipvenue_a_blue_barrier__clip_1788518349117 50%),4 (ca_1788518349117 50%),8 errors of 168; all C2->C1; from 4 slots; all night
+lo_venue_out,lo_venue_out__clipvenue_a_blue_barrier,vit,168,0,0.0,—,—,—,no errors on 168 test frames
+lo_venue_out,lo_venue_out__clipvenue_d_indoor_dome,convnextv2,18,0,0.0,—,—,—,no errors on 18 test frames
+lo_venue_out,lo_venue_out__clipvenue_d_indoor_dome,dinov2,18,0,0.0,—,—,—,no errors on 18 test frames
+lo_venue_out,lo_venue_out__clipvenue_d_indoor_dome,vit,18,0,0.0,—,—,—,no errors on 18 test frames
+lo_venue_out,lo_venue_out__clipvenue_e_pink_boards,convnextv2,18,0,0.0,—,—,—,no errors on 18 test frames
+lo_venue_out,lo_venue_out__clipvenue_e_pink_boards,dinov2,18,0,0.0,—,—,—,no errors on 18 test frames
+lo_venue_out,lo_venue_out__clipvenue_e_pink_boards,vit,18,0,0.0,—,—,—,no errors on 18 test frames
+lo_venue_out,lo_venue_out__clipvenue_f_outdoor_bldg,convnextv2,12,3,0.25,1 (C2->C3 100%),2 (clipvenue_f_outdoor_bldg__clip_1788517934401 67%),2 (cf_1788517934401 67%),3 errors of 12; all C2->C3; from 2 slots; all day
+lo_venue_out,lo_venue_out__clipvenue_f_outdoor_bldg,dinov2,12,0,0.0,—,—,—,no errors on 12 test frames
+lo_venue_out,lo_venue_out__clipvenue_f_outdoor_bldg,vit,12,5,0.4167,1 (C2->C1 100%),2 (clipvenue_f_outdoor_bldg__clip_1788518024202 60%),2 (cf_1788518024202 60%),5 errors of 12; all C2->C1; from 2 slots; all day
+lo_venue_out,lo_venue_out__clipvenue_g_netting,convnextv2,30,1,0.0333,1 (C2->C3 100%),1 (clipvenue_g_netting__clip_1788518155619 100%),1 (cg_1788518155619 100%),1 errors of 30; all C2->C3; from 1 slot; all day
+lo_venue_out,lo_venue_out__clipvenue_g_netting,dinov2,30,0,0.0,—,—,—,no errors on 30 test frames
+lo_venue_out,lo_venue_out__clipvenue_g_netting,vit,30,0,0.0,—,—,—,no errors on 30 test frames
+lo_venue_out,lo_venue_out__clipvenue_h_teal_pitch,convnextv2,18,5,0.2778,1 (C2->C1 100%),1 (clipvenue_h_teal_pitch__clip_1788518162577 100%),1 (ch_1788518162577 100%),5 errors of 18; all C2->C1; from 1 slot; all day
+lo_venue_out,lo_venue_out__clipvenue_h_teal_pitch,dinov2,18,6,0.3333,1 (C2->C3 100%),1 (clipvenue_h_teal_pitch__clip_1788518162577 100%),1 (ch_1788518162577 100%),6 errors of 18; all C2->C3; from 1 slot; all day
+lo_venue_out,lo_venue_out__clipvenue_h_teal_pitch,vit,18,9,0.5,1 (C2->C3 100%),3 (clipvenue_h_teal_pitch__clip_1788518162577 67%),3 (ch_1788518162577 67%),9 errors of 18; all C2->C3; from 3 slots; all day
+lo_venue_out,lo_venue_out__clipvenue_i_outdoor_trees,convnextv2,18,0,0.0,—,—,—,no errors on 18 test frames
+lo_venue_out,lo_venue_out__clipvenue_i_outdoor_trees,dinov2,18,2,0.1111,1 (C2->C1 100%),2 (clipvenue_i_outdoor_trees__clip_1788517881838 50%),2 (ci_1788517881838 50%),2 errors of 18; all C2->C1; from 2 slots; all day
+lo_venue_out,lo_venue_out__clipvenue_i_outdoor_trees,vit,18,0,0.0,—,—,—,no errors on 18 test frames
+temporal,temporal_2026-07-12,convnextv2,799,11,0.0138,2 (C1->C2 82%),1 (venue_01_2026-07-12_2030 100%),2 (camera_A 55%),11 errors of 799; C1->C2 is 82% of them across 2 pairs; from 1 slot; all night
+temporal,temporal_2026-07-12,dinov2,799,92,0.1151,3 (C2->C3 88%),1 (venue_01_2026-07-12_2030 100%),2 (camera_A 95%),92 errors of 799; C2->C3 is 88% of them across 3 pairs; from 1 slot; all night
+temporal,temporal_2026-07-12,vit,799,24,0.03,3 (C2->C3 62%),1 (venue_01_2026-07-12_2030 100%),2 (camera_A 79%),24 errors of 799; C2->C3 is 62% of them across 3 pairs; from 1 slot; all night

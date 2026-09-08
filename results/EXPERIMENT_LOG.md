@@ -2772,3 +2772,74 @@ hand-written copy would be the copy that goes stale — which is what the ledger
 catch.
 
 - 2026-09-08 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 18 claims verified against their artefacts; two unsupported claims closed by storing the values, two `where` fields corrected
+
+- 2026-09-08 | WP4-T6 error taxonomy | `python -m experiments.error_taxonomy` | `error_taxonomy.csv` | 221 misclassifications across four protocols; the grouped split's errors are one slot
+
+---
+
+## 2026-09-08 — WP4-T6: the error taxonomy, and a direct measure of what leaked
+
+`experiments/error_taxonomy.py` → `results/error_taxonomy.csv`, `error_taxonomy_summary.csv`
+
+The task asks for every grouped-split misclassification categorised by condition, confusion
+pair and camera. Done on that split alone the table is nearly empty, and the emptiness is the
+first finding: **all 32 grouped-split errors across the three backbones come from one slot,
+at night, and for two of the three every one is the same confusion** — an empty pitch called
+active play. Nine errors from one scene is a single failure counted nine times, not a
+taxonomy.
+
+So the categorisation runs across all four protocols, and every row carries a column the
+others cannot supply.
+
+### 100% of leaky-split errors had a near-duplicate in training; 0% of honest ones did
+
+| protocol | errors with a near-duplicate on the training side |
+|---|---|
+| random (leaky) | **12 of 12 — 100%** |
+| grouped by slot | **0 of 32 — 0%** |
+
+This is a direct measurement of what the split protocols do, taken through the error set
+rather than over the corpus. On the leaky split even the frames the models get *wrong* are
+frames they had seen a copy of; on the honest split not one is. The near-duplicate audit
+established that 37.1% of duplicate pairs straddle a random split; this says what that means
+for the evaluation, and it is the cleanest single number for H1 yet.
+
+On an honest split the count should be zero by construction, so it is also a check on the
+split — a non-zero value would be a defect in the partition rather than a property of the
+model. It is zero, and a test pins both halves.
+
+### Only one protocol has an error set worth categorising
+
+| protocol | errors | distinct slots | verdict |
+|---|---|---|---|
+| random | 12 | 2 | a spread worth categorising |
+| grouped_slot | 32 | **1** | a single failure counted many times |
+| **lo_venue_out** | **50** | **16** | a spread worth categorising |
+| temporal | 127 | **1** | a single failure counted many times |
+
+Cross-venue is the only protocol whose errors span venues, slots and both lighting
+conditions. `clipvenue_h_teal_pitch` is the hardest venue on this data — it takes 25–43% of
+each model's cross-venue errors.
+
+### Two model-specific findings
+
+**DINOv2 collapses under the day→night shift in a specific way.** On the temporal protocol it
+makes 92 errors of 799 against ConvNeXtV2's 11, and **88% of them are C2→C3**: it calls
+active play *maintenance* once trained on daylight and tested on floodlight. ViT does the
+same thing more mildly (62% of 24). ConvNeXtV2's errors go the other way — 82% C1→C2.
+
+**The grouped split cannot separate the models.** Two of the three make exactly nine errors,
+all the same confusion, all in the same slot. Their error sets are not merely similar sizes,
+they are the same failure.
+
+### The explainability half is not done, and not because it was forgotten
+
+Attention rollout and Grad-CAM would write frame images to `results/figs/xai/`. WP1-T5
+records that nine images are already permanent in git history including five sheets of
+unblurred players, and publishing more frames is the open data-release decision. That is not
+mine to take, so the overlays wait for it. Recorded here rather than left as a silent gap in
+the acceptance criterion.
+
+- 2026-09-08 | WP4-T6 error taxonomy | `python -m experiments.error_taxonomy` | `error_taxonomy.csv` | 100% of leaky-split errors had a near-duplicate in training against 0% of honest ones; only cross-venue has an error set worth categorising
+
+- 2026-09-08 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 21 claims verified against their artefacts, 0 recorded as unsupported

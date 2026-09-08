@@ -214,3 +214,35 @@ where = ["README.md", "thesis/rq_matrix.md"]
 source = "results/h6_zero_shot_gap.csv"
 select = { split = "PROMPT_SPACE" }
 column = "mcnemar_p"
+
+# --- WP4-T6 -----------------------------------------------------------------------------
+
+[[claim]]
+id = "leaky-errors-had-a-near-duplicate"
+statement = "On the leaky random split every error is a frame the model had seen a near-duplicate of: 12 of 12."
+value = 12.0
+where = []
+source = "results/error_taxonomy_summary.csv"
+select = { protocol = "random" }
+column = "n_errors"
+aggregate = "sum"
+note = "Reported as a share (100%) in the write-up; the count is what the artefact carries. The complement - zero on the grouped split - is asserted by tests/test_error_taxonomy.py, which checks the rows directly rather than a summary figure."
+
+[[claim]]
+id = "grouped-errors-are-one-slot"
+statement = "All 32 grouped-split errors across the three backbones come from a single slot - a single failure counted many times, not a taxonomy."
+value = 32.0
+where = []
+source = "results/error_taxonomy_summary.csv"
+select = { protocol = "grouped_slot" }
+column = "n_errors"
+aggregate = "sum"
+
+[[claim]]
+id = "dinov2-temporal-collapse"
+statement = "Under the day-to-night temporal shift DINOv2 makes 92 errors of 799, against ConvNeXtV2's 11."
+value = 92.0
+where = []
+source = "results/error_taxonomy_summary.csv"
+select = { protocol = "temporal", model = "dinov2" }
+column = "n_errors"

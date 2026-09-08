@@ -94,6 +94,8 @@ def _value(source: Path, claim: dict, select_key: str, column_key: str) -> float
         return max(values)
     if aggregate == "min":
         return min(values)
+    if aggregate == "sum":
+        return sum(values)
     raise ValueError(f"unknown aggregate {aggregate!r}")
 
 
