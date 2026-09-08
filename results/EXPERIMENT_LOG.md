@@ -3018,3 +3018,54 @@ not the front. Inserting it before the three positional fields silently rebound
 an existing test, and a good argument for the ones that assert an invariant rather than a value.
 
 - 2026-09-09 | WP8-T2b RQ2 figure + WP7-T5 runbook | `python -m experiments.make_figures` | `figs/accuracy_vs_latency.png`, `docs/runbook.md` | capture rate was reported but never gated the verdict; a slot losing 48 of 60 minutes now goes to REVIEW instead of asserting NOTUSED
+
+---
+
+## 2026-09-09 — WP6-T8: retention, and the refusals that are the actual work
+
+`src/pitch_occupancy/retention.py`, `pitch retention`, 12 tests.
+
+`thesis/ethics.md` committed to *"raw frames purged after 7 days in production; evidence images
+retained 365 days for audit"* and added **"Code enforces this (WP6-T8)"** — a claim about code,
+in the ethics chapter, with nothing behind it. That is the fourth guard in this project found
+to describe something that did not operate, and the first in a document about obligations
+rather than results.
+
+### The dangerous half
+
+**A retention worker in this repository can delete the one irreplaceable thing.** `data/raw/`
+is 4.2 GB from a client facility with a single copy; `data/processed/` is the hand-labelled
+corpus. So the interesting question is not whether the worker deletes old files — it is whether
+it can be persuaded to delete the wrong ones.
+
+- `PROTECTED_ROOTS` names them, and planning against one **raises** rather than scanning it.
+- `apply()` **aborts** on a plan containing a protected path rather than skipping that one: a
+  plan with one in it was built wrongly, and the rest of it is not to be trusted either.
+- A test writes a file into `data/raw/`, hands `apply()` a plan naming it, and asserts the file
+  survives the abort.
+
+**"Raw frames" in the commitment means frames sampled by the running system** — `data/interim/`
+— not the research corpus. Conflating the two would be the most expensive bug this project
+could ship, so the distinction is written down rather than understood.
+
+### The cautious half
+
+Dry run is the default and the only thing `plan()` does; deleting needs `apply(confirm=True)`
+or `--apply`. The acceptance criterion is *"a dry run prints the correct purge set"*, so **the
+plan is the artefact** and deletion operates on it.
+
+A file whose age cannot be read is **kept and reported**, never swept up in a wildcard —
+deleting on a failed `stat()` is how a retention worker becomes a data-loss incident. Writing
+that test found a real bug: `is_file()` stats too, and it sat *outside* the guard, so the
+OSError escaped one call before the handler. Same shape as the failure the handler exists for.
+
+The clock is injectable, which is the only way a 365-day rule gets a test before the year is
+up. The two periods are checked **against `thesis/ethics.md` itself**, so the document and the
+code cannot drift; and that document now says the constraint is enforced and notes that it
+previously said so untruthfully.
+
+The runbook's disk-full row moves from *not implemented* to *partly*: growth is bounded now,
+but nothing reacts to a full disk and nothing runs retention on a schedule. Both belong with
+WP7-T2's service units, and the row says so rather than implying the problem is solved.
+
+- 2026-09-09 | WP6-T8 retention worker | `pitch retention` | `src/pitch_occupancy/retention.py` | the ethics doc claimed code enforced retention and none existed; the corpus is protected by explicit refusal, tested by trying to delete from it

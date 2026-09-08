@@ -15,8 +15,13 @@ Consequences that follow from this, and that the thesis must honour:
    between "drop" and "features-only".)*
 2. **Figures.** Any frame reproduced in the thesis or slides has faces blurred, and identifiable
    venue branding removed or blurred where it is not needed to make the point.
-3. **Retention.** Raw frames purged after 7 days in production; evidence images retained 365
-   days for audit. Code enforces this (WP6-T8).
+3. **Retention.** Frames sampled by the running system are purged after 7 days; evidence
+   images are retained 365 days for audit. **Enforced in code** —
+   `src/pitch_occupancy/retention.py`, `pitch retention`, dry run by default, with the two
+   periods read from this commitment and a test checking them against this document. The
+   source footage and the labelled corpus are explicitly *protected* from it: "raw frames"
+   here means what the system sampled, not the dataset. *(Until 2026-09-09 this line said
+   "Code enforces this" while no such code existed.)*
 4. **The system never acts on its own.** Output is decision support. A human confirms every
    anomaly, and no automated financial action is taken (WP6-T12).
 

@@ -1185,7 +1185,31 @@ tagged with the question it answers. Fix that first — it is what turns a build
       *Accept:* runs continuously; DB fills; verdicts correct on recorded slots.
 - [ ] **WP6-T3 RTSP source.** `frame_source.RTSPSource` — snapshot per minute, retry + timeout.
       *Accept:* tested against a reachable RTSP or a local ffmpeg loop of the mp4s.
-- [ ] **WP6-T8 Retention worker.** Purge raw frames > 7 days, keep evidence 365 days; disk usage
+- [x] **WP6-T8 Retention worker — built, and the refusals are the point.**
+      `src/pitch_occupancy/retention.py` + `pitch retention` (dry run by default), 12 tests.
+      The acceptance criterion — *a dry run prints the correct purge set* — is met by making
+      the **plan** the artefact: `plan()` never deletes, `apply()` needs an explicit
+      `confirm=True`, and the CLI reports unless given `--apply`.
+  - [x] ★ **A retention worker in this repository can delete the irreplaceable thing.**
+        `data/raw/` is 4.2 GB from a client facility with one copy; `data/processed/` is the
+        hand-labelled corpus. Both are in `PROTECTED_ROOTS`, planning against one **raises**,
+        and `apply()` aborts on a plan containing a protected path rather than skipping it —
+        a plan with one in it was built wrongly and the rest is not to be trusted either.
+        Three tests, including one that puts a file in `data/raw/` and asserts it survives.
+  - [x] "Raw frames" in the ethics commitment means frames sampled by the **running system**
+        (`data/interim/`), not the research corpus. Conflating the two would be the most
+        expensive bug this project could ship, so the distinction is written down rather
+        than understood.
+  - [x] A file whose age cannot be read is **kept and reported**, never swept up — deleting
+        on a failed `stat()` is how a retention worker becomes a data-loss incident. Writing
+        that test found a real bug: `is_file()` stats too and sat outside the guard.
+  - [x] ★ Periods match `thesis/ethics.md` (7 days sampled, 365 evidence) and a test checks
+        them **against the document**, so the two cannot drift. The document said *"Code
+        enforces this (WP6-T8)"* while no such code existed — a claim about code, in the
+        ethics chapter, with nothing behind it.
+  - [x] The clock is injectable, which is the only way a 365-day rule gets a test before the
+        year is up.
+- [ ] ~~WP6-T8 original~~ Purge raw frames > 7 days, keep evidence 365 days; disk usage
       bounded and logged. *Accept:* dry-run prints the correct purge set.
   - [ ] ★ Make retention periods match whatever `thesis/ethics.md` (WP1-T3) actually committed to.
 

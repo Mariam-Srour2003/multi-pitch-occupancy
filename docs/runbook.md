@@ -21,7 +21,7 @@ runbook that does not distinguish those is a wish list.
 | 4 | no frames at all | `REVIEW`, *"no samples captured for this slot"* | **enforced** |
 | 5 | frames arrive but are unreadable — fog, glare, a dirty lens | `SlotConditions.concerns()` reports low contrast and low confidence to the operator | **advisory only** |
 | 6 | confidence collapses facility-wide | nothing automatic — `review_below_confidence` is **0.0 and therefore inert** | **not implemented, deliberately** |
-| 7 | disk fills | no handling | **not implemented** |
+| 7 | disk fills | nothing checks free space; retention bounds growth but does not react to a full disk | **partly** — `pitch retention` exists, a space guard does not |
 | 8 | the booking export is stale or absent | reconciliation has nothing to compare against | **not implemented** |
 
 ## Why rows 3 and 6 are treated differently
@@ -83,9 +83,11 @@ property worth knowing during an incident, not a coincidence.
 
 Stated so the gaps are visible rather than discovered in production.
 
-- **Disk full.** Nothing checks free space before writing evidence. The retention worker
-  (WP6-T8) is specified — purge raw frames after 7 days, keep evidence 365 — and not built. A
-  disk-space guard belongs with it.
+- **Disk full.** The retention worker exists (`pitch retention`, dry run by default) and
+  bounds growth: sampled frames are purged after 7 days, evidence kept 365, both read from
+  `thesis/ethics.md`. What is still missing is a *reaction* — nothing checks free space before
+  writing evidence, and nothing runs retention on a schedule. Both belong with WP7-T2's
+  service units.
 - **Facility-wide confidence collapse.** Row 6. Needs RQ6's calibration, which needs data.
 - **A stale booking export.** Reconciliation compares against whatever the export last said. No
   freshness check, and no alert if the export stops arriving.

@@ -200,5 +200,30 @@ def serve(
     uvicorn.run("pitch_occupancy.api.app:app", host=host, port=port, reload=reload)
 
 
+@app.command("retention")
+def retention_cmd(
+    apply_now: bool = typer.Option(
+        False, "--apply", help="actually delete; without this the command only reports"
+    ),
+) -> None:
+    """Report what the retention policy would delete, and optionally delete it (WP6-T8).
+
+    Dry run by default and deliberately: the periods come from `thesis/ethics.md`, and the
+    directories this touches sit next to the ones that must never be touched.
+    """
+    from pitch_occupancy.retention import apply as apply_retention
+    from pitch_occupancy.retention import plan as plan_retention
+
+    retention = plan_retention()
+    typer.echo(retention.describe())
+    if not apply_now:
+        typer.echo("")
+        typer.secho("dry run - nothing deleted. Add --apply to delete.",
+                    fg=typer.colors.YELLOW)
+        return
+    removed = apply_retention(retention, confirm=True)
+    typer.secho(f"deleted {removed} file(s)", fg=typer.colors.GREEN)
+
+
 if __name__ == "__main__":
     app()
