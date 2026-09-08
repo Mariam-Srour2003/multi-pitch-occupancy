@@ -230,24 +230,6 @@ STAGES: list[Stage] = [
         minutes=5,
     ),
     Stage(
-        name="figures",
-        command=[*PY, "-m", "experiments.make_figures"],
-        produces=[
-            RESULTS / "figs" / f"{n}.png"
-            for n in ("label_efficiency", "ranking_inversion", "cross_venue_recall",
-                      "risk_coverage_band")
-        ],
-        requires=[RESULTS / "label_efficiency.csv", RESULTS / "h3_cross_venue_recall.csv",
-                  RESULTS / "rq6_risk_coverage.csv"],
-        note="thesis figures, regenerated from the CSVs",
-    ),
-    # --- three experiments the log quotes that this pipeline used not to reach ----------
-    # The docstring's claim is "anything not reachable from here is not reproducible",
-    # and the pipeline exited 0 while `prompt_search.csv`, `false_play_rescored.csv` and
-    # `preprocess_search.json` - all cited in EXPERIMENT_LOG.md and all committed under
-    # results/ - had no stage at all. A green run that silently omits a cited artefact is
-    # the exact failure the header warns about, one level up.
-    Stage(
         name="prompt-search",
         command=[*PY, "-m", "experiments.prompt_search"],
         produces=[RESULTS / "prompt_search.csv", RESULTS / "prompt_search_best.json"],
@@ -348,6 +330,24 @@ STAGES: list[Stage] = [
         note="repairs the search's false-play control, which scored probes on their own training data",
         minutes=10,
     ),
+    Stage(
+        name="figures",
+        command=[*PY, "-m", "experiments.make_figures"],
+        produces=[
+            RESULTS / "figs" / f"{n}.png"
+            for n in ("label_efficiency", "ranking_inversion", "cross_venue_recall",
+                      "risk_coverage_band", "baseline_floor")
+        ],
+        requires=[RESULTS / "label_efficiency.csv", RESULTS / "h3_cross_venue_recall.csv",
+                  RESULTS / "rq6_risk_coverage.csv", RESULTS / "benchmark_v2.csv"],
+        note="thesis figures, regenerated from the CSVs",
+    ),
+    # --- three experiments the log quotes that this pipeline used not to reach ----------
+    # The docstring's claim is "anything not reachable from here is not reproducible",
+    # and the pipeline exited 0 while `prompt_search.csv`, `false_play_rescored.csv` and
+    # `preprocess_search.json` - all cited in EXPERIMENT_LOG.md and all committed under
+    # results/ - had no stage at all. A green run that silently omits a cited artefact is
+    # the exact failure the header warns about, one level up.
     Stage(
         name="error-taxonomy",
         command=[*PY, "-m", "experiments.error_taxonomy"],

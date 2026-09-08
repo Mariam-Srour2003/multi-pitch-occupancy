@@ -162,6 +162,11 @@ clock rule 0.4907 vs ConvNeXtV2 0.4975), and under the leaky random split a 16-b
 histogram scores above ConvNeXtV2 (0.686 vs 0.657). The 2-point threshold is **not** revised
 after the fact; it is reported as missed, with the narrower finding beside it.
 
+> **Superseded in part by A12.** The random-split figures quoted here are pre-A8 and the
+> comparison reverses on the corrected estimand: ConvNeXtV2 0.9879 against the histogram's
+> 0.9616. The grouped-split half is untouched. Kept as written, with the correction recorded
+> rather than edited into the original.
+
 **A2 — H1's finding stands; its wording and its p-value do not.**
 Originally reported as *"a colour histogram beat the deep probe under the leaky protocol"*.
 After the effective-sample audit (`experiments/effective_sample_audit.py`) the 394-frame
@@ -390,3 +395,48 @@ and re-reported with the false-play control it lacked; H4 refuted with its decis
 disowned (A9); H5 as above; H6 inconclusive with the prompt-space distribution as the finding
 (A10). Three of the six required an amendment to the analysis as pre-registered, and every
 amendment is recorded above rather than folded into the result.
+
+---
+
+### 2026-09-08 — A12: A8 corrected the numbers and A1 was never followed through
+
+Found while building the trivial-baseline floor chart (WP4-T10), by reading the figures A1
+quotes against the CSV they came from.
+
+**A1 states that "under the leaky random split a 16-bin colour histogram scores above
+ConvNeXtV2 (0.686 vs 0.657)". Both numbers were superseded by A8 and the comparison
+reverses.** A8 fixed `bootstrap_metric_ci` re-deriving the class set inside the bootstrap,
+which moved every random-split macro-F1. On the corrected estimand:
+
+| random split, macro-F1 | as A1 quotes it | corrected (A8) |
+|---|---|---|
+| ConvNeXtV2 | 0.657 | **0.9879** |
+| colour histogram | 0.686 | **0.9616** |
+| verdict | histogram ahead by 0.029 | **ConvNeXtV2 ahead by 0.026** |
+
+So the sentence is false on its own data. A8 was reported as leaving grouped-split numbers
+unchanged, which is true, and the random-split correction was written up for H1 — but H2's
+floor claim reads the same column and nobody re-read it. An amendment that corrects a number
+has to be followed to every claim resting on it, and this one was not.
+
+**What survives, and it is most of it.**
+
+* **The grouped-split half is untouched**: the clock rule scores 0.4907 against ConvNeXtV2's
+  0.4975 — within 0.0068, using no pixels at all. That is A1's narrower claim and the one
+  that carries RQ7.
+* **A2's restatement also survives, and is now the only form of the random-split claim worth
+  making.** On the 62 distinct scenes in that test set the histogram and DINOv2 both score
+  1.0000, so *the leaky protocol cannot tell them apart*. That was already the better
+  sentence; it is now the only true one.
+* **H2's pre-registered verdict is unchanged**: refuted at the 2-point threshold, since
+  DINOv2 clears the floor by 8.9 points.
+
+**What is withdrawn**: "a colour histogram beats the deep probe under the leaky protocol", in
+its frame-level form, wherever it appears as a live claim. `thesis/rq_matrix.md` and
+`TODO.md` are corrected; `docs/CODEBASE.md`'s branch description is corrected; the commit
+subject on `exp/h1-h2-baseline-floor` is history and stays as written.
+
+**And both numbers are now in the claims ledger**, which did not carry them. That is the
+whole reason this went unnoticed for a day: the ledger checks what is in it, and a claim
+outside it has nothing checking it. WP8-T5's standing instruction — add a claim when you
+write the sentence — applies to amendments too.

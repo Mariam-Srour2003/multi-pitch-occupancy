@@ -256,12 +256,20 @@ rather than reported as a fitted parameter.
 | evidence | file / figure | finding |
 |---|---|---|
 | Baseline floor | `h1_h2_baseline_floor.csv` | clock rule 0.4907 vs ConvNeXtV2 0.4975 on the grouped split |
-| Baseline floor | same | colour histogram 0.686 vs ConvNeXtV2 0.657 under the random split |
+| Baseline floor | same | random split: ConvNeXtV2 0.9879 vs colour histogram 0.9616 — but on the 62 distinct scenes in that test set both score 1.0000 |
 | Cross-venue | `h3_cross_venue_recall.csv` | a lighting-only rule collapses across venues; backbones hold above 0.86 |
 
 **Answered, and the answer is conditional.** *Within* a confounded venue, no - a clock rule
-matches ConvNeXtV2 and ViT, and a colour histogram beats them. *Across* venues, emphatically
-yes - the trivial baselines collapse while the frozen features transfer.
+that never looks at the image comes within **0.0068** of ConvNeXtV2 and ViT, and the leaky
+protocol cannot tell a colour histogram from a deep probe at all: on the 62 distinct scenes
+of that test set both score 1.0000. *Across* venues, emphatically yes - the trivial baselines
+collapse while the frozen features transfer.
+
+> **Corrected 2026-09-08 (A12).** This row previously read *"colour histogram 0.686 vs
+> ConvNeXtV2 0.657"* and concluded the histogram *beat* the probe. Both numbers were
+> superseded by A8's estimand fix and the comparison reverses: ConvNeXtV2 leads by 0.026 at
+> frame level. The scene-level statement above is what survives, and it was already the
+> better one.
 
 > **Do not quote 0.219 as the clock rule's cross-venue recall.** It is a lower bound partly
 > produced by label error: the `lighting` column for the 396 clip frames is a brightness

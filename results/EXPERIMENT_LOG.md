@@ -2843,3 +2843,64 @@ the acceptance criterion.
 - 2026-09-08 | WP4-T6 error taxonomy | `python -m experiments.error_taxonomy` | `error_taxonomy.csv` | 100% of leaky-split errors had a near-duplicate in training against 0% of honest ones; only cross-venue has an error set worth categorising
 
 - 2026-09-08 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 21 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-08 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 23 claims verified against their artefacts, 0 recorded as unsupported
+
+---
+
+## 2026-09-08 — the trivial-baseline floor chart, and a claim A8 had quietly invalidated
+
+`experiments/make_figures.py` → `results/figs/baseline_floor.{png,pdf}`
+
+WP4-T10's floor is the frame this project reads every benchmark through, and one picture of
+it answers the question an examiner asks first: *would something trivial have done this?*
+Drawing it found that the answer recorded in three documents was out of date.
+
+### The correction (amendment A12)
+
+WP4-T10's headline read *"under the random split a 16-bin colour histogram beat ConvNeXtV2 on
+macro-F1 (0.686 vs 0.657)"*. **Both numbers were superseded by A8**, which fixed
+`bootstrap_metric_ci` re-deriving the class set inside the bootstrap and moved every
+random-split macro-F1. On the corrected estimand the comparison **reverses**:
+
+| random split, macro-F1 | as quoted | corrected (A8) |
+|---|---|---|
+| ConvNeXtV2 | 0.657 | **0.9879** |
+| colour histogram | 0.686 | **0.9616** |
+
+A8 was written up for H1 and correctly reported the grouped-split numbers as unchanged. But
+H2's floor claim reads the same column, and nobody re-read it — so a sentence false on its own
+data survived in `rq_matrix.md`, `TODO.md` and `docs/CODEBASE.md` for a day. **An amendment
+that corrects a number has to be followed to every claim resting on it.**
+
+What survives is most of it, and the better half:
+
+* the **grouped-split** comparison is untouched — the clock rule scores 0.4907 against
+  ConvNeXtV2's 0.4975, within **0.0068**, using no pixels at all;
+* **A2's scene-level restatement** is now the only true form of the random-split claim: on
+  the 62 distinct scenes in that test set the histogram and DINOv2 both score 1.0000, so *the
+  leaky protocol cannot tell them apart*. That was already the cleaner sentence;
+* **H2's pre-registered verdict is unchanged** — refuted at the 2-point threshold.
+
+Both figures are in the claims ledger now. That is exactly why this went unnoticed: the
+ledger checks what is in it, and these two were not. WP8-T5's standing instruction — add a
+claim when you write the sentence — applies to amendments too.
+
+### The chart
+
+Four protocols share an axis, each showing the best trivial baseline against the best
+backbone:
+
+| protocol | best trivial | best backbone | |
+|---|---|---|---|
+| random (leaky) | colour histogram 0.970 | ViT 0.993 | |
+| grouped by slot | clock rule 0.400 | DINOv2 0.471 | |
+| **cross-venue** | **majority class 1.000** | DINOv2 0.960 | **the floor is not cleared** |
+| temporal | mean intensity 0.364 | DINOv2 0.546 | |
+
+The cross-venue column is why the chart is worth drawing: the trivial bar is *above* the
+backbone bar, because a constant predictor scores a perfect macro-F1 on folds containing one
+class. A chart of any single protocol would answer the examiner's question with a number;
+four answer it with *it depends entirely on which protocol you ask*, which is the finding.
+
+- 2026-09-08 | WP4-T10 floor chart | `python -m experiments.make_figures` | `figs/baseline_floor.png` | four protocols; the cross-venue floor is not cleared. Drawing it surfaced A12: A8 reversed the histogram-vs-ConvNeXtV2 comparison and three documents still quoted the old one

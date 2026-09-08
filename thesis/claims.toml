@@ -246,3 +246,28 @@ where = []
 source = "results/error_taxonomy_summary.csv"
 select = { protocol = "temporal", model = "dinov2" }
 column = "n_errors"
+
+# --- WP4-T10, the trivial-baseline floor ------------------------------------------------
+#
+# These two were the claim that A8 silently invalidated: the amendment corrected the numbers
+# and nothing re-read the sentence resting on them. They are in the ledger now because that
+# is the only thing that would have caught it.
+
+[[claim]]
+id = "floor-clock-rule-grouped"
+statement = "On the grouped split a rule that reads only the clock scores 0.4907, within 0.0068 of ConvNeXtV2's 0.4975."
+value = 0.4907
+where = ["thesis/rq_matrix.md", "thesis/preregistration.md"]
+source = "results/h1_h2_baseline_floor.csv"
+select = { split = "grouped_slot_id_seed42", model = "clock_rule" }
+column = "macro_f1"
+
+[[claim]]
+id = "floor-histogram-random"
+statement = "Under the leaky random split the colour histogram scores 0.9616 - below ConvNeXtV2's 0.9879, reversing the pre-A8 figures."
+value = 0.9616
+where = ["thesis/rq_matrix.md"]
+source = "results/h1_h2_baseline_floor.csv"
+select = { split = "random_seed42", model = "cheap_histogram" }
+column = "macro_f1"
+note = "A12: this claim previously read 0.686 against ConvNeXtV2's 0.657 and concluded the histogram won. Both numbers were superseded by A8's estimand fix."

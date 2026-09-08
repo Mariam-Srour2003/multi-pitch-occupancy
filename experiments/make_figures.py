@@ -410,12 +410,91 @@ def fig_risk_coverage_band() -> None:
     save(fig, "risk_coverage_band")
 
 
+def fig_baseline_floor() -> None:
+    """What a model that ignores the image scores, per protocol.
+
+    The floor is the frame this project reads every benchmark through, and one picture of it
+    answers the question an examiner asks first: *would something trivial have done this?*
+    The answer changes completely with the protocol, which is the point - so the four
+    protocols share an axis and the trivial baselines are drawn against the backbones on it.
+
+    Read from `benchmark_v2.csv`, which carries all four protocols. Note the cross-venue
+    column: the trivial bar is *above* the backbone bar there, because a constant predictor
+    scores a perfect macro-F1 on test folds that contain one class.
+    """
+    df = pd.read_csv(RESULTS / "benchmark_v2.csv")
+    df = df[df.replicate != "SUMMARY"]
+    trivial = ("majority", "clock_rule", "cheap_intensity", "cheap_histogram")
+    deep = ("convnextv2", "dinov2", "vit")
+    order = ["random", "grouped_slot", "lo_venue_out", "temporal"]
+    pretty = {"random": "random\n(leaky)", "grouped_slot": "grouped\nby slot",
+              "lo_venue_out": "cross-\nvenue", "temporal": "temporal"}
+
+    means = df.groupby(["protocol", "model"]).macro_f1.mean()
+    rows = []
+    for protocol in order:
+        if protocol not in means.index.get_level_values(0):
+            continue
+        block = means.loc[protocol]
+        t = {m: block[m] for m in trivial if m in block.index}
+        d = {m: block[m] for m in deep if m in block.index}
+        if not t or not d:
+            continue
+        tm, tv = max(t.items(), key=lambda kv: kv[1])
+        dm, dv = max(d.items(), key=lambda kv: kv[1])
+        rows.append({"protocol": protocol, "trivial": tm, "tv": tv, "deep": dm, "dv": dv})
+
+    fig, ax = plt.subplots(figsize=(7.6, 4.6))
+    style(ax)
+    ax.grid(axis="x", visible=False)
+    xs = range(len(rows))
+    width = 0.34
+
+    for i, r in enumerate(rows):
+        beaten = r["tv"] >= r["dv"]
+        ax.bar(i - width / 2, r["tv"], width, color=YELLOW, zorder=3,
+               edgecolor=SURFACE, linewidth=1.5)
+        ax.bar(i + width / 2, r["dv"], width,
+               color=INK_MUTED if beaten else BLUE, zorder=3,
+               edgecolor=SURFACE, linewidth=1.5)
+        for x, v, name in ((i - width / 2, r["tv"], r["trivial"]),
+                           (i + width / 2, r["dv"], r["deep"])):
+            ax.text(x, v + 0.018, f"{v:.3f}", ha="center", va="bottom",
+                    color=INK_2, fontsize=8.5)
+            ax.text(x, 0.02, LABELS.get(name, name), ha="center", va="bottom",
+                    color=SURFACE, fontsize=8, rotation=90, fontweight="medium")
+        if beaten:
+            # Above the pair rather than beside it: the bars it describes are directly
+            # below, so no leader is needed and none can cross the thing being annotated.
+            ax.text(
+                i, max(r["tv"], r["dv"]) + 0.085, "the floor is not cleared",
+                ha="center", va="bottom", color=INK, fontsize=9, fontweight="semibold",
+            )
+
+    ax.set_xticks(list(xs))
+    ax.set_xticklabels([pretty[r["protocol"]] for r in rows], fontsize=9.5)
+    ax.set_ylim(0, 1.16)
+    ax.set_ylabel("macro-F1 (mean over replicates)", color=INK_2, fontsize=10)
+    ax.set_title(
+        "Would something trivial have done this? It depends entirely on the protocol",
+        color=INK, fontsize=13, fontweight="semibold", loc="left", pad=44,
+    )
+    ax.text(
+        0, 1.015,
+        "Yellow: the best model that ignores the image (majority class, a clock rule, mean intensity, a\n"
+        "colour histogram). Blue: the best frozen backbone. Grey where the backbone fails to clear the floor.",
+        transform=ax.transAxes, color=INK_2, fontsize=8.5, va="bottom", linespacing=1.5,
+    )
+    save(fig, "baseline_floor")
+
+
 def main() -> None:
     print("figures:")
     fig_label_efficiency()
     fig_ranking_inversion()
     fig_cross_venue()
     fig_risk_coverage_band()
+    fig_baseline_floor()
 
 
 if __name__ == "__main__":

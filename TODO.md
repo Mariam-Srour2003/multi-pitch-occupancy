@@ -756,10 +756,17 @@ tagged with the question it answers. Fix that first — it is what turns a build
         columns together say: this corpus can measure occupancy only inside one venue, and
         generalisation only in the direction where the answer is always yes.
 - [x] **WP4-T10 ★ Trivial-baseline floor — done, and it fired.** `experiments/h1_h2_baseline_floor.py`.
-      Under the random split a **16-bin colour histogram beat ConvNeXtV2 on macro-F1** (0.686 vs
-      0.657); under the grouped split the **clock rule came within 0.007** of it using no pixels at
-      all. The comparison was indeed measuring the wrong thing — established in week 1, not at the
-      defence. **(RQ7)**
+      Under the grouped split the **clock rule came within 0.0068 of ConvNeXtV2** using no pixels
+      at all. The comparison was indeed measuring the wrong thing — established in week 1, not at
+      the defence. **(RQ7)**
+  - [x] ★ **Corrected 2026-09-08 (A12): the random-split half is withdrawn.** This entry read
+        "a 16-bin colour histogram beat ConvNeXtV2 (0.686 vs 0.657)". Both numbers were
+        superseded by A8's estimand fix and the comparison **reverses** — ConvNeXtV2 0.9879
+        against the histogram's 0.9616. A8 corrected the numbers and nobody re-read the claim
+        resting on them. What survives is A2's scene-level form: on the 62 distinct scenes in
+        that test set both score 1.0000, so *the leaky protocol cannot tell them apart*.
+        Both figures are in the claims ledger now, which is why it went unnoticed — they
+        were not.
   - [x] ★ The complement: `experiments/h3_cross_venue_recall.py` shows a lighting-only rule
         collapsing on unseen venues while ConvNeXtV2 and DINOv2 hold at 0.910 / 0.930. The
         evaluation was uninformative; the models were not the problem. **(RQ3, RQ7)**
@@ -1319,7 +1326,10 @@ tagged with the question it answers. Fix that first — it is what turns a build
       reliability diagrams · XAI overlays · reconciliation matrix with real (blurred) evidence.
   - [x] ★ Risk–coverage / REVIEW-rate curve (WP4-T9). **Done** → `figs/risk_coverage_band`.
         Drawn as a band, with a second panel for the width the confidences leave.
-  - [ ] ★ Trivial-baseline floor chart (WP4-T10).
+  - [x] ★ Trivial-baseline floor chart (WP4-T10). **Done** → `figs/baseline_floor`. Four
+        protocols on one axis, best trivial against best backbone; the cross-venue column is
+        marked **"the floor is not cleared"** because a constant predictor scores 1.000
+        there. Drawing it surfaced A12 — see WP4-T10 above.
   - [ ] ★ Accuracy-vs-latency scatter with the CPU budget drawn as a vertical line — one picture that
         answers RQ2 completely.
   - [ ] ★ **Blur all faces in every published figure.** Check this twice before submission.

@@ -123,7 +123,10 @@ main  <- everything is here
 
 ### What was actually found on the experiment branches
 
-- **`exp/h1-h2-baseline-floor`** — a 16-bin colour histogram beat ConvNeXtV2 on macro-F1
+- **`exp/h1-h2-baseline-floor`** — the trivial-baseline floor. *(The branch's own headline,
+  that a colour histogram beat ConvNeXtV2, was withdrawn by amendment A12: A8's estimand fix
+  reverses it. What stands is the clock rule within 0.0068 of ConvNeXtV2 on the grouped
+  split.)* Originally: a 16-bin colour histogram beat ConvNeXtV2 on macro-F1
   under a random split; the clock rule came within 0.007 under a grouped split. The
   evaluation was measuring the dataset, not the models.
 - **`exp/h3-cross-venue`** — across unseen venues a lighting-only rule collapses while the

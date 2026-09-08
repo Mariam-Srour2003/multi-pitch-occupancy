@@ -75,7 +75,9 @@ def test_the_operating_bound_drawn_is_the_worst_case(monkeypatch) -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["label_efficiency", "ranking_inversion", "cross_venue_recall", "risk_coverage_band"]
+    "name",
+    ["label_efficiency", "ranking_inversion", "cross_venue_recall", "risk_coverage_band",
+     "baseline_floor"],
 )
 def test_each_figure_is_written_in_both_formats(name: str) -> None:
     """PNG for the site, PDF for the thesis. A missing PDF is only noticed at submission."""
@@ -101,3 +103,28 @@ def test_the_band_figure_matches_the_data_it_claims() -> None:
             assert (sub.accuracy_best == sub.accuracy_worst).all(), (
                 f"{model} has no ties but a non-zero band width"
             )
+
+
+def test_the_floor_chart_marks_where_the_backbone_loses() -> None:
+    """The cross-venue column is the one worth drawing: a constant predictor scores a
+    perfect macro-F1 there, so the trivial bar is *above* the backbone bar. A chart that
+    did not say so would read as four columns where the backbone wins."""
+    import inspect
+
+    source = inspect.getsource(mf.fig_baseline_floor)
+    assert "the floor is not cleared" in source
+    assert 'tv"] >= r["dv"]' in source or "beaten" in source
+
+
+def test_the_floor_chart_reads_all_four_protocols(monkeypatch) -> None:
+    """One protocol would answer "would something trivial have done this?" with a number;
+    four answer it with "it depends entirely on which protocol you ask", which is the
+    finding."""
+    path = ROOT / "results" / "benchmark_v2.csv"
+    if not path.exists():
+        pytest.skip("benchmark not present")
+    captured = {}
+    monkeypatch.setattr(mf, "save", lambda fig, name: captured.setdefault("fig", fig))
+    mf.fig_baseline_floor()
+    ax = captured["fig"].axes[0]
+    assert len(ax.get_xticks()) == 4, "the chart does not cover all four protocols"
