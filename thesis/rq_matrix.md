@@ -13,7 +13,7 @@ Updated 2026-09-06.
 | RQ | Question | Status |
 |---|---|---|
 | RQ1 | Frozen backbone + light head at production accuracy on CPU, under night and fog? | **partly answered** |
-| RQ2 | Best accuracy / latency / memory trade-off for one Mini-PC? | **answered** (dev hardware) — *but the input-path finding may reverse it* |
+| RQ2 | Best accuracy / latency / memory trade-off for one Mini-PC? | **answered** (dev hardware) — *the input-path challenge was tested and did not survive* |
 | RQ3 | How does leakage-free, multi-venue evaluation change apparent performance? | **answered** |
 | RQ4 | Can slot aggregation + booking reconciliation detect record discrepancies? | not started |
 | RQ5 | Do purpose-built lightweight architectures beat single-backbone probes? | **baseline established; the fusion answer looks like *no*** |
@@ -69,12 +69,12 @@ So the DINOv2 recommendation rests on the **cross-venue** evidence, where the th
 not equivalent at all - and where DINOv2 is the only one that ever predicts EMPTY. See
 amendment A9.
 
-> ### ⚠ And that cross-venue evidence is now itself in question (2026-09-08)
+> ### ⚠ The cross-venue evidence was questioned, and the question has been answered (2026-09-08)
 >
-> `geometry_convention_probe.csv`. Every published cross-venue number comes from caches built
-> by handing **raw frames** to the HF processor, which resizes a 1920x1080 frame shortest-edge
-> to 256 and centre-crops 224 - keeping roughly the middle *half* of the pitch. Apply
-> `preprocess.py`'s letterbox instead and:
+> `geometry_convention_probe.csv` raised it. Every published cross-venue number comes from
+> caches built by handing **raw frames** to the HF processor, which resizes a 1920x1080 frame
+> shortest-edge to 256 and centre-crops 224 - keeping roughly the middle *half* of the pitch.
+> Apply `preprocess.py`'s letterbox instead and:
 >
 > | backbone | recall | false-play | balanced |
 > |---|---|---|---|
@@ -83,13 +83,27 @@ amendment A9.
 > | ViT | 0.9118 | 0.9712 | −0.0594 |
 >
 > ConvNeXtV2's false-play falls from **0.9918 to 0.0206**, so it leads on *both* axes - and it
-> is the fastest of the three. **That would reverse this recommendation back to ConvNeXtV2.**
+> is the fastest of the three. That looked like it would reverse this recommendation back to
+> ConvNeXtV2.
 >
-> **Not acted on, deliberately.** The false-play column is 243 frames amounting to three to
-> ten distinct scenes, with no CIs, one seed and no paired test. The recommendation stays
-> DINOv2 until the input-path question is settled under the full protocol - which is TODO
-> WP3-T3 option (b). Recording it here so the next reader of this section knows the ground
-> may move.
+> **It does not. `input_path_protocol.csv` put the finding through the protocol and it does
+> not survive.** The whole false-play column is one measurement in one direction: train on
+> venue_01 camera A, score camera B. Swap the two cameras and
+>
+> - **ConvNeXtV2 has no defect to fix** - trained on camera B its raw false-play is already
+>   0.0279, so the 0.99 the letterbox "repairs" is a property of one training camera;
+> - **DINOv2 reverses outright** - raw is perfect (0.0000), letterboxed is 0.9761;
+> - **ViT shows nothing** - 0.0000 in both arms.
+>
+> The recall axis adds nothing either way: every interval covers zero, and with two of seven
+> venue folds tied the exact sign-flip test's **floor is 0.0625**, so no result of any size
+> could have been significant. At the project's default near-duplicate threshold not one
+> frame-level comparison survives being recounted by scene.
+>
+> **The recommendation therefore stays DINOv2, and the reason has changed**: not "pending the
+> full protocol" but "the protocol was run and the challenge failed". What the input-path
+> question actually needs is not a better test - it is **empty-pitch footage from a second
+> venue**, the same blocker as RQ6 and C3.
 
 ## RQ3 - what leakage-free evaluation changes
 

@@ -233,6 +233,16 @@ STAGES: list[Stage] = [
         minutes=50,
     ),
     Stage(
+        name="input-path-protocol",
+        command=[*PY, str(ROOT / "experiments" / "input_path_protocol.py")],
+        produces=[RESULTS / "input_path_protocol.csv"],
+        requires=[DATA / "cache" / "convnextv2.npz",
+                  DATA / "cache" / "geom_probe" / "convnextv2.npz",
+                  RESULTS / "geometry_convention_probe.csv"],
+        note="WP3-T3(b): the input-path finding reverses under the camera swap - not established",
+        minutes=6,
+    ),
+    Stage(
         name="h4-equivalence",
         command=[*PY, str(ROOT / "experiments" / "h4_model_equivalence.py")],
         produces=[RESULTS / "h4_model_equivalence.csv"],

@@ -87,14 +87,17 @@ the pilot branch README.
 > The "Role" column above is what the pilot concluded, kept for the record; `thesis/rq_matrix.md`
 > (RQ2, RQ7) holds the current answer.
 >
-> **And that answer is itself now in question** (2026-09-08). ConvNeXtV2's headline weakness —
-> calling 99.2% of held-out empty pitches a match, against DINOv2's 30.9% — turns out to be
-> largely an artefact of the **input path**, not the model. Every published number comes from
-> caches built by handing *raw* frames to the HF processor, which keeps roughly the middle half
-> of a 16:9 pitch. Letterbox the frame instead and ConvNeXtV2 measures **2.1%** false-play at
-> **98.4%** cross-venue recall — better than DINOv2 on both axes, and it is the fastest of the
-> three. Not acted on yet: that column rests on 243 frames amounting to three to ten distinct
-> scenes. See `docs/PM_REVIEW_2026-09-08.md`.
+> **That answer was challenged and the challenge was tested** (2026-09-08). ConvNeXtV2's
+> headline weakness — calling 99.2% of held-out empty pitches a match, against DINOv2's 30.9%
+> — looked like an artefact of the **input path** rather than the model: every published
+> number comes from caches built by handing *raw* frames to the HF processor, which keeps
+> roughly the middle half of a 16:9 pitch, and letterboxing instead moves ConvNeXtV2 to 2.1%
+> false-play at 98.4% recall. Put through the full protocol, that does not hold up. The whole
+> column is one measurement in one direction; swap the two cameras it is built from and
+> ConvNeXtV2 has no defect to repair (raw false-play 2.8%), while DINOv2 reverses from perfect
+> to 97.6% wrong. The recommendation stays **DINOv2**. What the question actually needs is
+> empty-pitch footage from a second venue. See `results/input_path_protocol.csv` and
+> `docs/PM_REVIEW_2026-09-08.md`.
 
 ---
 

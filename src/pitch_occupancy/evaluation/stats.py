@@ -8,6 +8,11 @@ few hundred correlated frames is not evidence. Three things are always attached:
   and an unpaired test throws that pairing away;
 * an **effect size**, so "significant" is never mistaken for "large".
 
+Where the unit of observation is a *cluster* rather than a frame - seven venues, two
+cameras - :func:`sign_flip_test` is the paired test, and it reports the smallest p its
+own sample size could ever have returned, so "not significant" can be read apart from
+"could not have been".
+
 And because WP4 and WP5 run dozens of pairwise comparisons, :func:`holm_bonferroni`
 corrects the family. Uncorrected p-values across thirty comparisons produce roughly one
 false positive by construction.
@@ -23,11 +28,13 @@ import numpy as np
 __all__ = [
     "BootstrapCI",
     "McNemarResult",
+    "SignFlipResult",
     "bootstrap_ci",
     "bootstrap_metric_ci",
     "paired_bootstrap_diff",
     "paired_bootstrap_metric_diff",
     "mcnemar",
+    "sign_flip_test",
     "holm_bonferroni",
     "cohens_g",
 ]
@@ -170,6 +177,91 @@ def paired_bootstrap_metric_diff(
     lo, hi = np.percentile(dist, [(1 - level) / 2 * 100, (1 + level) / 2 * 100])
     observed = metric(t, a) - metric(t, b)
     return BootstrapCI(float(observed), float(lo), float(hi), level)
+
+
+@dataclass(frozen=True, slots=True)
+class SignFlipResult:
+    """A paired randomisation test, with the smallest p it was ever able to return."""
+
+    estimate: float          # the observed mean paired difference
+    p_value: float
+    n_pairs: int             # pairs supplied
+    n_informative: int       # pairs with a non-zero difference - the ones that carry signal
+    min_achievable_p: float  # the floor: p when the observed result is the most extreme one
+    exact: bool              # True when every sign assignment was enumerated
+
+    def can_reach(self, alpha: float = 0.05) -> bool:
+        """Whether ``alpha`` is attainable at all with this many informative pairs.
+
+        False means a non-significant result says nothing about the effect: the design
+        could not have produced a significant one whatever the data looked like.
+        """
+        return self.min_achievable_p <= alpha
+
+
+#: Above this many informative pairs, enumerating 2**n sign assignments stops being cheap
+#: and the test falls back to sampling them.
+EXACT_SIGN_FLIP_LIMIT = 18
+
+
+def sign_flip_test(
+    deltas: Sequence[float] | np.ndarray,
+    *,
+    resamples: int = DEFAULT_RESAMPLES,
+    seed: int = 42,
+) -> SignFlipResult:
+    """Two-sided paired randomisation test on differences, exact for small samples.
+
+    The test for a comparison whose unit of observation is a **cluster** rather than a
+    frame - seven venue folds, say - where the sample is far too small for an asymptotic
+    test and a bootstrap CI over seven points is itself coarse. Under the null the two
+    conditions are exchangeable within each pair, so flipping the sign of any subset of
+    the differences is equally likely; the p-value is the share of the 2**n sign
+    assignments whose mean difference is at least as extreme as the observed one.
+
+    **The reason it exists here rather than being reached for from scipy: it reports
+    its own resolution floor.** With seven venues the smallest two-sided p obtainable is
+    2/2**7 = 0.0156, and with four it is 0.125 - so at four venues no result of any size
+    can be significant at 0.05, and reporting "p = 0.12, not significant" would describe
+    the sample size rather than the effect. ``min_achievable_p`` makes that visible in the
+    output instead of leaving it to be noticed. It is the same failure the preprocessing
+    search hit from the other side, where configurations were adopted on margins below the
+    search's own resolution.
+
+    Differences of exactly zero are kept in the mean but contribute no sign to flip, so
+    they lower power without biasing the estimate; ``n_informative`` counts the rest, and
+    the floor is computed from it rather than from ``n_pairs``.
+    """
+    d = np.asarray(deltas, dtype=float)
+    if d.size == 0:
+        raise ValueError("cannot test an empty set of pairs")
+
+    observed = float(np.mean(d))
+    nonzero = d[d != 0.0]
+    n_inf = int(nonzero.size)
+
+    if n_inf == 0:
+        # Every pair tied: no evidence of a difference, and none was obtainable.
+        return SignFlipResult(observed, 1.0, int(d.size), 0, 1.0, True)
+
+    # Only the informative differences flip; the zeros contribute a constant 0 to every
+    # resampled sum, so they can be dropped from the enumeration and their count kept in
+    # the divisor.
+    n = int(d.size)
+    exact = n_inf <= EXACT_SIGN_FLIP_LIMIT
+    if exact:
+        signs = 1 - 2 * (
+            (np.arange(2**n_inf)[:, None] >> np.arange(n_inf)) & 1
+        )  # (2**n_inf, n_inf) of +-1
+        means = signs @ nonzero / n
+    else:
+        rng = np.random.default_rng(seed)
+        signs = rng.choice((-1.0, 1.0), size=(resamples, n_inf))
+        means = signs @ nonzero / n
+
+    p = float(np.mean(np.abs(means) >= abs(observed) - 1e-12))
+    floor = 2.0 / 2**n_inf if exact else 1.0 / resamples
+    return SignFlipResult(observed, min(p, 1.0), n, n_inf, min(floor, 1.0), exact)
 
 
 def cohens_g(n_a: int, n_b: int) -> float:

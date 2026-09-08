@@ -28,8 +28,23 @@ training statistics.
 > `preprocess()` themselves, which is why they keep their own cache family.
 >
 > The diagram above is therefore the *intended* pipeline and the one the search operates in,
-> not the one behind the cross-venue numbers. Which to make real is TODO WP3-T3's open
-> decision; until it is taken, this document should not be read as saying the two agree.
+> not the one behind the cross-venue numbers. This document should not be read as saying the
+> two agree.
+
+> **Decision, 2026-09-08 — the two paths stay separate, and the write-up says so.**
+> `results/input_path_protocol.csv` tested whether adopting `preprocess.py` in `build_cache`
+> (TODO WP3-T3 option (b)) is carried by the evidence. It is not: the finding that motivated
+> it reverses when the two cameras the false-play control is built from are swapped, the
+> cross-venue recall axis cannot reach significance with seven venue folds, and no frame-level
+> comparison survives being recounted by distinct scene. So **option (c) stands** — the
+> default cache path keeps the processor's own geometry on raw frames, and every claim about
+> a searched preprocessing switch is scoped to the search and ablation cache family.
+>
+> This is a decision under uncertainty, not a finding that preprocessing does not matter. The
+> mechanism is real — a 1920×1080 frame resized shortest-edge to 256 and centre-cropped to
+> 224 keeps roughly the middle half of the pitch. What is missing is footage that could
+> measure its cost: **every EMPTY frame in the corpus is venue_01**, so the input path and
+> the camera pair cannot be separated. Revisit when a second venue's empty footage arrives.
 
 ## The pipeline, as measured (WP3-T3, 2026-09-07)
 

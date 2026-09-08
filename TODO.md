@@ -288,6 +288,13 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [ ] Idle-people slots (walk-throughs, events, photo sessions) — currently **6 frames**.
   - [ ] ≥ 2 more pitches at the same facility.
   - [ ] ≥ 2 external venues, 2 slots per lighting regime.
+  - [ ] ★ **Empty pitches at *any* venue other than venue_01 — name this one explicitly.**
+        All 494 EMPTY frames in the corpus are venue_01, two cameras, two slots. That single
+        fact blocks four separate questions at once: RQ1's empty-pitch claim (unanswerable),
+        RQ6's calibration, the two confidence thresholds, and the input-path decision
+        (WP3-T3), which reverses when those two cameras are swapped and cannot be settled by
+        any test on this data. It is cheap to supply — an empty pitch needs no scheduling,
+        only a camera pointed at one — and it is the highest-value frame in the request.
   - [ ] Rain/fog days when they occur.
   - [ ] ★ **≥ 30–40 distinct complete slots with a known real verdict.** This is the single most
         important line in the whole request. **Frames are not your bottleneck — slots are.** STAN
@@ -423,7 +430,8 @@ tagged with the question it answers. Fix that first — it is what turns a build
           with grey bars, and the processor's resize-to-256-then-crop-224 trims most of that
           padding back off. The pair is aspect-preserved content *with the padding removed*.
           Either step alone is worse than both.
-    - [ ] ★ **[B] And a much larger finding fell out of it — see WP3-T3 note 2 below.**
+    - [x] ★ **[B] And a much larger finding fell out of it — see WP3-T3 notes 2 and 3
+          below. Note 3 tested it and it did not survive; the decision is recorded there.**
   - [x] ★ **Attempted 2026-09-08, and it surfaced something bigger than the convention
         question. Read this before running the comparison.**
     - [x] The flag was **not runnable**. `build_cache` had no `processor_geometry`
@@ -448,7 +456,7 @@ tagged with the question it answers. Fix that first — it is what turns a build
           (`ValueError: Input image size (1080*1920) doesn't match model (224*224)`).
           `build_cache` now requires an explicit `preprocess_fn` when the flag is off, so
           the dependency is legible instead of a crash five frames deep in transformers.
-    - [ ] ★ **[B] So WP3-T3's experiment is not the one-line run it looks like, and it is a
+    - [x] ★ **[B] So WP3-T3's experiment is not the one-line run it looks like, and it is a
           decision, not a patch.** Comparing conventions honestly means putting
           `preprocess.py` into the main cache path — which changes the input to *every*
           published number, not just the nogeom arm. Three options, in increasing cost:
@@ -460,11 +468,22 @@ tagged with the question it answers. Fix that first — it is what turns a build
           plainly in the write-up that the searched preprocessing switches apply to the
           search and ablation caches only. **(a) first** — it is cheap and it tells you
           whether (b) is worth its cost.
-    - [ ] ★ Update `protocol.md`'s framing either way. It calls `preprocess.py` "the single
+      - [x] **(a) run, 2026-09-08** → `geometry_convention_probe.csv`. It settled the
+            convention (keep the processor's geometry) and produced note 2 below.
+      - [x] ★ **(b) settled — and the answer is do not adopt it, on this data.**
+            `experiments/input_path_protocol.py` → `results/input_path_protocol.csv`.
+            Note 2's evidence does not survive the protocol; the detail is under note 2.
+      - [x] **(c) is therefore what stands**, and the write-up must say so: the searched
+            preprocessing switches apply to the search and ablation caches only. Recorded
+            in `thesis/protocol.md`, "The pipeline, as intended".
+    - [x] ★ Update `protocol.md`'s framing either way. It calls `preprocess.py` "the single
           preprocessing path"; for the main caches it is not a path at all, and that sentence
-          should not survive into the thesis unqualified.
-  - [ ] ★ **WP3-T3 note 2 — ConvNeXtV2's false-play was mostly the input path, and this may
-        reverse the production recommendation.** `preproc+geom` against the published
+          should not survive into the thesis unqualified. **Done 2026-09-08** — the section
+          now carries the decision and the reason it is provisional.
+  - [x] ★ **WP3-T3 note 2 — ConvNeXtV2's false-play was mostly the input path, and this may
+        reverse the production recommendation.** *(Tested under the protocol and refuted —
+        see note 3. Kept as written, because what it observed is real and only its
+        interpretation was wrong.)* `preproc+geom` against the published
         `raw+geom`:
 
         | backbone | Δrecall | Δfalse-play | Δbalanced |
@@ -478,17 +497,54 @@ tagged with the question it answers. Fix that first — it is what turns a build
         letterboxed instead of handed raw to the processor.** A 1920×1080 frame resized
         shortest-edge to 256 and cropped to 224 keeps about the middle *half* of the pitch:
         the model was shown a central strip and asked whether the pitch was empty.
-    - [ ] Under preprocessing ConvNeXtV2 leads on **both** axes (0.9841 / 0.0206 vs DINOv2's
+    - [x] Under preprocessing ConvNeXtV2 leads on **both** axes (0.9841 / 0.0206 vs DINOv2's
           0.9595 / 0.2305) *and* is the fastest. **Do not change the recommendation on this
           evidence** — settle it under the full protocol first (CIs, paired test, effective
-          sample). Flagged in `rq_matrix.md` RQ2.
-    - [ ] Preprocessing is **not** universally good: it helps ConvNeXtV2 hugely, DINOv2
-          modestly, and **hurts ViT**. "Adopt it globally" is not the clean answer; what to
-          adopt depends on which backbone ships.
-    - [ ] ★ **What is not established.** The false-play column is 243 frames = **three to ten
-          distinct scenes**. No CIs, one seed, no paired test, and only the default letterbox
-          (none of the ten searched switches). This probe decides *what to do next*, not what
-          to claim — and what to do next is option (b) above, under the full protocol.
+          sample). Flagged in `rq_matrix.md` RQ2. **Settled 2026-09-08: the recommendation
+          does not change, and the caution was justified.**
+  - [x] ★ **WP3-T3 note 3 — the protocol run, and note 2 does not survive it.**
+        `experiments/input_path_protocol.py` → `results/input_path_protocol.csv`, 21 tests
+        in `tests/test_input_path_protocol.py`. No cache was rebuilt: both arms already
+        existed. Full write-up in `results/EXPERIMENT_LOG.md`.
+    - [x] ★ **The camera swap breaks it.** Note 2's entire false-play column is *one*
+          measurement in one direction — train venue_01 camera A, score camera B. Swapping
+          the cameras is the only replication this corpus allows, and it gives:
+
+          | backbone | train A → B | train B → A | |
+          |---|---|---|---|
+          | convnextv2 | 0.9918 → 0.0206 (−0.9712) | 0.0279 → 0.0159 (−0.0120) | replicates |
+          | dinov2 | 0.3086 → 0.2305 (−0.0782) | 0.0000 → 0.9761 (**+0.9761**) | **REVERSES** |
+          | vit | 0.8354 → 0.9712 (+0.1358) | 0.0000 → 0.0000 | no effect one side |
+
+          **ConvNeXtV2 has no defect to repair in the other direction** — trained on camera B
+          its raw false-play is already 0.0279, so the 0.99 the letterbox "fixes" belongs to
+          one training camera, not to the input path. **DINOv2 reverses outright.** The swap
+          is a replication, not a mirror, and the asymmetry is recorded: all six C3 frames
+          sit on camera A, so training on camera B is a two-class fit on 521 frames against
+          camera A's three-class fit on 775.
+    - [x] ★ **The recall axis could not have been significant.** Seven venue folds, paired,
+          exact sign-flip test. Every CI covers zero — but two folds tie for every backbone,
+          so five informative pairs put the **floor at 2/2⁵ = 0.0625**. Reporting "p = 0.31,
+          not significant" without that would describe the sample, not the effect — H4's
+          error one level down. Six same-signed venues is the minimum that can clear 0.05.
+          `evaluation.stats.sign_flip_test` now reports `min_achievable_p` beside every p.
+    - [x] ★ **Frame-level significance dissolves when the frames are counted.** The 243 (and
+          251) empties come from **two (camera × slot) cells**. Recounted one frame per
+          distinct scene: at 6 bits nothing survives in either direction; at 2 bits only the
+          ConvNeXtV2 train-A comparison (p = 0.047), which the swap has already localised.
+    - [x] **The "one seed" gap was a phantom.** `LinearProbe` passes its seed to
+          `LogisticRegression`, which solves with lbfgs — deterministic. Verified across five
+          seeds: not one prediction changes. More seeds would have dressed a fixed quantity
+          as a robustness check. Another knob that turns nothing, harmless this time.
+    - [x] Preprocessing is **not** universally good, and the swap makes that stronger rather
+          than weaker: "helps ConvNeXtV2 hugely, DINOv2 modestly, hurts ViT" is itself a
+          one-direction statement. Which backbone ships does not determine what to adopt —
+          on this data nothing determines it.
+    - [ ] ★ **[H] What would settle it is data, not method: empty-pitch footage from a second
+          venue.** Every EMPTY frame in the corpus is venue_01, two cameras, two slots, so no
+          test of any design can separate the input path from the camera pair. Same blocker
+          as C3 (WP2-T11), RQ6's calibration and the confidence thresholds. Add it to
+          `thesis/data_requests.md` (WP2-T2) as a named priority, not a general ask.
 - [x] **WP3-T4 Low-light / fog branch.** CLAHE on the LAB lightness channel, `on|off|auto`
       gated on RMS contrast.
 - [ ] ~~WP3-T4 original~~ RMS contrast on ROI; below threshold → CLAHE/gamma variant;
@@ -810,6 +866,21 @@ tagged with the question it answers. Fix that first — it is what turns a build
 > *(The +0.023 recall gain is **not** tested — an unweighted mean over 7 folds, three of them
 > 12–18 frames. Do not quote it as an improvement. It does not change the direction of the
 > comparison, which the false-play column settles on its own.)*
+>
+> ### ⚠ Which input path this rests on — 2026-09-08, after `input_path_protocol.csv`
+>
+> The re-run above reads the **letterboxed** caches, on the premise that they are the truer
+> input. That premise did not survive the protocol: the false-play evidence for it reverses
+> when the two cameras it is built from are swapped, so neither cache family is established
+> as the real one, and the letterboxed ensemble's 0.0288 is a number from one of two paths
+> rather than the number.
+>
+> **5.B's answer survives either way, and that is the point worth carrying.** Raw caches said
+> *blending is disqualified, so a gate can only be a hard router*; letterboxed caches say *the
+> ensemble is already at the ceiling, so a gate has no room.* Opposite mechanisms, same
+> conclusion — plan WP5-T2 as a negative result. **What must not be quoted is either
+> mechanism as established**, and in particular not "the two-model ensemble is the best
+> configuration measured", which holds only on the unestablished path.
 
 ### 5.A STAN — Slot-Temporal Aggregation Network *(preliminary result — data-blocked; see the order note above)*
 - [ ] **WP5-T1 STAN implementation.** `engine/stan.py`: input = ordered per-minute fused class

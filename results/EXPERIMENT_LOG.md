@@ -2019,3 +2019,102 @@ Setting it from the measured distribution (median 20.5) would make `auto` mean s
 right value is a decision, not a number to guess, and it belongs with the WP3 ablation.
 
 - 2026-09-08 | clahe auto-gate diagnostic | `python -c` over the manifest | *(no CSV - diagnostic)* | gate fires on 99.81% of frames; auto == on within 3 frames, yet the search reports them 0.02 apart
+
+---
+
+## 2026-09-08 — WP3-T3 option (b): the input-path finding under the full protocol
+
+`experiments/input_path_protocol.py` → `results/input_path_protocol.csv`
+
+The geometry probe left a note listing exactly what its own headline lacked: *"no CIs, one
+seed, no paired test"*, on a false-play column of 243 frames amounting to three to ten
+distinct scenes. This supplies all of it. Both arms already existed — `data/cache/` is the
+published raw arm, `data/cache/geom_probe/` the letterboxed one — so nothing was re-embedded.
+
+**Answer: the finding is observed, not established, and option (b) is not carried by it.**
+
+### The camera swap breaks it
+
+The published false-play control trains on venue_01 camera A and scores camera B's 243 empty
+frames — **one measurement, one direction**. Swapping the cameras gives a second measurement
+on 251 different frames from a different training set. It is the only replication this corpus
+can offer, because every EMPTY frame in it is venue_01.
+
+| backbone | train A → test B | train B → test A | |
+|---|---|---|---|
+| convnextv2 | 0.9918 → 0.0206 (**−0.9712**) | 0.0279 → 0.0159 (−0.0120) | replicates |
+| dinov2 | 0.3086 → 0.2305 (−0.0782) | 0.0000 → 0.9761 (**+0.9761**) | **REVERSES** |
+| vit | 0.8354 → 0.9712 (+0.1358) | 0.0000 → 0.0000 (0.0000) | no effect one side |
+
+Two things fall out of the second column, and both matter more than the first.
+
+**ConvNeXtV2's catastrophic raw false-play is a property of one training camera, not of the
+input path.** Trained on camera B it is 0.0279 raw — there is no 0.99 to rescue. The
+letterbox cannot be credited with fixing a defect that the other direction does not have.
+
+**DINOv2 reverses completely.** Raw is *perfect* (0.0000) trained on camera B, and the
+letterbox destroys it (0.9761). So "preprocessing helps ConvNeXtV2 hugely, DINOv2 modestly,
+hurts ViT" — day two's summary — does not survive the swap either: DINOv2's modest help
+becomes near-total harm in the other direction.
+
+The swap is a replication, not a mirror, and the asymmetry is recorded rather than smoothed
+over: all six C3 frames sit on camera A, so training on camera B is a two-class fit on 521
+frames against camera A's three-class fit on 775.
+
+### The recall axis could not have reached significance
+
+Seven venue folds, paired, with an exact sign-flip test:
+
+| backbone | raw | preproc | Δ | 95% CI over venues | p | floor |
+|---|---|---|---|---|---|---|
+| convnextv2 | 0.9105 | 0.9841 | +0.0736 | [−0.0176, +0.1735] | 0.3125 | 0.0625 |
+| dinov2 | 0.9297 | 0.9595 | +0.0298 | [−0.0789, +0.1514] | 0.6875 | 0.0625 |
+| vit | 0.8690 | 0.9118 | +0.0428 | [−0.1389, +0.2412] | 0.7500 | 0.0625 |
+
+Every interval covers zero. But the number worth keeping is the **floor**: two folds tie for
+every backbone, leaving five informative pairs, so the smallest two-sided p this design can
+return is 2/2⁵ = **0.0625**. *No result of any size could have been significant here.*
+Reporting "p = 0.31, not significant" without that would describe the sample and not the
+effect — the same error as H4's "a null result confirms it", one level down. Six venues
+pointing the same way is the minimum that can clear 0.05.
+
+`sign_flip_test` was added to `evaluation/stats.py` for this, and reports its own
+`min_achievable_p` beside every p-value so the two readings cannot be confused again.
+
+### And the frame-level significance dissolves when the frames are counted
+
+The 243 (and 251) empty frames come from **two (camera × slot) cells** — the coarsest count,
+needing no hash threshold. Recomputed on one frame per distinct scene:
+
+| direction | scenes @2 bits | surviving after Holm | scenes @6 bits | surviving |
+|---|---|---|---|---|
+| train A | 10 | convnextv2 only, p = 0.047 | 3 | none |
+| train B | 4 | none | 2 | too few to test |
+
+At the project's default threshold nothing survives in either direction. The one survivor at
+the strict threshold is the ConvNeXtV2 comparison the swap has already shown to be
+direction-specific.
+
+### The seed axis was a phantom
+
+The probe's note listed "one seed" among the gaps. `LinearProbe` takes a `seed` and passes it
+to `LogisticRegression`, which solves with lbfgs — **deterministic**. Verified: across five
+seeds not one prediction changes. Running more seeds would have produced identical numbers
+and presented a fixed quantity as a robustness check. The parameter is harmless, but it is
+another case of something that reads like a knob and turns nothing.
+
+### What this does not say
+
+It does not say the letterbox is bad, or that the middle-half crop is fine. The mechanism
+found by the probe is real and visible: handing a 1920×1080 frame to a processor that resizes
+shortest-edge to 256 and crops 224 keeps roughly the central half of the pitch. What it says
+is that **this dataset cannot tell you what that costs**, because the only footage of an empty
+pitch is one venue, two cameras, two slots. Option (b) — putting `preprocess.py` into
+`build_cache` and regenerating everything — would change the input to every published number
+on evidence that reverses when the two available cameras are swapped.
+
+The blocker is data, not method, and it is the same blocker as C3, RQ6's calibration and the
+confidence thresholds: **empty-pitch footage from more than one venue**. That is a line in
+`thesis/data_requests.md`, not an experiment.
+
+- 2026-09-08 | WP3-T3(b) input path under protocol | `python experiments/input_path_protocol.py` | `input_path_protocol.csv` | paired over 7 venues + both camera directions, with the effective sample

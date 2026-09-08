@@ -187,6 +187,65 @@ def test_models_view_marks_the_clock_rule_as_using_no_pixels(client) -> None:
     assert "never the pixels" in render_models()
 
 
+def test_the_input_path_challenge_reaches_the_served_page(client) -> None:
+    """Asserted on the HTML the reader receives, not on the helper that builds it.
+
+    A safeguard once lived in a function called by one test and nothing else, while the page
+    that was actually served ranked by recall alone. Testing the function certified something
+    no reader ever saw. So this goes through the client: the recommendation was challenged and
+    the challenge was tested, and a reader deciding what to deploy must see both.
+    """
+    from pitch_occupancy.api import models_view
+
+    if not (models_view.RESULTS / "input_path_protocol.csv").exists():
+        pytest.skip("input-path protocol results not present")
+    html = client.get("/").text
+    assert "This recommendation was challenged" in html
+    assert "under the swap" in html
+
+
+def test_the_input_path_verdict_is_read_from_the_csv_not_written_in(monkeypatch, tmp_path) -> None:
+    """The most-quoted figure in this project was once a plot with its ranks hardcoded,
+    contradicting its own source table. A verdict paragraph can fail the same way, so it is
+    checked by feeding it the opposite data and requiring the opposite word."""
+    from pitch_occupancy.api import models_view
+
+    same = {
+        (k, f"train_{cam}"): {"estimate": "-0.5000"}
+        for k in models_view.TRAINED for cam in ("camera_A", "camera_B")
+    }
+    assert "reverses" not in models_view._input_path_note(same)
+    assert "same direction" in models_view._input_path_note(same)
+
+    flipped = dict(same)
+    flipped[("dinov2", "train_camera_B")] = {"estimate": "+0.5000"}
+    assert "reverses" in models_view._input_path_note(flipped)
+    assert "DINOv2 reverses outright" in models_view._input_path_note(flipped)
+
+
+def test_the_input_path_rates_in_the_prose_come_from_the_csv_too() -> None:
+    """The paragraph quotes a before/after pair and an other-direction rate. Those are the
+    numbers most likely to be typed in once and left behind when the run changes."""
+    from pitch_occupancy.api import models_view
+
+    made_up = {
+        ("convnextv2", "train_camera_A"):
+            {"estimate": "-0.7000", "raw": "0.8100", "preproc": "0.1100"},
+        ("convnextv2", "train_camera_B"):
+            {"estimate": "-0.0100", "raw": "0.0420", "preproc": "0.0320"},
+    }
+    out = models_view._input_path_note(made_up)
+    assert "from 0.81 to 0.11" in out
+    assert "already 0.042" in out
+    assert "0.99" not in out and "0.028" not in out
+
+
+def test_the_input_path_panel_is_absent_rather_than_invented_when_unmeasured() -> None:
+    from pitch_occupancy.api import models_view
+
+    assert models_view._input_path_note({}) == ""
+
+
 # --- diagrams ---------------------------------------------------------------
 
 

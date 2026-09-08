@@ -98,6 +98,22 @@ def collect() -> dict:
     if p.exists():
         best_prompt = json.loads(p.read_text(encoding="utf-8")).get("best", {})
 
+    # The recommendation on this page was challenged - "ConvNeXtV2's false-play is an
+    # artefact of the input path, letterbox it and the pick reverses" - and the challenge was
+    # tested. A reader deciding what to deploy has no way to know either happened unless the
+    # page says so, and a page that shows only the surviving answer is a page that cannot be
+    # audited. Read from the CSV rather than written out, so a rerun that overturns this
+    # overturns the paragraph with it.
+    challenge: dict[tuple[str, str], dict] = {}
+    for r in _csv("input_path_protocol.csv"):
+        if r["axis"] != "false_play" or not r["backbone"]:
+            continue
+        cell = challenge.setdefault((r["backbone"], r["unit_key"]), {})
+        if r["measure"] == "delta_preproc_minus_raw":
+            cell["estimate"] = r["estimate"]
+        elif r["measure"] == "rate":
+            cell[r["arm"]] = r["estimate"]
+
     rows = []
     for key in (*TRAINED, "clock_rule"):
         cross = h3.get(key, {})
@@ -125,7 +141,93 @@ def collect() -> dict:
             "ms": lat.get(key, {}).get("single_median_ms"),
             "conc": lat.get(key, {}).get("round_wall_s"),
         })
-    return {"rows": rows, "best_prompt": best_prompt}
+    return {"rows": rows, "best_prompt": best_prompt, "challenge": challenge}
+
+
+def _input_path_note(challenge: dict) -> str:
+    """The panel saying the recommendation was challenged, and how the challenge fared.
+
+    Every figure and the verdict word come from `input_path_protocol.csv`. The two camera
+    directions are what decides it: a finding that holds in one and reverses in the other is
+    a property of the camera pair, not of the input path.
+    """
+    if not challenge:
+        return ""
+
+    def cell(key: str, cam: str, field: str) -> float | None:
+        try:
+            return float(challenge[(key, f"train_{cam}")][field])
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    def delta(key: str, cam: str) -> float | None:
+        return cell(key, cam, "estimate")
+
+    lines, reversed_any = [], []
+    for key in TRAINED:
+        a, b = delta(key, "camera_A"), delta(key, "camera_B")
+        if a is None or b is None:
+            continue
+        if a == 0.0 or b == 0.0:
+            verdict, tone = "no effect on one side", "muted"
+        elif (a > 0) == (b > 0):
+            verdict, tone = "same direction", "ok"
+        else:
+            verdict, tone = "reverses", "bad"
+            reversed_any.append(LABELS[key])
+        lines.append(
+            f'<tr><td class="mn">{LABELS[key]}</td>'
+            f'<td class="num">{a:+.4f}</td><td class="num">{b:+.4f}</td>'
+            f'<td class="num {tone}">{verdict}</td></tr>'
+        )
+    if not lines:
+        return ""
+
+    held = " and ".join(reversed_any)
+    outcome = (
+        f"<b>{held} reverses outright.</b> An effect that changes sign when the two cameras "
+        f"are swapped is a property of the camera pair, not of the input path."
+        if reversed_any else
+        "<b>The effect keeps its direction under the swap.</b>"
+    )
+
+    # The challenge's own headline, named by whichever model actually shows it rather than
+    # by the one that showed it the day the paragraph was written.
+    lead = max(
+        (k for k in TRAINED if delta(k, "camera_A") is not None),
+        key=lambda k: abs(delta(k, "camera_A")), default=None,
+    )
+    headline = ""
+    if lead is not None:
+        raw_a, pre_a = cell(lead, "camera_A", "raw"), cell(lead, "camera_A", "preproc")
+        raw_b = cell(lead, "camera_B", "raw")
+        if None not in (raw_a, pre_a):
+            headline = (
+                f" Letterboxing the frame first moves {LABELS[lead]}&rsquo;s false-play from "
+                f"{raw_a:.2f} to {pre_a:.2f}, which would hand it the recommendation."
+            )
+        if raw_b is not None:
+            outcome += (
+                f" And {LABELS[lead]} has nothing to repair in the other direction: trained "
+                f"on camera&nbsp;B its raw false-play is already {raw_b:.3f}."
+            )
+
+    return f"""<div class="callout warn">
+    <p><b>This recommendation was challenged, and the challenge was tested.</b> Every cached
+    feature behind the table below comes from a raw frame handed to the model&rsquo;s own
+    processor, which resizes shortest-edge to 256 and centre-crops 224 &mdash; keeping
+    roughly the middle <i>half</i> of a 16:9 pitch.{headline}</p>
+    <p>But that whole column is <b>one measurement in one direction</b>: train on venue_01
+    camera&nbsp;A, score camera&nbsp;B. Swapping the cameras is the only replication this
+    dataset allows, because every empty frame in it is venue_01.</p>
+    <div class="scroll"><table>
+      <thead><tr><th>Model</th><th class="num">&Delta; false-play, train A</th>
+      <th class="num">&Delta; false-play, train B</th><th class="num">under the swap</th></tr></thead>
+      <tbody>{''.join(lines)}</tbody>
+    </table></div>
+    <p>{outcome} <b>The recommendation stands, and the reason is no longer &ldquo;pending a
+    test&rdquo; but &ldquo;tested&rdquo;.</b> What would settle the input-path question is
+    empty-pitch footage from a second venue, not a better statistic.</p></div>"""
 
 
 def _rank(rows: list[dict], field: str, *, lower_is_better: bool = False) -> dict[str, int]:
@@ -329,6 +431,8 @@ they are read in decides the answer.</p>
 {inversion_note}
 
 {false_play_note}
+
+{_input_path_note(d.get("challenge", {}))}
 
 <h2>Every score</h2>
 <p>Macro-F1 for the split protocols, play recall for cross-venue. Bars share one scale, so
