@@ -183,3 +183,22 @@ def test_the_readme_status_counts_match_the_repository() -> None:
                         (c["tests"], "test files")):
         assert re.search(rf"{value} {noun}", block), f"{noun} disagrees with git"
     assert (ROOT / "results" / "EXPERIMENT_LOG.md").exists()
+
+
+def test_no_document_hand_types_a_test_count() -> None:
+    """A number that changes whenever a test is added cannot be maintained by hand.
+
+    `docs/CODEBASE.md` carried "# 391 tests" against a real 556, then drifted twice more in
+    a single session while being corrected each time. The scale of the suite is in the
+    generated status block; a literal count in prose is a promise to keep editing it.
+    """
+    import re
+
+    from scripts.branch_report import ROOT
+
+    offenders = []
+    for path in [ROOT / "README.md", ROOT / "docs" / "CODEBASE.md"]:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if re.search(r"#\s*\d+\s+tests\b", line):
+                offenders.append(f"{path.name}: {line.strip()}")
+    assert not offenders, "hand-typed test counts: " + "; ".join(offenders)

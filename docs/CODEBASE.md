@@ -257,7 +257,7 @@ library; the dependency points one way.
 ```bash
 uv sync                             # creates .venv from uv.lock
 uv run pitch info                   # check paths resolve
-uv run pytest -q -m "not slow"      # 632 tests
+uv run pytest -q -m "not slow"      # the fast suite
 ```
 
 `uv sync` pulls ~2 GB on first run. If it times out, raise the timeout and reduce
