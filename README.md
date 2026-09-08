@@ -39,8 +39,8 @@ honest headline of this project is a set of results about *how to evaluate this 
 of which are negative and most of which were found by checking whether a guard actually guarded.
 
 <!-- status:start -->
-**49 source modules · 31 experiment scripts · 40 test files
-· 33 committed result files.** Counts come from git, so this line cannot drift from
+**49 source modules · 32 experiment scripts · 41 test files
+· 34 committed result files.** Counts come from git, so this line cannot drift from
 the repository; the assessment above it is written by hand. What each module and experiment
 does is in [docs/CODEBASE.md](docs/CODEBASE.md); what each run found is in
 [results/EXPERIMENT_LOG.md](results/EXPERIMENT_LOG.md).
