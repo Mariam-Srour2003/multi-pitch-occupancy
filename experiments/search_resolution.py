@@ -338,6 +338,16 @@ def main() -> None:
         print("  it sits above the 90th percentile, so it applies CLAHE almost everywhere")
         print("  while claiming to be selective.")
 
+    # The floor itself, so it can be quoted from an artefact rather than from a docstring.
+    # The claims ledger could not check it while it lived only in this script's output.
+    records.append({
+        "model": "", "round": "", "describe": "RESOLUTION_FLOOR", "hash": "",
+        "unweighted": round(floor, 4),
+        "weighted": round(float(np.median(widths)), 4),
+        "ci_low": "", "ci_high": "", "worst_fold": "", "false_play": "",
+        "published_recall": "",
+    })
+
     for r in records:
         r.pop("_folds", None)
     OUT.parent.mkdir(parents=True, exist_ok=True)

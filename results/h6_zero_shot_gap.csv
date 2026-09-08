@@ -14,5 +14,5 @@ grouped_slot_id_seed45,clip_zeroshot_minus_vit,0.6195,0.4972,0.1223,0.0501,0.196
 grouped_slot_id_seed46,clip_zeroshot_minus_convnextv2,0.3849,0.0426,0.3423,0.2434,0.4765,0.5522,0.0683,2.738e-55,0.485,263,527,8.213e-55,True,False,,
 grouped_slot_id_seed46,clip_zeroshot_minus_dinov2,0.3849,0.0426,0.3423,0.2434,0.4765,0.5522,0.0683,2.738e-55,0.485,263,527,8.213e-55,True,False,,
 grouped_slot_id_seed46,clip_zeroshot_minus_vit,0.3849,0.2963,0.0886,-0.0009,0.2254,0.5522,0.5332,1.294e-02,0.357,14,527,1.294e-02,True,False,,
-PROMPT_SPACE,fraction_beating_best_trained,0.4967,0.5794,-0.0827,0.3524,0.6403,0.6291,,,,,375,,0.2293,,,
+PROMPT_SPACE,fraction_beating_best_trained,0.4967,0.5794,-0.0827,0.3524,0.6403,0.6291,0.0207,0.7472,0.7265,,375,,0.2293,,,
 SELECTION_BIAS,selected_minus_declared,,,0.4474,,,0.5225,0.9699,,,,,,,,,

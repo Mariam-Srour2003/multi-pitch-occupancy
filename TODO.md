@@ -1232,10 +1232,25 @@ tagged with the question it answers. Fix that first — it is what turns a build
 ### 8.A Continuous drafting (do not defer)
 - [ ] **WP8-T1 Chapter drafts as each WP closes.** Ch3 after WP2/WP3 · Ch4 after WP5 · Ch5 after WP6 ·
       Ch6 after WP4 · Ch7 after WP7.
-- [ ] **WP8-T5 ★ Claims ledger** → `thesis/claims.md`: every quantitative claim in the text mapped to
-      the results file, figure, and script that produced it. Update as you write, not at the end.
-      This is how you guarantee no unsupported sentence survives to the defence — and it makes the
-      final consistency pass an afternoon instead of a week.
+- [x] **WP8-T5 ★ Claims ledger — built and executable.** `thesis/claims.toml` (the ledger),
+      `experiments/verify_claims.py` (the verifier), `thesis/claims.md` (generated), 14 tests,
+      stage `claims-ledger` — last, because it checks what every other stage writes.
+      **18 claims, all verified, none unsupported.**
+  - [x] A claim fails in three distinguishable ways and the output separates them, because
+        they need different work: **stale result** (source moved, prose did not), **stale
+        prose** (prose moved, ledger did not), **unsupported** (nothing checks it).
+  - [x] ★ **It earned its keep on the first run.** Two claims quoted in live documents could
+        not be re-derived from any artefact — the search's resolution floor lived only in a
+        script's printed output, and H6's prompt-space span was absent from the CSV. Both
+        experiments now store them. Two `where` fields were also wrong, which is the second
+        thing it is for.
+  - [x] `where` lists **live** documents, never `EXPERIMENT_LOG.md`: the log is append-only
+        history, and requiring it to match current values would forbid keeping retractions.
+  - [x] `reproduce_all.py` derives the stage's requirements **from the ledger**, because a
+        hand-written copy would be the copy that goes stale.
+  - [ ] ★ **Add a claim when you write the sentence, not at the end.** The ledger only covers
+        what has been written down so far; every new quantitative sentence in the thesis needs
+        an entry, and `--check` in CI would make that automatic.
 
 ### 8.B Figures
 - [x] ★ **The README said the implementation had not started** (2026-09-08). It read

@@ -187,3 +187,35 @@ def test_the_risk_coverage_figure_declares_the_band_it_draws() -> None:
     figs = next(s for s in STAGES if s.name == "figures")
     assert any(p.name == "rq6_risk_coverage.csv" for p in figs.requires)
     assert any(p.name == "risk_coverage_band.png" for p in figs.produces)
+
+
+def test_the_claims_ledger_depends_on_what_it_actually_reads() -> None:
+    """Its requirements come from the ledger, not from a hand-written list.
+
+    A second copy of the ledger inside the pipeline would be the copy that goes stale -
+    which is precisely what the ledger exists to catch, so duplicating it would be a poor
+    joke. This checks the dependency is derived: every source named in claims.toml is a
+    requirement of the stage.
+    """
+    import tomllib
+
+    ledger = ROOT / "thesis" / "claims.toml"
+    if not ledger.exists():
+        pytest.skip("ledger not present")
+    named = {
+        ROOT / c["source"]
+        for c in tomllib.loads(ledger.read_text(encoding="utf-8"))["claim"]
+        if c.get("source")
+    }
+    stage = next(s for s in STAGES if s.name == "claims-ledger")
+    assert named, "the ledger checks nothing"
+    assert named <= set(stage.requires), (
+        "the stage does not require every artefact the ledger reads: "
+        f"{sorted(p.name for p in named - set(stage.requires))}"
+    )
+
+
+def test_the_claims_ledger_runs_last() -> None:
+    """It checks artefacts every other stage writes, so running it earlier would verify a
+    previous run's numbers and report success on a pipeline that had not finished."""
+    assert STAGES[-1].name == "claims-ledger"

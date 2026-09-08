@@ -2701,3 +2701,74 @@ costs nothing and removes the label error.
 than the truth.
 
 - 2026-09-08 | H5 preprocessing switches | `python -m experiments.h5_preprocessing_switches` | `h5_preprocessing_switches.csv` | ROI clause unrunnable (no polygon); CLAHE clause refuted - 4/4 significant and all negative
+
+- 2026-09-08 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 11 claims verified against their artefacts, 2 recorded as unsupported
+
+- 2026-09-08 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 15 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-08 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 18 claims verified against their artefacts, 0 recorded as unsupported
+
+---
+
+## 2026-09-08 — WP8-T5: the claims ledger, and it earned its keep before it finished
+
+`thesis/claims.toml` (the ledger) · `experiments/verify_claims.py` (the verifier) ·
+`thesis/claims.md` (generated)
+
+Every quantitative claim the write-up makes, with the artefact that produced it and enough
+of a locator to re-derive it. The verifier recomputes each value from its source and checks
+that the same number appears in every live document the claim says states it.
+
+**A ledger has to be executable.** A hand-maintained one is a document like any other, and
+every hand-maintained claim in this project has drifted at least once — a figure with its
+ranks hardcoded contradicting its own CSV, a README describing a project that had not
+started, an export that stopped covering the thesis, a diagnostic quoted for a day before a
+second measurement retracted it. None was caught by a test. This is the generalisation of
+the guards added one at a time for each.
+
+A claim fails in three distinguishable ways, and the output separates them because they call
+for different work: **stale result** (the source moved, the prose did not), **stale prose**
+(the prose moved, the ledger did not), and **unsupported** (nothing checks it at all).
+
+### What it found on its first run
+
+**Two claims were quoted in live documents but could not be re-derived from any committed
+artefact.** The preprocessing search's resolution floor (0.0119) lived only in a script's
+printed output, and H6's prompt-space span (0.021–0.747) was absent from the CSV, which
+stored the median and the 10th–90th percentiles but not the extremes. Both experiments now
+store them, and both claims are checked.
+
+**And two `where` fields were wrong.** The ledger said the README states H1's 0.4904 drop —
+it states it approximately on purpose ("falls from ~0.99 to ~0.50"), so the precise figure
+belongs to the RQ matrix alone. It also said the README states H6's 22.9%; the README quotes
+the span instead. Neither was a drifted number; both were the ledger mis-recording where a
+claim lives, which is the second thing it is for.
+
+**18 claims, all verified, none unsupported.**
+
+### One correction to my own reasoning
+
+I first checked the prose with a plain substring test, then hardened it to a numeric-boundary
+match and wrote that the loose form had matched an unrelated number. **That was wrong** — the
+`0.930` it matched was the same claim stated at three decimals, which is a legitimate match.
+The hardening is still right for a real reason: `"0.93" in "the value was 0.9302"` is true,
+so the loose renderings are prefixes of other numbers and the check could pass on a document
+that states a different number and never states this one. The docstring now says that
+instead, and a test pins both halves — the prefix is rejected, and rounding is still allowed.
+
+### The design decisions worth keeping
+
+**`where` lists live documents, never `EXPERIMENT_LOG.md`.** The log is append-only history:
+entries record what was true when written and superseded ones stay with a retraction beside
+them. Requiring it to match current values would forbid keeping that history.
+
+**An ambiguous selector is an error, not a first match.** "The ConvNeXtV2 row" quietly
+becoming "the first of five ConvNeXtV2 rows" is how a claim starts describing something other
+than what it says, so a multi-row select without an explicit `aggregate` fails loudly.
+
+**The pipeline's dependency on the ledger is derived from the ledger.** `reproduce_all.py`
+reads `claims.toml` for the stage's requirements rather than listing them, because a
+hand-written copy would be the copy that goes stale — which is what the ledger exists to
+catch.
+
+- 2026-09-08 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 18 claims verified against their artefacts; two unsupported claims closed by storing the values, two `where` fields corrected

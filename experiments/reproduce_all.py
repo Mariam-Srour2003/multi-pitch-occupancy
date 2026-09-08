@@ -56,6 +56,27 @@ class Stage:
 
 PY = [sys.executable]
 
+
+def claim_sources() -> list[Path]:
+    """The result files `thesis/claims.toml` says it checks.
+
+    Read from the ledger so the pipeline's dependency is the real one. A hand-written list
+    here would be a second copy of the ledger and the copy that goes stale - which is the
+    failure the ledger itself exists to catch, so duplicating it would be a poor joke.
+
+    A malformed or absent ledger yields no requirements rather than breaking the listing:
+    `--check` should still be able to report on every other stage.
+    """
+    import tomllib
+
+    ledger = ROOT / "thesis" / "claims.toml"
+    try:
+        claims = tomllib.loads(ledger.read_text(encoding="utf-8"))["claim"]
+    except (OSError, KeyError, tomllib.TOMLDecodeError):
+        return []
+    return sorted({ROOT / c["source"] for c in claims if c.get("source")})
+
+
 STAGES: list[Stage] = [
     Stage(
         name="manifest",
@@ -326,6 +347,16 @@ STAGES: list[Stage] = [
         requires=[RESULTS / "preprocess_search.json"],
         note="repairs the search's false-play control, which scored probes on their own training data",
         minutes=10,
+    ),
+    Stage(
+        name="claims-ledger",
+        command=[*PY, "-m", "experiments.verify_claims"],
+        produces=[ROOT / "thesis" / "claims.md"],
+        # The artefacts the ledger actually reads, taken from the ledger. Listing them by
+        # hand would be a second copy of the ledger, and the copy that goes stale.
+        requires=claim_sources(),
+        note="WP8-T5: re-derives every quantitative claim from the artefact that produced it",
+        minutes=1,
     ),
 ]
 

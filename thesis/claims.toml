@@ -1,0 +1,216 @@
+# The claims ledger (WP8-T5).
+#
+# Every quantitative claim the write-up makes, with the artefact that produced it and enough
+# of a locator to re-derive it. `experiments/verify_claims.py` re-derives each value from its
+# source, checks it against the number recorded here, and checks that the same number appears
+# in each document listed under `where`.
+#
+# So a claim can fail in three ways and each is a different problem:
+#   - the source no longer produces the value  -> the result changed and the prose did not;
+#   - the value is absent from a `where` file  -> the prose changed and the ledger did not;
+#   - the claim has no source at all           -> it is unsupported, and says so.
+#
+# This exists because the failure it prevents has already happened here repeatedly: a figure
+# with its scores hardcoded contradicted its own CSV, a README described a project that had
+# not started, an export stopped covering the thesis, and a diagnostic was quoted for a day
+# before a second measurement retracted it. None of those were noticed by a test.
+#
+# `where` lists the *live* documents a claim appears in - README, the RQ matrix, the
+# protocol, the pre-registration - not `results/EXPERIMENT_LOG.md`. The log is append-only
+# history: an entry there records what was true when it was written, and superseded entries
+# stay as written with a retraction beside them. Requiring the log to match current values
+# would forbid keeping that history, which is the opposite of the point.
+#
+# Add a claim when you write the sentence, not at the end.
+
+# --- H1: what leakage-free evaluation costs -------------------------------------------
+
+[[claim]]
+id = "h1-drop-convnextv2"
+statement = "Moving from a same-scene random split to a grouped one costs ConvNeXtV2 0.4904 macro-F1 — the score roughly halves."
+value = -0.4904
+where = ["thesis/rq_matrix.md"]
+note = "The README states this approximately on purpose (\"falls from ~0.99 to ~0.50\"); the precise delta lives in the RQ matrix, so only that document is checked for it."
+source = "results/h1_h2_baseline_floor.csv"
+select = { split = "grouped_slot_id_seed42", model = "convnextv2" }
+column = "macro_f1"
+minus_select = { split = "random_seed42", model = "convnextv2" }
+minus_column = "macro_f1"
+
+[[claim]]
+id = "h1-grouped-convnextv2"
+statement = "Under the grouped split ConvNeXtV2 scores 0.4975 macro-F1 — the score of a model that never recognises an empty pitch."
+value = 0.4975
+where = ["thesis/rq_matrix.md"]
+source = "results/h1_h2_baseline_floor.csv"
+select = { split = "grouped_slot_id_seed42", model = "convnextv2" }
+column = "macro_f1"
+
+# --- H2: the trivial-baseline floor ----------------------------------------------------
+
+[[claim]]
+id = "h2-clock-rule-grouped"
+statement = "A rule that reads only the clock scores 0.4907 macro-F1 on the grouped split, within 0.09 of the best backbone."
+value = 0.4907
+where = []
+source = "results/h1_h2_baseline_floor.csv"
+select = { split = "grouped_slot_id_seed42", model = "clock_rule" }
+column = "macro_f1"
+
+# --- H3 and the false-play control -----------------------------------------------------
+
+[[claim]]
+id = "h3-cross-venue-dinov2"
+statement = "DINOv2 holds 0.9297 ACTIVE_PLAY recall across unseen venues."
+value = 0.9297
+where = ["thesis/rq_matrix.md"]
+source = "results/h3_cross_venue_recall.csv"
+select = { model = "dinov2", held_out_venue = "MEAN_ACROSS_FOLDS" }
+column = "play_recall"
+
+[[claim]]
+id = "h3-cross-venue-clock-rule"
+statement = "The clock rule collapses to 0.219 across unseen venues, while the backbones hold above 0.86."
+value = 0.219
+where = ["thesis/rq_matrix.md"]
+source = "results/h3_cross_venue_recall.csv"
+select = { model = "clock_rule", held_out_venue = "MEAN_ACROSS_FOLDS" }
+column = "play_recall"
+note = "A lower bound: WP3-T5 found the lighting labels this rule reads are wrong for at least three clip venues, so quote the collapse rather than the number."
+
+[[claim]]
+id = "false-play-convnextv2"
+statement = "ConvNeXtV2 calls 99.2% of held-out empty pitches a match."
+value = 0.9918
+where = ["README.md", "thesis/rq_matrix.md"]
+source = "results/h3_with_false_play.csv"
+select = { model = "convnextv2", held_out_venue = "MEAN_ACROSS_FOLDS" }
+column = "false_play_rate"
+
+[[claim]]
+id = "false-play-clock-rule"
+statement = "The clock rule, which never looks at the image, calls 2.1% of held-out empty pitches a match."
+value = 0.0206
+where = ["README.md"]
+source = "results/h3_with_false_play.csv"
+select = { model = "clock_rule", held_out_venue = "MEAN_ACROSS_FOLDS" }
+column = "false_play_rate"
+
+# --- WP4-T1: the four protocols --------------------------------------------------------
+
+[[claim]]
+id = "constant-predictor-wins-cross-venue"
+statement = "Under leave-one-venue-out a constant predictor scores macro-F1 1.000, ahead of every backbone, because every held-out venue is 100% active play."
+value = 1.0
+where = ["README.md", "thesis/rq_matrix.md"]
+source = "results/benchmark_v2.csv"
+select = { protocol = "lo_venue_out", model = "majority" }
+column = "macro_f1"
+aggregate = "mean"
+
+[[claim]]
+id = "composition-drop-zero-shot"
+statement = "A model that never trains drops 0.183 macro-F1 on the same change of test set, so that much of every leakage penalty is test-set composition."
+value = 0.1834
+where = ["README.md", "thesis/rq_matrix.md"]
+source = "results/benchmark_v2.csv"
+select = { protocol = "random_minus_grouped", model = "convnextv2" }
+column = "majority_share_test"
+note = "Stored in that column because the summary rows reuse the schema; the header of the row names it composition_drop_from_zero_shot_control."
+
+[[claim]]
+id = "leakage-attributable-dinov2"
+statement = "DINOv2's leakage-attributable drop is 0.3323 once the composition effect is subtracted, against a raw drop of 0.5158."
+value = 0.5158
+where = ["thesis/rq_matrix.md"]
+source = "results/benchmark_v2.csv"
+select = { protocol = "random_minus_grouped", model = "dinov2" }
+column = "macro_f1"
+note = "The raw drop is stored; the attributable figure is this minus the composition claim above."
+
+# --- H5 --------------------------------------------------------------------------------
+
+[[claim]]
+id = "h5-clahe-hurts-dinov2"
+statement = "CLAHE costs DINOv2 0.2712 macro-F1 on the grouped split — the clause predicted an improvement."
+value = -0.2712
+where = ["thesis/rq_matrix.md"]
+source = "results/h5_preprocessing_switches.csv"
+select = { model = "dinov2", switch = "clahe=on", subset = "night", seed = "42" }
+column = "delta"
+
+# --- H6 --------------------------------------------------------------------------------
+
+[[claim]]
+id = "h6-fraction-beating-trained"
+statement = "Only 22.9% of the 375 prompt sets beat the best trained probe; the median one loses to it."
+value = 0.229
+where = []
+source = "results/h6_zero_shot_gap.csv"
+select = { split = "PROMPT_SPACE" }
+column = "significant"
+note = "Stored in that column because the summary row reuses the schema; the comparison field names it fraction_beating_best_trained. No live document states it - the write-up quotes the span instead - so `where` is empty and only the artefact is checked."
+
+# --- RQ6 -------------------------------------------------------------------------------
+
+[[claim]]
+id = "rq6-tied-confidences"
+statement = "890 of DINOv2's 907 calibrated confidences are exactly identical, so its risk-coverage curve is a band rather than a line."
+value = 890.0
+where = ["README.md"]
+source = "results/rq6_risk_coverage.csv"
+select = { model = "dinov2" }
+column = "n_tied"
+aggregate = "max"
+
+# --- WP3-T8 -----------------------------------------------------------------------------
+
+[[claim]]
+id = "search-resolution-floor"
+statement = "The preprocessing search's resolution floor is 0.0119: one frame in the smallest venue fold moves its unweighted headline by that much."
+value = 0.0119
+where = []
+source = "results/search_resolution.csv"
+select = { describe = "RESOLUTION_FLOOR" }
+column = "unweighted"
+note = "The floor lived only in the script's printed output until the claims ledger could not check it; `search_resolution.py` now stores it as a row."
+
+[[claim]]
+id = "search-interval-width"
+statement = "The bootstrap interval over the seven venue folds is 0.092 wide at the median configuration - wider than almost everything separating them."
+value = 0.0917
+where = []
+source = "results/search_resolution.csv"
+select = { describe = "RESOLUTION_FLOOR" }
+column = "weighted"
+note = "Stored beside the floor; the column names are reused from the per-configuration schema."
+
+# --- H6, the span ------------------------------------------------------------------------
+
+[[claim]]
+id = "prompt-space-span"
+statement = "Prompt choice moves macro-F1 by 0.726 (0.021 to 0.747) where the three trained backbones span 0.082."
+value = 0.7265
+where = []
+source = "results/h6_zero_shot_gap.csv"
+select = { split = "PROMPT_SPACE" }
+column = "cohens_g"
+note = "The extremes were absent from the CSV until the ledger flagged this claim unsupported; `h6_zero_shot_gap.py` now stores worst, best and their span. The documents state the two endpoints rather than the span - they are exact where the difference rounds ambiguously - so those are the checked claims and this one records the derived quantity."
+
+[[claim]]
+id = "prompt-space-worst"
+statement = "The worst prompt set in the declared space scores 0.021 macro-F1."
+value = 0.0207
+where = ["README.md", "thesis/rq_matrix.md"]
+source = "results/h6_zero_shot_gap.csv"
+select = { split = "PROMPT_SPACE" }
+column = "trained_accuracy"
+
+[[claim]]
+id = "prompt-space-best"
+statement = "The best prompt set in the declared space scores 0.747 macro-F1 - and it was not selected, only observed."
+value = 0.7472
+where = ["README.md", "thesis/rq_matrix.md"]
+source = "results/h6_zero_shot_gap.csv"
+select = { split = "PROMPT_SPACE" }
+column = "mcnemar_p"

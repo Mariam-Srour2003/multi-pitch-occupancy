@@ -449,7 +449,11 @@ def main() -> None:
             "delta_macro_f1": round(space["median"] - space["best_trained"], 4),
             "ci_low": round(space["p10"], 4), "ci_high": round(space["p90"], 4),
             "zero_shot_accuracy": round(space["declared"], 4),
-            "trained_accuracy": "", "mcnemar_p": "", "cohens_g": "",
+            # The extremes, because the write-up quotes the span and the claims ledger
+            # could not re-derive it from percentiles alone.
+            "trained_accuracy": round(space["worst"], 4),
+            "mcnemar_p": round(space["best"], 4),
+            "cohens_g": round(space["best"] - space["worst"], 4),
             "n_discordant": "", "n_test": space["n_prompt_sets"], "p_holm": "",
             "significant": round(space["fraction_beating_best_trained"], 4),
             "supports_h6": "",

@@ -87,3 +87,4 @@ dinov2,3,undistort=0.3 gamma=0.7 saturation=0.0,8f8d3d397cdd,1.0,1.0,1.0,1.0,1.0
 dinov2,3,undistort=0.3 gamma=1.4 saturation=0.0,13ee8f4531bb,0.9932,0.9716,0.9796,1.0,0.9524,0.0,0.9932
 dinov2,3,undistort=0.3 saturation=0.0 denoise=25.0,52a7c1ce0332,0.9685,0.8688,0.9056,1.0,0.7798,0.0329,0.9685
 dinov2,3,undistort=0.3 saturation=0.0 sharpen=0.6,efa3cfb4c131,0.9753,0.9858,0.9277,1.0,0.8333,0.9424,0.9753
+,,RESOLUTION_FLOOR,,0.0119,0.0917,,,,,
