@@ -1734,9 +1734,31 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [ ] **[H] Rewrite the arguments in your own words** before the mock exam. The numbers are
         checked; the arguments are not, and an argument you have not made yourself falls apart
         on the first follow-up.
-- [ ] **WP8-T4 Defence deck.** The pilot story (the spec's chosen model lost; the pooler-output
-      harness bug and its lesson; the leakage number), the novel modules, a live demo of the
-      dashboard and reconciliation.
+- [x] **WP8-T4 Defence deck — drafted.** `thesis/defence_deck.md`, 16 tests. A slide plan
+      rather than slides: per slide, what is on it, what you say, and where it matters what
+      **not** to say. Twenty minutes of talk, ten of demo, thirty of questions.
+  - [x] ★ **It opens by forcing a framing decision.** There is an apologetic version of this
+        defence (*the fusion head did not work, STAN's test set was too small*) and a true and
+        stronger one: **this is a thesis about how to evaluate this problem, and the evaluation
+        kept measuring something other than what it claimed.** Every negative result becomes
+        evidence for the thesis rather than a gap in it. The two need different opening
+        sentences, so the choice is made on the first page.
+  - [x] §3 is the heart: four independent cases in sequence — the clock rule, the protocol a
+        constant predictor wins, the false-play rate measuring camera transfer, and the
+        onboarding cost — then "guards that were not guarding" as the practice that found
+        half of them.
+  - [x] **§5 is the demo and is marked un-cuttable**, with the run order, the exact commands,
+        and a fallback for when it fails (`project_site.html` opens offline). A test asserts
+        both the marking and the fallback survive an edit.
+  - [x] Every figure cites a claim id and is named by file so it is regenerated, not redrawn;
+        a test asserts each cited id exists, re-derives, and that each named figure has been
+        generated. Another asserts the deck **never hardcodes a claim count** — it did once,
+        saying 28, which is exactly the drift the ledger exists to prevent.
+  - [x] Four sentences are pinned by test against being softened in an edit, including *"it is
+        correct zero times"* and *"no inter-annotator figure exists"*. Each is stronger stated
+        plainly than discovered by an examiner.
+  - [ ] **[H] Build the actual slides, and rewrite every argument in your own words** before
+        the mock exam (WP8-T7). The numbers are ledger-checked; the phrasing is not.
 - [x] **WP8-T6 ★ Red-team your own defence — drafted** → `thesis/defence_redteam.md`. Ten
       questions with the evidence and a pointer for each, plus four more worth having ready and
       a rehearsal note. Every figure in it is in the claims ledger, so the document cannot

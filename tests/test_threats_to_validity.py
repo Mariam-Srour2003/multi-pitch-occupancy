@@ -88,8 +88,16 @@ def flattened() -> str:
     Prose is wrapped at 100 columns, so a phrase test that matches the raw text fails the
     moment a paragraph is re-wrapped - which says nothing about the content. The first version
     of the test below did exactly that on "has never run this\\ncode".
+
+    Markdown line prefixes go too, before this file needs it: a sentence spanning two lines of
+    a blockquote flattens to "how > to evaluate" if the ``>`` survives the join, which is how
+    the defence-deck test came to fail on a document that said exactly the right thing.
     """
-    return " ".join(DOC.read_text(encoding="utf-8").lower().split())
+    lines = (
+        re.sub(r"^[>\-*#\s]+", "", line)
+        for line in DOC.read_text(encoding="utf-8").lower().splitlines()
+    )
+    return " ".join(" ".join(lines).split())
 
 
 @pytest.mark.parametrize("unfixable", [
