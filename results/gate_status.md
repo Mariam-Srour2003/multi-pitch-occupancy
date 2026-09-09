@@ -14,7 +14,7 @@ A gate passes only when nothing under it is unmet *and* nothing needs a person.
 | **M2** | 9 | passed | 6 | 0 | 0 |
 | **M3** | 13 | passed | 6 | 0 | 0 |
 | **M4** | 18 | not passed | 0 | 2 | 0 |
-| **M5** | 19 | not passed | 4 | 1 | 0 |
+| **M5** | 19 | passed | 5 | 0 | 0 |
 | **M6** | 21 | waiting on a person | 1 | 0 | 1 |
 | **M7** | 24 | waiting on a person | 3 | 0 | 1 |
 
@@ -58,7 +58,7 @@ A gate passes only when nothing under it is unmet *and* nothing needs a person.
 | ✘ | Fusion module ablated against a strong baseline | the logit-average baseline is reported and answers the question negatively; the fusion head itself (WP5-T2) is not built |
 | ✘ | STAN reported as preliminary | src/pitch_occupancy/slots/stan.py is absent |
 
-## M5 (week 19) — not passed
+## M5 (week 19) — passed
 
 | | criterion | evidence |
 |---|---|---|
@@ -66,7 +66,7 @@ A gate passes only when nothing under it is unmet *and* nothing needs a person.
 | ✔ | End-to-end run on real slots | results/end_to_end_slots.csv |
 | ✔ | Retention enforced | src/pitch_occupancy/retention.py |
 | ✔ | Degraded mode enforced and tested | capture-rate gate present |
-| ✘ | Scheduler service on mock feeds | src/pitch_occupancy/scheduler.py is absent |
+| ✔ | Scheduler service on mock feeds | src/pitch_occupancy/scheduler.py |
 
 ## M6 (week 21) — waiting on a person
 

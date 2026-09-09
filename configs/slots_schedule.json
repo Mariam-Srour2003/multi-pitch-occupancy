@@ -1,0 +1,40 @@
+[
+  {
+    "start": "10:00",
+    "duration_minutes": 60,
+    "cameras": [
+      "camera_A",
+      "camera_B"
+    ],
+    "days": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "fri",
+      "sat",
+      "sun"
+    ],
+    "venue_id": "venue_01",
+    "field_id": "field_01"
+  },
+  {
+    "start": "20:30",
+    "duration_minutes": 60,
+    "cameras": [
+      "camera_A",
+      "camera_B"
+    ],
+    "days": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "fri",
+      "sat",
+      "sun"
+    ],
+    "venue_id": "venue_01",
+    "field_id": "field_01"
+  }
+]

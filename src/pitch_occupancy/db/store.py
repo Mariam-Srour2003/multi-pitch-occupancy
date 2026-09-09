@@ -68,6 +68,50 @@ def record_slot(
         )
 
 
+def ensure_slot(
+    conn: sqlite3.Connection,
+    *,
+    slot_id: str,
+    venue_id: str,
+    field_id: str,
+    cameras: Sequence[str],
+    slot_date: str,
+    start_time: str,
+    end_time: str,
+) -> None:
+    """Create the rows a sample needs before it can be written.
+
+    `frame_samples` references `rental_slots` and `cameras`, which reference `fields`, which
+    references `venues`. Writing a sample for a slot nobody had declared fails on a foreign
+    key - which is the schema doing its job, and is why the scheduler calls this first: the
+    thing that knows a slot is starting is the thing that should declare it.
+
+    Idempotent, so a slot that runs again after a restart does not duplicate anything.
+    """
+    with transaction(conn):
+        conn.execute(
+            "INSERT OR IGNORE INTO venues (venue_id, name) VALUES (?, ?)",
+            (venue_id, venue_id),
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO fields (field_id, venue_id, name) VALUES (?, ?, ?)",
+            (field_id, venue_id, field_id),
+        )
+        # `side` is constrained to A/B and unique per field, so cameras beyond the first two
+        # cannot be represented. That is the schema's deliberate two-per-pitch design, and a
+        # schedule naming three is a configuration error rather than something to paper over.
+        for side, camera_id in zip(("A", "B"), cameras, strict=False):
+            conn.execute(
+                "INSERT OR IGNORE INTO cameras (camera_id, field_id, side) VALUES (?, ?, ?)",
+                (camera_id, field_id, side),
+            )
+        conn.execute(
+            """INSERT OR IGNORE INTO rental_slots
+               (slot_id, field_id, slot_date, start_time, end_time) VALUES (?, ?, ?, ?, ?)""",
+            (slot_id, field_id, slot_date, start_time, end_time),
+        )
+
+
 def load_verdict(conn: sqlite3.Connection, slot_id: str) -> sqlite3.Row | None:
     return conn.execute(
         "SELECT * FROM slot_evaluations WHERE slot_id = ?", (slot_id,)

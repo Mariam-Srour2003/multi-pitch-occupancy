@@ -3277,3 +3277,58 @@ argument for writing it.
 - 2026-09-09 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | M2 and M3 met on artefacts; M1/M6/M7 wait on a person; three checks found wrong in a plausible way and fixed
 
 - 2026-09-09 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 1 gate(s) met on artefacts, 2 waiting on a person
+
+- 2026-09-09 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 3 gate(s) met on artefacts, 3 waiting on a person
+
+---
+
+## 2026-09-09 — WP6-T2: the scheduler, and a foreign key that named a real confusion
+
+`src/pitch_occupancy/scheduler.py`, `configs/slots_schedule.json`, `pitch schedule`, 18 tests.
+**M5 passes with it** — it was the single unmet criterion.
+
+`worker.run_slot` had sampled, classified, fused and aggregated a slot for some time. What was
+missing was the part that decides *when*: reading a schedule, working out what is running now,
+and writing the result at slot end.
+
+**Two decisions shape it.** The clock is a parameter everywhere — a scheduler whose behaviour
+can only be observed by waiting an hour is a scheduler with no tests, and "runs continuously"
+is the least interesting half of the acceptance criterion. And deciding is separated from
+doing: `due()` is pure, so *what would run* is answerable without running anything, the same
+shape as `pitch retention` and for the same reason — the part that touches the world should be
+the smaller, later half.
+
+### The foreign key was right and the model was wrong
+
+The first version wrote samples straight to the database and hit
+`sqlite3.IntegrityError: FOREIGN KEY constraint failed`. The temptation is to disable the
+constraint; the schema was correct and the model was not.
+
+`ScheduledSlot` had one `field_id` doing two jobs. The manifest and the database key a slot
+instance as **`<venue>_<date>_<HHMM>`**, while `rental_slots.field_id` references a **pitch** —
+and a venue may have several. So the venue names the slot and the field owns the cameras, and
+one attribute could not be both. Split, with the reason in the docstring.
+
+`db/store.ensure_slot` now declares the venue, field, cameras and rental slot before any sample
+is written — idempotent, so a slot that runs again after a restart duplicates nothing. **The
+thing that knows a slot is starting is the thing that should declare it**, and that is the
+scheduler, not the sample writer.
+
+### What it deliberately is not
+
+**Not a daemon.** No supervision, no restart policy, no systemd unit — those are WP7-T2 and are
+not written. `run_forever` is a plain loop with an injectable sleep and an iteration bound,
+enough to run under a service manager without pretending to be one.
+
+**Not a deployment.** It has never run against a camera; the tests hand it recorded video. The
+`--from-recordings` mode derives a schedule from the footage that exists, and its docstring says
+why that is for exercising the path only: **a real deployment reads the config**, because the
+schedule is what says a slot *should* have happened, and deriving it from what was recorded
+would make a missing hour invisible — which is exactly what reconciliation exists to catch.
+
+One dead camera does not stop the other pitches: a slot that raises is reported and skipped,
+with a test. Schedule validation is strict — a missing field, a slot with no cameras, two slots
+at the same time on one venue, an unknown weekday all raise, because a silently-dropped entry
+is a slot with no footage and no explanation.
+
+- 2026-09-09 | WP6-T2 scheduler | `pitch schedule` | `src/pitch_occupancy/scheduler.py` | M5 passes; a foreign-key failure named a real confusion between venue and field, fixed in the model rather than papered over

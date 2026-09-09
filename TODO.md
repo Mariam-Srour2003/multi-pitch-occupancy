@@ -1197,7 +1197,30 @@ tagged with the question it answers. Fix that first — it is what turns a build
 - [ ] **WP6-T1 Simulator API.** `engine/simulator_api.py` (FastAPI):
       `GET /api/v1/cameras/{camera_id}/snapshot?mode=simulation`, Bearer token from config.
       *Accept:* curl returns JPEG + JSON metadata.
-- [ ] **WP6-T2 Scheduler service.** `main.py`: reads `config/slots_schedule.json`; during active
+- [x] **WP6-T2 Scheduler service — built, and M5 passes with it.**
+      `src/pitch_occupancy/scheduler.py` + `configs/slots_schedule.json` + `pitch schedule`,
+      18 tests. `run_slot` had done the sampling for some time; what was missing was the part
+      that decides *when*.
+  - [x] ★ **The clock is a parameter and deciding is separated from doing.** `due()` is pure
+        — a schedule and a timestamp in, a list out — so *what would run* is answerable
+        without running anything, the same shape as `pitch retention`. `run_forever` takes an
+        injectable sleep and an iteration bound, because a loop whose only observable
+        behaviour is that it does not return has no tests.
+  - [x] ★ **`venue_id` and `field_id` are different things**, and conflating them was a
+        foreign-key failure that the first version hit: the manifest keys a slot as
+        `<venue>_<date>_<HHMM>` while `rental_slots.field_id` references a *pitch*. Fixed in
+        the model rather than papered over, and `db/store.ensure_slot` now declares the
+        venue, field, cameras and rental slot before any sample is written — the thing that
+        knows a slot is starting is the thing that should declare it.
+  - [x] **One dead camera does not stop the other pitches**: a slot that raises is reported
+        and skipped, with a test.
+  - [x] Schedule validation is strict — a missing field, a slot with no cameras, two slots at
+        the same time on one venue, an unknown weekday all raise. A silently-dropped entry is
+        a slot with no footage and no explanation.
+  - [ ] ★ **Not a daemon and not a deployment.** No supervision, no restart policy, no
+        systemd unit (WP7-T2), and it has never run against a camera — the tests hand it
+        recorded video. WP7-T3's shadow run is where that changes.
+- [ ] ~~WP6-T2 original~~ `main.py`: reads `config/slots_schedule.json`; during active
       slots pulls 1 frame/min per camera (VIDEO_SIM | API_SIM | RTSP_LIVE), classifies, fuses, writes
       DB; at slot end runs the aggregator (threshold or STAN per config) + evidence selection.
       *Accept:* runs continuously; DB fills; verdicts correct on recorded slots.
@@ -1512,8 +1535,8 @@ tagged with the question it answers. Fix that first — it is what turns a build
 > same drift the README and the site export both had. Three outcomes rather than two, because
 > "needs a person" cannot be moved by anything in the repository.
 >
-> **As of 2026-09-09: M2 and M3 met on artefacts; M1, M6 and M7 wait on a person; M4 and M5
-> have real work outstanding.**
+> **As of 2026-09-09: M2, M3 and M5 met on artefacts; M1, M6 and M7 wait on a person; M4
+> has real work outstanding (the fusion head and STAN).**
 
 | Gate | Week | Exit criterion | Done |
 |---|---|---|---|

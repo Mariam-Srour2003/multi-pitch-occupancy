@@ -296,6 +296,8 @@ uv run pitch manifest --check       # report only, write nothing
 uv run pitch coverage               # class x lighting x venue matrix -> results/coverage.md
 uv run pitch extract-clips          # frames from the highlight clips
 uv run pitch cache                  # embed every frame per backbone (~25 min)
+uv run pitch schedule               # which slots the scheduler would run (runs nothing)
+uv run pitch retention              # what retention would delete (deletes nothing)
 uv run pitch serve --reload         # dashboard API on http://127.0.0.1:8000
 ```
 

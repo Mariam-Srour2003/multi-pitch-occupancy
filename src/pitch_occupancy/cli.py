@@ -225,5 +225,48 @@ def retention_cmd(
     typer.secho(f"deleted {removed} file(s)", fg=typer.colors.GREEN)
 
 
+@app.command("schedule")
+def schedule_cmd(
+    days: int = typer.Option(1, "--days", help="how far ahead to list"),
+    recordings: bool = typer.Option(
+        False, "--from-recordings",
+        help="derive the schedule from the recorded slots instead of the config",
+    ),
+) -> None:
+    """List the slots the scheduler would run (WP6-T2). Runs nothing.
+
+    Deciding and doing are separate on purpose: "what would run" should be answerable
+    without running anything, the same shape as `pitch retention`.
+    """
+    from datetime import datetime
+
+    from pitch_occupancy.scheduler import (
+        describe,
+        due,
+        load_schedule,
+        schedule_from_recordings,
+    )
+
+    if recordings:
+        schedule, dates = schedule_from_recordings(settings.raw_dir / "venue_01")
+        when = datetime.combine(dates[0], datetime.min.time()) if dates else datetime.now()
+        typer.echo(f"derived from recordings; {len(dates)} recorded date(s)")
+    else:
+        try:
+            schedule = load_schedule()
+        except (FileNotFoundError, ValueError) as exc:
+            typer.secho(str(exc), fg=typer.colors.RED)
+            raise typer.Exit(1) from exc
+        when = datetime.now()
+
+    typer.echo(f"{len(schedule)} slot(s) in the schedule\n")
+    for line in describe(schedule, when, days=days):
+        typer.echo(f"  {line}")
+    running = due(schedule, when)
+    typer.echo("")
+    typer.echo(f"due at {when:%Y-%m-%d %H:%M}: "
+               + (", ".join(s.slot_id(when.date()) for s in running) or "nothing"))
+
+
 if __name__ == "__main__":
     app()

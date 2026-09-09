@@ -171,8 +171,8 @@
     "gate": "M5",
     "week": 19,
     "criterion": "Scheduler service on mock feeds",
-    "status": "not met",
-    "detail": "src/pitch_occupancy/scheduler.py is absent"
+    "status": "met",
+    "detail": "src/pitch_occupancy/scheduler.py"
   },
   {
     "gate": "M6",
