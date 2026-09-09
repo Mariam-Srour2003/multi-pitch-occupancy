@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from pitch_occupancy import __version__
 from pitch_occupancy.api.dashboard import dashboard_response
 from pitch_occupancy.api.routes import router
+from pitch_occupancy.api.schedule_editor import router as schedule_router
 from pitch_occupancy.api.search_control import router as search_router
 from pitch_occupancy.api.simulator import router as simulator_router
 from pitch_occupancy.api.thesis_site import page as thesis_page
@@ -37,6 +38,9 @@ app.include_router(router)
 app.include_router(search_router)
 # WP6-T1. Disabled unless PITCH_SIMULATOR_TOKEN is set - mounting it is not enabling it.
 app.include_router(simulator_router)
+# WP6-T6. The API's only write path, and the module docstring says why that is defensible
+# here when bookings.py refuses to have one at all.
+app.include_router(schedule_router)
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)

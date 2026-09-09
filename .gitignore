@@ -92,3 +92,6 @@ config/*.local.json
 # clone then carried a lock naming a pid from another machine - so the search refused to
 # start until someone found and deleted a hidden file.
 results/.*.lock
+
+# Schedule-editor backups: generated per write, pruned to the last 20, never source.
+/configs/schedule_history/

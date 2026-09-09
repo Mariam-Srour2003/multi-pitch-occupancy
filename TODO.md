@@ -1536,7 +1536,24 @@ tagged with the question it answers. Fix that first — it is what turns a build
         benefit, since images are fetched by index and never by path. It sends file *names*
         now; the name is kept because an operator disputing a verdict may need to quote which
         frame they were shown.
-  - [ ] Remaining: the schedule editor.
+  - [x] ★ **Schedule editor — the API's only write path, and the docstring argues why that
+        is defensible here.** `api/schedule_editor.py`, 22 tests. `bookings.py` refuses to
+        have a write path at all because a booking sheet is the *facility's* financial
+        record; the schedule is this system's own configuration and an operator who adds a
+        pitch has to say so somewhere. The asymmetry is deliberate, not an inconsistency.
+  - [x] **It is still the most dangerous endpoint here**, because the schedule decides
+        whether an hour is *observed at all* — a dropped entry is no verdict and no footage,
+        found weeks later when someone disputes a booking. Three protections:
+        **validation runs `load_schedule` itself** over a temp copy rather than a second copy
+        of its rules (two validators agree until they do not, and the one that matters is the
+        one running at 10:00); **`os.replace` from a staging file beside the target**, so a
+        crash mid-write leaves the old schedule intact rather than truncated JSON; and **the
+        previous version is copied to `configs/schedule_history/` first**, pruned to 20.
+  - [x] Validation is its own endpoint and writes nothing — deciding and doing stay separate,
+        the same shape as `pitch retention` and `pitch schedule`. A rejected write leaves no
+        trace at all, not even a history entry, since the check precedes the backup.
+  - [x] A schedule that no longer loads is **still returned** with its problem: an operator
+        cannot repair a file the editor refuses to display.
   - [ ] *Accept:* manager daily review flow < 5 min — needs a manager (WP7-T4).
 - [x] **WP6-T7 Override → retraining loop — built, with one deliberate departure.**
       `src/pitch_occupancy/retraining.py`, `pitch retraining`, 13 tests.
