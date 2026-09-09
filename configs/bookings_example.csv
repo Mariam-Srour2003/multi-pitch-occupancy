@@ -1,0 +1,9 @@
+field_id,date,start,end,customer_ref,status,entered_by
+field_01,2026-07-11,10:00,11:00,BK-20260711-0001,confirmed,a.demir
+field_01,2026-07-12,20:30,21:30,BK-20260712-0044,confirmed,s.yilmaz
+field_01,2026-07-11,11:00,12:00,BK-20260711-0002,cancelled,a.demir
+field_01,2026-07-12,19:00,20:00,BK-20260712-0041,no_show,s.yilmaz
+field_01,2026-07-13,08:00,09:30,,maintenance,groundstaff
+field_01,2026-07-13,18:00,19:00,BK-20260713-0007,confirmed,a.demir
+field_02,2026-07-12,20:30,21:30,BK-20260712-0045,confirmed,s.yilmaz
+field_02,2026-07-13,10:00,11:00,,blocked,facility.admin

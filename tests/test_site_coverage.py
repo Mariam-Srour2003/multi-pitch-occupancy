@@ -48,6 +48,8 @@ OUT_OF_SCOPE = {
     "logit_average_baseline.csv": "WP5-T9 on raw caches; refuted",
     "logit_average_baseline_preproc.csv": "WP5-T9 on letterboxed caches",
     "fusion_head_ablation.csv": "WP5-T2: the gate does not earn its place - the argument is the result",
+    "empty_recognition.csv": "WP4-T13: what the false-play control measures - the argument is the result",
+    "xai_evidence_focus.csv": "WP4-T5: evidence-on-people per frame; the summary is in the log",
     "fusion_head_comparisons.csv": "WP5-T2: paired tests, none of which the design could make significant",
     "fusion_head_gate.csv": "WP5-T2: the gate's per-fold weights and their -0.65 correlation with night",
     "stan_preliminary.csv": "WP5-T1: preliminary by the WP5-T8 gate - 2 real slots, and a saturated composed set",

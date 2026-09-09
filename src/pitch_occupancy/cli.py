@@ -268,5 +268,42 @@ def schedule_cmd(
                + (", ".join(s.slot_id(when.date()) for s in running) or "nothing"))
 
 
+@app.command("bookings")
+def bookings_cmd(
+    path: Path | None = typer.Option(None, help="Defaults to configs/bookings_example.csv."),
+    venue: str = typer.Option("venue_01", help="Venue used to build slot ids."),
+) -> None:
+    """Import a booking export and report what it contains (WP6-T4). Writes nothing.
+
+    Read-only by construction, not by flag: `bookings.BookingSource` has one method. This
+    command exists so a client's export can be checked before it is relied on - a booking
+    dropped at import reconciles to *unbooked usage*, which is the anomaly that accuses
+    someone.
+    """
+    from pitch_occupancy.bookings import SOLD, read_bookings
+
+    try:
+        records = read_bookings(path)
+    except (FileNotFoundError, ValueError) as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(1) from exc
+
+    typer.echo(f"{len(records)} booking(s) from {'the example' if path is None else path}\n")
+    for r in sorted(records, key=lambda r: (r.date, r.start, r.field_id)):
+        mark = "sold" if r.is_sold else "    "
+        typer.echo(f"  {r.slot_id(venue):<32} {r.field_id:<10} {r.status:<12} {mark}  "
+                   f"{r.duration_minutes:>3} min  {r.customer_ref}")
+
+    sold = sum(1 for r in records if r.is_sold)
+    typer.echo("")
+    typer.echo(f"  {sold} sold, {len(records) - sold} not sold "
+               f"(sold statuses: {', '.join(sorted(SOLD))})")
+    if {r.source for r in records} == {"example"}:
+        typer.secho(
+            "\nThis is the committed example, not a client export. It exists to show the "
+            "columns being asked for.", fg=typer.colors.YELLOW,
+        )
+
+
 if __name__ == "__main__":
     app()

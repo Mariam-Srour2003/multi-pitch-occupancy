@@ -33,6 +33,27 @@ that satisfies it:
 2. an external drive, kept physically apart from the machine;
 3. an encrypted copy in cloud storage.
 
+## Current state (2026-09-09)
+
+**The backup exists.** The 4.2 GB is held in **Amazon S3** and on **Google Drive**, both
+off-machine. That is three copies over two independent providers, which satisfies the rule
+above by a different route than the one it describes: the external drive of (2) is replaced by
+a second cloud location. Two providers is not two *media*, and the tail risk that differs is an
+account-level one — a billing lapse or a credential compromise reaching both — rather than the
+physical failure an external drive protects against. Worth a drive eventually; not worth
+blocking on, because the risk that actually mattered was having one copy.
+
+**Not yet verified.** No file has been opened from either copy to confirm the restore works,
+so this is *mitigated*, not *closed*. The verification below is the step that closes it, and an
+unverified backup is one you find out about at the worst moment. Record the date here when it
+is done.
+
+| | location | verified restore |
+|---|---|---|
+| working copy | development machine | — |
+| off-site 1 | Amazon S3 | **not yet** |
+| off-site 2 | Google Drive | **not yet** |
+
 `data/cache/` may be excluded from (2) and (3): it is a derived artefact, it is the largest
 part of the footprint, and it rebuilds in under an hour. Excluding it turns a ~5.7 GB backup
 into a ~4.2 GB one. **`data/raw/` and `data/processed/` may never be excluded** — the second

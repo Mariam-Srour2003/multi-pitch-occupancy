@@ -24,9 +24,13 @@ external clock you don't control.
       programme doesn't need its own sign-off for *research use* of operator-supplied footage;
       **(b)** the WP1-T4 decision on per-staff reporting — recommendation is to report anomalies
       **per field only**, which removes the workplace-monitoring exposure at no scientific cost.
-- [ ] **0.2 ★ [B] Back up `data/`.** Structure work is **finished**, so this is unblocked — do it
-      now. 4.2 GB. External drive **plus** a cloud folder (two places, not one), then open a file
-      from each copy to confirm the restore actually works.
+- [x] **0.2 ★ [B] Back up `data/` — done (confirmed 2026-09-09).** The 4.2 GB lives on **S3
+      and on Google Drive**, so the 3-2-1 rule's "two places, not one" is satisfied and the
+      register's one unmitigated risk is closed.
+  - [ ] **[H] Two follow-ups the policy asks for and this does not yet cover.** Open one file
+        from each copy to confirm a restore actually works, and record the date here —
+        `docs/backup.md` says a restore counts as verified when `reproduce_all --check`
+        reports nothing missing. An unverified backup is a backup you find out about later.
 - [x] **0.3 Footage request — closed; working with what we have.** The 66 clips landed: ~9 venues,
       day and night, all active play. Decision taken not to request more. The consequences are
       pinned down in `thesis/preregistration.md` §"Not answerable" — cross-venue *three-class*
@@ -118,7 +122,8 @@ tagged with the question it answers. Fix that first — it is what turns a build
       `data/cache/` excluded as derived, deliberately manual rather than a sync (a two-way sync
       propagates a deletion as faithfully as a file). Includes the restore procedure, which is
       checkable: a restore succeeds when `reproduce_all --check` reports nothing missing.
-      **The policy is written; the backup is still not made — that is 0.2 and it is still first.**
+      **The policy is written and, as of 2026-09-09, the backup is made** — S3 plus Google
+      Drive. What remains is verifying a restore, which is the part the policy says counts.
 - [ ] ~~WP0-T8 original~~ Formalise 0.2 into `docs/backup.md`: what is backed up,
       where, how often, and the last verified restore date. Re-verify monthly.
 - [x] **WP0-T9 ★ Environment pinning.** `uv.lock` + `.python-version` committed. torch pinned to
@@ -226,9 +231,23 @@ tagged with the question it answers. Fix that first — it is what turns a build
 *Weeks 1–4 · ~70 h · M1 gate*
 
 ### 1.A Clearances (do first — they block WP2)
+
+> **Author's position, 2026-09-09: deferred, and not expected to be contentious.** Recorded
+> here so the deferral is a decision with a date rather than an item that quietly stopped
+> being mentioned. Two things follow and neither is a formality. The M1 gate criterion stays
+> **unmet** — "no objection anticipated" is not a documented outcome, and the gate check will
+> keep reporting it as waiting on a person, correctly. And the *technical* work has already
+> been built to the strict reading rather than the permissive one: retention is enforced in
+> code (WP6-T8), the system is advisory-only and cannot bill (WP6-T12), reconciliation reports
+> per field and never per staff member (WP1-T4's recommendation), and every frame image written
+> since 2026-09-09 is person-pixelated and blurred. So a later answer that turns out stricter
+> than expected costs a document, not a rebuild.
+
 - [ ] **WP1-T3 ★ [H][B] Ethics/DPIA outcome documented** → `thesis/ethics.md`: legal basis for
       recording, retention periods, signage/notification of players and staff, whether a DPIA is
       required and (if so) its completion, works-council/HR position on the staff-audit feature.
+      *Deferred by the author (see above); still blocks M1 and still needs the supervisor's
+      answer before submission.*
 - [ ] **WP1-T4 ★ [H] Staff-audit framing decision.** Decide *with the client* whether per-staff
       discrepancy reporting is in scope or whether reconciliation reports only per-field anomalies.
       This is an ethics question and a client-relationship question before it is a technical one.
@@ -416,6 +435,15 @@ tagged with the question it answers. Fix that first — it is what turns a build
 ### 2.D Contingency for the C3 class (the #1 scientific risk)
 - [ ] **WP2-T11 ★ C3 fallback decision tree.** Decide by **week 6** — do not drift past it. If C3
       is still under ~100 real frames:
+  - [x] ★ **Measured rather than argued (2026-09-09, `empty_recognition.py`).** The six-frame
+        class *is* doing damage, but not the damage assumed: with `class_weight="balanced"` it
+        absorbs 168 of 243 out-of-distribution frames, and removing it moves those into
+        ACTIVE_PLAY instead. So **Option C is defensible on the macro-F1 claim and buys nothing
+        on the false-play axis** — argue it on the first, never the second.
+  - [x] **Option A (copy-paste augmentation) is not worth building yet.** The blocker is not
+        C3's size: no configuration of the class recovers empty-pitch accuracy, and what does
+        is one labelled frame of the target camera. Synthesising maintenance crops would be
+        answering a question the data says is not the binding one.
   - [ ] **Option A — copy-paste augmentation.** Composite hi-vis worker / mower crops onto real
         empty-pitch backgrounds. A recognised, citable augmentation technique (the "cut, paste and
         learn" line of work). Must be reported honestly as synthetic, and evaluated separately on
@@ -947,11 +975,24 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [x] The finding sentence per class is **derived from the counts**, not typed beside them:
         a hand-written sentence next to a generated table is how a figure came to contradict
         its own source.
-  - [ ] ★ **[B] Attention rollout + Grad-CAM → `results/figs/xai/` — blocked on WP1-T5.**
-        It writes frame images, and nine images are already permanent in git history
-        including five sheets of unblurred players. Publishing more frames is the open
-        data-release decision. Worth doing once that is settled; recorded rather than left
-        as a silent gap in the acceptance criterion.
+  - [x] ★ **XAI overlays built — unblocked by the author (2026-09-09), redacted anyway.**
+        `vision/explain.py` + `experiments/make_xai_figures.py` → `results/figs/xai/`
+        (27 sheets), 16 tests. WP1-T5 is still open, so every frame is person-pixelated by
+        YOLO **and** blurred whole-frame before writing: these images are permanent in git,
+        and redacting now costs nothing while un-redacting later is impossible.
+  - [x] **The decomposition is exact, not a saliency heuristic.** The probes are logistic
+        regressions on *mean-pooled* frozen features, so the score is exactly the mean of a
+        per-position contribution — no gradient to approximate, no smoothing to tune. The run
+        aborts if the map fails to reconstruct the score; worst error over 27 explanations is
+        **8.65e-07**. Grad-CAM was not needed and would have been the weaker instrument.
+  - [x] ★ **Turned into a measurement, and it found something.** Share of positive evidence
+        inside YOLO person boxes against those boxes' area: ConvNeXtV2 **2.18×**, DINOv2
+        **1.61×**, **ViT 1.02× — the null exactly.** ViT classifies ACTIVE_PLAY correctly
+        while putting no more evidence on the players than on the turf, which is consistent
+        with it being the weakest cross-venue model and with it taking the camera shortcut in
+        WP4-T13. Nine frames: a direction, not a rate.
+  - [ ] **[H] Decide whether the ViT result goes in the thesis as a finding.** It is the
+        clearest visual evidence for the confound argument, and it is n=9.
 - [ ] **WP4-T11 ★ Efficiency table with honest methodology.** Using WP0-T10: median and p95 ms/frame,
       peak RAM, concurrent-20-camera throughput, PyTorch vs OpenVINO, on both the dev laptop and the
       target Mini-PC. **(RQ2)**
@@ -1214,6 +1255,19 @@ tagged with the question it answers. Fix that first — it is what turns a build
         on the strength of 243 wrong answers. Ledger claim `false-play-is-not-accuracy` added.
   - [x] One sentence in the H4 log entry drew exactly the wrong inference and is corrected in
         place.
+  - [x] ★ **Followed up, and my own mechanism was half wrong — `empty_recognition.py`.**
+        Dropping C3 entirely does **not** rescue EMPTY accuracy: it stays at 0.0000 and
+        false-play goes 0.309 → 1.000, because all 243 frames move into ACTIVE_PLAY instead.
+        The class weighting decides *which* wrong answer appears, not whether it is wrong.
+  - [x] ★ **The control is a camera-transfer test.** Train A → B's empties gives 0.0000;
+        add camera B's *play* frames and DINOv2 reaches 0.7325 — but that condition puts
+        camera B in one class only, so "camera B implies play" is a shortcut, and **ViT takes
+        it completely, falling 0.165 → 0.004**. On that axis the model ranking is partly a
+        ranking of shortcut resistance. Sixth appearance of this confound.
+  - [x] ★ **One labelled empty frame of the held-out camera takes every backbone to 0.9793**,
+        flat to k=25. Adding a camera needs labels *from that camera*, not a bigger dataset.
+        Reported with the near-duplicate crossing count (1,400 already at k=1) and the
+        3-distinct-scene caveat, which is *why* one frame suffices.
   - [ ] **[H] Decide what the thesis says.** The honest reading is that on this protocol *no
         model can recognise an empty pitch*, which is a stronger and more uncomfortable claim
         than "ConvNeXtV2 is worse than DINOv2". It belongs in RQ2 and in the red-team chapter.
@@ -1317,10 +1371,24 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [ ] ★ Make retention periods match whatever `thesis/ethics.md` (WP1-T3) actually committed to.
 
 ### 6.B Reconciliation — the operational contribution
-- [ ] **WP6-T4 [H] Booking schema + connector.** `engine/bookings.py`: normalised
-      `bookings(field_id, date, start, end, customer_ref, status, entered_by, source)`; CSV importer
-      first, SQL/REST stubs behind one interface. **READ-ONLY — never write to client systems.**
-      *Accept:* sample CSV imports; unit tests.
+- [x] **WP6-T4 Booking schema + connector — code done; the real export is still [H].**
+      `src/pitch_occupancy/bookings.py`, `configs/bookings_example.csv`, `pitch bookings`,
+      21 tests. Normalised exactly as specified.
+  - [x] **READ-ONLY by interface, not by flag.** `BookingSource` has one method, `read`.
+        There is no write path to disable and no `dry_run` default to get wrong, and a test
+        asserts the public surface is exactly `{read, path, source}` — same reasoning as
+        `slots/authority.py`: a booking system is the facility's financial record.
+  - [x] **Every problem raises; nothing is skipped.** A dropped booking reconciles to
+        *unbooked usage*, which is the anomaly that accuses a customer, so a typo must not be
+        able to manufacture one. Unknown status, duplicate slot, end-before-start, empty
+        field_id and unparseable date all raise — and the date error names the MM/DD/YYYY
+        trap explicitly, because no importer can detect it.
+  - [x] **The example is tagged as an example by the importer**, not by the file, so a table
+        built on 8 hand-written rows cannot read as one built on a client export. It covers
+        every status and keys to the two really-recorded slots.
+  - [ ] **[H] The actual export.** Ask the facility for a read-only CSV in these columns —
+        showing them `configs/bookings_example.csv` is cheaper than describing it.
+  - [ ] SQL/REST connectors behind the same interface, once the client's system is known.
 - [x] **WP6-T5 Reconciliation.** `slots/reconcile.py`, 16 tests. REVIEW never becomes an
       anomaly; low-confidence slots are downgraded before any rule runs; anomalies are **per
       field, never per person** (`entered_by` never reaches the output — asserted by test),
@@ -1677,7 +1745,7 @@ polish is not worth thesis marks.
 | Booking DB access blocked | No sample export by the time WP6-T4 starts | Manual booking sheet for the case study; RQ4 reported as design + fixtures, not measured precision |
 | Novel module gives no gain | WP5 ablation p > 0.05 | Report as a negative result with analysis — still a contribution, **provided** WP5-T9's logit-average baseline was run first so the null is about the gate and not the ensemble |
 | Laptop sleep kills runs | Any multi-hour run | Chunk runs, incremental writes, cache-resumable (WP0-T11). ★ Note the feature-cache stage is *not* in fact resumable — see the reproduction audit |
-| ★ Data loss | **Now — 0.2 is still open** | **The one unmitigated risk in the register.** 4.2 GB of irreplaceable footage in one place. Every result above is regenerable; the footage is not. WP0-T8. |
+| ★ Data loss | **Mitigated 2026-09-09** | Was the register's one unmitigated risk. The 4.2 GB is now on **S3 and Google Drive** — two places, neither of them the working copy. Residual: no restore has been *verified* yet (0.2 follow-up), so this is mitigated rather than closed. WP0-T8. |
 | ★ Test-set overfitting | Many ablation cycles | FINAL_TESTSET locked and enforced in code (WP0-T4). ★ The lock was found to be cwd-relative on 2026-09-07 and is now package-relative with a raising guard — see amendment A7 |
 | ★ Capacity overrun | Behind by week 10 | Switch to the 16-week compression; protect WP5 — now meaning **5.B**, the module that is not data-blocked |
 | ★ **Pixels are already permanent in git history** | Now | 9 image files are committed, incl. 5 venue-audit sheets showing unblurred players. This forecloses WP1-T5 option (a), "features-only, no pixels", because history cannot be quietly rewritten across 85 commits and 50 branches. **Decide WP1-T5 before the repo is shared with anyone.** |

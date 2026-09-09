@@ -3416,3 +3416,113 @@ flattering one.
 - 2026-09-09 | WP5-T1 STAN, preliminary | `python experiments/stan_preliminary.py` | `stan_preliminary.csv` | composed test: stan 1.0000 vs best baseline hmm 0.8950; 2 real slots, below the 30-slot gate
 
 - 2026-09-09 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
+
+- 2026-09-09 | WP4-T13 what the false-play control measures | `python experiments/empty_recognition.py` | `empty_recognition.csv` | DINOv2 EMPTY accuracy 0.0000 -> 0.7325 once camera B is in training at all; removing C3 does not change it - the control is a camera-transfer test
+
+## 2026-09-09 — WP4-T13: a prediction of mine that was wrong, and the better answer underneath it
+
+`experiments/empty_recognition.py`, `empty_recognition.csv`, 9 tests.
+
+The WP5-T2 entry above blamed the zero EMPTY accuracy on the training mix — 6 MAINTENANCE
+frames with `class_weight="balanced"` giving that class a weight of 43. The obvious next move
+was to drop C3 and watch the problem go away. **It does not.**
+
+| training set (train camera A → camera B's 243 empties) | EMPTY accuracy |
+|---|---|
+| 3-class, balanced *(the published configuration)* | 0.0000 |
+| 3-class, unbalanced | 0.0000 |
+| 2-class, C3 dropped entirely | 0.0000 |
+
+Removing C3 stops the MAINTENANCE absorption and pushes all 243 frames into ACTIVE_PLAY
+instead: false-play goes **0.309 → 1.000**. The class weighting decides *which* wrong answer
+appears. It has nothing to do with whether the model can recognise an empty pitch. The earlier
+entry's mechanism was right about the MAINTENANCE dumping and wrong about the zero.
+
+**What actually decides it is whether the model has ever seen a labelled empty frame of that
+camera.**
+
+| training set | DINOv2 | ConvNeXtV2 | ViT |
+|---|---|---|---|
+| camera A only *(the published protocol)* | 0.0000 | 0.0082 | 0.1646 |
+| + camera B's ACTIVE_PLAY frames | 0.7325 | 0.1975 | 0.0041 |
+| + **one** labelled empty frame of camera B | **0.9793** | **0.9793** | **0.9793** |
+| + 25 labelled empty frames | 0.9817 | 0.9817 | 0.9817 |
+
+So **the false-play control is a camera-transfer test, not a specificity test.** Every
+false-play number this project has published is a cross-camera transfer number. The numbers
+stand; the caption does not.
+
+The middle row shows how badly the two are conflated. There camera B appears in training in
+*one class only*, so "camera B implies play" is available as a shortcut, and the three
+backbones go in opposite directions — DINOv2 largely resists it, ConvNeXtV2 partly takes it,
+and **ViT takes it completely and falls from 0.165 to 0.004**. On that axis the model ranking
+is partly a ranking of shortcut resistance. The same confound, in a new place, for the sixth
+time.
+
+**The practical finding: one labelled empty frame of a new camera is worth more than 769
+frames of a different one.** All three backbones reach 0.9793 at k=1 and stay flat to k=25 —
+there is no curve to climb. Adding a camera does not need a bigger dataset; it needs a handful
+of labels from that camera.
+
+Read with its caveats, which are in the table itself rather than in a footnote. The 243 empty
+frames are **three distinct scenes**, which is *why* one frame suffices — a fixed camera
+pointed at an empty pitch sees about three views. Every k-shot row carries a count of
+near-duplicate pairs crossing the train/test boundary, 1,400 already at k=1: the single
+training frame is a near copy of much of the test set. That is the mechanism stated plainly,
+and it is also the operational reality, since a deployed system really would be scoring frames
+that look like the ones it was given. The within-camera 1.0000, with 13,406 crossing pairs, is
+the leaky ceiling and not a score.
+
+- 2026-09-09 | WP4-T13 what the false-play control measures | `python experiments/empty_recognition.py` | `empty_recognition.csv` | DINOv2 EMPTY accuracy 0.0000 -> 0.9793 with ONE labelled empty frame of the held-out camera; removing C3 changes nothing - the control is a camera-transfer test
+
+## 2026-09-09 — WP4-T5: the XAI overlays, and a model that classifies play without looking at players
+
+`src/pitch_occupancy/vision/explain.py`, `experiments/make_xai_figures.py`,
+`results/figs/xai/` (27 sheets), `xai_evidence_focus.csv`, 16 tests. Unblocked by the author's
+decision to proceed; the images are redacted regardless, for the reason below.
+
+**The decomposition is exact, and that is not a rhetorical claim.** Every probe here is a
+logistic regression on *mean-pooled* frozen features, which is linear end to end, so a class
+score is exactly the mean over spatial positions of a per-position contribution. Grad-CAM
+exists because a head is usually non-linear over its feature map; here it is not, so there is
+no gradient to approximate and no smoothing parameter to pick. The map *is* the summands of
+the score. Every figure is generated with the reconstruction printed beside it and the run
+aborts if the two disagree — worst error over 27 explanations, **8.65e-07**.
+
+**The figures were turned into a measurement, which is where the finding is.** Pictures invite
+eyeballing, so the experiment also asks: what share of a frame's positive evidence falls
+inside the YOLO person boxes, against what share of the frame those boxes occupy? A model
+reading *players* scores far above 1; a model whose evidence ignores them scores 1.
+
+| backbone | evidence on people | their area | ratio |
+|---|---|---|---|
+| ConvNeXtV2 | 0.133 | 0.054 | **2.18×** |
+| DINOv2 | 0.082 | 0.054 | **1.61×** |
+| ViT | 0.054 | 0.054 | **1.02×** |
+
+**ViT classifies ACTIVE_PLAY correctly on all three frames while placing no more evidence on
+the players than on the turf.** 1.02× is the null exactly. It is reading scene context rather
+than people — consistent with it being the weakest cross-venue model (0.869) and with it
+taking the "camera B implies play" shortcut completely in the WP4-T13 entry above. Nine frames,
+so a direction rather than a rate, and the caveats are printed with it: YOLO boxes are a proxy
+for where players are, and a 16×16 patch grid cannot resolve a distant one.
+
+**Every frame is redacted before it is written, in two layers.** YOLO pixelates each detected
+person, then a blur floor is applied to the whole frame so a missed detection is still not an
+identifiable face. The heatmap is computed on the *original* frame and drawn over the redacted
+copy, which has identical geometry — explaining the pixelated frame instead would produce an
+honest picture of a model looking at pixelation. Redaction is not a flag and cannot be turned
+off from the command line: these images enter git history, where they are permanent, and
+WP1-T5 still governs what may be published from this dataset. `people detected: 0` is reported
+as "the detector found none", never as "the frame is empty", and a detector that fails to load
+reports −1 rather than silently writing an unredacted frame that the pipeline calls redacted.
+
+One implementation note worth recording because it produced a *missing figure* rather than an
+error: transformers now defaults to SDPA attention, whose fused kernel never materialises the
+attention matrix, so `output_attentions=True` is silently ignored and rollout returns nothing.
+`load_for_attention` loads with eager attention for this one purpose.
+
+- 2026-09-09 | WP4-T5 XAI overlays | `python experiments/make_xai_figures.py` | `results/figs/xai/` (27 sheets) | exact linear decomposition, worst reconstruction error 8.6e-07; ViT puts 1.02x evidence on players (the null exactly); every frame person-pixelated and blurred before writing
+- 2026-09-09 | WP6-T4 booking importer | `pitch bookings` | `configs/bookings_example.csv` | read-only by interface, not by flag; 8 example rows covering every status, keyed to the two really-recorded slots
+
+- 2026-09-09 | WP4-T5 XAI overlays | `python experiments/make_xai_figures.py` | `results/figs/xai/` (27 sheets) | exact linear decomposition, worst reconstruction error 8.6e-07; every frame person-pixelated and blurred before writing

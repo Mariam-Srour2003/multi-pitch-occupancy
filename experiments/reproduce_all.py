@@ -318,6 +318,22 @@ STAGES: list[Stage] = [
         minutes=3,
     ),
     Stage(
+        name="empty-recognition",
+        command=[*PY, "-m", "experiments.empty_recognition"],
+        produces=[RESULTS / "empty_recognition.csv"],
+        requires=[DATA / "cache" / "dinov2.npz", RESULTS / "h3_with_false_play.csv"],
+        note="WP4-T13: the false-play control is a camera-transfer test; one labelled frame fixes it",
+        minutes=6,
+    ),
+    Stage(
+        name="xai-figures",
+        command=[*PY, "-m", "experiments.make_xai_figures"],
+        produces=[RESULTS / "xai_evidence_focus.csv"],
+        requires=[DATA / "cache" / "dinov2.npz", DATA / "processed" / "manifest.csv"],
+        note="WP4-T5: exact linear evidence maps, redacted; ViT puts 1.02x evidence on players",
+        minutes=5,
+    ),
+    Stage(
         name="preprocess-search",
         command=[*PY, "-m", "experiments.preprocess_search"],
         produces=[RESULTS / "preprocess_search.json"],
