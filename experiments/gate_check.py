@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import csv
 import json
+import sys
 from dataclasses import dataclass
 from typing import Callable
 
@@ -181,6 +182,12 @@ def _claims_verified() -> tuple[str, str]:
     explains what staleness is. The ledger has a verifier; a gate check that did not run it
     would be asserting the thing it is supposed to check.
     """
+    # `python experiments/gate_check.py` puts `experiments/` on the path, not the repo root,
+    # so this import fails and the criterion used to degrade quietly to "not met" - which is
+    # how a wrong gate status got committed. A check whose answer depends on how it was
+    # invoked is not a check, so the path is repaired rather than the failure swallowed.
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
     try:
         from experiments.verify_claims import check, load
     except Exception as exc:  # pragma: no cover - import guard

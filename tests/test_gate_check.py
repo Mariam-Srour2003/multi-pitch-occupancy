@@ -109,3 +109,24 @@ def test_the_generated_status_is_current(rows) -> None:
     assert gc.markdown(rows) == gc.OUT.read_text(encoding="utf-8"), (
         "results/gate_status.md is stale; run `python -m experiments.gate_check`"
     )
+
+
+def test_the_answer_does_not_depend_on_how_it_was_invoked() -> None:
+    """A wrong gate status was committed because of this.
+
+    `python experiments/gate_check.py` puts `experiments/` on the path rather than the repo
+    root, so the claims criterion's import failed and it degraded quietly to "not met" -
+    turning M3 from passed into not-passed depending on the command used to generate the
+    file. Both invocations must agree.
+    """
+    import subprocess
+
+    outs = []
+    for command in (
+        [sys.executable, "-m", "experiments.gate_check"],
+        [sys.executable, str(ROOT / "experiments" / "gate_check.py")],
+    ):
+        result = subprocess.run(command, capture_output=True, text=True, cwd=ROOT)
+        assert result.returncode == 0, result.stderr[-500:]
+        outs.append([ln for ln in result.stdout.splitlines() if "passed (" in ln])
+    assert outs[0] == outs[1], f"invocation changed the verdict: {outs}"

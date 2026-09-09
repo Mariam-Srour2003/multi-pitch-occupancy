@@ -122,8 +122,8 @@
     "gate": "M3",
     "week": 13,
     "criterion": "Every quantitative claim re-derives",
-    "status": "not met",
-    "detail": "the claims verifier could not be loaded: No module named 'experiments'"
+    "status": "met",
+    "detail": "26 claims re-derive from their artefacts"
   },
   {
     "gate": "M4",
@@ -192,8 +192,8 @@
     "gate": "M7",
     "week": 24,
     "criterion": "Claims ledger complete and verified",
-    "status": "not met",
-    "detail": "the claims verifier could not be loaded: No module named 'experiments'"
+    "status": "met",
+    "detail": "26 claims re-derive from their artefacts"
   },
   {
     "gate": "M7",

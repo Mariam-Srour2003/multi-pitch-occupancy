@@ -12,11 +12,11 @@ A gate passes only when nothing under it is unmet *and* nothing needs a person.
 |---|---|---|---|---|---|
 | **M1** | 4 | waiting on a person | 4 | 0 | 2 |
 | **M2** | 9 | passed | 6 | 0 | 0 |
-| **M3** | 13 | not passed | 5 | 1 | 0 |
+| **M3** | 13 | passed | 6 | 0 | 0 |
 | **M4** | 18 | not passed | 0 | 2 | 0 |
 | **M5** | 19 | not passed | 4 | 1 | 0 |
 | **M6** | 21 | waiting on a person | 1 | 0 | 1 |
-| **M7** | 24 | not passed | 2 | 1 | 1 |
+| **M7** | 24 | waiting on a person | 3 | 0 | 1 |
 
 ## M1 (week 4) — waiting on a person
 
@@ -40,7 +40,7 @@ A gate passes only when nothing under it is unmet *and* nothing needs a person.
 | ✔ | Effective sample size reported | results/effective_sample_audit.csv |
 | ✔ | Unanswerable questions recorded | the pre-registration lists them |
 
-## M3 (week 13) — not passed
+## M3 (week 13) — passed
 
 | | criterion | evidence |
 |---|---|---|
@@ -49,7 +49,7 @@ A gate passes only when nothing under it is unmet *and* nothing needs a person.
 | ✔ | Significance tests with correction | Holm-corrected families in 3 reports |
 | ✔ | Trivial-baseline floor reported | 4 trivial baselines in the benchmark |
 | ✔ | Figures exported | results/figs/leakage_decomposition.png |
-| ✘ | Every quantitative claim re-derives | the claims verifier could not be loaded: No module named 'experiments' |
+| ✔ | Every quantitative claim re-derives | 26 claims re-derive from their artefacts |
 
 ## M4 (week 18) — not passed
 
@@ -75,11 +75,11 @@ A gate passes only when nothing under it is unmet *and* nothing needs a person.
 | ✔ | Failure-mode runbook | docs/runbook.md |
 | — | 48-hour live validation accepted | a deployment and a facility conversation (WP7-T3, WP7-T4) |
 
-## M7 (week 24) — not passed
+## M7 (week 24) — waiting on a person
 
 | | criterion | evidence |
 |---|---|---|
-| ✘ | Claims ledger complete and verified | the claims verifier could not be loaded: No module named 'experiments' |
+| ✔ | Claims ledger complete and verified | 26 claims re-derive from their artefacts |
 | ✔ | Defence red-team written | thesis/defence_redteam.md |
 | ✔ | Related-work chapter | thesis/ch2_related_work.md |
 | — | Thesis submitted and defence ready | writing, a mock examination and submission (WP8-T7) |
