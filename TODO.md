@@ -428,7 +428,11 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [ ] *Whichever you pick:* write the justification into `protocol.md` and tell your supervisor at
         the next check-in. A documented, defended scope reduction costs you nothing; an undocumented
         starved class costs you the macro-F1 claim.
-- [ ] **WP2-T7 M2 gate check.** Every class ≥ target in ≥ 2 lighting regimes and ≥ 2 venues; grouped
+- [x] **WP2-T7 M2 gate check — generated, and M2 is met.** `experiments/gate_check.py` →
+      `results/gate_status.md`. All six re-cut criteria check out against artefacts:
+      coverage matrix, EMPTY in exactly one venue (494 frames), near-duplicate rate,
+      per-split leakage (100% vs 0%), effective sample, and the "not answerable" list.
+- [ ] ~~WP2-T7 original~~ M2 gate check. Every class ≥ target in ≥ 2 lighting regimes and ≥ 2 venues; grouped
       splits regenerate cleanly. *Accept:* M2 checklist in `EXPERIMENT_LOG.md`.
 - [ ] **M2 GATE [H]** — dataset balanced across classes/conditions/venues, grouped-split-ready.
       *By week 9.*
@@ -956,7 +960,10 @@ tagged with the question it answers. Fix that first — it is what turns a build
       low-power edge" framing with a real measurement instead of a datasheet quote.
 - [ ] **WP4-T7 DINOv3** (if licence access granted) — add as a 5th row to every WP4 table, same
       protocol, or log explicitly as blocked. Requires [H] HuggingFace login + Meta licence accept.
-- [ ] **WP4-T8 M3 gate check.** Benchmark v2 complete, stats attached, figures exported.
+- [x] **WP4-T8 M3 gate check — generated, and M3 is met.** Eight models across four
+      protocols, intervals on every row, Holm-corrected families in three reports, four
+      trivial baselines, figures exported, and 26 claims re-deriving from their artefacts.
+- [ ] ~~WP4-T8 original~~ M3 gate check. Benchmark v2 complete, stats attached, figures exported.
 - [ ] **M3 GATE [H]** — four-model leakage-free benchmark with CIs and significance tests. *Week 13.*
 
 ---
@@ -1498,6 +1505,15 @@ tagged with the question it answers. Fix that first — it is what turns a build
 >
 > This changes no research question and drops no contribution. It changes what counts as
 > done, to match what the evidence can support.
+
+> **The `Done` column is generated.** `uv run python -m experiments.gate_check` checks each
+> criterion against the repository and writes `results/gate_status.md`; a test asserts the two
+> agree. Every row here read `[ ]` while two gates had been met for some time, which is the
+> same drift the README and the site export both had. Three outcomes rather than two, because
+> "needs a person" cannot be moved by anything in the repository.
+>
+> **As of 2026-09-09: M2 and M3 met on artefacts; M1, M6 and M7 wait on a person; M4 and M5
+> have real work outstanding.**
 
 | Gate | Week | Exit criterion | Done |
 |---|---|---|---|

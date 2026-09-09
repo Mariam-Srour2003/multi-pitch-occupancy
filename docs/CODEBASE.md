@@ -262,6 +262,7 @@ library; the dependency points one way.
 | `make_search_viewer.py` | Regenerate the search results page. |
 | `error_taxonomy.py` | What the models get wrong, and whether the error set is worth categorising. |
 | `reconciliation_value.py` | How often must a flag be right before the feature pays for itself? |
+| `gate_check.py` | Check each milestone criterion against the repository rather than ticking it. |
 | `verify_claims.py` | Re-derive every quantitative claim from the artefact that produced it. |
 | `reproduce_all.py` | Run everything, in dependency order. |
 

@@ -113,6 +113,7 @@ a later measurement retracted.
 |---|---|
 | **[TODO.md](TODO.md)** | **The working checklist.** Every task, WP0→WP8, with milestone gates. Start here. |
 | **[results/EXPERIMENT_LOG.md](results/EXPERIMENT_LOG.md)** | **What every run found**, in order, with the reasoning and the retractions. |
+| [results/gate_status.md](results/gate_status.md) | **Milestone status**, checked against the artefacts rather than ticked by hand |
 | [thesis/claims.md](thesis/claims.md) | **The claims ledger** — every quantitative claim mapped to the artefact that produced it, re-derived on every run |
 | [thesis/defence_redteam.md](thesis/defence_redteam.md) | The ten hardest questions and the evidence for each answer |
 | [thesis/ch2_related_work.md](thesis/ch2_related_work.md) | Chapter 2 scaffolding — nine strands, what each must establish, and no invented citations |

@@ -1,0 +1,219 @@
+[
+  {
+    "gate": "M1",
+    "week": 4,
+    "criterion": "Protocol document written",
+    "status": "met",
+    "detail": "thesis/protocol.md"
+  },
+  {
+    "gate": "M1",
+    "week": 4,
+    "criterion": "Labelling protocol written",
+    "status": "met",
+    "detail": "thesis/labelling_protocol.md"
+  },
+  {
+    "gate": "M1",
+    "week": 4,
+    "criterion": "Taxonomy fixed and implemented",
+    "status": "met",
+    "detail": "src/pitch_occupancy/data/taxonomy.py"
+  },
+  {
+    "gate": "M1",
+    "week": 4,
+    "criterion": "Evaluation design pre-registered",
+    "status": "met",
+    "detail": "thesis/preregistration.md"
+  },
+  {
+    "gate": "M1",
+    "week": 4,
+    "criterion": "Supervisor approval",
+    "status": "needs a person",
+    "detail": "a supervision conversation (WP1-T2)"
+  },
+  {
+    "gate": "M1",
+    "week": 4,
+    "criterion": "Ethics/DPIA outcome documented",
+    "status": "needs a person",
+    "detail": "a supervisor answer and two client answers (WP1-T3)"
+  },
+  {
+    "gate": "M2",
+    "week": 9,
+    "criterion": "Coverage matrix published",
+    "status": "met",
+    "detail": "results/coverage.md"
+  },
+  {
+    "gate": "M2",
+    "week": 9,
+    "criterion": "Concentration of EMPTY reported",
+    "status": "met",
+    "detail": "EMPTY appears in exactly one venue (494 frames)"
+  },
+  {
+    "gate": "M2",
+    "week": 9,
+    "criterion": "Near-duplicate rate measured",
+    "status": "met",
+    "detail": "results/near_duplicates.csv"
+  },
+  {
+    "gate": "M2",
+    "week": 9,
+    "criterion": "Per-split leakage measured",
+    "status": "met",
+    "detail": "100% of leaky-split errors had a near-duplicate; 0 on the honest split"
+  },
+  {
+    "gate": "M2",
+    "week": 9,
+    "criterion": "Effective sample size reported",
+    "status": "met",
+    "detail": "results/effective_sample_audit.csv"
+  },
+  {
+    "gate": "M2",
+    "week": 9,
+    "criterion": "Unanswerable questions recorded",
+    "status": "met",
+    "detail": "the pre-registration lists them"
+  },
+  {
+    "gate": "M3",
+    "week": 13,
+    "criterion": "Four models under three or more protocols",
+    "status": "met",
+    "detail": "8 models x 4 protocols"
+  },
+  {
+    "gate": "M3",
+    "week": 13,
+    "criterion": "Confidence intervals attached",
+    "status": "met",
+    "detail": "all 14 rows carry a bootstrap interval"
+  },
+  {
+    "gate": "M3",
+    "week": 13,
+    "criterion": "Significance tests with correction",
+    "status": "met",
+    "detail": "Holm-corrected families in 3 reports"
+  },
+  {
+    "gate": "M3",
+    "week": 13,
+    "criterion": "Trivial-baseline floor reported",
+    "status": "met",
+    "detail": "4 trivial baselines in the benchmark"
+  },
+  {
+    "gate": "M3",
+    "week": 13,
+    "criterion": "Figures exported",
+    "status": "met",
+    "detail": "results/figs/leakage_decomposition.png"
+  },
+  {
+    "gate": "M3",
+    "week": 13,
+    "criterion": "Every quantitative claim re-derives",
+    "status": "met",
+    "detail": "26 claims re-derive from their artefacts"
+  },
+  {
+    "gate": "M4",
+    "week": 18,
+    "criterion": "Fusion module ablated against a strong baseline",
+    "status": "not met",
+    "detail": "the logit-average baseline is reported and answers the question negatively; the fusion head itself (WP5-T2) is not built"
+  },
+  {
+    "gate": "M4",
+    "week": 18,
+    "criterion": "STAN reported as preliminary",
+    "status": "not met",
+    "detail": "src/pitch_occupancy/slots/stan.py is absent"
+  },
+  {
+    "gate": "M5",
+    "week": 19,
+    "criterion": "Reconciliation implemented",
+    "status": "met",
+    "detail": "src/pitch_occupancy/slots/reconcile.py"
+  },
+  {
+    "gate": "M5",
+    "week": 19,
+    "criterion": "End-to-end run on real slots",
+    "status": "met",
+    "detail": "results/end_to_end_slots.csv"
+  },
+  {
+    "gate": "M5",
+    "week": 19,
+    "criterion": "Retention enforced",
+    "status": "met",
+    "detail": "src/pitch_occupancy/retention.py"
+  },
+  {
+    "gate": "M5",
+    "week": 19,
+    "criterion": "Degraded mode enforced and tested",
+    "status": "met",
+    "detail": "capture-rate gate present"
+  },
+  {
+    "gate": "M5",
+    "week": 19,
+    "criterion": "Scheduler service on mock feeds",
+    "status": "not met",
+    "detail": "src/pitch_occupancy/scheduler.py is absent"
+  },
+  {
+    "gate": "M6",
+    "week": 21,
+    "criterion": "Failure-mode runbook",
+    "status": "met",
+    "detail": "docs/runbook.md"
+  },
+  {
+    "gate": "M6",
+    "week": 21,
+    "criterion": "48-hour live validation accepted",
+    "status": "needs a person",
+    "detail": "a deployment and a facility conversation (WP7-T3, WP7-T4)"
+  },
+  {
+    "gate": "M7",
+    "week": 24,
+    "criterion": "Claims ledger complete and verified",
+    "status": "met",
+    "detail": "26 claims re-derive from their artefacts"
+  },
+  {
+    "gate": "M7",
+    "week": 24,
+    "criterion": "Defence red-team written",
+    "status": "met",
+    "detail": "thesis/defence_redteam.md"
+  },
+  {
+    "gate": "M7",
+    "week": 24,
+    "criterion": "Related-work chapter",
+    "status": "met",
+    "detail": "thesis/ch2_related_work.md"
+  },
+  {
+    "gate": "M7",
+    "week": 24,
+    "criterion": "Thesis submitted and defence ready",
+    "status": "needs a person",
+    "detail": "writing, a mock examination and submission (WP8-T7)"
+  }
+]

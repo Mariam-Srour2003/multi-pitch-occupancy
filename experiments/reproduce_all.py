@@ -368,6 +368,14 @@ STAGES: list[Stage] = [
         minutes=1,
     ),
     Stage(
+        name="gate-check",
+        command=[*PY, "-m", "experiments.gate_check"],
+        produces=[ROOT / "results" / "gate_status.md", ROOT / "results" / "gate_status.json"],
+        requires=[],
+        note="WP2-T7/WP4-T8: milestone criteria checked against the artefacts, not ticked by hand",
+        minutes=1,
+    ),
+    Stage(
         name="claims-ledger",
         command=[*PY, "-m", "experiments.verify_claims"],
         produces=[ROOT / "thesis" / "claims.md"],

@@ -54,6 +54,7 @@ OUT_OF_SCOPE = {
     "end_to_end_slots.csv": "two real slots; too few to tabulate",
     "reconciliation_value.csv": "WP6-T10: a break-even under stated assumptions, not a measurement",
     "benchmark_v2_protocols.json": "diagnostics behind benchmark_v2.csv",
+    "gate_status.json": "milestone gate criteria; the readable form is results/gate_status.md",
     "search_resolution.csv": "WP3-T8: re-scoring that says which searched margins mean nothing",
     "search_resolution_gate.json": "the CLAHE gate's measured contrast distribution",
     "preprocess_search_500frame_UNTRUSTWORTHY.json": "withdrawn run, kept for the record",

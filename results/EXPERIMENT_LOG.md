@@ -3208,3 +3208,58 @@ the chapter can *narrow* its claims rather than imply novelty by omission — §
 single reliability bin, §2.7 the 95% break-even.
 
 - 2026-09-09 | WP1-T1 related-work skeleton | *(document)* | `thesis/ch2_related_work.md` | nine strands with what each must establish; two added from this project's own results; no citations invented
+
+- 2026-09-09 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 2 gate(s) met on artefacts, 3 waiting on a person
+
+---
+
+## 2026-09-09 — WP2-T7 / WP4-T8: the gate tracker, checked instead of ticked
+
+`experiments/gate_check.py` → `results/gate_status.md`, `gate_status.json`
+
+Every row of the milestone tracker in `TODO.md` read `[ ]`, and two gates had been met for
+some time. Same drift as the README that said the implementation had not started and the
+export that stopped covering the thesis — a hand-maintained status that nobody updates while
+doing the work it describes.
+
+So the criteria are predicates over the repository. **Three outcomes, not two**, because the
+difference matters: *met*, *not met*, and **needs a person** — supervisor sign-off, a client
+conversation, a live deployment. Reporting the third as unmet would say the work was not done
+when nothing in the repository could do it.
+
+| gate | verdict |
+|---|---|
+| M1 | waiting on a person — protocol, labelling protocol, taxonomy and pre-registration all present; supervisor and DPIA sign-off are not artefacts |
+| **M2** | **passed** — coverage matrix, EMPTY in exactly one venue (494 frames), near-duplicate rate, per-split leakage 100% vs 0%, effective sample, "not answerable" list |
+| **M3** | **passed** — 8 models × 4 protocols, intervals on every row, Holm-corrected families in three reports, four trivial baselines, figures exported, 26 claims re-deriving |
+| M4 | not passed — the logit-average baseline answers WP5-T2 negatively, but the fusion head and STAN are not built |
+| M5 | not passed — reconciliation, end-to-end, retention and degraded mode are all in; the scheduler service is not |
+| M6 | waiting on a person — runbook written, live validation needs a deployment |
+| M7 | waiting on a person — ledger, red-team and Chapter 2 present; submission is not an artefact |
+
+### Two checks that were wrong in a plausible way
+
+Both found by testing the property rather than trusting the output, and both worth recording
+because a check that reports a *believable* wrong number is worse than one that fails — nobody
+looks twice at it.
+
+**The EMPTY concentration check read the wrong table.** It took the first row beginning
+`| EMPTY`, which is the class-by-*lighting* table earlier in `coverage.md`, and reported
+"EMPTY appears in 2 venues" — meaning day and night. It now scopes to the class-by-venue
+section and reports *exactly one venue*, which is the fact M2 exists to quantify.
+
+**The claims criterion grepped the generated page for "stale".** That passes or fails on prose,
+including the prose explaining what staleness is. It runs the verifier now. Its test had the
+same bug one level up: an earlier version asserted the string was absent from the function and
+failed on the docstring saying why grepping is wrong, so the test checks the behaviour —
+append "stale" to the ledger page and the criterion must still pass.
+
+And one criterion is deliberately strict: **the fusion gate does not pass on the baseline
+alone.** The logit-average result answers WP5-T2's question negatively, which is a finding, but
+it is not the module M4 asks to have ablated. Conflating them would pass a gate on work that
+was deliberately not done.
+
+The tracker in `TODO.md` now points here, and a test asserts the gate names and weeks in the
+two agree — so re-cutting a gate in one place and not the other fails rather than diverging.
+
+- 2026-09-09 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | M2 and M3 met on artefacts; M1/M6/M7 wait on a person; two checks found wrong in a plausible way and fixed
