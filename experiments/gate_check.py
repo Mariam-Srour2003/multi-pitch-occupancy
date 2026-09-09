@@ -204,12 +204,45 @@ def _claims_verified() -> tuple[str, str]:
 
 
 def _fusion_ablated() -> tuple[str, str]:
+    """M4's first criterion, checked by reading the ablation rather than by finding a file.
+
+    "The module exists" is the weak form of this criterion and would have passed on a fusion
+    head that was never compared to anything. What M4 asks for is an *ablation*, so what is
+    checked is that the comparison isolating the gate is present in the results - the rung
+    directly below it, not the published probes, which cross a trainer boundary.
+    """
     if not (ROOT / "results" / "logit_average_baseline.csv").exists():
         return UNMET, "no fusion baseline"
-    if (ROOT / "src" / "pitch_occupancy" / "slots" / "fusion_head.py").exists():
-        return MET, "fusion head built and compared against the logit-average baseline"
-    return UNMET, ("the logit-average baseline is reported and answers the question "
-                   "negatively; the fusion head itself (WP5-T2) is not built")
+    if not (ROOT / "src" / "pitch_occupancy" / "slots" / "fusion_head.py").exists():
+        return UNMET, ("the logit-average baseline is reported and answers the question "
+                       "negatively; the fusion head itself (WP5-T2) is not built")
+    rows = _csv_rows("results/fusion_head_comparisons.csv")
+    isolating = [r for r in rows if r.get("isolates_one_cause") == "True"]
+    if not isolating:
+        return UNMET, ("fusion_head.py exists but results/fusion_head_ablation.csv carries no "
+                       "gate-isolating comparison; a module compared only against a different "
+                       "trainer has not been ablated")
+    delta = isolating[0].get("mean_delta", "?")
+    return MET, f"fusion head ablated against its own ungated rung (routing worth {delta})"
+
+
+def _stan_preliminary() -> tuple[str, str]:
+    """M4's second criterion. The word "preliminary" is the criterion, so it is verified.
+
+    A STAN module reporting a headline number off two real slots would satisfy "the file
+    exists" and violate the thing the criterion is actually protecting. So this checks that
+    the results carry the caveat and that the gate in `slots/stan.py` still refuses.
+    """
+    if not (ROOT / "src" / "pitch_occupancy" / "slots" / "stan.py").exists():
+        return UNMET, "src/pitch_occupancy/slots/stan.py is absent"
+    path = ROOT / "results" / "stan_preliminary.csv"
+    if not path.exists():
+        return UNMET, "stan.py exists but has never been run to a result"
+    text = path.read_text(encoding="utf-8")
+    if "PRELIMINARY" not in text:
+        return UNMET, ("results/stan_preliminary.csv carries no preliminary caveat; WP5-T8 "
+                       "forbids a headline below 30 real labelled slots")
+    return MET, "STAN reported against four tuned baselines, marked preliminary in the results"
 
 
 GATES: tuple[Gate, ...] = (
@@ -251,8 +284,7 @@ GATES: tuple[Gate, ...] = (
     )),
     Gate("M4", 18, (
         Criterion("Fusion module ablated against a strong baseline", _fusion_ablated),
-        Criterion("STAN reported as preliminary",
-                  lambda: _exists("src/pitch_occupancy/slots/stan.py")),
+        Criterion("STAN reported as preliminary", _stan_preliminary),
     )),
     Gate("M5", 19, (
         Criterion("Reconciliation implemented",

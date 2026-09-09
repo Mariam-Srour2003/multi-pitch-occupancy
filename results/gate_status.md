@@ -13,7 +13,7 @@ A gate passes only when nothing under it is unmet *and* nothing needs a person.
 | **M1** | 4 | waiting on a person | 4 | 0 | 2 |
 | **M2** | 9 | passed | 6 | 0 | 0 |
 | **M3** | 13 | passed | 6 | 0 | 0 |
-| **M4** | 18 | not passed | 0 | 2 | 0 |
+| **M4** | 18 | passed | 2 | 0 | 0 |
 | **M5** | 19 | passed | 5 | 0 | 0 |
 | **M6** | 21 | waiting on a person | 1 | 0 | 1 |
 | **M7** | 24 | waiting on a person | 3 | 0 | 1 |
@@ -49,14 +49,14 @@ A gate passes only when nothing under it is unmet *and* nothing needs a person.
 | ✔ | Significance tests with correction | Holm-corrected families in 3 reports |
 | ✔ | Trivial-baseline floor reported | 4 trivial baselines in the benchmark |
 | ✔ | Figures exported | results/figs/leakage_decomposition.png |
-| ✔ | Every quantitative claim re-derives | 26 claims re-derive from their artefacts |
+| ✔ | Every quantitative claim re-derives | 27 claims re-derive from their artefacts |
 
-## M4 (week 18) — not passed
+## M4 (week 18) — passed
 
 | | criterion | evidence |
 |---|---|---|
-| ✘ | Fusion module ablated against a strong baseline | the logit-average baseline is reported and answers the question negatively; the fusion head itself (WP5-T2) is not built |
-| ✘ | STAN reported as preliminary | src/pitch_occupancy/slots/stan.py is absent |
+| ✔ | Fusion module ablated against a strong baseline | fusion head ablated against its own ungated rung (routing worth -0.0238) |
+| ✔ | STAN reported as preliminary | STAN reported against four tuned baselines, marked preliminary in the results |
 
 ## M5 (week 19) — passed
 
@@ -79,7 +79,7 @@ A gate passes only when nothing under it is unmet *and* nothing needs a person.
 
 | | criterion | evidence |
 |---|---|---|
-| ✔ | Claims ledger complete and verified | 26 claims re-derive from their artefacts |
+| ✔ | Claims ledger complete and verified | 27 claims re-derive from their artefacts |
 | ✔ | Defence red-team written | thesis/defence_redteam.md |
 | ✔ | Related-work chapter | thesis/ch2_related_work.md |
 | — | Thesis submitted and defence ready | writing, a mock examination and submission (WP8-T7) |

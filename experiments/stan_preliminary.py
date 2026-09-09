@@ -1,0 +1,324 @@
+"""WP5-T1: STAN against four tuned baselines, on a test set that cannot carry it yet. (RQ5)
+
+The second M4 criterion. STAN is the plan's headline novelty - learn the slot verdict from the
+ordered per-minute sequence instead of applying three hand-set ratio thresholds - and this
+runs it against the baselines WP5-T7 names, on the slot data WP5-T8 composes.
+
+**It is labelled preliminary by the code, not by a promise.** WP5-T8 sets a hard gate: no
+headline number below 30 real labelled slots. There are **two**. So
+`pitch_occupancy.slots.stan` holds that rule as `MIN_REAL_SLOTS` and this script calls
+`assert_preliminary`, catches the refusal, and prints the caveat next to every table. A note
+in a plan reading "remember to call this preliminary" is precisely the kind of guard this
+project has repeatedly found not guarding.
+
+**Two structural facts about the data, and neither is a code limitation.**
+
+*First*, the real test set is two slots. Two. No test of any kind survives that, and none is
+attempted: the real slots are reported as a smoke test - does the pipeline reach a verdict at
+all - and the model comparison is run on held-out composed slots.
+
+*Second*, and worse: **the two real slots contain every EMPTY and every MAINTENANCE frame in
+the dataset.** 1,296 of 1,692 frames belong to them; the other 396 are highlight clips and all
+396 are ACTIVE_PLAY. So there is no frame anywhere outside the real slots that can teach a
+model what an empty pitch looks like, and "train on synthetic, test on real slots only"
+*cannot* be made frame-disjoint with this dataset. It is not that the split was done
+carelessly; the split does not exist. That is the sharpest available statement of why WP2-T8
+blocks WP5-T1, and it is measured here rather than asserted.
+
+What *is* clean is the synthetic comparison. The frame pool is split in two before any slot is
+composed, training slots are built only from the first half and test slots only from the
+second, so no frame appears on both sides. The five predictors are compared there.
+
+**And the result there is a ceiling, which is a finding about the benchmark.** STAN scores
+1.0000 on 200 held-out composed slots, beating a tuned HMM by 0.105 (p < 0.0001) - and the
+right reading is not "STAN wins" but "this test set is exhausted". The composed label is a
+deterministic function of the template, and the five templates stay separable under jitter,
+so a model that reads contiguity - one long block of play versus scattered short runs, the
+thing a play *ratio* throws away - can recover the generating process exactly. That STAN does
+so is worth knowing; it is necessary for the architecture to be worth anything. It is not
+evidence that it beats an HMM on real slots, where the verdict is not a function of five
+shapes. Composing more slots cannot break this tie. Only labelling real ones can.
+
+**Composed labels come from the template, not from the threshold rule.** A full match is USED
+because it is a full match. Labelling by `aggregate_slot` would make the threshold baseline
+correct by construction and every comparison against it circular.
+
+    uv run python experiments/stan_preliminary.py
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+from collections import defaultdict
+
+import numpy as np
+
+from pitch_occupancy.config import settings
+from pitch_occupancy.data.manifest import read_manifest
+from pitch_occupancy.data.taxonomy import Class3, SlotStatus
+from pitch_occupancy.evaluation.experiment_log import record
+from pitch_occupancy.evaluation.stats import sign_flip_test
+from pitch_occupancy.slots.fusion import PRIORITY
+from pitch_occupancy.slots.stan import (
+    CLASS_ORDER,
+    PREDICTORS,
+    NotEnoughRealSlots,
+    assert_preliminary,
+    preliminary_caveat,
+)
+from pitch_occupancy.slots.synthetic import SlotSequence, compose_dataset
+from pitch_occupancy.vision.heads import LinearProbe
+
+SEED = 42
+BACKBONE = "dinov2"
+OUT = settings.results_dir / "stan_preliminary.csv"
+
+#: The verdicts the two recorded slots actually carry, from `results/end_to_end_slots.csv`,
+#: which derives them from the human labels rather than from any model. Written here rather
+#: than read from that CSV because that file also holds synthetic booking fixtures, and one
+#: slot appears in it twice under two different booking cases.
+REAL_TRUTH = {
+    "venue_01_2026-07-11_1000": SlotStatus.NOTUSED,
+    "venue_01_2026-07-12_2030": SlotStatus.USED,
+}
+
+
+def load(cache: str = BACKBONE):
+    """Manifest rows aligned with their cached features."""
+    d = np.load(settings.feature_cache_dir / f"{cache}.npz", allow_pickle=True)
+    index = {str(f): i for i, f in enumerate(d["files"])}
+    rows = [r for r in read_manifest(settings.dataset_dir / "manifest.csv") if r.file in index]
+    return rows, d["features"][[index[r.file] for r in rows]]
+
+
+def split_frame_pool(rows, seed: int = SEED):
+    """Two disjoint frame pools, stratified by class.
+
+    Composed slots draw minutes from a pool, so training and test slots share frames unless
+    the pool is split first. Without this the comparison would measure how well each model
+    memorises 1,578 frames, and the sequence models - which see 60 of them per slot - would
+    look strongest for the wrong reason.
+    """
+    rng = np.random.default_rng(seed)
+    a: dict[str, list[int]] = defaultdict(list)
+    b: dict[str, list[int]] = defaultdict(list)
+    by_class: dict[str, list[int]] = defaultdict(list)
+    for i, r in enumerate(rows):
+        by_class[r.class3].append(i)
+    for cls, idx in by_class.items():
+        order = rng.permutation(idx)
+        half = len(order) // 2
+        a[cls] = list(order[:half])
+        b[cls] = list(order[half:])
+    return (
+        {k: np.array(v) for k, v in a.items()},
+        {k: np.array(v) for k, v in b.items()},
+    )
+
+
+def scorer(probe: LinearProbe, features: np.ndarray):
+    """Row indices -> an (n, 3) probability matrix in `CLASS_ORDER`.
+
+    The reordering is not a formality: the probe's classes come back in sklearn's sorted
+    order and `CLASS_ORDER` is EMPTY, PLAY, MAINTENANCE. Averaging or arg-maxing a matrix
+    whose columns mean something else produces a plausible table rather than an error.
+    """
+    classes = [str(c) for c in probe.classes_]
+    columns = []
+    for cls in CLASS_ORDER:
+        columns.append(classes.index(cls.value) if cls.value in classes else None)
+
+    def score(indices: np.ndarray) -> np.ndarray:
+        raw = probe.predict_proba(features[np.asarray(indices)])
+        out = np.zeros((len(indices), 3))
+        for j, col in enumerate(columns):
+            if col is not None:
+                out[:, j] = raw[:, col]
+        return out
+
+    return score
+
+
+def real_slots(rows, features, probe) -> list[SlotSequence]:
+    """The two recorded slots, per minute, scored by the model rather than read from labels.
+
+    Reconstructed from the manifest the way `end_to_end_slots.py` does it - frames carry a
+    camera tag and an offset in seconds, so grouping by minute rebuilds what the sampler saw -
+    but with the probe's probabilities in place of the ground-truth class, because the
+    question here is what the *pipeline* decides, not what the decision layer does given
+    perfect perception. That comparison already exists and is a different experiment.
+
+    The two cameras are fused by the max-activity priority `slots.fusion` uses, keeping the
+    winning camera's probability vector rather than averaging the two: a half that saw nothing
+    would otherwise dilute the evidence of the half that saw the match.
+    """
+    score = scorer(probe, features)
+    grid: dict[str, dict[int, list[tuple[Class3, int]]]] = defaultdict(lambda: defaultdict(list))
+    for i, r in enumerate(rows):
+        if r.source == "clip" or r.slot_id not in REAL_TRUTH:
+            continue
+        grid[r.slot_id][r.t_s // 60].append((Class3(r.class3), i))
+
+    out = []
+    for slot_id, minutes in grid.items():
+        rows_for_minutes = []
+        for minute in sorted(minutes):
+            frames = minutes[minute]
+            predicted = score(np.array([i for _, i in frames]))
+            winner = min(
+                range(len(frames)),
+                key=lambda k: PRIORITY.index(CLASS_ORDER[int(predicted[k].argmax())]),
+            )
+            rows_for_minutes.append(predicted[winner])
+        out.append(SlotSequence(
+            slot_id=slot_id,
+            probabilities=np.stack(rows_for_minutes),
+            truth=REAL_TRUTH[slot_id],
+            synthetic=False,
+            template="recorded",
+        ))
+    return out
+
+
+def accuracy(predicted, truth) -> float:
+    return float(np.mean([p is t for p, t in zip(predicted, truth, strict=True)]))
+
+
+def per_slot_correct(predicted, truth) -> np.ndarray:
+    return np.array([1.0 if p is t else 0.0 for p, t in zip(predicted, truth, strict=True)])
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--slots-per-template", type=int, default=40)
+    args = ap.parse_args()
+
+    rows, features = load()
+    train_pool, test_pool = split_frame_pool(rows)
+    print(f"{len(rows)} frames; pool split "
+          f"{sum(len(v) for v in train_pool.values())}/{sum(len(v) for v in test_pool.values())}")
+
+    # The frame classifier is fitted on the training pool only. It is the same probe the rest
+    # of the project uses, so the sequence models are handed the perception this system
+    # actually has rather than an idealised one.
+    train_idx = np.concatenate(list(train_pool.values()))
+    probe = LinearProbe(BACKBONE, seed=SEED).fit(
+        features[train_idx], [rows[i] for i in train_idx]
+    )
+    score = scorer(probe, features)
+
+    print(f"composing {args.slots_per_template} slots per template from each pool...")
+    train_slots = compose_dataset(train_pool, score, n_per_template=args.slots_per_template,
+                                  seed=SEED)
+    test_slots = compose_dataset(test_pool, score, n_per_template=args.slots_per_template,
+                                 seed=SEED + 1)
+    recorded = real_slots(rows, features, probe)
+
+    print(f"  train {len(train_slots)} composed, test {len(test_slots)} composed, "
+          f"{len(recorded)} recorded")
+    print(f"  verdict mix (test): "
+          f"{ {s.value: sum(q.truth is s for q in test_slots) for s in SlotStatus} }")
+
+    # The gate, exercised rather than described. It must fail here, and the run must continue
+    # with the caveat attached rather than pretending the number is a headline.
+    try:
+        assert_preliminary(recorded)
+        gate = "MET"
+    except NotEnoughRealSlots as exc:
+        gate = f"NOT MET - {exc}"
+    print(f"\nWP5-T8 gate: {gate}")
+    print(preliminary_caveat(recorded))
+
+    print("\n=== held-out composed slots (the only comparison with a usable n) ===")
+    truth = [s.truth for s in test_slots]
+    results = []
+    correctness = {}
+    for factory in PREDICTORS:
+        model = factory()
+        model.fit(train_slots)
+        predicted = model.predict(test_slots)
+        acc = accuracy(predicted, truth)
+        correctness[model.name] = per_slot_correct(predicted, truth)
+        on_real = model.predict(recorded)
+        real_acc = accuracy(on_real, [s.truth for s in recorded])
+        results.append((model.name, acc, real_acc, on_real))
+        extra = f"  ({model.n_parameters} params)" if hasattr(model, "n_parameters") else ""
+        print(f"  {model.name:<20} composed {acc:.4f}   recorded {real_acc:.3f} "
+              f"({len(recorded)} slots){extra}")
+
+    # A ceiling score is not a good result, it is an exhausted benchmark, and saying so is
+    # the difference between "STAN is better" and "this test set can no longer tell".
+    saturated = [name for name, acc, _, _ in results if acc >= 1.0]
+    if saturated:
+        print(f"\n  SATURATED: {', '.join(saturated)} scores 1.0000 on the composed set.")
+        print("  The composed label is a deterministic function of five templates, and the")
+        print("  templates stay separable under jitter, so the ceiling is 1.0000 and reaching")
+        print("  it shows the generating process was recovered - not that the model would win")
+        print("  on real slots, where no such function exists. Composing more slots cannot")
+        print("  break this tie; only labelled real ones can (WP2-T8).")
+
+    print("\n=== STAN against each baseline, paired over the composed test slots ===")
+    tests = []
+    stan = correctness["stan"]
+    for name, arr in correctness.items():
+        if name == "stan":
+            continue
+        r = sign_flip_test(stan - arr)
+        floor = "" if r.can_reach() else "  (0.05 unreachable)"
+        print(f"  stan - {name:<20} d={r.estimate:+.4f}  p={r.p_value:.4f}  "
+              f"informative={r.n_informative}/{r.n_pairs}{floor}")
+        tests.append((name, r))
+
+    print("\n=== the two recorded slots, one line each ===")
+    print("  a smoke test, not an evaluation: n=2, and see the caveat below")
+    for name, _, _, on_real in results:
+        verdicts = ", ".join(
+            f"{s.slot_id.split('_', 1)[1]} -> {p.value} (truth {s.truth.value})"
+            for s, p in zip(recorded, on_real, strict=True)
+        )
+        print(f"  {name:<20} {verdicts}")
+
+    print("\n=== why the recorded slots cannot be a clean test set ===")
+    non_clip = [r for r in rows if r.source != "clip"]
+    in_real = [r for r in non_clip if r.slot_id in REAL_TRUTH]
+    outside = [r for r in rows if r.slot_id not in REAL_TRUTH]
+    print(f"  {len(in_real)} of {len(rows)} frames belong to the two recorded slots")
+    for cls in ("C1_EMPTY", "C3_MAINTENANCE_NON_SPORTING", "C2_ACTIVE_PLAY"):
+        n_out = sum(1 for r in outside if r.class3 == cls)
+        print(f"  {cls:<30} {n_out:>4} frame(s) exist outside those slots")
+    print("  so no frame-disjoint 'train on composed, test on real' split exists in this")
+    print("  dataset. WP2-T8 (>=30 labelled slots) is the blocker, not the code.")
+
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    with OUT.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["model", "composed_test_accuracy", "n_composed_test",
+                    "recorded_accuracy", "n_recorded", "is_headline"])
+        for name, acc, real_acc, _ in results:
+            w.writerow([name, f"{acc:.4f}", len(test_slots), f"{real_acc:.4f}",
+                        len(recorded), "no - below the WP5-T8 gate"])
+        w.writerow([])
+        w.writerow(["comparison", "mean_delta", "p_value", "min_achievable_p", "n_informative"])
+        for name, r in tests:
+            w.writerow([f"stan - {name}", f"{r.estimate:+.4f}", f"{r.p_value:.4f}",
+                        f"{r.min_achievable_p:.4f}", r.n_informative])
+        w.writerow([])
+        w.writerow(["caveat", preliminary_caveat(recorded)])
+    print(f"\nwrote {OUT.name}")
+
+    best_baseline = max(
+        (r for r in results if r[0] != "stan"), key=lambda r: r[1]
+    )
+    stan_acc = next(r[1] for r in results if r[0] == "stan")
+    record(
+        "WP5-T1 STAN, preliminary",
+        "`python experiments/stan_preliminary.py`",
+        f"`{OUT.name}`",
+        f"composed test: stan {stan_acc:.4f} vs best baseline {best_baseline[0]} "
+        f"{best_baseline[1]:.4f}; {len(recorded)} real slots, below the 30-slot gate",
+    )
+
+
+if __name__ == "__main__":
+    main()

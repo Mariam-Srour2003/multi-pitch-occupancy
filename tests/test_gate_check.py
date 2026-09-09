@@ -85,15 +85,47 @@ def test_the_claims_criterion_runs_the_verifier_rather_than_grepping(tmp_path, m
         page.write_text(original, encoding="utf-8")
 
 
-def test_the_fusion_criterion_does_not_pass_on_the_baseline_alone() -> None:
-    """The logit-average baseline answers WP5-T2's question negatively, which is a result -
-    but it is not the module M4 asks to be ablated, and conflating them would pass a gate on
-    work that was deliberately not done."""
-    status, detail = gc._fusion_ablated()
-    if (ROOT / "src" / "pitch_occupancy" / "slots" / "fusion_head.py").exists():
-        pytest.skip("the fusion head now exists")
-    assert status == gc.UNMET
-    assert "not built" in detail
+def test_the_fusion_criterion_needs_the_ablation_not_just_the_module() -> None:
+    """M4 asks for a module *ablated*, and "the file exists" would pass on one that was never
+    compared to anything.
+
+    Checked by hiding the comparison file: the criterion must fail while `fusion_head.py` is
+    still sitting there. An earlier version keyed on the module's existence alone and passed
+    on a multi-section CSV whose comparison rows `csv.DictReader` could not even see.
+    """
+    comparisons = ROOT / "results" / "fusion_head_comparisons.csv"
+    if not comparisons.exists():
+        pytest.skip("fusion ablation not generated")
+    assert gc._fusion_ablated()[0] == gc.MET
+
+    hidden = comparisons.with_suffix(".csv.hidden")
+    comparisons.rename(hidden)
+    try:
+        status, detail = gc._fusion_ablated()
+        assert status == gc.UNMET
+        assert "has not been ablated" in detail, detail
+    finally:
+        hidden.rename(comparisons)
+
+
+def test_the_stan_criterion_reads_the_caveat_rather_than_the_filename() -> None:
+    """WP5-T8 forbids a headline below 30 real labelled slots, so "preliminary" is the
+    criterion itself. A STAN that reported a headline off two slots would satisfy "the file
+    exists" and violate exactly what the criterion protects.
+    """
+    results = ROOT / "results" / "stan_preliminary.csv"
+    if not results.exists():
+        pytest.skip("STAN not run")
+    assert gc._stan_preliminary()[0] == gc.MET
+
+    original = results.read_text(encoding="utf-8")
+    try:
+        results.write_text(original.replace("PRELIMINARY", "HEADLINE"), encoding="utf-8")
+        status, detail = gc._stan_preliminary()
+        assert status == gc.UNMET
+        assert "no preliminary caveat" in detail, detail
+    finally:
+        results.write_text(original, encoding="utf-8")
 
 
 def test_gate_names_and_weeks_match_the_tracker() -> None:

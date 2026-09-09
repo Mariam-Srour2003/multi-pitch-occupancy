@@ -1092,29 +1092,57 @@ tagged with the question it answers. Fix that first — it is what turns a build
 > configuration measured", which holds only on the unestablished path.
 
 ### 5.A STAN — Slot-Temporal Aggregation Network *(preliminary result — data-blocked; see the order note above)*
-- [ ] **WP5-T1 STAN implementation.** `engine/stan.py`: input = ordered per-minute fused class
-      probabilities (optionally + embeddings); model = 1-D TCN or 2-layer Transformer encoder
-      (< 100k params); output = 3-way slot status + calibrated confidence. **(RQ5)**
+- [x] **WP5-T1 STAN implementation — built, and preliminary by its own gate.**
+      `src/pitch_occupancy/slots/stan.py`: a dilated 1-D TCN over per-minute class
+      probabilities, 1,651 parameters against the 100k ceiling, masked pooling so slot length
+      is not read as evidence. `experiments/stan_preliminary.py` → `stan_preliminary.csv`.
+  - [x] **On 200 held-out composed slots STAN scores 1.0000**, beating a tuned HMM by 0.105
+        and summary-statistic logistic regression by 0.105 (both p < 0.0001). **Read that as a
+        saturated benchmark, not a win.** The composed label is a deterministic function of
+        the template, the five templates stay separable under jitter, and a model that reads
+        *contiguity* — one long block of play versus scattered short runs, exactly what a play
+        ratio discards — recovers the generating process. Necessary, not sufficient.
+  - [x] **The WP5-T8 gate is enforced in code, not promised.** `MIN_REAL_SLOTS = 30`, and
+        `assert_preliminary()` raises on the two slots that exist. The experiment calls it,
+        catches the refusal, and prints the caveat beside every table; the M4 gate criterion
+        checks the caveat is in the CSV rather than that the file exists.
+  - [x] ★ **A structural finding: no clean real test set exists, and cannot be made.** The two
+        recorded slots hold **1,296 of 1,692 frames — every EMPTY and every MAINTENANCE frame
+        in the dataset.** The other 396 are highlight clips, all ACTIVE_PLAY. So "train on
+        synthetic, test on real slots only" cannot be made frame-disjoint here. This is the
+        sharpest statement of why **WP2-T8 blocks WP5-T1**, and it is measured, not asserted.
+  - [ ] **WP5-T6 remains open**: STAN consumes the *fused* sequence, not both camera halves.
 - [ ] **WP5-T6 ★ Feed both camera halves separately instead of pre-fusing them.** Current design
       fuses camera A/B with a max-activity rule *before* aggregation, which throws away information:
       **disagreement between the two halves is itself a signal** (occlusion, dirty lens, play
       confined to one half). Let STAN consume both sequences and learn the fusion. This gives you a
       genuinely stronger architecture *and* a clean extra ablation (fuse-then-aggregate vs
       aggregate-jointly) — one of the cheapest real novelty gains available in this plan.
-- [ ] **WP5-T7 ★ Strengthen the STAN baselines.** Beating hand-set thresholds proves very little —
-      of course a learned model beats an unlearned rule. Also compare against: **(a)** thresholds
-      *tuned* on the same training slots, **(b)** majority-vote / median smoothing over a sliding
-      window, **(c)** an HMM over the per-minute states, **(d)** logistic regression on summary
-      statistics of the sequence (ratios, longest run, first/last active minute). **If STAN beats a
-      tuned HMM, that is a real result.** If it only beats fixed thresholds, an examiner will
-      discount it — and this is the most likely single point of attack on your novelty claim.
-- [ ] **WP5-T8 ★ Slot dataset with an honest synthetic/real boundary.**
-      `tools/make_slot_dataset.py` composes realistic slot sequences from manifest frames (templates:
-      full match, no-show, late start, maintenance window, intermittent). **Train on synthetic; the
-      test set must be real slots only.**
-  - [ ] ★ **Hard gate:** do not report STAN as a headline result until ≥ 30 real labelled slots exist
-        (WP2-T8). Below that, label it explicitly as a preliminary/pilot result in the thesis. Write
-        this rule down now, while it is still easy to be honest about.
+- [x] **WP5-T7 ★ STAN baselines strengthened — all four built.** They live in `slots/stan.py`
+      beside STAN and share its `fit`/`predict` interface, so the table is a loop rather than
+      four special cases. On 200 held-out composed slots: tuned thresholds **0.825**, median
+      smoothing (window tuned, not guessed) **0.835**, HMM **0.895**, summary-statistic
+      logistic regression **0.895**, STAN **1.000**.
+  - [x] **STAN does beat the tuned HMM** (+0.105, p < 0.0001, 21 informative pairs of 200) —
+        the comparison this task says is the real one. But see WP5-T1: the composed set is
+        saturated, so this establishes that STAN recovers the generator, not that it would win
+        on real slots. The point of attack survives; only real labelled slots close it.
+  - [x] The HMM gets the *same* information STAN gets — the classifier's own per-minute
+        probabilities as emissions, transitions counted from the training slots — rather than
+        being handed argmax states, which would have made it a straw man.
+- [x] **WP5-T8 ★ Slot dataset built, with the boundary enforced rather than described.**
+      `src/pitch_occupancy/slots/synthetic.py` composes slots from manifest frames under all
+      five templates. Every composed slot is marked `synthetic=True` by the constructor — it
+      is not settable by argument — and the gate counts real ones by reading that field.
+  - [x] **Labels come from the template, not from `aggregate_slot`.** A composed full match is
+        USED because it is a full match. Labelling by the aggregation rule would make the
+        threshold baseline correct by construction and every comparison against it circular.
+  - [x] **Template boundaries are jittered.** With fixed fractions each template is one
+        stereotyped shape, the label is recoverable by recognising which of five shapes a slot
+        is, and every shape-reading model scores 1.000 — which is what the first run did.
+  - [x] ★ **Hard gate written down as code**: `MIN_REAL_SLOTS = 30` and `assert_preliminary()`
+        in `slots/stan.py`, checked by a test that asks it to pass on 30 and refuse on 2, and
+        by a test that composed slots never count towards it.
   - [ ] ★ Report a **synthetic-vs-real generalisation gap** measurement (train synthetic → test
         synthetic vs train synthetic → test real). That gap is itself an interesting, honest finding
         about training sequence models on composed data.
@@ -1144,19 +1172,53 @@ tagged with the question it answers. Fix that first — it is what turns a build
         three of them 12–18 frames. A paired bootstrap over the fold distribution belongs with
         WP4-T4b. Do not quote it as an improvement; it does not change the direction of the
         comparison either way.
-- [ ] **WP5-T2 Fusion head.** `engine/fusion_head.py`: features from {ConvNeXtV2, DINOv2} (option
-      +ViT); gate = tiny MLP on cheap image statistics (contrast, brightness, edge density) → fusion
-      weights → shared linear head. **(RQ5)**
-  - [ ] ★ **Report both axes, never recall alone.** Cross-venue play-recall *and* false-play on
-        held-out empty frames, in the same table. On the second axis DINOv2 (0.309) dominates ViT
-        (0.835) and ConvNeXtV2 (0.992) outright, so a gain in recall bought by routing away from
-        DINOv2 on empty pitches is not a gain. Recall-only on a single-class test set is the
-        precise mistake the repaired search control already caught.
-  - [ ] ★ **Test the gate for the confound before believing it.** The gate reads cheap image
-        statistics; at `venue_01` brightness and contrast are close to a day/night indicator, and
-        day/night is close to the class label. Ablate the gate against one fed *only* lighting —
-        if a lighting-only gate matches it, the gate has re-learned the clock rule and the
-        confound has appeared for the fifth time. Log the comparison either way.
+- [x] **WP5-T2 Fusion head — built, ablated, and it does not earn its place.**
+      `src/pitch_occupancy/slots/fusion_head.py` implements the specified architecture: cheap
+      image statistics → tiny MLP → softmax weights → shared linear head over the weighted
+      concatenation. `experiments/fusion_head_ablation.py` → `fusion_head_ablation.csv`,
+      `fusion_head_comparisons.csv`, `fusion_head_gate.csv`.
+  - [x] **Routing is worth −0.0238 cross-venue recall** against the same head with the gate
+        off, on one informative fold of seven, p = 1.000. **(RQ5 answered negatively.)**
+  - [x] ★ **The ablation is a three-rung ladder, not an on/off switch**, and that was the
+        correction that mattered. `uniform` → `constant` → `mlp`, each rung adding one
+        capability with head, trainer, seed and regularisation held identical, so *learned
+        mixing* and *routing* are separated. On/off would have credited routing with an effect
+        that is a learned constant: the gate puts ~0.70 of its weight on DINOv2 in **every**
+        fold and moves it by only 0.086 between frames.
+  - [x] The implementation **can** route — checked, not assumed. On a fixture where the useful
+        backbone flips with the gate statistic, `uniform` and `constant` score 0.671 and `mlp`
+        scores 1.000; a gate fed zeros collapses to 0.663. The null is about the data.
+  - [x] ★ **Both axes reported** — and neither is sufficient alone; see WP4-T13 below.
+  - [x] ★ **Confound tested; the answer is *partly*.** The gate's DINOv2 weight correlates
+        **−0.653** with a night indicator across all seven folds, so lighting is much of what
+        those three statistics carry. But a gate fed *only* lighting is 0.1015 worse on recall,
+        so it is not all of it. Coincidence worth recording: the lighting-only gate's false-play
+        rate is 0.0206 — the published clock rule's rate to four decimals, both 5 of 243.
+- [ ] **WP4-T13 ★ [NEW] The false-play rate is not a specificity measure, and the write-up
+      must stop reading it as one.** Found while checking whether the gated head's false-play
+      rate of 0.000 was real. Asking what each model answers *instead* of ACTIVE_PLAY on the 243
+      held-out empty frames:
+  - [x] **DINOv2 answers ACTIVE_PLAY 75 times and MAINTENANCE 168 times — it is correct 0
+        times.** The gated head answers MAINTENANCE on all 243: false-play 0.000, accuracy
+        0.000. ConvNeXtV2 gets 2 right, ViT 40, and **no model exceeds 0.165**.
+  - [x] The complement of the rate is not correctness; the third class absorbs the difference.
+        DINOv2's **0.309**, quoted in `README.md`, `rq_matrix.md` and throughout the log as
+        dominating ConvNeXtV2's 0.992, is the rate at which it makes *one kind* of mistake
+        rather than another. Both published numbers remain correct as stated and both ledger
+        claims re-derive; the *inference* drawn from them does not follow.
+  - [x] **Mechanism, and it is the dataset not the model:** this protocol trains on 518
+        ACTIVE_PLAY, 251 EMPTY and **6** MAINTENANCE frames, and `class_weight="balanced"`
+        gives that six-frame class a weight of **43**. Out-of-distribution frames land in it.
+  - [x] An `empty_accuracy` column now sits beside the rate; the joint summary is built from
+        accuracy, not from `1 - false_play`. Built the other way it ranked the gated head first
+        on the strength of 243 wrong answers. Ledger claim `false-play-is-not-accuracy` added.
+  - [x] One sentence in the H4 log entry drew exactly the wrong inference and is corrected in
+        place.
+  - [ ] **[H] Decide what the thesis says.** The honest reading is that on this protocol *no
+        model can recognise an empty pitch*, which is a stronger and more uncomfortable claim
+        than "ConvNeXtV2 is worse than DINOv2". It belongs in RQ2 and in the red-team chapter.
+  - [ ] Re-word the README and `rq_matrix.md` sentences so the rate is quoted as a rate. Not
+        done unilaterally: they are currently true, and the fix is a rewrite the author owns.
 - [ ] **WP5-T2b Conditional-compute variant.** Run ConvNeXt first; invoke DINOv2 only when confidence
       < τ. Report accuracy **and** average ms/frame vs always-both. *Accept:* ablation table with CIs,
       p-values, latency; adopt/reject decision logged.
@@ -1535,8 +1597,13 @@ tagged with the question it answers. Fix that first — it is what turns a build
 > same drift the README and the site export both had. Three outcomes rather than two, because
 > "needs a person" cannot be moved by anything in the repository.
 >
-> **As of 2026-09-09: M2, M3 and M5 met on artefacts; M1, M6 and M7 wait on a person; M4
-> has real work outstanding (the fusion head and STAN).**
+> **As of 2026-09-09: M2, M3, M4 and M5 met on artefacts; M1, M6 and M7 wait on a person.
+> Nothing in the repository is now blocking a gate.** M4 closed with the gated fusion head
+> (WP5-T2) and STAN (WP5-T1), both reported as the negative and preliminary results they are —
+> routing is worth −0.024 recall, and STAN's real test set is two slots. Its two criteria were
+> also strengthened at the same time: they now read the ablation and the preliminary caveat
+> rather than checking that two files exist, and each is tested by removing the work and
+> confirming the criterion fails.
 
 | Gate | Week | Exit criterion | Done |
 |---|---|---|---|

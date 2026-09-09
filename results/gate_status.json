@@ -123,21 +123,21 @@
     "week": 13,
     "criterion": "Every quantitative claim re-derives",
     "status": "met",
-    "detail": "26 claims re-derive from their artefacts"
+    "detail": "27 claims re-derive from their artefacts"
   },
   {
     "gate": "M4",
     "week": 18,
     "criterion": "Fusion module ablated against a strong baseline",
-    "status": "not met",
-    "detail": "the logit-average baseline is reported and answers the question negatively; the fusion head itself (WP5-T2) is not built"
+    "status": "met",
+    "detail": "fusion head ablated against its own ungated rung (routing worth -0.0238)"
   },
   {
     "gate": "M4",
     "week": 18,
     "criterion": "STAN reported as preliminary",
-    "status": "not met",
-    "detail": "src/pitch_occupancy/slots/stan.py is absent"
+    "status": "met",
+    "detail": "STAN reported against four tuned baselines, marked preliminary in the results"
   },
   {
     "gate": "M5",
@@ -193,7 +193,7 @@
     "week": 24,
     "criterion": "Claims ledger complete and verified",
     "status": "met",
-    "detail": "26 claims re-derive from their artefacts"
+    "detail": "27 claims re-derive from their artefacts"
   },
   {
     "gate": "M7",

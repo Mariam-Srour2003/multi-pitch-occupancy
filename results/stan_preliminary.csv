@@ -1,0 +1,14 @@
+model,composed_test_accuracy,n_composed_test,recorded_accuracy,n_recorded,is_headline
+tuned_thresholds,0.8250,200,1.0000,2,no - below the WP5-T8 gate
+median_smoothing,0.8350,200,1.0000,2,no - below the WP5-T8 gate
+hmm,0.8950,200,1.0000,2,no - below the WP5-T8 gate
+summary_logistic,0.8950,200,0.5000,2,no - below the WP5-T8 gate
+stan,1.0000,200,1.0000,2,no - below the WP5-T8 gate
+
+comparison,mean_delta,p_value,min_achievable_p,n_informative
+stan - tuned_thresholds,+0.1750,0.0000,0.0001,35
+stan - median_smoothing,+0.1650,0.0000,0.0001,33
+stan - hmm,+0.1050,0.0000,0.0001,21
+stan - summary_logistic,+0.1050,0.0000,0.0001,21
+
+caveat,"PRELIMINARY: 2 real labelled slot(s), against the 30 that WP5-T8 requires before STAN reports a headline number. Every figure derived from this is a pilot result and must be labelled as one in the thesis (WP2-T8 is the blocker)."
