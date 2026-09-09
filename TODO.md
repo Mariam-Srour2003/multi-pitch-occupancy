@@ -1340,7 +1340,27 @@ tagged with the question it answers. Fix that first — it is what turns a build
       slots pulls 1 frame/min per camera (VIDEO_SIM | API_SIM | RTSP_LIVE), classifies, fuses, writes
       DB; at slot end runs the aggregator (threshold or STAN per config) + evidence selection.
       *Accept:* runs continuously; DB fills; verdicts correct on recorded slots.
-- [ ] **WP6-T3 RTSP source.** `frame_source.RTSPSource` — snapshot per minute, retry + timeout.
+- [x] **WP6-T3 RTSP source — it existed, and it could not run. Now it can, with 17 tests.**
+      `frame_source.RTSPSource` had been written and never exercised, and both defects were
+      the kind that only appear when something drives it.
+  - [x] ★ **It was structurally incompatible with its only caller.** `n_minutes` raised
+        `NotImplementedError` saying "the scheduler decides", but the scheduler calls
+        `worker.run_slot`, whose *first statement* is `for minute in range(source.n_minutes)`.
+        The one class whose whole purpose is live operation could not get past line one. The
+        slot length is now passed in by `scheduler.live_sources` — which is what "the
+        scheduler decides" should have meant — and is **required**, never defaulted.
+  - [x] **It had no pacing.** `run_slot` loops over minutes without waiting, which is right for
+        a recording (minute *k* is a seek) and wrong for a stream: it would have taken sixty
+        snapshots in under a second and called it an hour. `read` now blocks until the minute
+        has arrived, catching up rather than stretching if a run has fallen behind — missed
+        minutes belong in the capture rate, not hidden by a longer slot.
+  - [x] The clock, the sleep **and the socket** are all parameters, so an hour-long class is
+        tested in milliseconds: retry, gap-on-failure, capture release, and the whole path
+        through the real `run_slot`.
+  - [x] `scheduler.live_sources()` refuses a venue with no URLs and a slot whose camera has no
+        URL — half a pitch reported as the whole pitch is what `slots/fusion.py` exists to
+        prevent, and dropping a camera here would reintroduce it upstream of the fusion.
+  - [ ] **Still never run against a camera.** That is WP7-T3.
       *Accept:* tested against a reachable RTSP or a local ffmpeg loop of the mp4s.
 - [x] **WP6-T8 Retention worker — built, and the refusals are the point.**
       `src/pitch_occupancy/retention.py` + `pitch retention` (dry run by default), 12 tests.
@@ -1453,9 +1473,26 @@ tagged with the question it answers. Fix that first — it is what turns a build
       confidence chips, slot evidence inspector (3 photos, AI reason, one-click override with
       operator name → `is_overridden` audit fields), anomalies view, schedule editor.
       *Accept:* manager daily review flow < 5 min.
-- [ ] **WP6-T7 Override → retraining loop.** Overridden slots' evidence frames auto-copy into
-      `data/dataset/_incoming/<corrected_class>/`; document the periodic head re-fit (cached
-      features → seconds). *Accept:* override produces the file + log row.
+- [x] **WP6-T7 Override → retraining loop — built, with one deliberate departure.**
+      `src/pitch_occupancy/retraining.py`, `pitch retraining`, 13 tests.
+  - [x] ★ **Frames are staged UNFILED, not under `<corrected_class>/`, and that is a
+        correctness argument rather than a scope cut.** *A slot override is not a frame
+        label.* An operator overriding an hour to USED is not saying each evidence frame shows
+        active play — a slot is USED at 35% play, so most of its minutes may be empty. Filing
+        by the slot verdict would inject confidently wrong labels from the one source this
+        project treats as ground truth. They land in `_incoming/_unfiled/<slot_status>/` with
+        a sidecar carrying slot, operator, time, note and both verdicts, plus an empty
+        `frame_label` for a human to fill.
+  - [x] **The underscore prefix is load-bearing and tested, not trusted.** `build_manifest`
+        globs `[0-9]_*`, so nothing staged can reach a training set by accident.
+  - [x] Copies, never moves — the evidence still justifies a billing decision and the audit
+        trail points at it. `apply(confirm=False)` is inert; an existing destination is
+        skipped, so a re-run cannot undo a human's annotation. A deleted evidence frame
+        (retention runs on a schedule) is *reported*, not silently dropped.
+  - [x] **The feedback loop is named in the module docstring.** Operators override what looks
+        wrong, so this harvests the model's own errors: valuable for training, and a biased
+        sample. Any accuracy measured on harvested frames is meaningless and evaluation stays
+        on the held-out sets. Written down because the temptation will be strong.
 - [x] **WP6-T12 ★ "The system must never bill" — enforced, not stated.**
       `src/pitch_occupancy/slots/authority.py` + 13 tests. `Advisory` is the only output a
       discrepancy can produce, carries no monetary field, and

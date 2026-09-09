@@ -3526,3 +3526,61 @@ attention matrix, so `output_attentions=True` is silently ignored and rollout re
 - 2026-09-09 | WP6-T4 booking importer | `pitch bookings` | `configs/bookings_example.csv` | read-only by interface, not by flag; 8 example rows covering every status, keyed to the two really-recorded slots
 
 - 2026-09-09 | WP4-T5 XAI overlays | `python experiments/make_xai_figures.py` | `results/figs/xai/` (27 sheets) | exact linear decomposition, worst reconstruction error 8.6e-07; every frame person-pixelated and blurred before writing
+
+## 2026-09-09 — WP6-T3 and WP6-T7: a live path that could not run, and an override that must not label
+
+`frame_source.RTSPSource` rewritten with `scheduler.live_sources` (17 tests),
+`src/pitch_occupancy/retraining.py` with `pitch retraining` (13 tests).
+
+**The RTSP source had been written and never exercised, and it could not run.** `n_minutes`
+raised `NotImplementedError` with the comment "the scheduler decides" — but the scheduler
+calls `worker.run_slot`, whose first statement is `for minute in range(source.n_minutes)`. So
+the one class whose entire purpose is live operation was structurally incompatible with the
+only code that would ever drive it. Nothing noticed because nothing tested it. The same shape
+as every other defect in this log: not a wrong number, an unexercised path.
+
+It also had no pacing. `run_slot` iterates minutes without waiting, which is correct for a
+recording — minute *k* is a seek — and wrong for a stream, where it would have taken sixty
+snapshots back to back in under a second and recorded that as an hour of football. `read` now
+blocks until the minute has arrived, and *catches up* rather than stretching when a run has
+fallen behind: missed minutes belong in the capture rate, where a degraded verdict is visible,
+not hidden inside a slot that quietly ran long.
+
+The clock, the sleep and the socket are all parameters, which is the only reason an hour-long
+class can be tested in milliseconds. Two of those tests were wrong first, and both were the
+test double's fault rather than the code's — worth recording because a bad fake reports a bug
+that does not exist. A frozen clock made `wait_for` sleep a full minute on *every* call
+including the second camera of the same minute, so the first run reported a pacing bug; a fake
+that cannot represent time passing cannot test code whose job is waiting. And the fake stream
+reset its failure count on each new connection, so a source that reconnects per retry — which
+is the design — could never succeed.
+
+**The override harvest departs from WP6-T7 as written, deliberately.** The task says copy
+overridden slots' evidence frames into `data/dataset/_incoming/<corrected_class>/`. That
+cannot be done soundly: **a slot override is not a frame label.** An operator overriding an
+hour to USED is saying there was a match, not that each of the three evidence frames shows
+active play — and under the tuned thresholds a slot is USED at 35% play, so a majority of its
+minutes may show an empty pitch. Auto-filing would inject confidently wrong labels from the
+one source this project treats as ground truth.
+
+So frames land in `_incoming/_unfiled/<slot_status>/` with a sidecar recording exactly what is
+known — slot, operator, timestamp, note, and both verdicts — and an empty `frame_label` for a
+human to fill. The underscore prefix is load-bearing: `build_manifest` globs `[0-9]_*`, so
+nothing staged can reach a training set by accident, and a test asserts that rather than
+trusting it.
+
+Same refusal discipline as `retention.py`: `plan` is pure, `apply(confirm=False)` is inert,
+frames are copied rather than moved (the evidence still justifies a billing decision and the
+audit trail points at it), and an existing destination is skipped so a re-run cannot undo a
+human's annotation.
+
+**The feedback loop is named rather than left implicit.** Operators override the verdicts they
+notice, and they notice the ones that look wrong, so this harvests the model's own errors
+preferentially. That is what makes it valuable for training and what makes it a biased sample:
+a head re-fitted on it is fitted on a corrected error distribution, not the operating one, and
+its accuracy on that data estimates nothing. Evaluation stays on the held-out sets. Written
+into the module docstring because the temptation to report "accuracy after retraining" will be
+strong and the number would be meaningless.
+
+- 2026-09-09 | WP6-T3 live RTSP path | `scheduler.live_sources` | `frame_source.py` | the live source could not run at all - `n_minutes` raised and `run_slot` reads it on line one; now paced, injectable and tested through the real worker
+- 2026-09-09 | WP6-T7 override harvest | `pitch retraining` | `data/dataset/_incoming/_unfiled/` | staged unfiled, never auto-labelled: a slot verdict is not a frame label

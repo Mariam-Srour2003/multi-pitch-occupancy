@@ -305,5 +305,42 @@ def bookings_cmd(
         )
 
 
+@app.command("retraining")
+def retraining_cmd(
+    apply_now: bool = typer.Option(
+        False, "--apply", help="actually copy; without this the command only reports"
+    ),
+) -> None:
+    """Stage overridden slots' evidence frames for re-labelling (WP6-T7).
+
+    Dry run by default, the same shape as `pitch retention`. Frames are staged **unfiled**:
+    an operator's override is a verdict about the whole slot, not a label for each frame, so
+    a human files them before they can become training data.
+    """
+    from pitch_occupancy.db.schema import connect
+    from pitch_occupancy.retraining import apply as apply_harvest
+    from pitch_occupancy.retraining import plan as plan_harvest
+
+    connection = connect(settings.db_path)
+    try:
+        harvest = plan_harvest(connection)
+    finally:
+        connection.close()
+
+    typer.echo(harvest.describe())
+    if not apply_now:
+        typer.echo("")
+        typer.secho("dry run - nothing copied. Add --apply to stage.", fg=typer.colors.YELLOW)
+        return
+    copied = apply_harvest(harvest, confirm=True)
+    typer.secho(f"staged {copied} frame(s)", fg=typer.colors.GREEN)
+    if copied:
+        typer.secho(
+            "Now look at each one and move it into 1_empty / 2_playing / 3_maintenance. "
+            "Nothing under _incoming/ is indexed by `pitch manifest`.",
+            fg=typer.colors.YELLOW,
+        )
+
+
 if __name__ == "__main__":
     app()

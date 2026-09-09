@@ -18,8 +18,11 @@ bill a used slot as unused.
 from __future__ import annotations
 
 import re
+import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import cv2
@@ -106,7 +109,7 @@ class VideoSlotSource(FrameSource):
             cap.release()
         self._caps.clear()
 
-    def __enter__(self) -> "VideoSlotSource":
+    def __enter__(self) -> VideoSlotSource:
         return self
 
     def __exit__(self, *exc) -> None:
@@ -119,35 +122,101 @@ class RTSPSource(FrameSource):
     Opens and closes per read rather than holding streams: at one frame per minute a
     persistent connection buys nothing and turns every network blip into stale buffered
     frames, which is worse than a clean reconnect.
+
+    **Two things about this class were wrong until 2026-09-09 and neither raised until it was
+    run.** It is worth stating both, because the shape of the mistake recurs.
+
+    *It could not run at all.* ``n_minutes`` raised ``NotImplementedError`` with the comment
+    "the scheduler decides" - but the scheduler calls ``worker.run_slot``, whose first
+    statement is ``for minute in range(source.n_minutes)``. So the one class whose entire
+    purpose is live operation was structurally incompatible with the only code that would ever
+    drive it, and nothing noticed because nothing tested it. A live slot's length is now
+    supplied at construction, which is what "the scheduler decides" should have meant: the
+    scheduler knows the slot's ``duration_minutes`` and passes it in. It is **required**, not
+    defaulted, because a default would make the slot's own length a guess.
+
+    *It would not have paced itself.* ``run_slot`` loops over minutes without waiting, which
+    is correct for a recording - minute *k* is a seek - and wrong for a stream, where it would
+    have taken sixty snapshots back to back in under a second and called it an hour. So
+    :meth:`read` blocks until minute *k* has actually arrived. The clock and the sleep are
+    parameters for the same reason the scheduler's are: a class whose only observable
+    behaviour is that it waits an hour is a class with no tests.
+
+    ``open_capture`` is injectable too, so the retry and gap behaviour can be tested without a
+    camera. That is the part most likely to matter in the field and was the part with no test.
     """
 
-    def __init__(self, urls: dict[str, str], *, timeout_ms: int = 5000, retries: int = 2) -> None:
+    def __init__(
+        self,
+        urls: dict[str, str],
+        *,
+        minutes: int,
+        started_at: datetime | None = None,
+        timeout_ms: int = 5000,
+        retries: int = 2,
+        open_capture: Callable[[str], object] | None = None,
+        clock: Callable[[], datetime] | None = None,
+        sleep: Callable[[float], None] | None = None,
+    ) -> None:
         if not urls:
             raise ValueError("no camera URLs configured")
+        if minutes <= 0:
+            raise ValueError(
+                f"minutes={minutes}: a live source must be told how long the slot is. The "
+                f"scheduler has this as ScheduledSlot.duration_minutes"
+            )
         self._urls = dict(urls)
+        self._minutes = int(minutes)
         self._timeout_ms = timeout_ms
         self._retries = retries
+        self._open = open_capture or self._open_stream
+        self._clock = clock or (lambda: datetime.now())
+        self._sleep = sleep or time.sleep
+        self._started_at = started_at or self._clock()
+
+    def _open_stream(self, url: str):
+        capture = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
+        capture.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, self._timeout_ms)
+        capture.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, self._timeout_ms)
+        return capture
 
     def cameras(self) -> list[str]:
         return sorted(self._urls)
 
     @property
     def n_minutes(self) -> int:
-        raise NotImplementedError("a live source has no fixed length; the scheduler decides")
+        return self._minutes
+
+    @property
+    def started_at(self) -> datetime:
+        return self._started_at
+
+    def wait_for(self, minute_index: int) -> None:
+        """Block until ``minute_index`` minutes have elapsed since the slot began.
+
+        Returns immediately when that moment has passed, so the second camera of a minute does
+        not wait again and a run that has fallen behind catches up rather than stretching. A
+        slot that overruns is a slot with missed minutes, which the capture rate already
+        reports; sleeping the shortfall would hide it.
+        """
+        due_at = self._started_at + timedelta(minutes=minute_index)
+        remaining = (due_at - self._clock()).total_seconds()
+        if remaining > 0:
+            self._sleep(remaining)
 
     def read(self, camera_id: str, minute_index: int) -> Frame | None:
         if camera_id not in self._urls:
             raise KeyError(f"unknown camera {camera_id!r}; have {self.cameras()}")
+        self.wait_for(minute_index)
+        url = self._urls[camera_id]
         for _ in range(self._retries + 1):
-            cap = cv2.VideoCapture(self._urls[camera_id], cv2.CAP_FFMPEG)
-            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, self._timeout_ms)
-            cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, self._timeout_ms)
+            capture = self._open(url)
             try:
-                ok, image = cap.read()
+                ok, image = capture.read()
             finally:
-                cap.release()
-            if ok:
-                return Frame(camera_id, minute_index, image, self._urls[camera_id])
+                capture.release()
+            if ok and image is not None:
+                return Frame(camera_id, minute_index, image, url)
         return None  # every retry failed: record the gap
 
 

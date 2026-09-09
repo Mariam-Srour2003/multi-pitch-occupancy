@@ -42,7 +42,7 @@ from pitch_occupancy.config import settings
 
 __all__ = [
     "ScheduledSlot", "Schedule", "load_schedule", "due", "run_due", "run_forever",
-    "describe", "sources_from_recordings", "schedule_from_recordings",
+    "describe", "sources_from_recordings", "schedule_from_recordings", "live_sources",
 ]
 
 DEFAULT_SCHEDULE = settings.results_dir.parent / "configs" / "slots_schedule.json"
@@ -291,6 +291,44 @@ def sources_from_recordings(directory: Path) -> Callable[[ScheduledSlot, Date], 
                 f"no recording {key} under {directory} for slot {slot.slot_id(day)}"
             )
         return VideoSlotSource(found[key])
+
+    return source_for
+
+
+def live_sources(
+    urls: dict[str, dict[str, str]], **kwargs
+) -> Callable[[ScheduledSlot, Date], object]:
+    """A ``source_for`` that pulls from real cameras (WP6-T3). **Never run against a camera.**
+
+    ``urls`` maps venue id -> camera id -> RTSP URL. The slot's own ``duration_minutes`` is
+    handed to the source, which is the piece that was missing: `RTSPSource` used to raise on
+    ``n_minutes`` saying "the scheduler decides", and this is the scheduler deciding. Without
+    it the live path could not run at all - `worker.run_slot` reads ``n_minutes`` on its first
+    line.
+
+    Extra keyword arguments go through to `RTSPSource`, which is how a test injects a clock, a
+    sleep and a capture opener. The default is a real socket and a real hour.
+    """
+    from pitch_occupancy.frame_source import RTSPSource
+
+    def source_for(slot: ScheduledSlot, day: Date):
+        cameras = urls.get(slot.venue_id)
+        if not cameras:
+            raise KeyError(
+                f"no camera URLs for venue {slot.venue_id!r}; have {sorted(urls)}. A slot with "
+                f"no reachable camera has no state, and defaulting to one would invent it"
+            )
+        missing = [c for c in slot.cameras if c not in cameras]
+        if missing:
+            raise KeyError(
+                f"slot {slot.slot_id(day)} expects camera(s) {', '.join(missing)} which have "
+                f"no URL; a silently dropped camera is half a pitch reported as the whole one"
+            )
+        return RTSPSource(
+            {c: cameras[c] for c in slot.cameras},
+            minutes=slot.duration_minutes,
+            **kwargs,
+        )
 
     return source_for
 
