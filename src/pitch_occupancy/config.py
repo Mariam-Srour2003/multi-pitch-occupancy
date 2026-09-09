@@ -81,5 +81,17 @@ class Settings(BaseSettings):
     api_host: str = "127.0.0.1"
     api_port: int = 8000
 
+    #: Bearer token for the simulator snapshot endpoint (WP6-T1), from `PITCH_SIMULATOR_TOKEN`.
+    #:
+    #: **Empty means the endpoint is disabled, not open.** That distinction is the whole point
+    #: of it being empty by default: an unset secret that defaults to "no authentication
+    #: required" is the same class of defect as a threshold left at a value that can never
+    #: fire, and this project has now found several of those. The endpoint serves frames of
+    #: identifiable people, so it fails closed with 503 when unconfigured rather than serving
+    #: them to anyone who asks. A test asserts that.
+    #:
+    #: Never committed. Set it in `.env`, which is gitignored, or in the service environment.
+    simulator_token: str = ""
+
 
 settings = Settings()

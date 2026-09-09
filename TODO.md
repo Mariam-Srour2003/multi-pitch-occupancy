@@ -1310,9 +1310,24 @@ tagged with the question it answers. Fix that first — it is what turns a build
 > each item up front.
 
 ### 6.A Runtime
-- [ ] **WP6-T1 Simulator API.** `engine/simulator_api.py` (FastAPI):
-      `GET /api/v1/cameras/{camera_id}/snapshot?mode=simulation`, Bearer token from config.
-      *Accept:* curl returns JPEG + JSON metadata.
+- [x] **WP6-T1 Simulator API — built, and it fails closed.** `src/pitch_occupancy/api/
+      simulator.py`, mounted on the existing app, 17 tests. `GET /api/v1/cameras/{id}/snapshot
+      ?mode=simulation` returns a real JPEG (SOI/EOI checked, and decoded back to an image in
+      a test) with metadata on `X-` headers so the body stays a plain image; `format=json`
+      returns the metadata alone.
+  - [x] ★ **An unset `PITCH_SIMULATOR_TOKEN` means *disabled*, not *open*.** That is the
+        whole point of the default being empty: a secret that degrades to "no authentication
+        required" is the same defect class as a threshold set where it can never fire, and
+        this endpoint serves frames of identifiable people. Unconfigured → **503**, missing or
+        wrong token → 401, compared with `hmac.compare_digest`. Tested, including a
+        one-character-short token.
+  - [x] **`mode=live` returns 501 and does not fall back to the recording.** An endpoint that
+        quietly served footage when asked for a camera would make a deployment check pass
+        against a file — the worst failure this endpoint could have.
+  - [x] **A gap is a 404, never a placeholder image.** A substituted frame here would be a
+        fabricated observation served with a 200, which is the failure `frame_source` returns
+        `None` to avoid; it must stay a gap through every layer.
+  - [ ] Wire it into a running deployment (WP7-T2) and point an `RTSPSource` at it end to end.
 - [x] **WP6-T2 Scheduler service — built, and M5 passes with it.**
       `src/pitch_occupancy/scheduler.py` + `configs/slots_schedule.json` + `pitch schedule`,
       18 tests. `run_slot` had done the sampling for some time; what was missing was the part

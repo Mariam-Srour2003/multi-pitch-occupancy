@@ -24,6 +24,7 @@ from pitch_occupancy import __version__
 from pitch_occupancy.api.dashboard import dashboard_response
 from pitch_occupancy.api.routes import router
 from pitch_occupancy.api.search_control import router as search_router
+from pitch_occupancy.api.simulator import router as simulator_router
 from pitch_occupancy.api.thesis_site import page as thesis_page
 from pitch_occupancy.config import settings
 
@@ -34,6 +35,8 @@ app = FastAPI(
 )
 app.include_router(router)
 app.include_router(search_router)
+# WP6-T1. Disabled unless PITCH_SIMULATOR_TOKEN is set - mounting it is not enabling it.
+app.include_router(simulator_router)
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
