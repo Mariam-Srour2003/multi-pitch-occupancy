@@ -48,6 +48,7 @@ OUT_OF_SCOPE = {
     "logit_average_baseline.csv": "WP5-T9 on raw caches; refuted",
     "logit_average_baseline_preproc.csv": "WP5-T9 on letterboxed caches",
     "fusion_head_ablation.csv": "WP5-T2: the gate does not earn its place - the argument is the result",
+    "onboarding_cost.csv": "WP4-T3: the onboarding curve - the argument and its caveats are the result",
     "empty_recognition.csv": "WP4-T13: what the false-play control measures - the argument is the result",
     "xai_evidence_focus.csv": "WP4-T5: evidence-on-people per frame; the summary is in the log",
     "fusion_head_comparisons.csv": "WP5-T2: paired tests, none of which the design could make significant",

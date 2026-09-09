@@ -327,3 +327,23 @@ source = "results/empty_recognition.csv"
 select = { backbone = "dinov2", configuration = "A_plus_B_play_plus_01_empties" }
 column = "empty_accuracy"
 note = "Read with its two caveats, both in the source table: the 243 held-out empty frames are 3 distinct scenes, which is *why* one frame suffices, and every k-shot row carries the count of near-duplicate pairs crossing the train/test boundary - 1,400 already at k=1. `where` is empty until this reaches the write-up."
+
+[[claim]]
+id = "onboarding-one-frame"
+statement = "One labelled frame of a new camera takes DINOv2 from 0.441 to 0.990 macro-F1 on that camera's unseen frames."
+value = 0.9895
+where = []
+source = "results/onboarding_cost.csv"
+select = { backbone = "dinov2", k = "1" }
+column = "adapted_mean"
+note = "An optimistic bound on onboarding a new *venue*: a second camera on the same pitch is an easier target than a new site, and leave-one-venue-out adaptation is not runnable here because only one of eight venues carries more than one class. Read beside the source table's leak column - camera B is 12 distinct scenes, which is why a single frame goes so far."
+
+[[claim]]
+id = "onboarding-source-stops-helping"
+statement = "From five labelled frames of the new camera, training on those alone matches training on them plus 775 frames from the source camera - the source set stops contributing."
+value = 0.9902
+where = []
+source = "results/onboarding_cost.csv"
+select = { backbone = "dinov2", k = "5" }
+column = "target_only_mean"
+note = "The control that reframes the transfer story. Compare against `adapted_mean` in the same row, which is equal to four decimal places. Holds for all three backbones."

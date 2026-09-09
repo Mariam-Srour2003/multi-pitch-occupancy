@@ -834,9 +834,29 @@ tagged with the question it answers. Fix that first — it is what turns a build
 - [ ] **WP4-T2 Label-efficiency curves.** Training sizes {10, 25, 50, 100, 300, 1000, all} × 5 seeds
       × 4 models; zero-shot OpenCLIP as the 0-label horizontal line. *Accept:*
       `results/label_efficiency.csv` + `results/figs/label_curve.png`. **(RQ1, RQ2)**
-- [ ] **WP4-T3 Cross-venue few-shot adaptation.** Leave-one-venue-out, then add {0, 25, 100, 300}
-      target-venue frames. *Accept:* adaptation curve per venue — answers "what does onboarding a new
-      client site cost?" **(RQ3)**
+- [x] **WP4-T3 Onboarding cost — answered one level down, and the control is the finding.**
+      `experiments/onboarding_cost.py` → `onboarding_cost.csv`, 14 tests.
+  - [x] ★ **As written it is not runnable, and that is measured rather than asserted.**
+        Exactly **one of eight venues carries more than one class** — `venue_01` has all three,
+        the seven clip venues are ACTIVE_PLAY only. Holding out `venue_01` leaves nothing to
+        fit; holding out any other leaves a single-class test set where adaptation is
+        unmeasurable. A test asserts the count is still 1, so if footage ever arrives the
+        proxy gets *replaced* rather than quietly kept.
+  - [x] **The runnable form is camera onboarding**, which is also the deployment reality — a
+        facility adds a camera, not a venue. Both of `venue_01`'s cameras carry EMPTY and
+        ACTIVE_PLAY, and a probe trained on A has never seen B.
+  - [x] **Macro-F1 on the new camera: 0.441 / 0.357 / 0.508 at k=0 → ~0.99 at k=1**, for
+        DINOv2 / ConvNeXtV2 / ViT. Five seeds per budget, because at k=1 *which* frame you draw
+        matters more than anything else (`onboarding-one-frame`).
+  - [x] ★ **From k=5 the source camera stops contributing.** Training on five target frames
+        *alone* matches five plus **775** source frames, on all three backbones
+        (`onboarding-source-stops-helping`). So what buys the accuracy is having *any* labels
+        from the new camera, not a large corpus elsewhere — a weaker claim than "the model
+        generalises", and the one the numbers support. Operationally it is good news: five
+        labels is cheap, a corpus per site is not.
+  - [x] Reported as an **optimistic bound**: a camera on the same pitch is an easier target
+        than a new site. Every row carries its near-duplicate crossing count and camera B's
+        **12 distinct scenes**, which is why small budgets go so far.
 - [ ] **WP4-T9 ★ Risk–coverage (REVIEW-rate) curve.** Sweep the confidence threshold and plot
       automated-verdict error rate against the fraction of slots sent to REVIEW. Report the operating
       point where automated verdicts reach ≥99% precision, and the REVIEW rate it costs. **This is

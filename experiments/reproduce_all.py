@@ -318,6 +318,14 @@ STAGES: list[Stage] = [
         minutes=3,
     ),
     Stage(
+        name="onboarding-cost",
+        command=[*PY, "-m", "experiments.onboarding_cost"],
+        produces=[RESULTS / "onboarding_cost.csv"],
+        requires=[DATA / "cache" / "dinov2.npz", DATA / "processed" / "manifest.csv"],
+        note="WP4-T3: one labelled frame of a new camera is worth most of it; from five the source set stops helping",
+        minutes=7,
+    ),
+    Stage(
         name="empty-recognition",
         command=[*PY, "-m", "experiments.empty_recognition"],
         produces=[RESULTS / "empty_recognition.csv"],

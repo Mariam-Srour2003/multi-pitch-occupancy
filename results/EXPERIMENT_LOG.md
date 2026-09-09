@@ -3592,3 +3592,11 @@ strong and the number would be meaningless.
 - 2026-09-09 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 28 claims verified against their artefacts, 0 recorded as unsupported
 
 - 2026-09-09 | WP8-T3 threats to validity | `thesis/threats_to_validity.md` | 28 claims re-derive | four kinds of validity, three confidence labels; every cited figure is a claim id and a test asserts each exists and has a source artefact. Two numbers were wrong in the first draft and caught by checking against the ledger rather than by reading: the preprocessing search ran 88 evaluations (740 was minutes), and 0.4474 is the *prompt* search's selection optimism, not the preprocessing search's
+
+- 2026-09-09 | WP4-T3 onboarding cost, camera-level | `python experiments/onboarding_cost.py` | `onboarding_cost.csv` | leave-one-venue-out adaptation is not runnable (1 of 8 venues carry >1 class); at camera level DINOv2 goes 0.441 -> 0.990 macro-F1 with 5 labelled frames of the new camera
+
+- 2026-09-09 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 29 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-09 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 30 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-09 | WP4-T3 onboarding cost | `python experiments/onboarding_cost.py` | `onboarding_cost.csv` | leave-one-venue-out adaptation is not runnable (1 of 8 venues carries >1 class); at camera level macro-F1 goes 0.441 -> 0.9895 with one labelled frame, and **from k=5 training on the target frames alone matches them plus 775 source frames** - the source set stops contributing, on all three backbones

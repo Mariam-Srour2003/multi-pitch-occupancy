@@ -11,7 +11,7 @@ any draft goes out:
 uv run python -m experiments.verify_claims --check
 ```
 
-**28 claims are checked against an artefact. 0 are not, and say why.**
+**30 claims are checked against an artefact. 0 are not, and say why.**
 
 ## Checked
 
@@ -45,6 +45,8 @@ uv run python -m experiments.verify_claims --check
 | On the stated cost assumptions a flag must be right 94.7% of the time before reconciliation pays for itself. | `0.947` | `results/reconciliation_value.csv` | — | ✔ |
 | The rule table produces 200 flags per 1,000 slots on the assumed booking-case mix. | `200.0` | `results/reconciliation_value.csv` | — | ✔ |
 | One labelled empty frame of the held-out camera takes DINOv2 from 0.0000 to 0.9793 empty-pitch accuracy; without it the model has never seen that camera and gets none of the 243 right. | `0.9793` | `results/empty_recognition.csv` | — | ✔ |
+| One labelled frame of a new camera takes DINOv2 from 0.441 to 0.990 macro-F1 on that camera's unseen frames. | `0.9895` | `results/onboarding_cost.csv` | — | ✔ |
+| From five labelled frames of the new camera, training on those alone matches training on them plus 775 frames from the source camera - the source set stops contributing. | `0.9902` | `results/onboarding_cost.csv` | — | ✔ |
 
 ## Notes on individual claims
 
@@ -62,3 +64,5 @@ uv run python -m experiments.verify_claims --check
 - **floor-histogram-random** — A12: this claim previously read 0.686 against ConvNeXtV2's 0.657 and concluded the histogram won. Both numbers were superseded by A8's estimand fix.
 - **reconciliation-break-even** — A break-even under assumptions, not a measurement. Flag precision itself is unmeasurable on this corpus (WP6-T11), which is why the answer takes this form.
 - **camera-transfer-one-frame** — Read with its two caveats, both in the source table: the 243 held-out empty frames are 3 distinct scenes, which is *why* one frame suffices, and every k-shot row carries the count of near-duplicate pairs crossing the train/test boundary - 1,400 already at k=1. `where` is empty until this reaches the write-up.
+- **onboarding-one-frame** — An optimistic bound on onboarding a new *venue*: a second camera on the same pitch is an easier target than a new site, and leave-one-venue-out adaptation is not runnable here because only one of eight venues carries more than one class. Read beside the source table's leak column - camera B is 12 distinct scenes, which is why a single frame goes so far.
+- **onboarding-source-stops-helping** — The control that reframes the transfer story. Compare against `adapted_mean` in the same row, which is equal to four decimal places. Holds for all three backbones.
