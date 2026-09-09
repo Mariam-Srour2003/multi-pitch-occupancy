@@ -1524,7 +1524,19 @@ tagged with the question it answers. Fix that first — it is what turns a build
         The stored path is still resolved and confined, because the database is not a trust
         boundary either. A retention-deleted frame is a 404 and renders as *gone*, never as a
         blank image an operator might read as an empty pitch.
-  - [ ] Remaining: live field matrix with confidence chips, and the schedule editor.
+  - [x] ★ **Live field matrix with confidence chips** — `GET /api/v1/fields/day/{day}` plus a
+        grid on the dashboard, 10 tests. Every pitch, hour by hour, for one day.
+  - [x] **A scheduled slot with no verdict is drawn hollow**, dashed and captioned *no
+        verdict*. An unobserved hour and an hour observed to be empty are different claims,
+        and a filled neutral chip would read as "we looked and it was quiet" — the opposite
+        of the truth, about exactly the case reconciliation exists to catch. The endpoint
+        returns those slots rather than filtering them out, for the same reason.
+  - [x] **The evidence endpoint stopped leaking server paths.** It returned whatever was
+        stored, which is an absolute path on the deployment, into a browser page — for no
+        benefit, since images are fetched by index and never by path. It sends file *names*
+        now; the name is kept because an operator disputing a verdict may need to quote which
+        frame they were shown.
+  - [ ] Remaining: the schedule editor.
   - [ ] *Accept:* manager daily review flow < 5 min — needs a manager (WP7-T4).
 - [x] **WP6-T7 Override → retraining loop — built, with one deliberate departure.**
       `src/pitch_occupancy/retraining.py`, `pitch retraining`, 13 tests.

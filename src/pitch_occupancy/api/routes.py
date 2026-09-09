@@ -56,6 +56,10 @@ class Evidence(BaseModel):
     slot_id: str
     status: SlotStatus
     reason: str
+    #: File *names*, not paths. The stored value is an absolute path on the server, and
+    #: sending it to a browser leaks the deployment's directory layout into a page for no
+    #: benefit - the images are fetched by index, never by path. The name is kept because an
+    #: operator disputing a verdict may need to quote which frame they were shown.
     evidence_paths: list[str]
     samples: list[dict]
 
@@ -147,7 +151,7 @@ def slot_evidence(slot_id: str, conn: sqlite3.Connection = Depends(get_conn)) ->
         slot_id=slot_id,
         status=SlotStatus(row["status"]),
         reason=row["reason"],
-        evidence_paths=json.loads(row["evidence_paths"] or "[]"),
+        evidence_paths=[Path(p).name for p in json.loads(row["evidence_paths"] or "[]")],
         samples=[dict(s) for s in samples],
     )
 
@@ -228,6 +232,31 @@ def anomalies(
     sql += """ ORDER BY CASE severity
                  WHEN 'serious' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, created_at DESC"""
     return [dict(r) for r in conn.execute(sql).fetchall()]
+
+
+@router.get("/fields/day/{day}")
+def fields_day(day: date, conn: sqlite3.Connection = Depends(get_conn)) -> list[dict]:
+    """Every field's slots for one day - the matrix the dashboard draws (WP6-T6).
+
+    Returned grouped by field rather than as a flat list, because the shape the operator
+    reads is one row per pitch. A field with a scheduled slot and no evaluation appears with
+    a null status: that is the case worth seeing, since an hour nobody looked at is what
+    reconciliation exists to catch, and flattening it out of the response would hide it.
+    """
+    rows = conn.execute(
+        """SELECT rs.field_id, rs.slot_id, rs.start_time, rs.end_time,
+                  se.status, se.mean_confidence, se.is_overridden, se.override_status
+           FROM rental_slots rs
+           LEFT JOIN slot_evaluations se ON se.slot_id = rs.slot_id
+           WHERE rs.slot_date = ?
+           ORDER BY rs.field_id, rs.start_time""",
+        (day.isoformat(),),
+    ).fetchall()
+    grouped: dict[str, list[dict]] = {}
+    for row in rows:
+        entry = dict(row)
+        grouped.setdefault(entry.pop("field_id"), []).append(entry)
+    return [{"field_id": field, "slots": slots} for field, slots in grouped.items()]
 
 
 @router.get("/fields/{field_id}/day/{day}")

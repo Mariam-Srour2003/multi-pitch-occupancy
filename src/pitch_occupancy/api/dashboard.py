@@ -118,6 +118,21 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
    an operator might take for an empty pitch. */
 .ev figure.gone img{display:none}
 .ev figure.gone figcaption::after{content:' - image no longer on disk';color:var(--alert)}
+.matrix-head{display:flex;align-items:center;gap:9px;margin:0 0 12px;font-size:12.5px;
+  color:var(--ink-2)}
+.matrix-head input{font:inherit;padding:4px 8px;border:1px solid var(--line);border-radius:6px;
+  background:var(--ground);color:var(--ink)}
+.mx{border-collapse:separate;border-spacing:5px 6px}
+.mx th{font-size:11px;color:var(--ink-3);font-weight:500;text-align:left;padding:0 2px}
+.mx td.field{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-2);
+  padding-right:10px;white-space:nowrap}
+.chip{display:inline-flex;flex-direction:column;gap:2px;min-width:74px;padding:6px 9px;
+  border-radius:7px;font-size:11.5px;line-height:1.25;cursor:pointer;border:1px solid transparent}
+.chip .t{font-family:'JetBrains Mono',monospace;font-weight:600}
+.chip .c{font-size:10px;opacity:0.75}
+/* A slot with no verdict is hollow, never a filled neutral chip: an unobserved hour and an
+   empty pitch are different claims and must not share a colour. */
+.chip.none{background:transparent;border:1px dashed var(--line);color:var(--ink-3)}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);
   color:var(--ground);padding:11px 18px;border-radius:8px;font-size:13.5px;z-index:50}
 .toast[hidden]{display:none}
@@ -140,6 +155,14 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
     <thead><tr><th>Slot</th><th>Anomaly</th><th>Severity</th><th>Explanation</th></tr></thead>
     <tbody id="anoms"></tbody>
   </table></div>
+
+  <h2>Field matrix</h2>
+  <p class="sub2">Every pitch, hour by hour, for one day. A slot with no verdict is drawn
+  hollow &mdash; an hour nobody looked at is the case reconciliation exists to catch, so it
+  must not look the same as an empty pitch.</p>
+  <div class="matrix-head"><label for="mday">Day</label>
+    <input type="date" id="mday" onchange="loadMatrix()"></div>
+  <div class="scroll" id="matrix"></div>
 
   <h2>Slots</h2>
   <p class="sub2">Click a slot to see the evidence behind its verdict and agree or correct it.</p>
@@ -174,6 +197,43 @@ function toast(msg){
   setTimeout(() => { t.hidden = true; }, 2600);
 }
 
+async function loadMatrix(){
+  const input = document.getElementById("mday");
+  if (!input.value) {
+    // Default to the most recent day that has any evaluation, not to today: a demo or a
+    // fresh install with no slots today would otherwise show an empty grid and read as a
+    // broken page rather than as a quiet day.
+    // The date is pulled out with a character class rather than \\d, because this JavaScript
+    // lives inside a non-raw Python string and a lone backslash-d there is an invalid escape
+    // that Python only warns about - it happens to work, which is the worst kind of working.
+    const recent = await api("/slots?limit=1");
+    const dated = recent.length
+      ? recent[0].slot_id.match(/[0-9]{4}-[0-9]{2}-[0-9]{2}/) : null;
+    input.value = dated ? dated[0] : new Date().toISOString().slice(0, 10);
+  }
+  const fields = await api(`/fields/day/${input.value}`);
+  const box = document.getElementById("matrix");
+  if (!fields.length) {
+    box.innerHTML = `<p class="empty">No slots scheduled on this day.</p>`;
+    return;
+  }
+  box.innerHTML = `<table class="mx"><tbody>${fields.map(f => `<tr>
+      <td class="field">${f.field_id}</td>
+      ${f.slots.map(s => {
+        const verdict = s.is_overridden ? s.override_status : s.status;
+        const conf = s.mean_confidence == null ? "" : (s.mean_confidence * 100).toFixed(0) + "%";
+        if (!verdict) {
+          return `<td><span class="chip none" title="scheduled, never evaluated">
+            <span class="t">${s.start_time}</span><span class="c">no verdict</span></span></td>`;
+        }
+        return `<td><span class="chip pill ${verdict}" title="${s.slot_id}"
+          onclick="openSlot('${s.slot_id}')">
+          <span class="t">${s.start_time}</span>
+          <span class="c">${verdict}${conf ? " · " + conf : ""}${
+            s.is_overridden ? " · corrected" : ""}</span></span></td>`;
+      }).join("")}</tr>`).join("")}</tbody></table>`;
+}
+
 async function load(){
   const m = await api("/meters");
   document.getElementById("tiles").innerHTML = [
@@ -195,6 +255,8 @@ async function load(){
       <td style="color:var(--ink-2)">${a.explanation}</td></tr>`).join("")
     : `<tr><td colspan="4" class="empty">Nothing to act on &mdash; every slot agrees with its
        booking record.</td></tr>`;
+
+  await loadMatrix();
 
   const slots = await api("/slots?limit=100");
   document.getElementById("slots").innerHTML = slots.length ? slots.map(s => `<tr>
@@ -229,7 +291,7 @@ async function openSlot(id){
           <img src="/api/v1/slots/${encodeURIComponent(id)}/evidence/${i}"
                alt="evidence frame ${i + 1} for ${id}" loading="lazy"
                onerror="this.closest('figure').classList.add('gone')">
-          <figcaption>${p.split(/[\/]/).pop()}</figcaption>
+          <figcaption>${p}</figcaption>
         </figure>`).join("")
       : `<span>no evidence images saved for this slot - the run was made without
          evidence_dir, so there is nothing to review</span>`}</div>
