@@ -633,6 +633,83 @@ def fig_leakage_decomposition() -> None:
     save(fig, "leakage_decomposition")
 
 
+def fig_onboarding_cost() -> None:
+    """What a new camera costs in labels - and where the source corpus stops helping.
+
+    Deliberately not drawn as a plain learning curve. Two series, because the second is the
+    finding: once "target only" meets "adapted", the 775 source frames are contributing
+    nothing and the curve is about label access rather than transfer. The crossover is found
+    from the data, not annotated by hand.
+    """
+    df = pd.read_csv(RESULTS / "onboarding_cost.csv")
+    fig, ax = plt.subplots(figsize=(8.4, 4.9))
+    style(ax)
+
+    for key in ("dinov2", "convnextv2", "vit"):
+        mine = df[df.backbone == key].sort_values("k")
+        if mine.empty:
+            continue
+        ax.plot(mine.k, mine.adapted_mean, "-o", color=COLOURS[key], linewidth=2.2,
+                markersize=4.5, zorder=3)
+        ax.fill_between(mine.k, mine.adapted_min, mine.adapted_max,
+                        color=COLOURS[key], alpha=0.13, linewidth=0, zorder=2)
+        alone = mine.dropna(subset=["target_only_mean"])
+        ax.plot(alone.k, alone.target_only_mean, "--", color=COLOURS[key], linewidth=1.5,
+                alpha=0.75, zorder=3)
+        # Direct-labelled at k=0, not at the right-hand end. The whole point of the figure is
+        # that the three converge, so labelling where they meet stacks three words on one
+        # point - which the first version did.
+        first = mine.iloc[0]
+        ax.annotate(LABELS[key], (first.k, first.adapted_mean), xytext=(-9, 0),
+                    textcoords="offset points", color=COLOURS[key], fontsize=10,
+                    fontweight="semibold", va="center", ha="right",
+                    path_effects=[patheffects.withStroke(linewidth=3, foreground=SURFACE)])
+
+    # Where the target-only model first matches the adapted one, per backbone - the point at
+    # which the source camera stops earning its place. Read from the data.
+    crossovers = []
+    for key in df.backbone.unique():
+        mine = df[df.backbone == key].sort_values("k").dropna(subset=["target_only_mean"])
+        hit = mine[mine.target_only_mean >= mine.adapted_mean - 0.005]
+        if not hit.empty:
+            crossovers.append(int(hit.iloc[0].k))
+    crossover = min(crossovers) if crossovers else None
+
+    if crossover is not None:
+        ax.axvline(crossover, color=INK_MUTED, linewidth=1, linestyle=":", zorder=1)
+        ax.annotate(
+            f"from k={crossover} the source camera's 775 frames\nadd nothing measurable",
+            (crossover, 0.52), xytext=(9, 0), textcoords="offset points",
+            color=INK_2, fontsize=8.5, va="center", linespacing=1.45,
+        )
+
+    scenes = int(df.n_distinct_scenes.iloc[0])
+    zero = df[df.k == 0].adapted_mean
+    one = df[df.k == 1].adapted_mean
+    ax.set_xscale("symlog", linthresh=1)
+    ax.set_xticks(sorted(df.k.unique()))
+    ax.set_xticklabels([str(int(k)) for k in sorted(df.k.unique())])
+    ax.set_xlabel("labelled frames of the new camera", color=INK_2, fontsize=10)
+    ax.set_ylabel("macro-F1 on that camera's unseen frames", color=INK_2, fontsize=10)
+    ax.set_ylim(0.28, 1.03)
+    ax.set_xlim(left=-0.55)
+
+    ax.set_title(
+        f"One labelled frame takes a new camera from {zero.min():.2f}-{zero.max():.2f} "
+        f"to about {one.mean():.2f}",
+        color=INK, fontsize=13, fontweight="semibold", loc="left", pad=72,
+    )
+    ax.text(
+        0, 1.015,
+        "Solid: source camera plus k target frames, band across five seeds. Dashed: the same k\n"
+        "frames ALONE. Where they meet, transfer has stopped mattering. An optimistic bound on\n"
+        "onboarding a new venue - a second camera on one pitch is an easier target - and the\n"
+        f"target set is {scenes} distinct scenes, which is why small budgets go so far here.",
+        transform=ax.transAxes, color=INK_2, fontsize=8.5, va="bottom", linespacing=1.5,
+    )
+    save(fig, "onboarding_cost")
+
+
 def main() -> None:
     print("figures:")
     fig_label_efficiency()
@@ -642,6 +719,7 @@ def main() -> None:
     fig_baseline_floor()
     fig_accuracy_vs_latency()
     fig_leakage_decomposition()
+    fig_onboarding_cost()
 
 
 if __name__ == "__main__":

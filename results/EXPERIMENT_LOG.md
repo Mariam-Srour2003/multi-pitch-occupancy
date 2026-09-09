@@ -3600,3 +3600,5 @@ strong and the number would be meaningless.
 - 2026-09-09 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 30 claims verified against their artefacts, 0 recorded as unsupported
 
 - 2026-09-09 | WP4-T3 onboarding cost | `python experiments/onboarding_cost.py` | `onboarding_cost.csv` | leave-one-venue-out adaptation is not runnable (1 of 8 venues carries >1 class); at camera level macro-F1 goes 0.441 -> 0.9895 with one labelled frame, and **from k=5 training on the target frames alone matches them plus 775 source frames** - the source set stops contributing, on all three backbones
+
+- 2026-09-09 | WP8-T2b onboarding figure | `python experiments/make_figures.py` | `figs/onboarding_cost` + served site | two series per backbone so the dashed target-only line carries the finding; crossover and title numbers read from the CSV. Labels sit at k=0 because the right-hand end is where all three converge - the first version stacked three words on one point

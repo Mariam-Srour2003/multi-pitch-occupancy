@@ -178,7 +178,7 @@ def collect() -> dict:
         "figs": {
             n: data_uri(RESULTS / "figs" / f"{n}.png")
             for n in ("ranking_inversion", "label_efficiency", "cross_venue_recall",
-                      "risk_coverage_band")
+                      "risk_coverage_band", "onboarding_cost")
         },
     }
 
@@ -251,6 +251,7 @@ def build(d: dict) -> str:
         fig_label=d["figs"]["label_efficiency"],
         fig_cross=d["figs"]["cross_venue_recall"],
         fig_band=d["figs"]["risk_coverage_band"],
+        fig_onboarding=d["figs"]["onboarding_cost"],
     )
 
 
@@ -437,6 +438,18 @@ li {{ margin-bottom:7px; }}
   EMPTY: right on all 898 active-play frames, wrong on all 9 empty ones, so confidence ranks
   the nine last and the curve sits at 1.000 until 88% coverage. A figure of curves alone
   would recommend them.</figcaption></figure>
+
+  <h2>What a new camera costs, in labels</h2>
+  <p>The deployment question, and the answer is smaller than expected. A probe trained on one
+  camera scores 0.36&ndash;0.51 macro-F1 on the other camera watching the same pitch. One
+  labelled frame of that camera takes every backbone to about 0.98.</p>
+  <figure><img src="{fig_onboarding}" alt="Macro-F1 against the number of labelled frames from the new camera, for three backbones, with a dashed series showing the same frames used alone and a marker at the budget where the two meet.">
+  <figcaption>The dashed series is the finding. From five labelled frames, training on those
+  frames <em>alone</em> matches training on them plus 775 from the source camera &mdash; on all
+  three backbones. So what buys the accuracy is having any labels from the new camera, not a
+  large corpus elsewhere: a weaker claim than &ldquo;the model generalises&rdquo;, and the one
+  the numbers support. Read as an optimistic bound: a second camera on one pitch is an easier
+  target than a new venue, and the target set is twelve distinct scenes.</figcaption></figure>
 
   <h2>The protocol a constant predictor wins</h2>
   <p>Stronger than &ldquo;the ranking reverses&rdquo;, and it came from running a fourth

@@ -1688,7 +1688,15 @@ tagged with the question it answers. Fix that first — it is what turns a build
         they show 907 of 907 frames in a single bin for two models and 905 of 907 for the
         third. A ten-bin plot would be one dot on the right-hand edge. The risk–coverage band
         already reports the same fact from the other side.
-  - [ ] Remaining: ablation tables; XAI overlays (blocked on WP1-T5); reconciliation matrix
+  - [x] **Onboarding curve** → `figs/onboarding_cost`, and on the served site. Deliberately
+        not a plain learning curve: two series per backbone, because the dashed *target-only*
+        line is the finding — where it meets the solid one, transfer has stopped mattering.
+        The crossover marker and the title's numbers are read from the CSV, not typed.
+  - [x] **Direct labels moved to k=0**, where the series are separated. The first version
+        labelled the right-hand end, which is exactly where all three converge, and stacked
+        three words on one point.
+  - [x] **XAI overlays** — no longer blocked; see WP4-T5. 27 sheets, redacted.
+  - [ ] Remaining: ablation tables; reconciliation matrix
         with blurred evidence (same block).
   - [x] ★ Risk–coverage / REVIEW-rate curve (WP4-T9). **Done** → `figs/risk_coverage_band`.
         Drawn as a band, with a second panel for the width the confidences leave.
