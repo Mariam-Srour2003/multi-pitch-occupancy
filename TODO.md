@@ -1687,8 +1687,25 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [ ] ★ **Blur all faces in every published figure.** Check this twice before submission.
 
 ### 8.C Defence
-- [ ] **WP8-T3 Threats to validity + ethics sections** — built from the gotchas in `SUPER_PLAN.md` §2,
-      the WP4 findings, and `thesis/ethics.md`.
+- [x] **WP8-T3 Threats to validity — drafted.** `thesis/threats_to_validity.md`, 10 tests.
+      Organised by the four kinds of validity rather than by work package, because that is how
+      an examiner asks. Every figure cites a claim id, and a test asserts each cited id exists
+      **and carries a source artefact** — so a renamed or failing claim breaks the chapter
+      instead of leaving a dangling reference that still reads as evidence.
+  - [x] ★ **Three labels, and the third is the point:** *mitigated* (something in the repo
+        fails if the mitigation is removed), *quantified* (still present, size measured), and
+        **unquantifiable** (size not knowable from this data, and no analysis will change it).
+        A chapter with only mitigated threats has stopped looking. A test asserts all three
+        labels appear.
+  - [x] Leads with the sharpest finding rather than burying it: the false-play rate is a
+        **camera-transfer test**, not a specificity measure, and DINOv2 gets 0 of 243 right.
+  - [x] Closes with what would actually change the limits, ordered by value not effort — and
+        the honest summary that **items 1-3 are cheap**: the limitations are mostly a
+        data-access problem, not a methodological one.
+  - [ ] **Ethics section** still to write — it depends on WP1-T3's answers, which are deferred.
+  - [ ] **[H] Rewrite the arguments in your own words** before the mock exam. The numbers are
+        checked; the arguments are not, and an argument you have not made yourself falls apart
+        on the first follow-up.
 - [ ] **WP8-T4 Defence deck.** The pilot story (the spec's chosen model lost; the pooler-output
       harness bug and its lesson; the leakage number), the novel modules, a live demo of the
       dashboard and reconciliation.

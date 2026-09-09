@@ -3588,3 +3588,7 @@ strong and the number would be meaningless.
 - 2026-09-09 | WP6-T1 simulator snapshot API | `GET /api/v1/cameras/{id}/snapshot` | `api/simulator.py` | 17 tests; an unset PITCH_SIMULATOR_TOKEN disables the endpoint (503) rather than opening it, mode=live refuses rather than serving the recording, and a gap is a 404 not a placeholder
 
 - 2026-09-09 | WP6-T6 evidence images | `run_slot(evidence_dir=...)` + `GET /api/v1/slots/{id}/evidence/{i}` | dashboard inspector | 15 tests; `run_slot` had set every `EvidenceFrame.image_path` to None, so three good minutes were chosen and three paths to nothing recorded - the inspector's "no evidence images bound" was accurate, and the WP6-T7 harvest would have found every frame missing
+
+- 2026-09-09 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 28 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-09 | WP8-T3 threats to validity | `thesis/threats_to_validity.md` | 28 claims re-derive | four kinds of validity, three confidence labels; every cited figure is a claim id and a test asserts each exists and has a source artefact. Two numbers were wrong in the first draft and caught by checking against the ledger rather than by reading: the preprocessing search ran 88 evaluations (740 was minutes), and 0.4474 is the *prompt* search's selection optimism, not the preprocessing search's

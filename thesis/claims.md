@@ -11,7 +11,7 @@ any draft goes out:
 uv run python -m experiments.verify_claims --check
 ```
 
-**27 claims are checked against an artefact. 0 are not, and say why.**
+**28 claims are checked against an artefact. 0 are not, and say why.**
 
 ## Checked
 
@@ -44,6 +44,7 @@ uv run python -m experiments.verify_claims --check
 | The prompt search's winner leads a pre-declared prompt set by 0.4474 balanced score on the folds it was selected from - A6's 'optimistically biased' as a number. | `0.4474` | `results/h6_zero_shot_gap.csv` | `thesis/defence_redteam.md` | ✔ |
 | On the stated cost assumptions a flag must be right 94.7% of the time before reconciliation pays for itself. | `0.947` | `results/reconciliation_value.csv` | — | ✔ |
 | The rule table produces 200 flags per 1,000 slots on the assumed booking-case mix. | `200.0` | `results/reconciliation_value.csv` | — | ✔ |
+| One labelled empty frame of the held-out camera takes DINOv2 from 0.0000 to 0.9793 empty-pitch accuracy; without it the model has never seen that camera and gets none of the 243 right. | `0.9793` | `results/empty_recognition.csv` | — | ✔ |
 
 ## Notes on individual claims
 
@@ -60,3 +61,4 @@ uv run python -m experiments.verify_claims --check
 - **leaky-errors-had-a-near-duplicate** — Reported as a share (100%) in the write-up; the count is what the artefact carries. The complement - zero on the grouped split - is asserted by tests/test_error_taxonomy.py, which checks the rows directly rather than a summary figure.
 - **floor-histogram-random** — A12: this claim previously read 0.686 against ConvNeXtV2's 0.657 and concluded the histogram won. Both numbers were superseded by A8's estimand fix.
 - **reconciliation-break-even** — A break-even under assumptions, not a measurement. Flag precision itself is unmeasurable on this corpus (WP6-T11), which is why the answer takes this form.
+- **camera-transfer-one-frame** — Read with its two caveats, both in the source table: the 243 held-out empty frames are 3 distinct scenes, which is *why* one frame suffices, and every k-shot row carries the count of near-duplicate pairs crossing the train/test boundary - 1,400 already at k=1. `where` is empty until this reaches the write-up.
