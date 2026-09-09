@@ -1,0 +1,6 @@
+comparison,model,reference,mean_delta,p_value,min_achievable_p,n_informative,n_pairs,isolates_one_cause
+routing: mlp vs constant gate,fusion_gated_stats,fusion_constant,-0.0238,1.0000,1.0000,1,7,True
+learned mixing: constant vs uniform,fusion_constant,fusion_uniform,-0.0201,0.5000,0.5000,2,7,True
+gate vs mean-probability ensemble,fusion_gated_stats,ens_convnextv2_dinov2,-0.0405,0.5000,0.5000,2,7,False
+confound: stats gate vs lighting gate,fusion_gated_stats,fusion_gated_lighting,+0.1015,0.5000,0.1250,4,7,False
+trainer control: torch vs published probe,torch_single_dinov2,dinov2,+0.0071,1.0000,0.5000,2,7,False

@@ -11,7 +11,7 @@ any draft goes out:
 uv run python -m experiments.verify_claims --check
 ```
 
-**26 claims are checked against an artefact. 0 are not, and say why.**
+**27 claims are checked against an artefact. 0 are not, and say why.**
 
 ## Checked
 
@@ -23,6 +23,7 @@ uv run python -m experiments.verify_claims --check
 | DINOv2 holds 0.9297 ACTIVE_PLAY recall across unseen venues. | `0.9297` | `results/h3_cross_venue_recall.csv` | `thesis/rq_matrix.md` | ✔ |
 | The clock rule collapses to 0.219 across unseen venues, while the backbones hold above 0.86. | `0.219` | `results/h3_cross_venue_recall.csv` | `thesis/rq_matrix.md` | ✔ |
 | ConvNeXtV2 calls 99.2% of held-out empty pitches a match. | `0.9918` | `results/h3_with_false_play.csv` | `README.md`, `thesis/rq_matrix.md` | ✔ |
+| No model exceeds 0.165 accuracy on the 243 held-out empty frames; DINOv2, whose false-play rate is the lowest of the backbones at 0.309, gets none of them right. | `0.0` | `results/fusion_head_ablation.csv` | — | ✔ |
 | The clock rule, which never looks at the image, calls 2.1% of held-out empty pitches a match. | `0.0206` | `results/h3_with_false_play.csv` | `README.md` | ✔ |
 | Under leave-one-venue-out a constant predictor scores macro-F1 1.000, ahead of every backbone, because every held-out venue is 100% active play. | `1.0` | `results/benchmark_v2.csv` | `README.md`, `thesis/rq_matrix.md`, `thesis/defence_redteam.md` | ✔ |
 | A model that never trains drops 0.183 macro-F1 on the same change of test set, so that much of every leakage penalty is test-set composition. | `0.1834` | `results/benchmark_v2.csv` | `README.md`, `thesis/rq_matrix.md` | ✔ |
@@ -48,6 +49,8 @@ uv run python -m experiments.verify_claims --check
 
 - **h1-drop-convnextv2** — The README states this approximately on purpose ("falls from ~0.99 to ~0.50"); the precise delta lives in the RQ matrix, so only that document is checked for it.
 - **h3-cross-venue-clock-rule** — A lower bound: WP3-T5 found the lighting labels this rule reads are wrong for at least three clip venues, so quote the collapse rather than the number.
+- **false-play-convnextv2** — A false-play *rate*, and its complement is not accuracy. WP5-T2 found every learned probe scores near zero EMPTY accuracy on this set - DINOv2's much lower 0.309 comes with 0 of 243 correct, the rest answered MAINTENANCE - so quote the rate as the rate, never as evidence that a model recognises an empty pitch. See `false-play-is-not-accuracy`.
+- **false-play-is-not-accuracy** — The guard on reading a low false-play rate as competence. The mechanism is the training mix - 518 ACTIVE_PLAY, 251 EMPTY, 6 MAINTENANCE, with class_weight=balanced giving the six-frame class a weight of 43 - so out-of-distribution frames land in MAINTENANCE. `where` is empty until this reaches the write-up; the ledger still re-derives the value.
 - **composition-drop-zero-shot** — Stored in that column because the summary rows reuse the schema; the header of the row names it composition_drop_from_zero_shot_control.
 - **leakage-attributable-dinov2** — The raw drop is stored; the attributable figure is this minus the composition claim above.
 - **h6-fraction-beating-trained** — Stored in that column because the summary row reuses the schema; the comparison field names it fraction_beating_best_trained. No live document states it - the write-up quotes the span instead - so `where` is empty and only the artefact is checked.

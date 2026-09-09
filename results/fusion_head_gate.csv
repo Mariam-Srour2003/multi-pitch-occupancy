@@ -1,0 +1,8 @@
+fold,gate_weight_spread,corr_gate_weight_with_night,mlp_mean_weight_convnextv2,mlp_mean_weight_dinov2,constant_weight_convnextv2,constant_weight_dinov2
+lo_venue_out__clipvenue_a_blue_barrier,0.0637,-0.7698,0.2585,0.7415,0.2508,0.7492
+lo_venue_out__clipvenue_d_indoor_dome,0.0908,-0.6463,0.2949,0.7051,0.2548,0.7452
+lo_venue_out__clipvenue_e_pink_boards,0.0952,-0.6098,0.3059,0.6941,0.2537,0.7463
+lo_venue_out__clipvenue_f_outdoor_bldg,0.0925,-0.6407,0.2946,0.7054,0.2546,0.7454
+lo_venue_out__clipvenue_g_netting,0.1005,-0.6077,0.2988,0.7012,0.2525,0.7474
+lo_venue_out__clipvenue_h_teal_pitch,0.0571,-0.6797,0.2971,0.7029,0.2628,0.7371
+lo_venue_out__clipvenue_i_outdoor_trees,0.1001,-0.6201,0.3017,0.6983,0.2526,0.7474

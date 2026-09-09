@@ -1714,6 +1714,12 @@ equally equivalent to a constant predictor.** DINOv2, at 0.5794, is the only one
 that ever predicts EMPTY - consistent with its false-play rate of 0.309 against ConvNeXtV2's
 0.992.
 
+> **CORRECTION 2026-09-09.** The measurement above stands; the clause after the dash does not.
+> On the 243 held-out empty frames that produce the 0.309, DINOv2 predicts EMPTY **zero**
+> times - it answers ACTIVE_PLAY 75 times and MAINTENANCE 168. A low false-play rate is
+> therefore not evidence that a model predicts EMPTY, and the two facts are not "consistent"
+> in the way this sentence claims; they are unrelated. See the WP5-T2 entry below.
+
 So H4's accuracy clause is *confirmed* and carries no information about whether the two
 models are interchangeable in production. It measures a test set that cannot distinguish
 anything, which is H1's finding arriving from a third direction.
@@ -3332,3 +3338,81 @@ at the same time on one venue, an unknown weekday all raise, because a silently-
 is a slot with no footage and no explanation.
 
 - 2026-09-09 | WP6-T2 scheduler | `pitch schedule` | `src/pitch_occupancy/scheduler.py` | M5 passes; a foreign-key failure named a real confusion between venue and field, fixed in the model rather than papered over
+
+## 2026-09-09 — WP5-T2: the gate does nothing, and the axis that would have judged it measures something else
+
+`src/pitch_occupancy/slots/fusion_head.py`, `experiments/fusion_head_ablation.py`, 21 tests.
+The module M4 asks for, built and reported as the negative result it is — and it turned up a
+larger problem in a number this repository has been quoting for a month.
+
+**The gate does not earn its place.** The plan's architecture is cheap image statistics → tiny
+MLP → per-backbone weights → shared linear head. Built as specified, it is worth **−0.0238**
+cross-venue play recall against the same head with the gate switched off, on one informative
+fold out of seven, p = 1.000. WP5-T2 is answered negatively.
+
+**The ablation is a three-rung ladder, and that was not the first design.** The first version
+had an on/off switch: gated versus not. It showed the gate reaching 0.000 false-play where the
+ungated head reached 0.967, which reads as the gate working. It is not. The gate puts about
+0.70 of its weight on DINOv2 in *every* fold and moves it by 0.086 between frames — almost all
+of its effect is a learned constant, not routing. So the ladder is `uniform` → `constant` →
+`mlp`, each rung adding exactly one capability with head, trainer, seed, epochs and
+regularisation held identical, and the two differences are named separately: learned mixing,
+then routing. Routing is the part the module exists for, and it is the part worth nothing.
+
+The implementation can route — that is checked rather than assumed. On a fixture where the two
+backbones carry opposite labels and which one is right flips with the gate statistic, `uniform`
+and `constant` both score 0.671 and `mlp` scores 1.000; feeding the same gate a matrix of
+zeros collapses it back to 0.663. The null on the real data is a fact about the data.
+
+**The finding that matters is on the other axis.** A column was added to check whether a
+false-play rate of 0.000 was real: what does the model answer *instead* of ACTIVE_PLAY? On the
+243 held-out empty frames —
+
+| model | ACTIVE_PLAY | MAINTENANCE | EMPTY (correct) |
+|---|---|---|---|
+| convnextv2 | 241 | 0 | **2** |
+| dinov2 | 75 | 168 | **0** |
+| vit | 203 | 0 | **40** |
+| ens_convnextv2_dinov2 | 243 | 0 | **0** |
+| fusion_gated_stats | 0 | 243 | **0** |
+
+**The complement of the false-play rate is not correctness.** DINOv2's 0.309 — quoted in the
+README, in `rq_matrix.md` and throughout this log as dominating ConvNeXtV2's 0.992 — is the
+rate at which it makes one kind of mistake rather than another. It gets **none** of the 243
+right. The gated head's perfect 0.000 is 243 wrong answers filed under MAINTENANCE. The best
+model on the axis is ViT at 40 of 243, and no model exceeds 0.165.
+
+Both published numbers remain correct as stated, and the two ledger claims re-derive
+unchanged; what does not follow is the reading that a low rate means a model can recognise an
+empty pitch. One sentence in the H4 entry above drew exactly that inference and is corrected
+in place.
+
+**The mechanism is the dataset, not the head.** This protocol trains on 518 ACTIVE_PLAY, 251
+EMPTY and **6** MAINTENANCE frames, and `class_weight="balanced"` gives a six-frame class a
+weight of 43. Out-of-distribution frames land in it. That is why an EMPTY-accuracy column now
+sits beside the rate, and why the joint summary is built from accuracy rather than from
+`1 - false_play`: built the other way it ranked the gated head first in the table.
+
+**The confound test says "partly".** The gate's DINOv2 weight correlates **−0.653** with a
+night indicator across all seven folds, so lighting is much of what those three statistics
+carry — the fifth appearance of this project's recurring confound, in the gate's inputs rather
+than in a classifier. But a gate fed *only* lighting is 0.1015 worse on recall, so it is not
+all of it. One coincidence is worth recording: the lighting-only gate's false-play rate is
+0.0206, which is the published clock rule's rate to four decimals, both being 5 of 243.
+
+**Nothing here is significant, and the design could not have made it so.** The recall
+comparisons run on seven venue folds with one to four informative pairs, so the sign-flip
+floor is 0.125 at best and 1.000 for the routing test. The empty set is 243 frames but **three
+distinct scenes**. Every number in that column, including the large ones, rests on three
+independent observations. The table is reported with both counts rather than with the
+flattering one.
+
+- 2026-09-09 | WP5-T2 gated fusion head, ablated | `python experiments/fusion_head_ablation.py` | `fusion_head_ablation.csv` | routing worth -0.0238 recall, p=1.000 (floor 1.000); no model exceeds 0.1646 EMPTY accuracy on the held-out camera
+
+- 2026-09-09 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 27 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-09 | WP5-T1 STAN, preliminary | `python experiments/stan_preliminary.py` | `stan_preliminary.csv` | composed test: stan 1.0000 vs best baseline summary_logistic 0.9300; 2 real slots, below the 30-slot gate
+
+- 2026-09-09 | WP5-T1 STAN, preliminary | `python experiments/stan_preliminary.py` | `stan_preliminary.csv` | composed test: stan 1.0000 vs best baseline hmm 0.8950; 2 real slots, below the 30-slot gate
+
+- 2026-09-09 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
