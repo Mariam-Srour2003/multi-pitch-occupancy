@@ -3263,3 +3263,5 @@ The tracker in `TODO.md` now points here, and a test asserts the gate names and 
 two agree — so re-cutting a gate in one place and not the other fails rather than diverging.
 
 - 2026-09-09 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | M2 and M3 met on artefacts; M1/M6/M7 wait on a person; two checks found wrong in a plausible way and fixed
+
+- 2026-09-09 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 1 gate(s) met on artefacts, 2 waiting on a person
