@@ -66,6 +66,23 @@ class SlotRun:
         return self.minutes_captured / total if total else 0.0
 
 
+def _write_evidence(slot_dir: Path, minute: int, camera: str, image) -> Path | None:
+    """Write one minute's evidence frame. Returns the path, or None if it could not be saved.
+
+    A failed write must not take the slot down: the verdict is still valid without a picture,
+    and losing an hour's classification because a disk was full would be a much worse outcome
+    than losing the illustration of it.
+    """
+    import cv2
+
+    path = slot_dir / f"minute_{minute:03d}_{camera}.jpg"
+    try:
+        ok = cv2.imwrite(str(path), image, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+    except Exception:  # noqa: BLE001 - any write failure degrades to "no picture"
+        return None
+    return path if ok else None
+
+
 def run_slot(
     slot_id: str,
     source: FrameSource,
@@ -73,6 +90,7 @@ def run_slot(
     *,
     thresholds: Thresholds | None = None,
     on_minute: Callable[[int, Class3], None] | None = None,
+    evidence_dir: Path | None = None,
 ) -> SlotRun:
     """Sample, classify, fuse and aggregate one slot.
 
@@ -80,6 +98,23 @@ def run_slot(
     They lower the capture rate, which is what a verdict's trustworthiness should depend
     on - a slot evaluated from ten of sixty minutes is not the same claim as one evaluated
     from all sixty.
+
+    ``evidence_dir`` turns on **saving the evidence images**, and until 2026-09-09 nothing
+    did. `EvidenceFrame.image_path` was populated with a literal ``None`` on every minute, so
+    the selection machinery ran, chose three good frames, and recorded three paths to nothing.
+    The dashboard's evidence inspector said "no evidence images bound" and was right; the
+    override harvest (WP6-T7) would have found every frame missing. A verdict an operator
+    cannot see the evidence for is the one thing this system must not produce, since a human
+    confirming every anomaly is what `slots/authority.py` rests on.
+
+    The winning camera's frame is written for **every** observed minute and the unselected ones
+    are deleted once the choice is made, because which three minutes matter is not knowable
+    until the whole slot has been seen. Sixty small JPEGs written and fifty-seven removed is
+    cheaper than holding sixty full-resolution frames in memory, which at 1080p is most of a
+    gigabyte per slot.
+
+    Left off by default: writing frames of identifiable people to disk is a decision a caller
+    makes, not something that happens because a function was called.
     """
     cameras = source.cameras()
     samples: list[Sample] = []
@@ -87,16 +122,25 @@ def run_slot(
     fused_conf: list[float] = []
     evidence_rows: list[tuple[int, Class3, float, str | None]] = []
     disagreements: list[bool] = []
+    written: list[Path] = []
     missed = 0
+
+    slot_dir = None
+    if evidence_dir is not None:
+        slot_dir = Path(evidence_dir) / slot_id
+        slot_dir.mkdir(parents=True, exist_ok=True)
 
     for minute in range(source.n_minutes):
         observations: dict[str, tuple[Class3, float]] = {}
+        images: dict[str, object] = {}
         for camera in cameras:
             frame = source.read(camera, minute)
             if frame is None:
                 continue  # a gap; never a fabricated observation
             state, confidence = classify(frame.image_bgr)
             observations[camera] = (state, confidence)
+            if slot_dir is not None:
+                images[camera] = frame.image_bgr
             samples.append(
                 Sample(
                     camera_id=camera,
@@ -116,7 +160,23 @@ def run_slot(
         fused_states.append(fused.state)
         fused_conf.append(fused.confidence)
         disagreements.append(fused.disagreed)
-        evidence_rows.append((minute, fused.state, fused.confidence, None))
+
+        # The frame from the camera whose observation won the fusion - the one that actually
+        # justifies the minute's state. Saving an averaged or arbitrary camera would hand an
+        # operator a picture of an empty half to explain a verdict of "play on the other one".
+        path = None
+        if slot_dir is not None:
+            winner = max(
+                (c for c, _, _ in fused.per_camera if c in images),
+                key=lambda c: observations[c][1],
+                default=None,
+            )
+            if winner is not None:
+                path = _write_evidence(slot_dir, minute, winner, images[winner])
+                if path is not None:
+                    written.append(path)
+        evidence_rows.append((minute, fused.state, fused.confidence,
+                              str(path) if path else None))
         if on_minute is not None:
             on_minute(minute, fused.state)
 
@@ -125,15 +185,27 @@ def run_slot(
     verdict = aggregate_slot(
         fused_states, fused_conf, thresholds, minutes_expected=source.n_minutes
     )
+    evidence = select_evidence_around_transitions(
+        evidence_rows, fused_states, verdict.status
+    )
+
+    # Which three minutes matter is only knowable once the whole slot has been seen, so every
+    # observed minute was written and the rest are removed now. Deleting only files this call
+    # created, by identity rather than by pattern: a glob would also sweep up a frame an
+    # operator had already been shown and disputed.
+    if slot_dir is not None:
+        keep = {e.image_path for e in evidence if e.image_path}
+        for path in written:
+            if str(path) not in keep:
+                path.unlink(missing_ok=True)
+
     return SlotRun(
         slot_id=slot_id,
         verdict=verdict,
         samples=samples,
         # a slot that changed state is better explained by the moment it changed than by
         # three frames from its thirds; thirds still apply when nothing changed
-        evidence=select_evidence_around_transitions(
-            evidence_rows, fused_states, verdict.status
-        ),
+        evidence=evidence,
         minutes_captured=len(fused_states),
         minutes_missed=missed,
         conditions=summarise_conditions(

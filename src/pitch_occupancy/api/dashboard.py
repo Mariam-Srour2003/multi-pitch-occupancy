@@ -110,6 +110,14 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .ev{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 16px}
 .ev span{font-family:'JetBrains Mono',monospace;font-size:11.5px;background:var(--accent-soft);
   color:var(--accent);padding:4px 9px;border-radius:5px}
+.ev figure{margin:0;display:flex;flex-direction:column;gap:5px}
+.ev figure img{width:210px;height:140px;object-fit:cover;border-radius:7px;
+  border:1px solid var(--line);background:var(--accent-soft);display:block}
+.ev figcaption{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted)}
+/* An evidence frame retention has deleted must read as gone, never as a blank picture that
+   an operator might take for an empty pitch. */
+.ev figure.gone img{display:none}
+.ev figure.gone figcaption::after{content:' - image no longer on disk';color:var(--alert)}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);
   color:var(--ground);padding:11px 18px;border-radius:8px;font-size:13.5px;z-index:50}
 .toast[hidden]{display:none}
@@ -217,8 +225,14 @@ async function openSlot(id){
   document.getElementById("dbody").innerHTML = `
     <div>${pill(ev.status)}</div>
     <div class="ev">${ev.evidence_paths.length
-      ? ev.evidence_paths.map(p => `<span>${p}</span>`).join("")
-      : '<span>no evidence images bound</span>'}</div>
+      ? ev.evidence_paths.map((p, i) => `<figure>
+          <img src="/api/v1/slots/${encodeURIComponent(id)}/evidence/${i}"
+               alt="evidence frame ${i + 1} for ${id}" loading="lazy"
+               onerror="this.closest('figure').classList.add('gone')">
+          <figcaption>${p.split(/[\/]/).pop()}</figcaption>
+        </figure>`).join("")
+      : `<span>no evidence images saved for this slot - the run was made without
+         evidence_dir, so there is nothing to review</span>`}</div>
     <div class="sub2">${minutes.length} sampled minutes, ${ev.samples.length} camera
       observations</div>
     <div class="scroll"><table><thead><tr><th>Minute</th><th>Cameras</th></tr></thead><tbody>

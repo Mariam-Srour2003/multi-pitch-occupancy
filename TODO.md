@@ -1484,10 +1484,28 @@ tagged with the question it answers. Fix that first — it is what turns a build
       noticing now rather than in week 19.
 
 ### 6.C Operator surface
-- [ ] **WP6-T6 Dashboard.** FastAPI + single-page UI: global meters, live field matrix with
-      confidence chips, slot evidence inspector (3 photos, AI reason, one-click override with
-      operator name → `is_overridden` audit fields), anomalies view, schedule editor.
-      *Accept:* manager daily review flow < 5 min.
+- [ ] **WP6-T6 Dashboard — the evidence inspector now shows the evidence.** Meters, anomalies,
+      slot list, evidence inspector and one-click override were already built; what was missing
+      was the photos, and the reason was upstream.
+  - [x] ★ **`run_slot` never saved an evidence frame.** `EvidenceFrame.image_path` was set to a
+        literal `None` on every minute, so the selection machinery ran, chose three good
+        minutes, and recorded three paths to nothing. The inspector said "no evidence images
+        bound" and was telling the truth, and the WP6-T7 harvest would have found every frame
+        missing against the real database. **A verdict whose evidence cannot be seen is the one
+        thing this system must not produce**, since a human confirming every anomaly is what
+        `slots/authority.py` rests on.
+  - [x] `run_slot(evidence_dir=...)` writes the **fusion-winning** camera's frame for every
+        observed minute and deletes the unselected ones once the choice is made — which three
+        matter is not knowable until the slot has been seen, and holding sixty 1080p frames is
+        most of a gigabyte. Off by default: writing frames of identifiable people to disk is a
+        caller's decision. A failed write degrades to "no picture", never to a lost verdict.
+  - [x] `GET /api/v1/slots/{id}/evidence/{index}` serves them **addressed by position, so the
+        URL carries no path and traversal is not expressible** — stronger than sanitising one.
+        The stored path is still resolved and confined, because the database is not a trust
+        boundary either. A retention-deleted frame is a 404 and renders as *gone*, never as a
+        blank image an operator might read as an empty pitch.
+  - [ ] Remaining: live field matrix with confidence chips, and the schedule editor.
+  - [ ] *Accept:* manager daily review flow < 5 min — needs a manager (WP7-T4).
 - [x] **WP6-T7 Override → retraining loop — built, with one deliberate departure.**
       `src/pitch_occupancy/retraining.py`, `pitch retraining`, 13 tests.
   - [x] ★ **Frames are staged UNFILED, not under `<corrected_class>/`, and that is a

@@ -14,8 +14,10 @@ from __future__ import annotations
 import json
 import sqlite3
 from datetime import date
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from pitch_occupancy.config import settings
@@ -148,6 +150,46 @@ def slot_evidence(slot_id: str, conn: sqlite3.Connection = Depends(get_conn)) ->
         evidence_paths=json.loads(row["evidence_paths"] or "[]"),
         samples=[dict(s) for s in samples],
     )
+
+
+#: Roots an evidence image may live under. Checked after resolving, so a symlink or a
+#: `..` inside a stored path cannot reach outside them.
+def _evidence_roots() -> tuple[Path, ...]:
+    return (
+        (settings.interim_dir / "evidence").resolve(),
+        settings.dataset_dir.resolve(),
+    )
+
+
+@router.get("/slots/{slot_id}/evidence/{index}", include_in_schema=False)
+def evidence_image(
+    slot_id: str, index: int, conn: sqlite3.Connection = Depends(get_conn)
+) -> FileResponse:
+    """One evidence image, addressed by its position rather than by its path.
+
+    The URL carries a slot id and an integer and never a filename, so path traversal is not
+    something to sanitise here - it is not expressible. The stored path is still resolved and
+    confined to the evidence roots afterwards, because the database is not a trust boundary
+    either: a path could have been written there by an older version or an edited row.
+    """
+    row = load_verdict(conn, slot_id)
+    if row is None:
+        raise HTTPException(404, f"no evaluation for slot {slot_id!r}")
+    paths = json.loads(row["evidence_paths"] or "[]")
+    if not 0 <= index < len(paths):
+        raise HTTPException(404, f"slot {slot_id!r} has {len(paths)} evidence image(s)")
+
+    path = Path(paths[index])
+    if not path.is_absolute():
+        path = (settings.dataset_dir / path)
+    path = path.resolve()
+    if not any(path.is_relative_to(root) for root in _evidence_roots()):
+        raise HTTPException(404, "evidence image is outside the permitted directories")
+    if path.suffix.lower() not in {".jpg", ".jpeg", ".png"} or not path.is_file():
+        # Retention deletes evidence on a schedule, so a missing file is normal operation
+        # rather than a fault - and it must read as "gone", never as a placeholder image.
+        raise HTTPException(404, "evidence image is not on disk (retention may have removed it)")
+    return FileResponse(path, media_type="image/jpeg")
 
 
 @router.post("/slots/{slot_id}/override", response_model=SlotSummary)

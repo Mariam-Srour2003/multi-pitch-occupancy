@@ -3586,3 +3586,5 @@ strong and the number would be meaningless.
 - 2026-09-09 | WP6-T7 override harvest | `pitch retraining` | `data/dataset/_incoming/_unfiled/` | staged unfiled, never auto-labelled: a slot verdict is not a frame label
 
 - 2026-09-09 | WP6-T1 simulator snapshot API | `GET /api/v1/cameras/{id}/snapshot` | `api/simulator.py` | 17 tests; an unset PITCH_SIMULATOR_TOKEN disables the endpoint (503) rather than opening it, mode=live refuses rather than serving the recording, and a gap is a 404 not a placeholder
+
+- 2026-09-09 | WP6-T6 evidence images | `run_slot(evidence_dir=...)` + `GET /api/v1/slots/{id}/evidence/{i}` | dashboard inspector | 15 tests; `run_slot` had set every `EvidenceFrame.image_path` to None, so three good minutes were chosen and three paths to nothing recorded - the inspector's "no evidence images bound" was accurate, and the WP6-T7 harvest would have found every frame missing

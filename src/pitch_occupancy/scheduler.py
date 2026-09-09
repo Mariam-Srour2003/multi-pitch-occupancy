@@ -177,8 +177,14 @@ def run_due(
     connection=None,
     model_key: str | None = None,
     on_slot: Callable[[str, object], None] | None = None,
+    evidence_dir: Path | None = None,
 ) -> list[str]:
     """Run every slot due at ``now`` and persist its verdict. Returns the slot ids run.
+
+    ``evidence_dir`` is passed straight to `worker.run_slot` and is off by default: writing
+    frames of identifiable people to disk is the caller's decision. Without it the verdict is
+    still recorded, but `evidence_paths` is empty and the dashboard's inspector has nothing to
+    show - which is what it did until 2026-09-09, because `run_slot` set every path to None.
 
     ``source_for`` supplies the frames, so this module knows nothing about video files, RTSP
     or a simulator - the same seam `worker.run_slot` already uses, and the reason this can be
@@ -194,7 +200,8 @@ def run_due(
     for slot in due(schedule, now):
         slot_id = slot.slot_id(now.date())
         try:
-            run = run_slot(slot_id, source_for(slot, now.date()), classify)
+            run = run_slot(slot_id, source_for(slot, now.date()), classify,
+                           evidence_dir=evidence_dir)
         except Exception as exc:  # noqa: BLE001 - one bad camera must not stop the rest
             if on_slot:
                 on_slot(slot_id, exc)
