@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 
+from pitch_occupancy.data.taxonomy import SlotStatus
 from pitch_occupancy.slots.authority import (
     FORBIDDEN,
     MAX_SEVERITY_WITHOUT_HUMAN,
@@ -27,7 +28,6 @@ from pitch_occupancy.slots.authority import (
     advise,
 )
 from pitch_occupancy.slots.reconcile import Anomaly, Booking, Reconciliation, reconcile
-from pitch_occupancy.data.taxonomy import SlotStatus
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "pitch_occupancy"
 
@@ -139,18 +139,68 @@ def test_no_http_route_writes_to_a_booking() -> None:
     assert not offenders, f"a booking write route appeared: {offenders}"
 
 
-def test_the_only_mutating_route_is_a_human_override() -> None:
-    """Every write the API offers should be a person correcting the system, never the
-    system acting. If this fails, a new mutating route needs a deliberate look."""
+#: Routes allowed to use a mutating HTTP verb, each with the reason it is not the system
+#: acting. Adding to this set is the deliberate look the test below asks for - and the reason
+#: belongs here, next to the entry, rather than in a commit message nobody re-reads.
+ALLOWED_MUTATING = {
+    #: A person correcting the system. The model's verdict is retained beside the correction.
+    "/slots/{slot_id}/override",
+    #: The preprocessing search control, which acts on this project's own experiment state.
+    "/preprocess",
+    #: An operator editing this system's *own* capture configuration (WP6-T6). Not the same
+    #: category as writing to a client system: `bookings.py` has no write method at all,
+    #: because a booking sheet is the facility's financial record. This is defensible, and it
+    #: is still the most dangerous route here - see `api/schedule_editor.py` for the three
+    #: protections it carries.
+    "/schedule",
+    #: A POST that writes nothing. It carries a proposed schedule in its body, which is why
+    #: it cannot be a GET, and returns whether the scheduler would accept it. Pinned by
+    #: `test_the_validate_route_really_writes_nothing` below rather than trusted.
+    "/schedule/validate",
+}
+
+
+def test_the_only_mutating_routes_are_a_person_acting() -> None:
+    """Every write the API offers should be a person correcting or configuring the system,
+    never the system acting. If this fails, a new mutating route needs a deliberate look -
+    add it to ALLOWED_MUTATING with the reason, or reconsider the design."""
     mutating = {
         route
         for path in (SRC / "api").glob("*.py")
         for method, route in _http_methods(path)
         if method in {"post", "put", "patch", "delete"}
     }
-    assert mutating <= {"/slots/{slot_id}/override", "/preprocess"}, (
-        f"unexpected mutating routes: {sorted(mutating - {'/slots/{slot_id}/override', '/preprocess'})}"
+    assert mutating <= ALLOWED_MUTATING, (
+        f"unexpected mutating routes: {sorted(mutating - ALLOWED_MUTATING)}"
     )
+
+
+def test_the_validate_route_really_writes_nothing() -> None:
+    """`/schedule/validate` is on the allowlist as "a POST that writes nothing", and that
+    claim is checked rather than believed - an allowlist entry justified by a property is only
+    as good as the test for the property."""
+    import json
+
+    from pitch_occupancy.api import schedule_editor as se
+
+    entry = {
+        "venue_id": "venue_01", "start": "10:00", "duration_minutes": 60,
+        "cameras": ["camera_A"],
+    }
+    if not se.DEFAULT_SCHEDULE.exists():
+        pytest.skip("no schedule file")
+    def history() -> list[str]:
+        folder = se.history_dir()
+        return sorted(q.name for q in folder.glob("*.json")) if folder.exists() else []
+
+    before, history_before = se.DEFAULT_SCHEDULE.read_text(encoding="utf-8"), history()
+
+    se.validate([entry])
+    se.validate([{**entry, "start": "nonsense"}])
+
+    assert se.DEFAULT_SCHEDULE.read_text(encoding="utf-8") == before
+    assert history() == history_before
+    json.loads(before)  # still readable
 
 
 def test_the_database_layer_has_no_financial_table_or_column() -> None:
