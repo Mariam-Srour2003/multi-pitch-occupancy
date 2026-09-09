@@ -347,3 +347,25 @@ source = "results/onboarding_cost.csv"
 select = { backbone = "dinov2", k = "5" }
 column = "target_only_mean"
 note = "The control that reframes the transfer story. Compare against `adapted_mean` in the same row, which is equal to four decimal places. Holds for all three backbones."
+
+# --- WP3-T6: augmentation across the camera boundary ------------------------------------
+
+[[claim]]
+id = "augmentation-light-recovers-empty"
+statement = "Brightness-and-gamma augmentation takes empty-pitch recall on an unseen camera from 0.000 to 0.687, with no labels from that camera."
+value = 0.6872
+where = []
+source = "results/augmentation_transfer.csv"
+select = { preset = "light" }
+column = "empty_recall"
+note = "Compare the `baseline` row's 0.0000 in the same table, and the `none` row - four identical copies of each frame - which does not move it. One seed per preset, so read the ordering rather than the third decimal."
+
+[[claim]]
+id = "augmentation-full-erases-the-gain"
+statement = "Turning every augmentation on scores 0.3479, the same as colour jitter alone and below no augmentation at all - even though it contains every effect that made `light` work."
+value = 0.3479
+where = []
+source = "results/augmentation_transfer.csv"
+select = { preset = "full" }
+column = "macro_f1"
+note = "The practical finding: match the augmentation to the shift being fought. Adding the rest does not dilute the benefit, it erases it - `full` returns empty-pitch recall to zero."

@@ -49,7 +49,7 @@ A gate passes only when nothing under it is unmet *and* nothing needs a person.
 | ✔ | Significance tests with correction | Holm-corrected families in 3 reports |
 | ✔ | Trivial-baseline floor reported | 4 trivial baselines in the benchmark |
 | ✔ | Figures exported | results/figs/leakage_decomposition.png |
-| ✔ | Every quantitative claim re-derives | 30 claims re-derive from their artefacts |
+| ✔ | Every quantitative claim re-derives | 32 claims re-derive from their artefacts |
 
 ## M4 (week 18) — passed
 
@@ -79,7 +79,7 @@ A gate passes only when nothing under it is unmet *and* nothing needs a person.
 
 | | criterion | evidence |
 |---|---|---|
-| ✔ | Claims ledger complete and verified | 30 claims re-derive from their artefacts |
+| ✔ | Claims ledger complete and verified | 32 claims re-derive from their artefacts |
 | ✔ | Defence red-team written | thesis/defence_redteam.md |
 | ✔ | Related-work chapter | thesis/ch2_related_work.md |
 | — | Thesis submitted and defence ready | writing, a mock examination and submission (WP8-T7) |

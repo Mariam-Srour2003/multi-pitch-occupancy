@@ -651,10 +651,24 @@ tagged with the question it answers. Fix that first — it is what turns a build
         rendered as white poles at 320×180 and would have been invisible hairlines at 1080p
         after the resize to 224. Now every dimension is a fraction of frame height, pinned by
         a test. **No shape/dtype check could have caught that** — only looking at it.
-  - [ ] Flag in benchmark — *deliberately not done yet.* Augmenting means a backbone forward
-        pass per view, so the feature cache every experiment relies on stops applying
-        (~8 min/model/epoch-equivalent vs seconds for a probe fit). This needs its own
-        extraction budget, not a switch. See `docs/IDEAS.md` #2.
+  - [x] ★ **Run where it answers something — `experiments/augmentation_transfer.py`**, 11
+        tests. A generic benchmark flag still needs its own extraction budget (`IDEAS.md` #2);
+        this asks one question on one boundary: **can augmentation buy what five labelled
+        frames of a new camera buy?**
+  - [x] **`light` (brightness, gamma, noise) takes empty-pitch recall on an unseen camera from
+        0.000 to 0.687** with no target labels, closing **75%** of the gap one labelled frame
+        closes (`augmentation-light-recovers-empty`). The duplicate-rows control moves *down*,
+        so this is variety and not row count.
+  - [x] ★ **`full` — every effect at once, including all of `light`'s — scores 0.3479, the
+        same as colour jitter alone and below no augmentation, with empty recall back at
+        zero** (`augmentation-full-erases-the-gain`). Turning more on did not dilute the gain,
+        it **erased** it. Match the augmentation to the shift; adding the rest costs you the
+        benefit. This runs against instinct, so a test pins it.
+  - [x] Neither clean story is true: 0.855 is not the 0.9895 a labelled frame reaches, so
+        augmentation is no substitute — but "it does not help across cameras" was also wrong.
+  - [ ] One seed per preset, so nothing bounds the variance of `light`'s 0.855. Read the
+        ordering, not the third decimal.
+  - [ ] Flag in the full benchmark — still deferred, still for the extraction-budget reason.
 - [x] **WP3-T7 Class balancing.** `class_weight='balanced'` + optional weighted sampling, default ON
       for 3-class runs. *Accept:* C3 recall improves on validation vs unweighted.
   - [x] Default is already ON. `experiments/class_balancing.py` → `class_balancing.csv`.

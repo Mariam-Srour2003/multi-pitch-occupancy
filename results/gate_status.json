@@ -123,7 +123,7 @@
     "week": 13,
     "criterion": "Every quantitative claim re-derives",
     "status": "met",
-    "detail": "30 claims re-derive from their artefacts"
+    "detail": "32 claims re-derive from their artefacts"
   },
   {
     "gate": "M4",
@@ -193,7 +193,7 @@
     "week": 24,
     "criterion": "Claims ledger complete and verified",
     "status": "met",
-    "detail": "30 claims re-derive from their artefacts"
+    "detail": "32 claims re-derive from their artefacts"
   },
   {
     "gate": "M7",

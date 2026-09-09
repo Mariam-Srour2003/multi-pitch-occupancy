@@ -3608,3 +3608,45 @@ strong and the number would be meaningless.
 - 2026-09-10 | WP6-T6 field matrix | `GET /api/v1/fields/day/{day}` + dashboard grid | 10 tests | a scheduled slot with no verdict is drawn hollow rather than as a neutral chip - an unobserved hour and an observed-empty hour are different claims. Found and fixed while building it: the evidence endpoint was sending absolute server paths into the page, and two JavaScript regexes were invalid Python escapes that happened to work
 
 - 2026-09-10 | WP6-T6 schedule editor | `GET/PUT /api/v1/schedule` | `api/schedule_editor.py`, 22 tests | the API's only write path. Validation delegates to `load_schedule` itself rather than reimplementing its rules; writes go through `os.replace` from a staging file beside the target; the previous version is kept under `configs/schedule_history/`. A rejected edit leaves no trace, not even a backup
+
+- 2026-09-09 | WP3-T6 augmentation across cameras | `python experiments/augmentation_transfer.py --views 4` | `augmentation_transfer.csv` | best preset light 0.8550 vs 0.4406 unaugmented and 0.3625 for the duplicate-rows control; closes 75% of the gap one labelled frame closes
+
+- 2026-09-09 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 32 claims verified against their artefacts, 0 recorded as unsupported
+
+## 2026-09-10 — WP3-T6: one augmentation works, and turning them all on erases it
+
+`experiments/augmentation_transfer.py`, `augmentation_transfer.csv`, 11 tests. The question
+`onboarding_cost.py` left open: a probe trained on camera A scores 0.441 macro-F1 on camera B
+and 0.9895 with one labelled frame of B — **can augmentation close that without any labels?**
+
+| preset | macro-F1 | vs baseline | EMPTY recall |
+|---|---|---|---|
+| no augmentation | 0.4406 | — | 0.000 |
+| `none` *(duplicate rows, the control)* | 0.3625 | −0.0781 | 0.000 |
+| `colour` | 0.3479 | −0.0926 | 0.000 |
+| **`light`** | **0.8550** | **+0.4144** | **0.687** |
+| `weather` | 0.4486 | +0.0080 | 0.099 |
+| `full` *(everything)* | 0.3479 | −0.0926 | 0.000 |
+
+**One preset works and it works on the failure that mattered.** Brightness, gamma and sensor
+noise take empty-pitch recall from 0.000 to 0.687 with no labels from the target camera,
+closing 75% of the gap one labelled frame closes. The duplicate-rows control moves *down*, so
+the gain is variety rather than row count — which is why that control was run.
+
+**`full` is the finding to take away.** It contains every one of `light`'s effects and adds
+colour jitter, fog, rain and flip, and it lands on 0.3479 — exactly `colour` alone, with empty
+recall back at zero. More augmentation did not dilute the benefit, it erased it. Match the
+augmentation to the shift being fought; adding the rest costs you the gain. That runs against
+instinct, so a test pins it against being "corrected" later.
+
+Neither clean story survives. 0.855 is not 0.9895, so augmentation is not a substitute for the
+five-frame recipe — but the earlier claim that it does not help across cameras was wrong too.
+
+**One seed per preset.** The draw is seeded and reproducible but only one was taken, so
+nothing here bounds the variance of 0.855. Read the ordering, not the third decimal.
+
+The first run of this died during the fourth preset after an hour and lost the three already
+finished, because the CSV was written after the loop. It saves after every preset now: a long
+experiment that keeps nothing until it finishes is one crash away from having done nothing.
+
+- 2026-09-10 | WP3-T6 augmentation across cameras | `python experiments/augmentation_transfer.py --views 4` | `augmentation_transfer.csv` | `light` 0.8550 vs 0.4406 unaugmented and 0.3625 for the duplicate-rows control; closes 75% of the gap one labelled frame closes; `full` erases the gain entirely
