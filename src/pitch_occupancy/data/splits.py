@@ -3,20 +3,34 @@
 Three rules this module exists to enforce, none of which survive six months of good
 intentions on their own:
 
-1. **Splits are materialised, never re-randomised.** A split is written to
-   ``results/splits/<name>.csv`` and afterwards referenced by name. Two runs of the same
-   experiment must see byte-identical splits.
+1. **A split is identified by its rows, not by its seed** - and the machinery to
+   materialise one exists for when that is not enough. :func:`write_split` writes to
+   ``results/splits/<name>.csv`` and :func:`read_split` reads it back, re-applying the
+   final-venue lock.
 
-   **Stated but not yet practised, and the gap has bitten once.** As of 2026-09-07
-   :func:`write_split` and :func:`read_split` have no callers outside the tests, and
-   ``results/splits/`` holds only the lock file. Every experiment calls
-   :func:`grouped_split` directly with ``seed=42`` instead, which is deterministic *given
-   the same rows* - and that proviso is the whole problem. The row list depends on which
-   feature caches a script filters to, so two experiments that filter differently get
-   different splits from the same seed: ``effective_sample_audit.py`` (DINOv2 cache only)
-   counts 94 distinct scenes where ``h4_model_equivalence.py`` (all three caches) counts
-   95. Harmless there, and exactly the drift materialisation exists to prevent. See
-   TODO WP0-T4.
+   **Decision, 2026-09-10 (WP0-T4).** Those two have no callers outside the tests, and
+   ``results/splits/`` holds only the lock file: every experiment calls :func:`grouped_split`
+   with ``seed=42`` directly. That is deterministic *given the same rows*, and the proviso is
+   the whole problem - the row list depends on which feature caches a script filtered to, so
+   two experiments that filter differently get different splits from one seed. In September
+   ``effective_sample_audit.py`` (DINOv2 cache only) counted 94 distinct scenes where
+   ``h4_model_equivalence.py`` (all three) counted 95 — both correct, from ``seed=42``.
+   Harmless there, and exactly the drift materialisation exists to prevent.
+
+   **Run today the two agree** (identity ``f73f5a29b425``), because the reproducibility
+   repair of 2026-09-08 brought their row lists back together. Nothing recorded that they
+   had diverged, and nothing recorded that they had converged either, which is the actual
+   gap: not that a number was wrong, but that no artefact could have told you.
+
+   The plan's intent was to retrofit ``read_split`` across some twenty scripts. That was
+   **not** taken, and the reason is worth stating rather than leaving as an omission:
+   materialising the canonical splits now would change which rows several published
+   experiments were fitted on, so it would invalidate results in order to protect them. The
+   claim was dropped instead. A split's identity is the strategy, the group key, the seed
+   **and the ordered row list**, and :func:`split_identity` returns a fingerprint of exactly
+   that, so a disagreement between two runs is detectable instead of surfacing as an
+   unexplained difference in a count. It detects; it does not prevent. Preventing is what
+   the retrofit would have done, and it stays available for anyone who takes it.
 2. **Groups never straddle the boundary.** Frames sampled seconds apart, or the two
    cameras watching one pitch at one moment, are the same scene. Splitting them across
    train and test measures memorisation.
@@ -31,6 +45,7 @@ model was fitted. See ``thesis/preregistration.md``.
 from __future__ import annotations
 
 import csv
+import hashlib
 import random
 from collections import Counter, defaultdict
 from collections.abc import Iterator
@@ -49,7 +64,7 @@ __all__ = [
     "leave_one_group_out",
     "random_split",
     "temporal_split",
-    "check_split",
+    "check_split", "split_identity",
     "LEGACY_GROUP_KEY",
     "DEFAULT_SPLIT_DIR",
     "write_split",
@@ -299,6 +314,47 @@ def temporal_split(
 # ---------------------------------------------------------------------------
 
 
+def _partition_digest(train, test, group_key: str, seed: int | None) -> str:
+    """The hash of everything except the split's *name*.
+
+    Separate from :func:`split_identity` because the two answer different questions. The
+    identity says "is this the same split", and a split is referenced by name, so the name
+    belongs in it. This says "is this the same partition", which must survive a file being
+    copied to a new name - a legitimate thing to do with a materialised split, and not a
+    reason to refuse to read it.
+    """
+    payload = "|".join([
+        group_key, str(seed),
+        *(r.file for r in train), "--test--", *(r.file for r in test),
+    ])
+    return hashlib.sha256(payload.encode()).hexdigest()[:12]
+
+
+def split_identity(split: Split) -> str:
+    """A short fingerprint of everything that decides which rows land on which side.
+
+    **A seed does not identify a split here.** `grouped_split(rows, seed=42)` is
+    deterministic given the same rows, and that proviso is the whole problem: the row list
+    depends on which feature caches the calling script filtered to.
+    In September `effective_sample_audit.py` read the DINOv2 cache and counted 94 distinct
+    scenes while `h4_model_equivalence.py` read all three and counted 95 - from the same
+    seed, the same function and the same manifest. Harmless that time. **Not detectable**,
+    which is the part worth fixing: the two agree again today, and nothing recorded either
+    the divergence or the return.
+
+    So the identity is the strategy, the group key, the seed **and the ordered row list**.
+    Two runs that agree on all four have the same split; two that differ in any of them do
+    not, whatever the seed says. Quoting this next to a split-derived number makes the
+    difference visible instead of leaving it to be discovered by a discrepancy in a count.
+
+    Deliberately not a guarantee of reproducibility, which is a stronger claim than a hash
+    can support: it detects disagreement, it does not prevent it. Preventing it is
+    `write_split`/`read_split`, and WP0-T4 records why that retrofit was not taken.
+    """
+    partition = _partition_digest(split.train, split.test, split.group_key, split.seed)
+    return hashlib.sha256(f"{split.name}|{partition}".encode()).hexdigest()[:12]
+
+
 def check_split(split: Split) -> list[str]:
     """Problems that would make results from this split misleading.
 
@@ -384,11 +440,12 @@ def write_split(split: Split, out_dir: Path | None = None) -> Path:
     path = out_dir / f"{split.name}.csv"
     with path.open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
-        w.writerow(["file", "role", "group_key", "seed"])
+        w.writerow(["file", "role", "group_key", "seed", "partition"])
         seed = "" if split.seed is None else split.seed
+        digest = _partition_digest(split.train, split.test, split.group_key, split.seed)
         for role, part in (("train", split.train), ("test", split.test)):
             for r in part:
-                w.writerow([r.file, role, split.group_key, seed])
+                w.writerow([r.file, role, split.group_key, seed, digest])
     return path
 
 
@@ -408,6 +465,7 @@ def read_split(path: Path, rows: list[ManifestRow]) -> Split:
     train, test = [], []
     group_keys: set[str] = set()
     seeds: set[str] = set()
+    digests: set[str] = set()
     with path.open(newline="", encoding="utf-8") as fh:
         for rec in csv.DictReader(fh):
             row = by_file.get(rec["file"])
@@ -421,6 +479,8 @@ def read_split(path: Path, rows: list[ManifestRow]) -> Split:
                 group_keys.add(rec["group_key"])
             if rec.get("seed"):
                 seeds.add(rec["seed"])
+            if rec.get("partition"):
+                digests.add(rec["partition"])
 
     locked = load_final_venues()
     if trespassers := sorted({r.venue for r in (*train, *test)} & locked):
@@ -440,6 +500,29 @@ def read_split(path: Path, rows: list[ManifestRow]) -> Split:
     # `check_split` reports the group check as unrunnable rather than crashing on it.
     group_key = next(iter(group_keys), LEGACY_GROUP_KEY)
     seed = int(next(iter(seeds))) if len(seeds) == 1 else None
+    # The partition is verified rather than trusted. A materialised split is a CSV, and a
+    # CSV is editable: deleting a row, or flipping one from test to train, produces a file
+    # that reads back cleanly and silently describes a different experiment. The digest
+    # covers the rows, their roles, their order, the group key and the seed - everything
+    # except the name, so copying a split to a new filename stays legal. Files written
+    # before the column existed carry no digest and are read as before; that is a real
+    # state, not a failure, and refusing them would break the only artefacts this path has.
+    if digests:
+        if len(digests) > 1:
+            raise ValueError(
+                f"{path.name} carries more than one partition digest ({sorted(digests)}); "
+                f"it is one value per split and this file disagrees with itself"
+            )
+        recorded = next(iter(digests))
+        actual = _partition_digest(tuple(train), tuple(test), group_key, seed)
+        if actual != recorded:
+            raise ValueError(
+                f"{path.name} was written as partition {recorded} and reads back as "
+                f"{actual}. The file has been edited, or the manifest rows it names have "
+                f"changed order or role since. Regenerate it rather than using it: the "
+                f"numbers it produced were computed on the partition it no longer is."
+            )
+
     return Split(
         name=path.stem, train=tuple(train), test=tuple(test),
         group_key=group_key, seed=seed,

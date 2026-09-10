@@ -63,7 +63,7 @@ A gate passes only when nothing under it is unmet *and* nothing needs a person.
 | | criterion | evidence |
 |---|---|---|
 | ✔ | Reconciliation implemented | src/pitch_occupancy/slots/reconcile.py |
-| ✔ | End-to-end run on real slots | results/end_to_end_slots.csv |
+| ✔ | End-to-end run on real slots, with the model in it | 2 slot(s) through the classifier; verdicts match the labels and 106/106 comparable minutes agree (in-sample) |
 | ✔ | Retention enforced | src/pitch_occupancy/retention.py |
 | ✔ | Degraded mode enforced and tested | capture-rate gate present |
 | ✔ | Scheduler service on mock feeds | src/pitch_occupancy/scheduler.py |

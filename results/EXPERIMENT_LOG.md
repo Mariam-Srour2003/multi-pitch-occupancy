@@ -3936,3 +3936,94 @@ neither was visible from a single draw — which is the argument for the check r
 any particular expectation about what it will find.
 
 - 2026-09-10 | WP5-T1 STAN construction draws | `python experiments/stan_preliminary.py --seeds 42,7,13,99,123` | `stan_draw_spread.csv` | stan first in 5 of 5 draws (mean 0.9420, sd 0.0884) - the ordering replicates; the 1.0000 does not, holding in 3 of 5, so "the benchmark is saturated" is a property of the draw
+
+---
+
+## 2026-09-10 — M5's end-to-end criterion was true of the decision layer, not of any model
+
+`experiments/gate_check.py`, 1 new test.
+
+M5 reads *"end-to-end run on real slots"*, and it passed on
+`results/end_to_end_slots.csv` — a table whose per-minute sequences are rebuilt from the
+manifest's **label column**. That was not a shortcut anyone took: for most of this project
+nothing could produce them any other way, because `run_slot` accepted a `classify` callable
+and nothing outside a test ever supplied one. The criterion described the decision layer and
+read as though it described the system.
+
+It now reads `end_to_end_model_slots.csv` — the same two slots through the deployed
+classifier — and checks the verdicts **agree with the label-derived ones** rather than that a
+file exists, because a run that classified both slots wrongly would satisfy the second
+exactly as well as the first. It reports the minute agreement alongside, marked in-sample.
+
+Both halves are tested by breaking them, which is what the M4 criteria were strengthened to
+do in September: flip a verdict in the CSV and the criterion must fail while the file sits
+there; hide the file and it must name the command to run rather than quietly falling back to
+the label-derived table. A gate criterion that degrades to a weaker artefact when its own is
+missing is worse than one that fails, because it goes on reporting *met*.
+
+M5 still passes, on stronger evidence than before.
+
+- 2026-09-10 | M5 criterion strengthened | `python -m experiments.gate_check` | `gate_status.md` | the end-to-end criterion read a label-derived table; it now reads the model's own and checks the verdicts agree, tested by breaking it both ways
+
+---
+
+## 2026-09-10 — WP0-T4: a split is identified by its rows, not by its seed
+
+`src/pitch_occupancy/data/splits.py`, 8 new tests.
+
+The module's first documented rule was *"splits are materialised, referenced by name, never
+re-randomised"*. They are not. `write_split` and `read_split` have no callers outside the
+tests, `results/splits/` holds only the lock file, and every experiment calls
+`grouped_split(..., seed=42)` directly — which is deterministic *given the same rows*, and
+the row list is not something the seed determines. It depends on which feature caches the
+calling script filtered to. In September `effective_sample_audit.py` read the DINOv2 cache
+and counted 94 distinct scenes while `h4_model_equivalence.py` read all three and counted 95.
+Both were correct. The seed was identical.
+
+**Run today, the two agree** — identity `f73f5a29b425` from both. The reproducibility repair
+of 2026-09-08, which found `grouped_split` building its test side from a set, brought their
+row lists back together. So the drift is historical rather than live, and that is the sharper
+version of the problem: **nothing recorded that they had diverged, and nothing recorded that
+they had converged either.** The defect was never a wrong number. It was that no artefact
+could have told you which split a number came from.
+
+**The decision, and it is a decision rather than a task.** The plan intended a retrofit:
+materialise the canonical splits once and have every experiment `read_split` them. That was
+not taken, and the reason belongs in the record rather than being left as an omission —
+materialising the canonical splits *now* would change which rows several already-published
+experiments were fitted on. It would invalidate results in order to protect them, in write-up
+week. So the claim was dropped instead of being made true.
+
+**What replaces it.** A split's identity is the strategy, the group key, the seed **and the
+ordered row list**, and `split_identity()` returns a fingerprint of exactly that. It detects
+disagreement; it does not prevent it, and the docstring says so. Prevention is the retrofit,
+which stays available and works.
+
+The tests pin the two cases a seed cannot: one row fewer at the same seed gives a different
+identity, and so does the same membership in a different order — the second being the failure
+that made every bootstrap interval on a grouped split a different draw in September, while
+every point estimate reproduced exactly.
+
+**And the materialisation path now verifies itself.** `write_split` records a partition digest
+and `read_split` checks it. A materialised split is a CSV and a CSV is editable: flipping one
+row from test to train produces a file that reads back cleanly and quietly describes a
+different experiment. The digest deliberately excludes the *name*, so copying a split to a new
+filename stays legal, and a file written before the column existed carries no digest and reads
+as it always did — a missing digest is a real state, not a corruption.
+
+**And it is quoted where it matters, because a fingerprint nobody writes down detects
+nothing.** `effective_sample_audit.py` and `h4_model_equivalence.py` — the two scripts that
+disagreed — now record their split identity in their CSVs, and a test compares the two files.
+It is a cross-script check that neither script could make alone, and it fails the moment they
+drift apart again, which is what the twenty-script retrofit would have prevented at twenty
+times the cost.
+
+Adding it exposed one more thing worth writing down: `h4_model_equivalence.py` writes with
+`extrasaction="ignore"` and an explicit column list, so the new field was attached to every
+record and reached the file on none of them. The test skipped rather than passing, which is
+the only reason it was noticed — a column silently dropped by a writer is indistinguishable
+from a column never added.
+
+- 2026-09-10 | WP0-T4 split identity | `split_identity()`, `write_split`/`read_split` digest | `src/pitch_occupancy/data/splits.py` | the "materialised, never re-randomised" claim was not practised and the retrofit would have changed published rows; the claim was dropped, the row list made part of the split's identity, and the materialisation path now verifies its own partition on read
+
+- 2026-09-10 | H4 model equivalence | `python experiments/h4_model_equivalence.py` | `h4_model_equivalence.csv` | ConvNeXtV2 vs ViT: equivalent at margin 0.02

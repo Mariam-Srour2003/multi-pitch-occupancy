@@ -24,9 +24,13 @@ from pitch_occupancy.data.splits import (
     load_final_venues,
     random_split,
     read_split,
+    split_identity,
     temporal_split,
     write_split,
 )
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def row(
@@ -374,3 +378,137 @@ def test_the_default_split_directory_does_not_depend_on_the_working_directory() 
     assert DEFAULT_SPLIT_DIR.is_absolute()
     assert DEFAULT_SPLIT_DIR.name == "splits"
 
+
+
+# --- what identifies a split (WP0-T4, decided 2026-09-10) ---------------------------------
+#
+# The plan claimed splits were "materialised, referenced by name, never re-randomised". They
+# were not: `write_split`/`read_split` have no callers outside these tests and every
+# experiment calls `grouped_split(seed=42)` directly. That is deterministic given the same
+# rows, and the row list depends on which feature caches the calling script filtered to - so
+# two experiments that filter differently get different splits from one seed, which is how
+# 94 distinct scenes and 95 distinct scenes were both correct at once in September. They
+# agree again now, and nothing recorded either fact.
+#
+# The retrofit was not taken (it would change which rows several published experiments were
+# fitted on) and the claim was dropped instead. What replaces it is a fingerprint over
+# everything that actually decides the partition, so the disagreement is detectable.
+
+
+def test_the_same_rows_and_seed_give_the_same_identity(rows) -> None:
+    a = grouped_split(rows, group_key="slot_id", seed=42)
+    b = grouped_split(rows, group_key="slot_id", seed=42)
+    assert split_identity(a) == split_identity(b)
+
+
+def test_a_different_seed_gives_a_different_identity(rows) -> None:
+    a = grouped_split(rows, group_key="slot_id", seed=42)
+    b = grouped_split(rows, group_key="slot_id", seed=7)
+    if [r.file for r in a.test] == [r.file for r in b.test]:
+        pytest.skip("too few groups for the seed to change the partition")
+    assert split_identity(a) != split_identity(b)
+
+
+def test_one_fewer_row_changes_the_identity_even_at_the_same_seed(rows) -> None:
+    """The whole point. This is the case a seed cannot distinguish and the one that actually
+    happened: a script that filters to one feature cache hands `grouped_split` a shorter row
+    list and gets a different partition, reporting it under the same seed."""
+    full = grouped_split(rows, group_key="slot_id", seed=42)
+    fewer = grouped_split(rows[:-1], group_key="slot_id", seed=42)
+    assert split_identity(full) != split_identity(fewer)
+
+
+def test_the_identity_covers_the_order_and_not_only_the_membership(rows) -> None:
+    """Order mattered once and expensively: `grouped_split` built its test side from a set,
+    so the same seed returned the same frames in a different order every process and every
+    bootstrap interval on a grouped split was a different draw. Membership was right, which
+    is why nothing caught it."""
+    from dataclasses import replace
+
+    split = grouped_split(rows, group_key="slot_id", seed=42)
+    if len(split.test) < 2:
+        pytest.skip("test side too small to reorder")
+    reordered = replace(split, test=tuple(reversed(split.test)))
+    assert split_identity(reordered) != split_identity(split)
+
+
+def test_the_identity_is_short_enough_to_quote(rows) -> None:
+    """It goes next to a number in a table or a log line; a 64-character hash would not be
+    written down, and one nobody writes down detects nothing."""
+    ident = split_identity(grouped_split(rows, group_key="slot_id", seed=42))
+    assert len(ident) == 12 and ident.isalnum()
+
+
+def test_a_materialised_split_verifies_its_own_partition(tmp_path, rows) -> None:
+    """A split file is a CSV and a CSV is editable. Flipping one row from test to train
+    produces a file that reads back cleanly and describes a different experiment - so the
+    digest is checked on read rather than trusted."""
+    split = grouped_split(rows, group_key="slot_id", seed=42)
+    path = write_split(split, tmp_path)
+    read_split(path, rows)  # round-trips
+
+    text = path.read_text(encoding="utf-8")
+    tampered = text.replace(",test,", ",train,", 1)
+    assert tampered != text, "no test row to flip"
+    path.write_text(tampered, encoding="utf-8")
+    with pytest.raises(ValueError, match="reads back as"):
+        read_split(path, rows)
+
+
+def test_copying_a_split_to_a_new_name_stays_legal(tmp_path, rows) -> None:
+    """The digest covers the partition and not the name, because renaming a materialised
+    split is a thing people do and is not a corruption."""
+    split = grouped_split(rows, group_key="slot_id", seed=42)
+    path = write_split(split, tmp_path)
+    copy = path.with_name("a_different_name.csv")
+    copy.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+    assert read_split(copy, rows).name == "a_different_name"
+
+
+def test_a_split_written_before_the_digest_existed_still_reads(tmp_path, rows) -> None:
+    """Refusing them would break the only artefacts this path has ever produced. A missing
+    digest is a real state, not a failure."""
+    split = grouped_split(rows, group_key="slot_id", seed=42)
+    path = write_split(split, tmp_path)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    header = lines[0].replace(",partition", "")
+    body = [ln.rsplit(",", 1)[0] for ln in lines[1:]]
+    path.write_text("\n".join([header, *body]) + "\n", encoding="utf-8")
+    assert len(read_split(path, rows).test) == len(split.test)
+
+def test_the_two_scripts_that_once_disagreed_now_build_the_same_split() -> None:
+    """The guard the WP0-T4 item actually wanted, and the cheapest form of it.
+
+    `effective_sample_audit.py` filters to the DINOv2 cache and `h4_model_equivalence.py` to
+    all three, so they hand `grouped_split` different row lists - and a seed does not
+    determine the partition, only the partition *given* the rows. In September they reported
+    94 and 95 distinct scenes from `seed=42`, both correctly, and nothing recorded that they
+    differed. The reproducibility repair of 2026-09-08 brought them back together, and
+    nothing recorded that either.
+
+    Now both write their `split_identity` and this compares them. It is a cross-script check
+    that no single script could make, and it fails the moment the two drift apart again -
+    which is what the materialisation retrofit would have prevented at twenty times the cost.
+    """
+    import csv
+
+    audit = ROOT / "results" / "effective_sample_audit.csv"
+    equivalence = ROOT / "results" / "h4_model_equivalence.csv"
+    if not (audit.exists() and equivalence.exists()):
+        pytest.skip("both artefacts are needed to compare them")
+
+    audit_rows = [r for r in csv.DictReader(audit.open(encoding="utf-8"))
+                  if r.get("split") == "grouped" and r.get("split_identity")]
+    equiv_rows = [r for r in csv.DictReader(equivalence.open(encoding="utf-8"))
+                  if r.get("split_identity")]
+    if not audit_rows or not equiv_rows:
+        pytest.skip("regenerate both: they predate the split_identity column")
+
+    audit_ids = {r["split_identity"] for r in audit_rows}
+    equiv_ids = {r["split_identity"] for r in equiv_rows}
+    assert len(audit_ids) == 1 and len(equiv_ids) == 1, "one grouped split per script"
+    assert audit_ids == equiv_ids, (
+        f"the two scripts report different grouped splits from the same seed: "
+        f"{audit_ids} vs {equiv_ids}. Their row lists have drifted apart again - see the "
+        f"WP0-T4 decision in splits.py."
+    )

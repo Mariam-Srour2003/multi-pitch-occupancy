@@ -144,20 +144,38 @@ tagged with the question it answers. Fix that first — it is what turns a build
 - [x] **WP0-T4 Split module.** `pitch_occupancy/data/splits.py`: `grouped_split`,
       `leave_one_group_out`, `temporal_split`, and a deliberately leaky `random_split` kept only
       as H1's control arm. 24 tests.
-  - [ ] ★ **"Materialised, referenced by name, never re-randomised" is claimed but not
-        practised.** `write_split` and `read_split` have **no callers outside the tests**, and
-        `results/splits/` holds only the lock file. Every experiment calls `grouped_split(...,
-        seed=42)` directly, which is deterministic *given the same rows* — and that proviso is
-        the whole problem: the row list depends on which feature caches a script filters to.
-        `effective_sample_audit.py` (DINOv2 cache only) counts **94** distinct scenes where
-        `h4_model_equivalence.py` (all three caches) counts **95**, from the same seed. Harmless
-        this time, and precisely the drift materialisation exists to prevent.
-        **Decide one of two things** rather than leaving the claim standing: (a) materialise the
-        canonical splits once and have every experiment `read_split` them — correct, and a
-        retrofit across ~20 scripts; or (b) drop the claim and rely on `seed=42` plus a fixed
-        row list, documenting that the row list is part of the split's identity. (a) is what the
-        plan intended; (b) is honest and nearly free. Either way the docstring should stop
-        asserting a guarantee the code does not provide.
+  - [x] ★ **Decided 2026-09-10: (b), and the claim is gone from the docstring.** The plan
+        said splits were "materialised, referenced by name, never re-randomised".
+        `write_split` and `read_split` still have no callers outside the tests, every
+        experiment calls `grouped_split(..., seed=42)` directly, and the row list — which the
+        seed does not determine — depends on which feature caches the script filtered to.
+        That is how `effective_sample_audit.py` counted **94** distinct scenes and
+        `h4_model_equivalence.py` **95**, both correctly, from one seed.
+    - [x] **Why not (a).** Retrofitting `read_split` across ~20 scripts would change which
+          rows several *published* experiments were fitted on — invalidating results in
+          order to protect them, in write-up week. The machinery stays available and works;
+          the claim is what was dropped.
+    - [x] ★ **What replaces it: a split is identified by its rows, not by its seed.**
+          `split_identity()` fingerprints strategy, group key, seed **and the ordered row
+          list**, so two runs that disagree are detectable instead of surfacing later as an
+          unexplained difference in a count. Five tests, including the case a seed cannot
+          distinguish (one row fewer, same seed) and the ordering case that made every
+          bootstrap interval on a grouped split a different draw.
+    - [x] ★ **And the materialisation path now verifies itself.** `write_split` records a
+          partition digest and `read_split` checks it: a split file is a CSV, and flipping
+          one row from test to train yields a file that reads back cleanly and describes a
+          different experiment. The digest excludes the *name*, so copying a split to a new
+          filename stays legal, and files written before the column carry none and still
+          read — a missing digest is a real state, not a failure.
+    - [x] ★ **And it is quoted where it matters**, because a fingerprint nobody writes down
+          detects nothing. Both scripts that disagreed now record their split identity, and
+          `tests/test_splits.py` compares the two CSVs — a cross-script check neither script
+          could make alone, which fails the moment they drift apart again. **They agree
+          today** (`f73f5a29b425`): the divergence was healed by the 2026-09-08
+          reproducibility repair, and nothing had recorded either the divergence or the
+          return. Adding the column also caught `h4_model_equivalence.py` writing with
+          `extrasaction="ignore"`, which attached the field to every record and wrote it on
+          none — the test skipped instead of passing, which is the only reason it showed.
   - [x] ★ **The materialisation machinery works now, whichever way that goes** (2026-09-07):
         the round-trip preserves `group_key` and `seed` (it lost them, leaving a placeholder
         that made `check_split` raise `AttributeError` on *every* split read from disk);
@@ -1499,9 +1517,13 @@ tagged with the question it answers. Fix that first — it is what turns a build
         first paragraph — it is **in-sample**, and the minutes are compared scene-to-scene
         rather than frame-aligned, because the worker reads minute x 60 s and the labelled
         frames sit at irregular instants.
-    - [ ] ★ **Point a gate criterion at it.** `gate_check.py` still reads the label-derived
-          table for M5. Now that the model-in-the-loop artefact is committed, the criterion
-          can require it — and be tested by removal, the way M4's two were.
+    - [x] ★ **The M5 criterion now points at it.** `gate_check.py` read the label-derived
+          table for months — "end-to-end run on real slots" was true of the decision layer
+          and of no model. It now reads `end_to_end_model_slots.csv` and checks the verdicts
+          **agree**, since a run that classified both slots wrongly would satisfy "a file
+          exists" just as well. Tested by breaking it both ways: flip a verdict and it must
+          fail with the file present; hide the file and it must name the command to run
+          rather than falling back to the label-derived table.
   - [ ] ★ **Still not a deployment.** This replays recordings through the scheduler; the
         live path (`scheduler.live_sources`) has still never been pointed at a camera, and
         there is no supervision or restart policy. WP7-T2 and WP7-T3.

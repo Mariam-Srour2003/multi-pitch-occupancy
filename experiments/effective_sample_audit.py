@@ -30,7 +30,12 @@ import numpy as np
 from pitch_occupancy.config import settings
 from pitch_occupancy.data.dedup import DEFAULT_THRESHOLD, dhash, distinct_subset
 from pitch_occupancy.data.manifest import read_manifest
-from pitch_occupancy.data.splits import development_rows, grouped_split, random_split
+from pitch_occupancy.data.splits import (
+    development_rows,
+    grouped_split,
+    random_split,
+    split_identity,
+)
 from pitch_occupancy.evaluation.stats import holm_bonferroni, mcnemar
 from pitch_occupancy.vision.heads import ClockRule, LinearProbe
 
@@ -140,7 +145,13 @@ def main() -> None:
             print(f"    {a + ' vs ' + b:34} p {pf:9.2e} -> {pr:9.2e}  "
                   f"{'yes' if rf else 'no':>4} -> {'yes' if rr else 'no':>4}")
             records.append({
-                "split": name, "a": a, "b": b,
+                # Which rows this split was built from is not implied by its seed - the row
+                # list depends on which caches this script filtered to, and this script and
+                # `h4_model_equivalence.py` counted 94 and 95 distinct scenes from the same
+                # seed in September, and agree again since the reproducibility repair.
+                # Recording the identity is what lets the two artefacts state that, rather
+                # than leaving both the divergence and the return to be noticed by a person.
+                "split": name, "split_identity": split_identity(split), "a": a, "b": b,
                 "n_frames": len(test), "n_distinct": len(keep),
                 "p_all": f"{pf:.3e}", "sig_all": rf,
                 "p_distinct": f"{pr:.3e}", "sig_distinct": rr,

@@ -162,3 +162,38 @@ def test_the_answer_does_not_depend_on_how_it_was_invoked() -> None:
         assert result.returncode == 0, result.stderr[-500:]
         outs.append([ln for ln in result.stdout.splitlines() if "passed (" in ln])
     assert outs[0] == outs[1], f"invocation changed the verdict: {outs}"
+
+
+def test_the_end_to_end_criterion_needs_the_model_not_the_label_column() -> None:
+    """M5 asks for an end-to-end run on real slots, and that was satisfied for months by
+    `end_to_end_slots.csv`, whose per-minute sequences are rebuilt from the manifest's label
+    column. Nothing in the repository could produce them any other way: `run_slot` took a
+    `classify` callable and nothing outside a test ever supplied one.
+
+    So the criterion now reads the model's own table, and checks the verdicts *agree* rather
+    than that a file exists. Both halves are tested by breaking them: flip a verdict and the
+    criterion must fail while the file sits there, and hide the file and it must say what to
+    run rather than falling back to the label-derived one.
+    """
+    results = ROOT / "results" / "end_to_end_model_slots.csv"
+    if not results.exists():
+        pytest.skip("the model-in-the-loop run has not been generated")
+    assert gc._end_to_end_with_a_model()[0] == gc.MET
+
+    original = results.read_text(encoding="utf-8")
+    try:
+        results.write_text(original.replace(",NOTUSED,1,", ",USED,0,", 1), encoding="utf-8")
+        status, detail = gc._end_to_end_with_a_model()
+        assert status == gc.UNMET
+        assert "differs from the labels" in detail, detail
+    finally:
+        results.write_text(original, encoding="utf-8")
+
+    hidden = results.with_suffix(".csv.hidden")
+    results.rename(hidden)
+    try:
+        status, detail = gc._end_to_end_with_a_model()
+        assert status == gc.UNMET
+        assert "end_to_end_model" in detail, detail
+    finally:
+        hidden.rename(results)

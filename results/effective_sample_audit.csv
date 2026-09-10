@@ -1,7 +1,7 @@
-split,a,b,n_frames,n_distinct,p_all,sig_all,p_distinct,sig_distinct
-random (leaky),dinov2,colour_histogram,394,62,7.385e-03,True,1.000e+00,False
-random (leaky),dinov2,clock_rule,394,62,8.244e-07,True,6.104e-05,True
-random (leaky),colour_histogram,clock_rule,394,62,1.469e-02,True,6.104e-05,True
-grouped,dinov2,colour_histogram,907,95,1.925e-171,True,1.166e-15,True
-grouped,dinov2,clock_rule,907,95,1.225e-03,True,2.148e-02,True
-grouped,colour_histogram,clock_rule,907,95,2.778e-157,True,4.213e-11,True
+split,split_identity,a,b,n_frames,n_distinct,p_all,sig_all,p_distinct,sig_distinct
+random (leaky),6e78f9bad3ac,dinov2,colour_histogram,394,62,7.385e-03,True,1.000e+00,False
+random (leaky),6e78f9bad3ac,dinov2,clock_rule,394,62,8.244e-07,True,6.104e-05,True
+random (leaky),6e78f9bad3ac,colour_histogram,clock_rule,394,62,1.469e-02,True,6.104e-05,True
+grouped,f73f5a29b425,dinov2,colour_histogram,907,95,1.925e-171,True,1.166e-15,True
+grouped,f73f5a29b425,dinov2,clock_rule,907,95,1.225e-03,True,2.148e-02,True
+grouped,f73f5a29b425,colour_histogram,clock_rule,907,95,2.778e-157,True,4.213e-11,True

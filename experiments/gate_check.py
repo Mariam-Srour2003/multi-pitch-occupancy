@@ -175,6 +175,39 @@ def _leakage_measured_per_split() -> tuple[str, str]:
     return MET, f"{share:.0%} of leaky-split errors had a near-duplicate; {clean} on the honest split"
 
 
+def _end_to_end_with_a_model() -> tuple[str, str]:
+    """M5 asks for an end-to-end run on real slots, and until 2026-09-10 that was satisfied
+    by a table no model had touched.
+
+    `end_to_end_slots.csv` rebuilds each slot's per-minute sequence from the manifest's
+    **label column**, because for most of this project nothing could produce one any other
+    way: `run_slot` took a `classify` callable and nothing outside a test ever supplied one.
+    So the criterion read as though a model were involved and was true of the decision layer
+    alone.
+
+    This reads `end_to_end_model_slots.csv` - the same two slots through the deployed
+    classifier - and checks the verdicts **agree with the label-derived ones**, rather than
+    that the file exists. A run that classified both slots wrongly would satisfy "a file
+    exists" exactly as well as one that got them right.
+
+    It is deliberately not an accuracy criterion: both slots are in the probe's training set
+    (WP2-T8 is why), so this asks whether the assembled system reaches the right verdict on
+    the footage, not whether it generalises. WP4 answers the second question honestly and on
+    held-out venues.
+    """
+    rows = _csv_rows("results/end_to_end_model_slots.csv")
+    if not rows:
+        return UNMET, ("end_to_end_model_slots.csv is absent - "
+                       "run `python -m experiments.end_to_end_model`")
+    disagreeing = [r["slot"] for r in rows if r.get("verdicts_agree") != "1"]
+    if disagreeing:
+        return UNMET, f"the model's verdict differs from the labels on {', '.join(disagreeing)}"
+    minutes = sum(int(r.get("minutes_agreeing") or 0) for r in rows)
+    compared = sum(int(r.get("minutes_compared") or 0) for r in rows)
+    return MET, (f"{len(rows)} slot(s) through the classifier; verdicts match the labels "
+                 f"and {minutes}/{compared} comparable minutes agree (in-sample)")
+
+
 def _claims_verified() -> tuple[str, str]:
     """Re-derive every claim, rather than grepping the generated page for a bad word.
 
@@ -289,8 +322,8 @@ GATES: tuple[Gate, ...] = (
     Gate("M5", 19, (
         Criterion("Reconciliation implemented",
                   lambda: _exists("src/pitch_occupancy/slots/reconcile.py")),
-        Criterion("End-to-end run on real slots",
-                  lambda: _exists("results/end_to_end_slots.csv")),
+        Criterion("End-to-end run on real slots, with the model in it",
+                  _end_to_end_with_a_model),
         Criterion("Retention enforced",
                   lambda: _exists("src/pitch_occupancy/retention.py")),
         Criterion("Degraded mode enforced and tested",

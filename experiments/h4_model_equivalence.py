@@ -25,8 +25,9 @@ beside an accuracy p-value that for one pair pointed the other way.
 same frames.
 
 **Effective sample size, per the standing rule.** The grouped test set is 907 frames but
-~94 distinct scenes, so every comparison is run twice - on all frames and on one frame per
-scene - and both are reported.
+**95** distinct scenes (`effective_sample_audit.csv`, on the split whose identity this file
+records), so every comparison is run twice - on all frames and on one frame per scene - and
+both are reported.
 
     uv run python experiments/h4_model_equivalence.py
 """
@@ -43,7 +44,7 @@ import numpy as np
 from pitch_occupancy.config import settings
 from pitch_occupancy.data.dedup import DEFAULT_THRESHOLD, dhash, distinct_subset
 from pitch_occupancy.data.manifest import read_manifest
-from pitch_occupancy.data.splits import development_rows, grouped_split
+from pitch_occupancy.data.splits import development_rows, grouped_split, split_identity
 from pitch_occupancy.evaluation.experiment_log import record
 from pitch_occupancy.evaluation.metrics import evaluate
 from pitch_occupancy.evaluation.stats import (
@@ -140,7 +141,14 @@ def main() -> None:
     te = [pos[r.file] for r in split.test]
     y_true = [r.class3 for r in split.test]
 
-    print(f"grouped split: train {len(split.train)}  test {len(split.test)}")
+    identity = split_identity(split)
+    # The seed is 42 here and 42 in `effective_sample_audit.py`, and the two scripts filter
+    # to different feature caches - so a seed alone does not say they built the same split.
+    # In September they did not (94 distinct scenes against 95, both correct); since the
+    # reproducibility repair they do. Recording the identity is what makes that checkable,
+    # and `tests/test_splits.py` compares the two files.
+    print(f"grouped split: train {len(split.train)}  test {len(split.test)}  "
+          f"identity {identity}")
     print(f"  test composition: {dict(Counter(y_true))}")
 
     preds: dict[str, list[str]] = {}
@@ -190,6 +198,7 @@ def main() -> None:
                       f"{f'[{ci.low:+.4f}, {ci.high:+.4f}]':>22}{v:>14}{mc.p_value:11.3g}")
             records.append({
                 "pair": f"{a}_vs_{b}", "sample": label, "n": len(idx),
+                "split_identity": identity,
                 "d_macro_f1": round(ci.estimate, 4),
                 "ci_lo": round(ci.low, 4), "ci_hi": round(ci.high, 4),
                 "margin": MARGIN, "equivalence_verdict": v,
@@ -217,9 +226,10 @@ def main() -> None:
               f"  {'meets 2x' if s_ratio >= 2 else 'BELOW 2x'}")
         print(f"  20 concurrent : {lat[v_][1]:.1f} / {lat[c][1]:.1f} = {k_ratio:.2f}x"
               f"  {'meets 2x' if k_ratio >= 2 else 'BELOW 2x'}   <- the condition the")
-        print(f"                  pre-registration actually names")
+        print("                  pre-registration actually names")
         records.append({
             "pair": "latency_convnextv2_vs_vit", "sample": "single_frame_median",
+            "split_identity": "",  # latency is measured, not split-derived
             "n": "", "d_macro_f1": "", "ci_lo": "", "ci_hi": "", "margin": "",
             "equivalence_verdict": f"{s_ratio:.2f}x", "mcnemar_p_accuracy": "",
             "mcnemar_effect_g": "", "n_discordant": "",
@@ -238,7 +248,10 @@ def main() -> None:
           f"(d {h4['d_macro_f1']:+}, CI [{h4['ci_lo']:+}, {h4['ci_hi']:+}], margin +/-{MARGIN})")
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    cols = ["pair", "sample", "n", "d_macro_f1", "ci_lo", "ci_hi", "margin",
+    # `extrasaction="ignore"` below means a key absent from this list is dropped without a
+    # word, which is how `split_identity` was added to every record and reached the file on
+    # none of them. Anything worth recording has to be named here too.
+    cols = ["pair", "sample", "split_identity", "n", "d_macro_f1", "ci_lo", "ci_hi", "margin",
             "equivalence_verdict", "mcnemar_p_accuracy", "mcnemar_p_holm",
             "mcnemar_differs", "mcnemar_effect_g", "n_discordant"]
     with OUT.open("w", newline="", encoding="utf-8") as fh:
