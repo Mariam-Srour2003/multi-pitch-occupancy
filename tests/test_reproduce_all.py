@@ -275,3 +275,25 @@ def test_freshness_is_read_from_content_not_from_modification_time() -> None:
         )
     finally:
         reproduce_all._last_content_change.cache_clear()
+
+
+def test_a_stage_is_judged_on_its_newest_output_not_its_oldest(tmp_path, monkeypatch) -> None:
+    """`figures` draws eight PNGs and the latency correction moved exactly one of them.
+
+    Judged against the *oldest* output, the stage would be flagged stale forever on the
+    strength of a figure that is correct precisely because it did not need to change. A
+    stage writes all of its outputs in one run, so the newest is the best available answer
+    to "when did this last produce something".
+    """
+    old_out, new_out, src = tmp_path / "a.png", tmp_path / "b.png", tmp_path / "in.csv"
+    for f in (old_out, new_out, src):
+        f.write_text("x", encoding="utf-8")
+
+    times = {old_out: 100, src: 200, new_out: 300}
+    monkeypatch.setattr(reproduce_all, "_last_content_change", lambda p: times.get(p))
+    stage = reproduce_all.Stage(name="figures", command=["true"],
+                                produces=[old_out, new_out], requires=[src])
+    assert stage.stale_inputs() == [], "flagged on the output that legitimately never moved"
+
+    times[src] = 400  # now the input really is newer than anything the stage produced
+    assert stage.stale_inputs() == [src]

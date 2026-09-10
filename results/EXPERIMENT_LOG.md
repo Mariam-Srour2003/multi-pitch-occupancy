@@ -4273,4 +4273,11 @@ the 2026-09-08 entry above is now the only record of what the broken control ret
 That is a second instance of the same shape as the latency table: an artefact whose meaning
 depends on when it was built, with nothing recording when that was.
 
+**And a third revision, from watching it run.** The first content-based version compared each
+input against the stage's *oldest* output, which flagged `figures` permanently: it draws eight
+PNGs, the latency correction moved exactly one, and the other seven are correct precisely
+because they did not need to change. A stage writes all of its outputs in one run, so the
+**newest** is the best available answer to "when did this last produce something". With that,
+the report is clean — no standing false flag, and the one real finding fixed.
+
 - 2026-09-10 | reproduction freshness check | `python experiments/reproduce_all.py --check` | `experiments/reproduce_all.py` | existence is not freshness; the mtime version gave 4/4 false positives so it reads git instead. First true positive: `false_play_rescored.csv` covered 52 of 88 search evaluations, now 88 with none of the 52 moved

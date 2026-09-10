@@ -111,13 +111,19 @@ class Stage:
         known = [t for t in built if t is not None]
         if not known:
             return []
-        oldest_output = min(known)
+        # The *newest* output, because a stage writes all of its outputs in one run and a
+        # file simply does not change when its content would be identical. `figures` draws
+        # eight PNGs and the latency correction moved exactly one of them; against the oldest
+        # output the stage would have been flagged permanently, on the strength of a figure
+        # that is correct precisely because it did not need to change. The newest is the best
+        # available answer to "when did this stage last produce something".
+        last_run = max(known)
         stale = []
         for p in self.requires:
             if not p.is_file():
                 continue
             changed = _last_content_change(p)
-            if changed is not None and changed > oldest_output:
+            if changed is not None and changed > last_run:
                 stale.append(p)
         return sorted(stale)
 
