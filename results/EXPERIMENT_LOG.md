@@ -4281,3 +4281,47 @@ because they did not need to change. A stage writes all of its outputs in one ru
 the report is clean — no standing false flag, and the one real finding fixed.
 
 - 2026-09-10 | reproduction freshness check | `python experiments/reproduce_all.py --check` | `experiments/reproduce_all.py` | existence is not freshness; the mtime version gave 4/4 false positives so it reads git instead. First true positive: `false_play_rescored.csv` covered 52 of 88 search evaluations, now 88 with none of the 52 moved
+
+---
+
+## 2026-09-11 — the redaction that was mandatory in one script and absent in the other
+
+`experiments/augmentation_grid.py`, `thesis/ethics.md`, `README.md`, 2 new tests.
+
+`thesis/ethics.md` commits to blurring faces in any published figure, and
+`vision/explain.py` states that its redaction "is not optional and not a flag". Both were
+true of `make_xai_figures.py`, which pixelates every detected person before drawing and says
+so. Neither was true of `augmentation_grid.py`, which reads two real frames, draws them into
+a sheet with fifteen augmented copies, **commits it to git and serves it on the thesis site** —
+and never called the redaction. The first tile is a night match with six players in it.
+
+Now it redacts, and the run reports the count rather than the fact:
+
+    night · active play          6 person box(es)
+    day · empty                  0 person box(es)  <- none found; that is not the same as none present
+
+The second line is the part worth keeping. `redact_people` returns how many boxes it found so
+a caller can say *that*, instead of printing "redacted" and implying a frame was examined and
+found empty. The script also **refuses to write the sheet** if the detector will not load —
+`redact_people` reports `-1` for that case precisely so a missing weight cannot produce
+unredacted output that looks checked.
+
+The augmentation is applied to the already-redacted frame, so what the sheet shows is what a
+reader can verify, and the figure still does its job: people remain visible as people in every
+night draw, which is the thing the sheet exists to let you check.
+
+**The guard is now a test rather than a habit.** `tests/test_explain.py` finds every
+experiment that reads a frame and writes an image, and fails if any of them lacks a redaction
+call. Nothing downstream can tell whether a committed JPEG was redacted or merely small
+enough that nobody looked closely.
+
+### What this does not fix, and the document now says so
+
+`results/figs/venue_check/` holds five audit sheets of operator footage with visible players,
+committed in September. `api/app.py` already refuses to serve that directory and explains why
+— but a guard at the HTTP layer is the weaker one, because a repository is handed over whole.
+Removing them means rewriting published history across a hundred branches. That is a decision
+to be taken deliberately, not one to slip into a commit about figures, so `ethics.md` and the
+README now name the exception instead of claiming a blanket that was not true.
+
+- 2026-09-11 | figure redaction | `python -m experiments.augmentation_grid` | `figs/augmentation_grid.jpg` | the ethics commitment was enforced in one figure script and absent from the other, which had published a night match with six unpixelated players; now redacted, counted, refused if the detector is missing, and pinned by a test over every frame-publishing script

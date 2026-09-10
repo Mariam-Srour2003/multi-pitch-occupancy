@@ -193,8 +193,10 @@ each keeping the backbones frozen and adding only small trainable parts:
 The system classifies **scene state, not identities**. No face recognition, no re-identification.
 Evidence images follow a defined retention policy and exist for audit only. Because reconciliation
 can implicate individual staff, a human stays in the loop for every anomaly — the system produces
-decision support and **never takes an automated financial action**. Faces are blurred in every
-published figure.
+decision support and **never takes an automated financial action**. Faces are pixelated in
+every figure the experiments publish, by a redaction step the scripts cannot skip and a test
+enforces — five venue-audit sheets committed in September predate it, and `thesis/ethics.md`
+names them rather than implying otherwise.
 
 ---
 

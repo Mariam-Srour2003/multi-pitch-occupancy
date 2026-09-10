@@ -14,7 +14,20 @@ Consequences that follow from this, and that the thesis must honour:
    re-running the heads and carries no imagery. *(Resolves WP1-T5; decision still to be made
    between "drop" and "features-only".)*
 2. **Figures.** Any frame reproduced in the thesis or slides has faces blurred, and identifiable
-   venue branding removed or blurred where it is not needed to make the point.
+   venue branding removed or blurred where it is not needed to make the point. **Enforced in
+   the scripts that publish frames** — `vision/explain.py:redact_people` pixelates every
+   detected person before anything is written, it reports `-1` rather than silently passing
+   the frame through when the detector cannot load, and a test in `tests/test_explain.py`
+   fails if any frame-publishing experiment stops calling it.
+   *(Corrected 2026-09-10. `make_xai_figures.py` had done this since it was written;
+   `augmentation_grid.py` had not, and had committed and served a night-match sheet with six
+   unpixelated players. It now redacts, and the run prints how many boxes it found — a
+   detector that finds nobody has not established that nobody was there.)*
+   **What this does not undo:** `results/figs/venue_check/` holds five audit sheets of
+   operator footage with visible players, committed in September and therefore in git
+   history. `api/app.py` refuses to serve them and says why, but a repository is handed over
+   whole. Removing them means rewriting published history across a hundred branches, which is
+   a decision this document records as open rather than one it can quietly take.
 3. **Retention.** Frames sampled by the running system are purged after 7 days; evidence
    images are retained 365 days for audit. **Enforced in code** —
    `src/pitch_occupancy/retention.py`, `pitch retention`, dry run by default, with the two

@@ -1966,7 +1966,23 @@ tagged with the question it answers. Fix that first — it is what turns a build
         recall has the worst balanced score, and a plot of recall would recommend it.
   - [ ] ~~original~~ Accuracy-vs-latency scatter with the CPU budget drawn as a vertical line — one picture that
         answers RQ2 completely.
-  - [ ] ★ **Blur all faces in every published figure.** Check this twice before submission.
+  - [x] ★ **Blur all faces in every published figure — checked, and it was not true**
+        (2026-09-11). `make_xai_figures.py` had redacted since it was written;
+        `augmentation_grid.py` had not, and had committed *and served* a night-match sheet
+        with **six unpixelated players** in its first tile. It now calls `redact_people`
+        before drawing, prints the box count rather than the word "redacted", and refuses to
+        write the sheet at all if the detector will not load — the `-1` contract exists so a
+        missing weight cannot produce unredacted output that looks checked.
+    - [x] ★ **The guard is a test, not a habit.** `tests/test_explain.py` finds every
+          experiment that reads a frame and writes an image and fails if one stops redacting.
+          Nothing downstream can tell a redacted JPEG from an unexamined one.
+    - [ ] ★ **[H] The five `figs/venue_check/` sheets are the open half.** Operator footage
+          with visible players, committed in September, so they are in git history.
+          `api/app.py` already refuses to serve that directory — but that is the weaker
+          guard, because a repository is handed over whole. Removing them means rewriting
+          published history across a hundred branches; `thesis/ethics.md` names the exception
+          rather than claiming a blanket that was not true. **Decide before the repo is
+          shared** — same decision as WP1-T5, and the risk register already flags it.
 
 ### 8.C Defence
 - [x] **WP8-T3 Threats to validity — drafted.** `thesis/threats_to_validity.md`, 10 tests.

@@ -32,6 +32,7 @@ import numpy as np
 from pitch_occupancy.config import settings
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.vision.augment import AUGMENTATIONS, augment
+from pitch_occupancy.vision.explain import redact_people
 
 OUT = settings.results_dir / "figs" / "augmentation_grid.jpg"
 TILE_W, TILE_H = 320, 180
@@ -64,7 +65,8 @@ def _label(tile: np.ndarray, text: str) -> np.ndarray:
     return np.vstack([tile, strip])
 
 
-def build_sheet() -> np.ndarray:
+def build_sheet() -> tuple[np.ndarray, list[tuple[str, int]]]:
+    redacted: list[tuple[str, int]] = []
     frames = _pick_frames()
     if not frames:
         raise SystemExit("no frames matched; is data/processed/manifest.csv present?")
@@ -74,6 +76,21 @@ def build_sheet() -> np.ndarray:
         image = cv2.imread(str(path))
         if image is None:
             raise SystemExit(f"could not read {path}")
+
+        # Redacted before anything is drawn, not after: this sheet is committed to git and
+        # served on the thesis site, and `thesis/ethics.md` commits to blurring faces in any
+        # published figure. `explain.py` has said the redaction "is not optional and not a
+        # flag" since it was written - and this script, which publishes real night-match
+        # frames, was not calling it. The augmentation is applied to the redacted frame, so
+        # what the sheet shows is exactly what a reader can check.
+        image, n_people = redact_people(image)
+        if n_people < 0:
+            raise SystemExit(
+                "the person detector could not be loaded, so this frame cannot be shown to "
+                "have been redacted. Refusing to write the sheet rather than publishing an "
+                "unredacted night match - see redact_people's -1 contract."
+            )
+        redacted.append((caption, n_people))
         base = cv2.resize(image, (TILE_W, TILE_H), interpolation=cv2.INTER_AREA)
 
         # the original sits alone in the first column so it lines up with the first draw
@@ -98,16 +115,27 @@ def build_sheet() -> np.ndarray:
         for b in blocks
     ]
     gap = np.full((14, width, 3), 22, np.uint8)
-    return np.vstack([x for pair in zip(padded, [gap] * len(padded)) for x in pair][:-1])
+    sheet = np.vstack(
+        [x for pair in zip(padded, [gap] * len(padded), strict=True) for x in pair][:-1]
+    )
+    return sheet, redacted
 
 
 def main() -> None:
-    sheet = build_sheet()
+    sheet, redacted = build_sheet()
     OUT.parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(OUT), sheet, [cv2.IMWRITE_JPEG_QUALITY, 92])
     print(f"wrote {OUT}  ({sheet.shape[1]}x{sheet.shape[0]})")
+
+    # The count, not just the fact. A detector that found nobody has not established that
+    # there was nobody, and a sheet that says "redacted" without saying how many were found
+    # is the kind of reassurance this project keeps discovering to be empty.
+    print("\nredaction (yolov8n, people pixelated before drawing):")
+    for caption, n in redacted:
+        note = "  <- none found; that is not the same as none present" if n == 0 else ""
+        print(f"  {caption:<28} {n} person box(es){note}")
     print(
-        "Look for: people still visible in every night draw (if not, the noise or gamma "
+        "\nLook for: people still visible in every night draw (if not, the noise or gamma "
         "range is too wide), and turf that still reads as turf in every colour draw."
     )
 
