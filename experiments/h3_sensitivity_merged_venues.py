@@ -18,6 +18,16 @@ Read the result as: if the models still meet (or miss) the 0.90 target the same 
 main H3 run did, the venue-grouping doubt cannot change the H3 conclusion, and the
 worst-fold caveat can be quoted with confidence.
 
+**This table reports play recall only, and inherits H3's control rather than repeating it.**
+Every held-out venue here is 100% ACTIVE_PLAY, so recall on these folds is earned by
+answering PLAY more often and a constant predictor scores 1.000 - the reason
+`h3_with_false_play.csv` exists, and the reason the input ablation's best variant turned out
+to have empty accuracy 0.000 (2026-09-11). Nothing in this script separates a model that
+transfers from one that has shifted toward PLAY. It does not need to: the question it asks is
+whether *merging two venue groups* changes what the main run concluded, which is a comparison
+between folds rather than a claim about a model's sight. Quote its absolute numbers only
+beside the control in `h3_with_false_play.csv`.
+
     uv run python experiments/h3_sensitivity_merged_venues.py
 """
 

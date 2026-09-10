@@ -4475,3 +4475,40 @@ Adding rows to the CSV also broke `make_site.py`, which assumed every row carrie
 `play_recall`. Fixed, and it now renders the control rather than skipping it.
 
 - 2026-09-11 | WP3-T8 input ablation | `python -m experiments.input_ablation` | `input_ablation.csv` | the stage had been un-runnable since `PreprocessConfig` gained slots (second time it could not run while cited); with the false-play control added, `crop50`'s table-leading 0.998 recall comes with **0.000 empty accuracy** and grayscale is the only removal that improves both axes
+
+---
+
+## 2026-09-11 — where else the control was missing, and where it was only printed
+
+A sweep of every committed CSV for a `recall` column without a false-play or empty-accuracy
+column beside it, prompted by the input ablation turning out to have led its table with a
+variant that never identifies an empty pitch.
+
+Five artefacts came back. Three were fine on inspection:
+
+* `augmentation_transfer*.csv` report `empty_recall` directly — the test set is camera B,
+  which has both classes, so the control *is* the measurement.
+* `h3_cross_venue_recall.csv` has its control in a file of its own,
+  `h3_with_false_play.csv`, which is where the 99.2% false-play finding came from.
+
+Two needed work, and they needed different work.
+
+**`class_balancing.csv` computed the control and did not write it down.**
+`_false_play_control` has been in the script since it was written, and its result — the
+unweighted probe calls **46.5%** of held-out empty pitches a match against balanced's
+**23.1%** — was printed and recorded in the log, while the CSV carried `play_recall` alone.
+The recommendation rests entirely on the control: unweighted looks **+0.0286 better** on
+cross-venue recall, and a reader who opened the artefact rather than the log would draw the
+opposite conclusion from the same run. Both rates are now rows in the file.
+
+**`h3_sensitivity_merged_venues.csv` inherits H3's control rather than repeating it**, and
+now says so. It reports play recall on folds that are 100% ACTIVE_PLAY, so nothing in it
+separates a model that transfers from one that has shifted toward PLAY. It does not need to:
+the question it asks is whether merging two venue groups changes what the main run concluded,
+which is a comparison between folds rather than a claim about a model's sight. The docstring
+now says to quote its absolute numbers only beside `h3_with_false_play.csv`.
+
+The distinction is worth keeping: a missing control and an *unwritten* control fail the same
+way for a reader, and only one of them is visible from the code.
+
+- 2026-09-11 | control sweep | every results CSV with a recall column | `class_balancing.csv`, `h3_sensitivity_merged_venues.py` | class balancing computed its false-play control and printed it without writing it to the artefact, where the recommendation reverses (46.5% unweighted against 23.1% balanced); the H3 sensitivity check inherits H3's control and now says so

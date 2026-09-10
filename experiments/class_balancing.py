@@ -177,10 +177,18 @@ def main() -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
     with OUT.open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
-        w.writerow(["weighting", "fold", "n_play", "play_recall"])
+        w.writerow(["weighting", "fold", "n_play", "play_recall", "false_play_rate"])
         for balanced, _, _, folds in results:
             for name, recall, n in folds:
-                w.writerow(["balanced" if balanced else "unweighted", name, n, f"{recall:.4f}"])
+                w.writerow(["balanced" if balanced else "unweighted", name, n,
+                            f"{recall:.4f}", ""])
+        # The control belongs *in* the artefact, not only in the printout. These folds are
+        # 100% ACTIVE_PLAY, so `play_recall` above rewards a weighting for answering PLAY
+        # more often - and the unweighted probe looks +0.0286 better on it while calling
+        # 46.5% of held-out empty pitches a match against balanced's 23.1%. A reader who
+        # opens the CSV and not the log would draw the opposite conclusion from the same run.
+        for label, rate, n_empty in false_play:
+            w.writerow([label, "CONTROL_held_out_empty", n_empty, "", f"{rate:.4f}"])
     print(f"wrote {OUT.name}")
 
 
