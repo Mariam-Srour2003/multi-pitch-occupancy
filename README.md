@@ -124,7 +124,8 @@ a later measurement retracted.
 | [thesis/preregistration.md](thesis/preregistration.md) | The six hypotheses, their decision rules, and every amendment — including the two decision rules that were disowned |
 | [thesis/rq_matrix.md](thesis/rq_matrix.md) | Each research question, the evidence for it, and how far it is answered |
 | [thesis/mvt.md](thesis/mvt.md) | **The minimum viable thesis** — the four load-bearing items, and what the floor deliberately does *not* require. Read before any scope decision. |
-| [docs/PM_REVIEW_2026-09-08.md](docs/PM_REVIEW_2026-09-08.md) | **Latest review.** What day two overturned — including two of day one's conclusions — and the six open decisions |
+| [docs/PM_REVIEW_2026-09-11.md](docs/PM_REVIEW_2026-09-11.md) | **Latest review.** Where "existence is not health" cost three artefacts, two results that were artefacts of their axis, a headline that did not survive a second seed, and the six decisions waiting on a person |
+| [docs/PM_REVIEW_2026-09-08.md](docs/PM_REVIEW_2026-09-08.md) | What day two overturned — including two of day one's conclusions |
 | [docs/PM_REVIEW_2026-09-07.md](docs/PM_REVIEW_2026-09-07.md) | The first review, kept as written |
 | [SUPER_PLAN.md](SUPER_PLAN.md) | Reference plan — research questions, architecture, hard-won gotchas |
 | [PLAN.md](PLAN.md) | The original engineering plan from the pilot phase, kept for history |
