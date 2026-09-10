@@ -4512,3 +4512,29 @@ The distinction is worth keeping: a missing control and an *unwritten* control f
 way for a reader, and only one of them is visible from the code.
 
 - 2026-09-11 | control sweep | every results CSV with a recall column | `class_balancing.csv`, `h3_sensitivity_merged_venues.py` | class balancing computed its false-play control and printed it without writing it to the artefact, where the recommendation reverses (46.5% unweighted against 23.1% balanced); the H3 sensitivity check inherits H3's control and now says so
+
+---
+
+## 2026-09-11 — the remaining novel modules are blocked on measurement, not on effort
+
+WP5-T6 (feed both camera halves to STAN), WP5-T3 (context head) and WP5-T4 (distillation)
+are the three unbuilt modules in the plan, and WP5-T6 is described there as *"one of the
+cheapest real novelty gains available"*. It is cheap to build. It cannot be evaluated.
+
+The draw replication settles it: STAN scores **1.0000 in three draws of five** and 0.9100 and
+0.8000 in the other two, mean 0.9420, sd 0.0884. A benchmark that reaches its ceiling in most
+draws, and moves by nearly a tenth between them, cannot rank a new architecture against the
+current one. A two-channel STAN scoring 1.0000 would be indistinguishable from this STAN; one
+scoring 0.95 would sit inside the spread. Either way the ablation would be a number without a
+comparison, which is the shape of result WP5-T8's gate exists to refuse.
+
+This is worth writing down as a *blocker* rather than leaving the item open as though it were
+waiting for time. The distinction matters for scope decisions in the last weeks: building
+these would produce three more preliminary results, not three more findings.
+
+**What unblocks them is what unblocks everything else here** — ≥30 real labelled slot
+verdicts (WP2-T8). A test set whose label is not a deterministic function of five templates is
+one on which two sequence models can actually differ. Composing more synthetic slots cannot
+break the tie, and that was measured rather than assumed.
+
+- 2026-09-11 | WP5-T3/T4/T6 blocked | `stan_draw_spread.csv` | TODO WP5-T6 | the composed benchmark hits its ceiling in 3 draws of 5 with sd 0.0884, so it cannot rank a new architecture against the current one; the three unbuilt modules are blocked on measurement rather than on effort, and ≥30 real slots is what changes that

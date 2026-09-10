@@ -1367,6 +1367,18 @@ tagged with the question it answers. Fix that first — it is what turns a build
       confined to one half). Let STAN consume both sequences and learn the fusion. This gives you a
       genuinely stronger architecture *and* a clean extra ablation (fuse-then-aggregate vs
       aggregate-jointly) — one of the cheapest real novelty gains available in this plan.
+  - [ ] ★ **[BLOCKED 2026-09-11, on measurement rather than effort] The composed benchmark
+        cannot tell two architectures apart, so building a third is unmeasurable.** The draw
+        replication found STAN scoring **1.0000 in three draws of five** and 0.9100 and 0.8000
+        in the other two (`stan_draw_spread.csv`). A ceiling reached in most draws, with a
+        spread of 0.0884 across them, cannot rank a new architecture against the current one:
+        a two-channel STAN that scored 1.0000 would be indistinguishable from this one, and
+        one that scored 0.95 would be inside the noise. The same applies to **WP5-T3** (the
+        context head) and **WP5-T4** (distillation).
+  - [ ] ★ **What would unblock it is the same thing as everything else: real slots.**
+        ≥30 labelled slot verdicts (WP2-T8) give a test set whose label is not a deterministic
+        function of five templates, and on which two sequence models can actually differ.
+        Composing more synthetic slots cannot break the tie — that was measured, not assumed.
 - [x] **WP5-T7 ★ STAN baselines strengthened — all four built.** They live in `slots/stan.py`
       beside STAN and share its `fit`/`predict` interface, so the table is a loop rather than
       four special cases. On 200 held-out composed slots: tuned thresholds **0.825**, median
@@ -2039,8 +2051,21 @@ tagged with the question it answers. Fix that first — it is what turns a build
         labelled the right-hand end, which is exactly where all three converge, and stacked
         three words on one point.
   - [x] **XAI overlays** — no longer blocked; see WP4-T5. 27 sheets, redacted.
-  - [ ] Remaining: ablation tables; reconciliation matrix
-        with blurred evidence (same block).
+  - [x] ★ **Ablation "tables" — done as a table with its control, not as a figure**
+        (2026-09-11). The export's ablation table gained `false_play` and `empty_accuracy`
+        columns and a line telling the reader to read them first, which is what that entry
+        actually needed: the problem was never that the numbers lacked a picture, it was
+        that `crop50` led the table at 0.998 recall with **empty accuracy 0.000**. Rendering
+        the same numbers as a PNG would have made them unselectable, fixed-resolution and no
+        more honest. The one genuinely visual part — removal helping and then stopping — is
+        already drawn in `api/diagrams.py`, and that diagram now carries the false-play rate
+        in each box.
+  - [ ] ★ **Reconciliation matrix with blurred evidence — deliberately not built.** It would
+        add another committed image of operator footage while **WP1-T5 is undecided** and
+        five venue-audit sheets are already permanent in git history. That is the wrong
+        direction to move before the data-release question is answered; the redaction path
+        exists (`redact_people`) and this is cheap to build the moment WP1-T5 says pixels may
+        be published at all.
   - [x] ★ Risk–coverage / REVIEW-rate curve (WP4-T9). **Done** → `figs/risk_coverage_band`.
         Drawn as a band, with a second panel for the width the confidences leave.
   - [x] ★ Trivial-baseline floor chart (WP4-T10). **Done** → `figs/baseline_floor`. Four
