@@ -1871,11 +1871,19 @@ tagged with the question it answers. Fix that first — it is what turns a build
         schema WP6-T4 asks for, and every instance in this repo is a fixture. A finding about
         the **request**: `data_requests.md` §3 now asks for a `blocked` flag separate from the
         status, and a test fails if the schema gains it without the derivation changing.
-  - [ ] ★ **The rows still marked "not implemented"** — disk-full and facility-wide confidence
-        collapse — and the honest caveat that none of this has met a real outage. The
-        confidence row is blocked on calibration and must not be fixed by picking a number;
-        the disk row wants a free-space guard beside `pitch retention`. WP7-T3's shadow run is
-        where the ladder stops being a prediction.
+  - [x] ★ **Row 7, the disk, is enforced** (2026-09-11). Not because the write fails —
+        `_write_evidence` already survives that — but because a full disk mid-slot leaves a
+        verdict backed by a **partial** set of evidence images, which an inspector cannot
+        tell from a slot that never saved any. `retention.has_room` checks a 500 MB floor
+        **once, before minute zero**; the slot then runs with evidence disabled and says so,
+        and the verdict is produced either way. A disk that cannot be measured is written to,
+        because refusing to record a verdict over a failed `statvfs` turns a diagnostic
+        problem into lost observation.
+  - [ ] ★ **One row still reads "not implemented": facility-wide confidence collapse.**
+        Blocked on calibration and **must not** be fixed by picking a number — the
+        "hyper-parameters, not constants" mistake this project has already met three times.
+        And the honest caveat stands: none of this ladder has met a real outage. WP7-T3's
+        shadow run is where it stops being a prediction.
 - [ ] ~~WP7-T5 original~~ What happens when a camera dies mid-slot, the network drops,
       the disk fills, or the model's confidence collapses facility-wide? Define the degraded-mode
       behaviour (default to REVIEW, alert, never fabricate a verdict) and test at least the

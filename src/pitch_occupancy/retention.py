@@ -34,6 +34,7 @@ The cautious half
 
 from __future__ import annotations
 
+import shutil
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -56,6 +57,52 @@ PROTECTED_ROOTS: tuple[Path, ...] = (
     settings.feature_cache_dir,
     settings.results_dir,
 )
+
+
+#: A slot writes one JPEG per observed minute and deletes all but three at the end, so the
+#: peak is roughly a full slot of frames. 60 minutes at ~250 KB is about 15 MB; this leaves
+#: an order of magnitude of headroom and is a floor for *starting to write*, not a disk quota.
+MIN_FREE_BYTES: int = 500 * 1024 * 1024
+
+
+def free_bytes(path: Path) -> int | None:
+    """Free space on the filesystem holding ``path``, or None if it cannot be determined.
+
+    None rather than 0 or infinity, because both of those are answers and this is the
+    absence of one. A caller that cannot measure free space should say so and carry on
+    writing - refusing to record a verdict because a `statvfs` failed would turn a
+    diagnostic problem into lost data, which is the wrong direction for this system.
+
+    Walks up to the nearest existing parent: the evidence directory for a slot does not
+    exist until the slot starts, and the question is about the filesystem it will live on.
+    """
+    probe = Path(path)
+    while not probe.exists() and probe != probe.parent:
+        probe = probe.parent
+    try:
+        return shutil.disk_usage(probe).free
+    except OSError:
+        return None
+
+
+def has_room(path: Path, *, need: int = MIN_FREE_BYTES) -> tuple[bool, str]:
+    """Whether ``path``'s filesystem has room to start writing, and why not if it does not.
+
+    Runbook row 7. `retention.py` bounds how much this system keeps; it does nothing about a
+    disk being filled by something else, and nothing checked. The failure it guards is not
+    subtle - a slot that runs out of space mid-write leaves a verdict backed by a partial
+    set of evidence images, which is worse than a verdict with none, because the inspector
+    cannot tell one from the other.
+    """
+    free = free_bytes(path)
+    if free is None:
+        return True, "free space could not be determined; writing anyway"
+    if free < need:
+        return False, (
+            f"{free / 1e6:.0f} MB free, below the {need / 1e6:.0f} MB floor for starting a "
+            f"slot's evidence images"
+        )
+    return True, f"{free / 1e6:.0f} MB free"
 
 
 @dataclass(frozen=True, slots=True)

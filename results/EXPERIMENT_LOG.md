@@ -4376,3 +4376,38 @@ already runs — and a test fails if the schema gains it while the derivation st
 which is the moment the anomaly becomes real.
 
 - 2026-09-11 | booking export coverage | `bookings.covers`, `reconcile_slot` | runbook row 8 | a stale export made every observed slot look unbooked and unbooked usage is SERIOUS; a day outside the export now returns NEEDS_REVIEW before anything serious can fire. Separately: BLOCKED_SLOT_SOLD cannot be produced from the requested schema, so the request gained a column
+
+---
+
+## 2026-09-11 — a full disk, and the difference between no evidence and some evidence
+
+`src/pitch_occupancy/retention.py`, `worker.run_slot`, runbook row 7, 4 new tests.
+
+Row 7 read *"nothing checks free space; retention bounds growth but does not react to a full
+disk"* — **partly** implemented, because `pitch retention` exists and a space guard did not.
+`retention.py` bounds what this system *keeps*; it says nothing about a disk filled by
+something else, and nothing looked before writing.
+
+The failure is specific and it is not "the write fails". `_write_evidence` already catches a
+failed write and returns None, so a full disk mid-slot produces a verdict backed by a
+**partial** set of evidence images — frames for minutes 0 to 18 and nothing after. That is
+worse than a verdict with no images at all, because the inspector cannot tell it from a slot
+that was never configured to save any, and the override harvest would treat the gap as a
+missing frame rather than a full disk.
+
+So the decision is made **once, before minute zero**: `has_room` checks a 500 MB floor — a
+slot's peak is about 15 MB, so this is a floor for starting, not a quota — and the slot runs
+with evidence disabled and a line saying why. The verdict is produced either way. A full disk
+must not cost an hour of observation.
+
+**A disk that cannot be measured is written to.** `free_bytes` returns None rather than 0 or
+infinity, because both of those are answers and this is the absence of one, and `has_room`
+treats it as permission. Refusing to record a verdict because a `statvfs` failed would turn a
+diagnostic problem into lost data, which is the wrong direction for a system whose whole
+output is observation.
+
+That leaves one row of the ladder at "not implemented": facility-wide confidence collapse,
+which is blocked on calibration and must not be fixed by choosing a number — the same
+"hyper-parameters, not constants" mistake this project has already met three times.
+
+- 2026-09-11 | disk-space guard | `retention.has_room` in `run_slot` | runbook row 7 | a full disk mid-slot left a verdict backed by a partial set of evidence images, which an inspector cannot tell from none; the check now runs once before the first write and the verdict is produced either way

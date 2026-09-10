@@ -171,3 +171,72 @@ def test_deletion_actually_removes_the_files_when_confirmed(tmp_path) -> None:
     assert apply(got, confirm=True) == 1
     assert not old.exists()
     assert keep.exists()
+
+
+# --- free space (runbook row 7, 2026-09-11) -----------------------------------------------
+
+
+def test_free_space_walks_up_to_a_directory_that_exists(tmp_path) -> None:
+    """A slot's evidence directory does not exist until the slot starts, and the question is
+    about the filesystem it will live on, not about the directory."""
+    from pitch_occupancy.retention import free_bytes
+
+    assert free_bytes(tmp_path / "not" / "created" / "yet") is not None
+
+
+def test_an_unmeasurable_disk_does_not_stop_the_write(tmp_path, monkeypatch) -> None:
+    """None means "could not measure", which is the absence of an answer rather than an
+    answer. Refusing to record a verdict because a stat call failed would turn a diagnostic
+    problem into lost observation, and that is the wrong direction for this system."""
+    import shutil
+
+    from pitch_occupancy import retention
+
+    def boom(_):
+        raise OSError("no statvfs here")
+
+    monkeypatch.setattr(shutil, "disk_usage", boom)
+    assert retention.free_bytes(tmp_path) is None
+    room, why = retention.has_room(tmp_path)
+    assert room is True
+    assert "could not be determined" in why
+
+
+def test_a_full_disk_refuses_before_the_first_write(tmp_path) -> None:
+    """The point is the *ordering*. Deciding once, before minute zero, is what stops a slot
+    ending with a partial set of evidence images - which is worse than none, because an
+    inspector cannot tell it from a slot that never saved any."""
+    from pitch_occupancy.retention import has_room
+
+    room, why = has_room(tmp_path, need=10 ** 15)
+    assert room is False
+    assert "below the" in why
+
+
+def test_a_full_disk_still_produces_the_verdict(tmp_path, monkeypatch) -> None:
+    """A full disk must not cost an hour of observation. The slot runs, the verdict is
+    returned, and only the pictures are given up."""
+    import numpy as np
+
+    from pitch_occupancy import worker
+    from pitch_occupancy.data.taxonomy import Class3
+    from pitch_occupancy.frame_source import Frame, FrameSource
+
+    class OneCamera(FrameSource):
+        def cameras(self):
+            return ["camA"]
+
+        @property
+        def n_minutes(self):
+            return 3
+
+        def read(self, camera_id, minute_index):
+            return Frame(camera_id, minute_index, np.zeros((8, 8, 3), np.uint8), "x.mp4")
+
+    monkeypatch.setattr(worker, "has_room", lambda p: (False, "0 MB free, below the floor"))
+    run = worker.run_slot("slot", OneCamera(), lambda img: (Class3.ACTIVE_PLAY, 0.9),
+                          evidence_dir=tmp_path)
+    assert run.verdict is not None
+    assert run.minutes_captured == 3
+    assert not any(tmp_path.iterdir()), "wrote evidence despite refusing for space"
+    assert all(e.image_path is None for e in run.evidence)

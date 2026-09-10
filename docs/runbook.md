@@ -21,7 +21,7 @@ runbook that does not distinguish those is a wish list.
 | 4 | no frames at all | `REVIEW`, *"no samples captured for this slot"* | **enforced** |
 | 5 | frames arrive but are unreadable — fog, glare, a dirty lens | `SlotConditions.concerns()` reports low contrast and low confidence to the operator | **advisory only** |
 | 6 | confidence collapses facility-wide | nothing automatic — `review_below_confidence` is **0.0 and therefore inert** | **not implemented, deliberately** |
-| 7 | disk fills | nothing checks free space; retention bounds growth but does not react to a full disk | **partly** — `pitch retention` exists, a space guard does not |
+| 7 | disk fills | `run_slot` checks free space **once, before the first write**, and disables evidence images for that slot rather than filling the disk mid-run — the verdict is still produced. A disk it cannot measure is written to anyway | **enforced** (`retention.has_room`, 500 MB floor) |
 | 8 | the booking export is stale or absent | a day outside the export's span reconciles to **NEEDS_REVIEW (info)**, never to an anomaly — `bookings.covers` answers whether the export reaches the date, and the check runs before anything that can return SERIOUS. An empty export covers nothing rather than everything | **enforced** (`reconcile(..., records_cover_this_day=)`) |
 
 ## Why rows 3 and 6 are treated differently

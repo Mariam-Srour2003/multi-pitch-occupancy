@@ -30,6 +30,7 @@ from pitch_occupancy.config import settings
 from pitch_occupancy.data.taxonomy import Class3
 from pitch_occupancy.db.store import Sample
 from pitch_occupancy.frame_source import FrameSource
+from pitch_occupancy.retention import has_room
 from pitch_occupancy.slots.aggregate import SlotVerdict, Thresholds, aggregate_slot
 from pitch_occupancy.slots.conditions import SlotConditions, summarise_conditions
 from pitch_occupancy.slots.evidence import (
@@ -133,8 +134,22 @@ def run_slot(
 
     slot_dir = None
     if evidence_dir is not None:
-        slot_dir = Path(evidence_dir) / slot_id
-        slot_dir.mkdir(parents=True, exist_ok=True)
+        # Runbook row 7. `retention.py` bounds what this system keeps and says nothing about
+        # a disk filled by something else, and nothing checked before writing. A slot that
+        # runs out of space mid-write leaves a verdict backed by a *partial* set of evidence
+        # images, which is worse than one backed by none: the inspector cannot tell a slot
+        # that was never configured to save frames from one whose frames stopped at minute
+        # nineteen. So the choice is made once, before the first write, and the verdict is
+        # produced either way - a full disk must not cost an hour of observation.
+        room, why = has_room(Path(evidence_dir))
+        if not room:
+            evidence_dir = None
+            if on_minute is None:  # the loop below has no other channel to report on
+                print(f"  evidence images disabled for {slot_id}: {why}")
+        else:
+            slot_dir = Path(evidence_dir) / slot_id
+            slot_dir.mkdir(parents=True, exist_ok=True)
+
 
     for minute in range(source.n_minutes):
         observations: dict[str, tuple[Class3, float]] = {}
