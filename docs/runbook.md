@@ -22,7 +22,7 @@ runbook that does not distinguish those is a wish list.
 | 5 | frames arrive but are unreadable — fog, glare, a dirty lens | `SlotConditions.concerns()` reports low contrast and low confidence to the operator | **advisory only** |
 | 6 | confidence collapses facility-wide | nothing automatic — `review_below_confidence` is **0.0 and therefore inert** | **not implemented, deliberately** |
 | 7 | disk fills | nothing checks free space; retention bounds growth but does not react to a full disk | **partly** — `pitch retention` exists, a space guard does not |
-| 8 | the booking export is stale or absent | reconciliation has nothing to compare against | **not implemented** |
+| 8 | the booking export is stale or absent | a day outside the export's span reconciles to **NEEDS_REVIEW (info)**, never to an anomaly — `bookings.covers` answers whether the export reaches the date, and the check runs before anything that can return SERIOUS. An empty export covers nothing rather than everything | **enforced** (`reconcile(..., records_cover_this_day=)`) |
 
 ## Why rows 3 and 6 are treated differently
 

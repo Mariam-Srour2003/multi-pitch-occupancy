@@ -1853,10 +1853,29 @@ tagged with the question it answers. Fix that first — it is what turns a build
         0.5 is recorded as a judgement, not a calibration.
   - [x] The two real slots are unaffected (59–60 of 60 minutes captured), so no published
         verdict moves.
-  - [ ] ★ **The rows still marked "not implemented"** — disk-full, facility-wide confidence
-        collapse, stale booking export, camera re-aimed — and the honest caveat that none of
-        this has met a real outage. WP7-T3's shadow run is where the ladder stops being a
-        prediction.
+  - [x] ★ **Row 8, the stale booking export, is enforced** (2026-09-11). It was described as
+        "reconciliation has nothing to compare against", which is too kind: it compares anyway
+        and is confidently wrong. Every slot past the export's last day matches no booking,
+        and an unbooked slot showing play is **SERIOUS** — so a month-old export hands an
+        operator a page of serious anomalies against a facility that did nothing, each of
+        which `authority.py` requires a human to confirm. `bookings.covers` answers whether
+        the export reaches the date; `reconcile` returns NEEDS_REVIEW (info) for a day outside
+        it, **before** anything serious can fire. Span not booked-days, so a quiet Tuesday
+        inside the export still reports genuine unbooked usage; an empty export covers
+        nothing rather than everything. `bookings.reconcile_slot` computes it for the caller,
+        because the safe call was longer than the unsafe one.
+  - [x] ★ **And `BLOCKED_SLOT_SOLD` cannot happen** — found writing those tests. It fires on
+        `maintenance_window and booked`, both derived from one `status` column, and
+        `SOLD = {confirmed, no_show}` excludes `maintenance`. One column cannot hold two
+        values, so a pitch closed for maintenance *and sold anyway* is inexpressible in the
+        schema WP6-T4 asks for, and every instance in this repo is a fixture. A finding about
+        the **request**: `data_requests.md` §3 now asks for a `blocked` flag separate from the
+        status, and a test fails if the schema gains it without the derivation changing.
+  - [ ] ★ **The rows still marked "not implemented"** — disk-full and facility-wide confidence
+        collapse — and the honest caveat that none of this has met a real outage. The
+        confidence row is blocked on calibration and must not be fixed by picking a number;
+        the disk row wants a free-space guard beside `pitch retention`. WP7-T3's shadow run is
+        where the ladder stops being a prediction.
 - [ ] ~~WP7-T5 original~~ What happens when a camera dies mid-slot, the network drops,
       the disk fills, or the model's confidence collapses facility-wide? Define the degraded-mode
       behaviour (default to REVIEW, alert, never fabricate a verdict) and test at least the

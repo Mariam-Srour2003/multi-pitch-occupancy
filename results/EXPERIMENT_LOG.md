@@ -4325,3 +4325,54 @@ to be taken deliberately, not one to slip into a commit about figures, so `ethic
 README now name the exception instead of claiming a blanket that was not true.
 
 - 2026-09-11 | figure redaction | `python -m experiments.augmentation_grid` | `figs/augmentation_grid.jpg` | the ethics commitment was enforced in one figure script and absent from the other, which had published a night match with six unpixelated players; now redacted, counted, refused if the detector is missing, and pinned by a test over every frame-publishing script
+
+---
+
+## 2026-09-11 — a stale booking export would have accused a facility of nothing it did
+
+`src/pitch_occupancy/bookings.py`, `slots/reconcile.py`, runbook row 8, 9 new tests.
+
+Row 8 of `docs/runbook.md` has read **"not implemented"** since the runbook was written: *the
+booking export is stale or absent → reconciliation has nothing to compare against*. That
+description is too kind. Reconciliation does not lose the comparison when the export stops
+short — it makes the comparison anyway and gets it confidently wrong. Every observed slot past
+the export's last day matches no booking, and a slot with no booking that shows play is
+`UNBOOKED_USAGE`, which the matrix rates **SERIOUS**. A month-old export therefore hands an
+operator a page of serious anomalies against a facility that did nothing wrong — and
+`authority.py` requires a human to confirm every one of them, so the cost is somebody's
+afternoon and somebody else's standing.
+
+**Now:** `bookings.covers` answers whether the export reaches a date at all, and `reconcile`
+takes `records_cover_this_day`. A day outside the span returns `NEEDS_REVIEW` at **info**, with
+an explanation saying an absent booking cannot be told from an absent record. The check runs
+**before** anything that can return SERIOUS, which is the ordering the guard consists of.
+
+Two things it deliberately does not do. It tests the *span*, not the booked days — a facility
+with no bookings on a Tuesday still has a Tuesday inside an export that covers the week, and
+treating that as uncovered would suppress the genuine unbooked-usage finding, which is the
+finding reconciliation exists to make. And an **empty** export covers nothing rather than
+everything, because an importer that read zero rows — wrong path, wrong delimiter — must not
+produce that same page of serious anomalies.
+
+**The parameter has a caller, because a parameter without one is the next silent failure.**
+`bookings.reconcile_slot` takes the records and a slot, computes coverage itself, and returns
+the reconciliation. The safe call was longer than the unsafe one, and that is exactly the
+shape of thing this project keeps finding: nothing errors when a caller forgets, it just
+reports SERIOUS.
+
+### And an anomaly that cannot happen
+
+Writing the tests turned up a second thing. **`BLOCKED_SLOT_SOLD` is unreachable from any real
+export.** It fires on `maintenance_window and booked`; both are derived from one `status`
+column, `booked = status in {confirmed, no_show}` and `maintenance_window = status ==
+"maintenance"`. One column cannot hold two values, so a pitch that was closed for maintenance
+*and sold anyway* is inexpressible in the schema WP6-T4 asks the client for. Every instance of
+it in this repository is a hand-written fixture.
+
+That is a finding about the **request**, not a defect in the code: the matrix advertises a
+SERIOUS anomaly that the available data can never produce. `data_requests.md` §3 now asks for
+a `blocked` flag separate from the booking status — one more column of an export the facility
+already runs — and a test fails if the schema gains it while the derivation stays as it is,
+which is the moment the anomaly becomes real.
+
+- 2026-09-11 | booking export coverage | `bookings.covers`, `reconcile_slot` | runbook row 8 | a stale export made every observed slot look unbooked and unbooked usage is SERIOUS; a day outside the export now returns NEEDS_REVIEW before anything serious can fire. Separately: BLOCKED_SLOT_SOLD cannot be produced from the requested schema, so the request gained a column

@@ -126,3 +126,77 @@ def test_only_real_disagreements_count_as_anomalies() -> None:
 @pytest.mark.parametrize("status", [USED, NOTUSED, REVIEW])
 def test_vision_status_is_preserved_for_the_evidence_trail(status) -> None:
     assert reconcile(booking(staff_recorded_used=True), status).vision_status is status
+
+
+# --- a booking export that does not reach the day (runbook row 8) --------------------------
+
+
+def test_a_day_outside_the_export_is_reviewed_not_called_unbooked() -> None:
+    """The failure this guard exists for, and it is not a missing comparison but a
+    confidently wrong one.
+
+    An export that stops last month makes every observed slot look unbooked, and unbooked
+    usage is SERIOUS. That hands an operator a page of serious anomalies against a facility
+    that did nothing wrong - and `authority.py` says a human confirms every one, so the cost
+    is a person's time and a staff member's standing.
+    """
+    booking = Booking(field_id="pitch_1", date="2026-08-01", start="10:00", booked=False)
+    stale = reconcile(booking, SlotStatus.USED, records_cover_this_day=False)
+    assert stale.anomaly is Anomaly.NEEDS_REVIEW
+    assert stale.severity is Severity.INFO
+    assert "does not cover this date" in stale.explanation
+
+    covered = reconcile(booking, SlotStatus.USED, records_cover_this_day=True)
+    assert covered.anomaly is Anomaly.UNBOOKED_USAGE, (
+        "with the export covering the day, genuine unbooked usage must still be reported - "
+        "the guard must not suppress the finding the system exists to make"
+    )
+
+
+def test_the_coverage_guard_runs_before_anything_serious() -> None:
+    """Ordering is the guard. A blocked slot sold, or unbooked usage, are both SERIOUS and
+    both reachable from a booking the export never described."""
+    sold_maintenance = Booking(field_id="p", date="2026-08-01", start="10:00",
+                               booked=True, maintenance_window=True)
+    out = reconcile(sold_maintenance, SlotStatus.USED, records_cover_this_day=False)
+    assert out.severity is Severity.INFO, "a serious anomaly escaped the coverage check"
+
+
+def test_coverage_is_the_span_not_the_booked_days() -> None:
+    """A facility with no bookings on a Tuesday still has a Tuesday inside an export that
+    spans the week. Treating that as uncovered would suppress the genuine unbooked-usage
+    finding, which is the opposite failure and the more expensive one."""
+    from datetime import date
+
+    from pitch_occupancy.bookings import coverage, covers, read_bookings
+
+    records = read_bookings()
+    span = coverage(records)
+    assert span is not None
+    first, last = span
+    assert covers(records, first) and covers(records, last)
+    booked_days = {r.date for r in records}
+    gap = next((d for d in _days_between(first, last) if d not in booked_days), None)
+    if gap is not None:
+        assert covers(records, gap), "a quiet day inside the export read as uncovered"
+    assert not covers(records, date(last.year + 1, last.month, last.day))
+
+
+def test_an_empty_export_covers_nothing() -> None:
+    """Not "covers everything". An importer that read zero rows - wrong path, wrong
+    delimiter, empty file - must not produce a page of serious anomalies."""
+    from datetime import date
+
+    from pitch_occupancy.bookings import coverage, covers
+
+    assert coverage([]) is None
+    assert not covers([], date(2026, 7, 11))
+
+
+def _days_between(first, last):
+    from datetime import timedelta
+
+    day = first
+    while day <= last:
+        yield day
+        day += timedelta(days=1)

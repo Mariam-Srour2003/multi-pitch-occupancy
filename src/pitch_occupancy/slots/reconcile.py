@@ -38,6 +38,13 @@ class Anomaly(StrEnum):
     NO_SHOW_OR_OVERRECORDED = "NO_SHOW_OR_OVERRECORDED"
     PLAYED_NOT_RECORDED = "PLAYED_NOT_RECORDED"
     UNBOOKED_USAGE = "UNBOOKED_USAGE"
+    #: A pitch closed for maintenance that was sold anyway. **Unreachable from a real
+    #: export as the importer stands** (2026-09-11): `bookings.py` derives both `booked`
+    #: and `maintenance_window` from one `status` column, and one column cannot hold two
+    #: values, so every instance of this in the repository is a hand-built fixture. It
+    #: needs the export to carry the block separately - `thesis/data_requests.md` §3 now
+    #: asks for that column, and `tests/test_bookings.py` fails if the schema gains it
+    #: without the derivation being updated.
     BLOCKED_SLOT_SOLD = "BLOCKED_SLOT_SOLD"
     NEEDS_REVIEW = "NEEDS_REVIEW"
 
@@ -91,14 +98,36 @@ def reconcile(
     *,
     vision_confidence: float = 1.0,
     min_confidence: float = 0.0,
+    records_cover_this_day: bool = True,
 ) -> Reconciliation:
-    """Compare one slot's records against its observed verdict."""
+    """Compare one slot's records against its observed verdict.
+
+    ``records_cover_this_day`` is the caller's answer to *"does the booking export reach
+    this date at all?"* - `bookings.covers` computes it. It defaults to True because every
+    fixture in this repository is written for the day it describes, and it exists because
+    the alternative is not a missing comparison but a **confidently wrong one**: a booking
+    export that stops last month makes every observed slot look unbooked, and unbooked usage
+    is SERIOUS. A stale export would hand an operator a page of serious anomalies against a
+    facility that did nothing wrong, and `authority.py` is explicit that a human confirms
+    every one of them - so the cost of that failure is a person's time and a staff member's
+    standing, not a wrong cell in a table.
+    """
 
     def result(anomaly: Anomaly, explanation: str) -> Reconciliation:
         return Reconciliation(
             field_id=booking.field_id, date=booking.date, start=booking.start,
             anomaly=anomaly, severity=SEVERITY[anomaly], explanation=explanation,
             vision_status=vision_status,
+        )
+
+    # First, and before anything that can return a SERIOUS anomaly. If the records do not
+    # reach this day then "not booked" is not a fact about the slot, it is a fact about the
+    # export, and the two are indistinguishable downstream.
+    if not records_cover_this_day:
+        return result(
+            Anomaly.NEEDS_REVIEW,
+            "the booking export does not cover this date, so an absent booking cannot be "
+            "told from an absent record; no discrepancy is raised",
         )
 
     if vision_confidence < min_confidence:

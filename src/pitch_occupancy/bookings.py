@@ -210,6 +210,33 @@ def read_bookings(path: Path | str | None = None, *, source: str | None = None
     return records
 
 
+def coverage(records: Iterable[BookingRecord]) -> tuple[date_type, date_type] | None:
+    """The first and last day this export contains a booking for, or None if it is empty.
+
+    A booking export is a snapshot, and a snapshot has an edge. Reconciliation compares what
+    the cameras saw against what the facility sold, so a day beyond that edge has nothing to
+    compare against - and the failure is not that the comparison is unavailable, it is that
+    it silently succeeds. Every observed slot outside the export looks unbooked, and
+    `reconcile.py` calls unbooked usage **SERIOUS**. A month-old export therefore produces a
+    page of serious anomalies against a facility that did nothing wrong, and the runbook's
+    row 8 has said "not implemented" about exactly this.
+    """
+    days = sorted(r.date for r in records)
+    return (days[0], days[-1]) if days else None
+
+
+def covers(records: Iterable[BookingRecord], day: date_type) -> bool:
+    """Whether the export contains any booking on ``day``.
+
+    Membership of the covered *range* rather than of the booked days: a facility with no
+    bookings on a Tuesday still has a Tuesday in an export that spans the week, and treating
+    that as "not covered" would suppress the genuine unbooked-usage finding this system
+    exists to make. What this catches is the day the export never reached at all.
+    """
+    span = coverage(records)
+    return bool(span) and span[0] <= day <= span[1]
+
+
 def to_reconcile_bookings(
     records: Iterable[BookingRecord], *, staff_recorded: dict[str, bool] | None = None
 ) -> list[Booking]:
@@ -234,6 +261,49 @@ def to_reconcile_bookings(
             entered_by=r.entered_by or None,
         ))
     return out
+
+
+def reconcile_slot(
+    records: Sequence[BookingRecord],
+    *,
+    field_id: str,
+    day: date_type,
+    start: time,
+    vision_status,
+    staff_recorded_used: bool | None = None,
+    **kwargs,
+):
+    """Reconcile one observed slot against an export, coverage included.
+
+    **The intended entry point, and the reason it exists is that the safe call is longer
+    than the unsafe one.** Reconciling a slot the export does not mention means building a
+    `Booking(booked=False)` by hand and remembering to pass `records_cover_this_day` beside
+    it - and a caller who forgets gets no error, just `UNBOOKED_USAGE` at SERIOUS for a slot
+    nobody sold. This computes the flag from the records themselves, so forgetting is not
+    one of the available outcomes.
+
+    An unmatched slot inside the export's span is genuinely unbooked and is reported as
+    such: that is the finding reconciliation exists to make, and suppressing it would trade
+    one silent error for another.
+    """
+    from pitch_occupancy.slots.reconcile import reconcile as _reconcile
+
+    match = next(
+        (r for r in records
+         if r.field_id == field_id and r.date == day and r.start == start),
+        None,
+    )
+    booking = Booking(
+        field_id=field_id,
+        date=day.isoformat(),
+        start=f"{start:%H:%M}",
+        booked=bool(match and match.is_sold),
+        staff_recorded_used=staff_recorded_used,
+        maintenance_window=bool(match and match.status == "maintenance"),
+        entered_by=(match.entered_by or None) if match else None,
+    )
+    return _reconcile(booking, vision_status,
+                      records_cover_this_day=covers(records, day), **kwargs)
 
 
 @runtime_checkable

@@ -195,3 +195,86 @@ def test_the_converted_bookings_reconcile(tmp_path) -> None:
 
 def test_the_example_path_points_at_the_committed_file() -> None:
     assert EXAMPLE_PATH.exists(), EXAMPLE_PATH
+
+
+# --- the safe entry point (runbook row 8, 2026-09-11) --------------------------------------
+
+
+def test_reconcile_slot_computes_coverage_so_a_caller_cannot_forget_it() -> None:
+    """The whole reason this function exists: the safe call is longer than the unsafe one.
+
+    Reconciling a slot the export does not mention means building `Booking(booked=False)` by
+    hand and remembering `records_cover_this_day` beside it. A caller who forgets gets no
+    error - just UNBOOKED_USAGE at SERIOUS for a slot nobody sold.
+    """
+    from datetime import date
+
+    from pitch_occupancy.bookings import read_bookings, reconcile_slot
+    from pitch_occupancy.data.taxonomy import SlotStatus
+    from pitch_occupancy.slots.reconcile import Anomaly, Severity
+
+    records = read_bookings()
+    known = records[0]
+
+    outside = reconcile_slot(records, field_id=known.field_id, day=date(2027, 1, 1),
+                             start=known.start, vision_status=SlotStatus.USED)
+    assert outside.anomaly is Anomaly.NEEDS_REVIEW
+    assert outside.severity is Severity.INFO
+
+
+def test_an_unmatched_slot_inside_the_export_is_still_reported_as_unbooked() -> None:
+    """The guard must not buy safety by suppressing the finding reconciliation exists to
+    make. A pitch with no booking on a day the export covers is genuinely unbooked usage."""
+    from datetime import time
+
+    from pitch_occupancy.bookings import read_bookings, reconcile_slot
+    from pitch_occupancy.data.taxonomy import SlotStatus
+    from pitch_occupancy.slots.reconcile import Anomaly
+
+    records = read_bookings()
+    covered_day = records[0].date
+    out = reconcile_slot(records, field_id="pitch_that_is_not_in_the_export",
+                         day=covered_day, start=time(6, 0), vision_status=SlotStatus.USED)
+    assert out.anomaly is Anomaly.UNBOOKED_USAGE
+
+
+def test_a_matched_booking_carries_its_fields_through() -> None:
+    """`maintenance_window` and `entered_by` come off the matched record, so a lookup that
+    matched the wrong row would change the *anomaly*, not merely its explanation."""
+    from datetime import date, time
+
+    from pitch_occupancy.bookings import BookingRecord, reconcile_slot
+    from pitch_occupancy.data.taxonomy import SlotStatus
+    from pitch_occupancy.slots.reconcile import Anomaly
+
+    day, at = date(2026, 7, 11), time(10, 0)
+    record = BookingRecord(field_id="field_01", date=day, start=at, end=time(11, 0),
+                           customer_ref="ref", status="maintenance", entered_by="alex",
+                           source="test")
+    out = reconcile_slot([record], field_id="field_01", day=day, start=at,
+                         vision_status=SlotStatus.USED)
+    # maintenance and unsold: play during a window nobody bought is unbooked usage
+    assert out.anomaly is Anomaly.UNBOOKED_USAGE
+
+
+def test_blocked_slot_sold_cannot_be_produced_from_a_real_export() -> None:
+    """A SERIOUS anomaly the matrix advertises and the importer cannot reach.
+
+    `BLOCKED_SLOT_SOLD` fires on `maintenance_window and booked`. Both are derived from one
+    `status` column - `booked = status in SOLD`, `maintenance_window = status ==
+    "maintenance"` - and `SOLD` is `{confirmed, no_show}`. One column cannot hold two values,
+    so the conflict the anomaly describes is **inexpressible in the schema WP6-T4 asks the
+    client for**, and every instance of it in this repository is a hand-built fixture.
+
+    That is a finding about the request, not a bug in the code: detecting a blocked slot that
+    was nevertheless sold needs the export to carry the block separately from the status.
+    `thesis/data_requests.md` now asks for it. This test fails if the schema grows that field
+    and the derivation is not updated with it - which is the moment the anomaly becomes real.
+    """
+    from pitch_occupancy.bookings import SOLD
+
+    assert "maintenance" not in SOLD, (
+        "the schema can now express a sold maintenance window; update reconcile_slot's "
+        "derivation and the note in data_requests.md, because BLOCKED_SLOT_SOLD just became "
+        "reachable from a real export"
+    )

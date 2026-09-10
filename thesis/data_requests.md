@@ -67,6 +67,16 @@ conversation.
 time, booked yes/no, and the staff-recorded outcome if one exists. CSV is fine. No names or
 customer details are needed; see §7.
 
+★ **And one extra column, for a reason found on 2026-09-11: whether the slot was blocked for
+maintenance, separately from its booking status.** The reconciliation matrix has a SERIOUS
+anomaly for a pitch that was closed for maintenance and sold anyway — and as the importer is
+written it can never fire, because `booked` and `maintenance_window` are both derived from a
+single `status` column and that column cannot hold two values at once. One field cannot say
+"blocked" and "confirmed" simultaneously, so the conflict is inexpressible and every instance
+of it in this repository is a hand-written fixture. A separate `blocked`/`closed` flag makes
+the anomaly reachable from real data; without it, that row of the matrix is a design that
+cannot be evaluated. It costs the facility one more column of an export they already run.
+
 ## 4 · Maintenance and non-sporting activity
 
 Currently **6 frames** in the whole corpus, all from one moment at one camera — so the third
