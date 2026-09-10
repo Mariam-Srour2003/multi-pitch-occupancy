@@ -1385,7 +1385,80 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [ ] ★ **Not a daemon and not a deployment.** No supervision, no restart policy, no
         systemd unit (WP7-T2), and it has never run against a camera — the tests hand it
         recorded video. WP7-T3's shadow run is where that changes.
-- [ ] ~~WP6-T2 original~~ `main.py`: reads `config/slots_schedule.json`; during active
+- [x] ★ **WP6-T2 The classifier the whole pipeline was missing** (2026-09-10).
+      `src/pitch_occupancy/vision/classifier.py` + a runnable
+      `python -m pitch_occupancy.worker`, 14 new tests. `run_slot` and `run_due` have taken a
+      `classify` callable since they were written and **nothing outside a test ever supplied
+      one**: every scheduler test hands the seam a stub, `end_to_end_slots.py` rebuilds each
+      slot's per-minute sequence from the *labels*, and `worker.main` raised
+      `NotImplementedError` naming exactly this. Sampling, fusion, aggregation, evidence
+      selection and reconciliation had all been exercised end to end without a single frame
+      ever having been classified by the system itself.
+  - [x] **The acceptance criterion is now met with a model in the loop.** Both exported
+        slots agree with the label-derived verdicts in `end_to_end_slots.csv`:
+        `2026-07-11_1000` NOTUSED (model empty 0.947 against the labels' 0.932) and
+        `2026-07-12_2030` USED (play 1.000 either way), at 100% capture. The other two slot
+        instances the derived schedule names were never exported and are reported SKIPPED.
+        That the model wrote the rows is checkable: the seeded ones carried a constant
+        `mean_confidence` of 0.95, these carry 0.9932 and 0.9999, and the 469 frame samples
+        behind them hold 233 distinct confidences. **This is a wiring check, not an accuracy result** — both slots'
+        frames are in the probe's training set, so what it shows is that the pipeline is
+        connected, and nothing about generalisation. The honest numbers are WP4's.
+  - [x] ★ **The input path is the risk, so it is tested against the cache itself.** A
+        deployed classifier that embeds frames even slightly differently from the way the
+        feature cache was built is a model evaluated on one distribution and run on another
+        — this project has already been bitten by that once (the input-path challenge,
+        `docs/PM_REVIEW_2026-09-08.md`). So the module applies no preprocessing of its own,
+        calls the same `embed_batch` under the same processor geometry, and a slow test
+        embeds real frames through the deployment path (OpenCV decode, BGR→RGB) and asserts
+        they reproduce the stored vectors. They agree exactly.
+  - [x] ★ **The venue lock holds in production too.** The probe is fitted on
+        `development_rows` only — 1,578 frames — so a deployment cannot quietly train on the
+        held-out venues and make the one honest number in the thesis unquotable. There is a
+        second explicit check for locked venues behind that, which fires only if
+        `development_rows` ever changes.
+  - [x] ★ **Fitted at construction, not loaded from a pickle.** A serialised sklearn
+        pipeline is an artefact that can drift from the manifest it claims to come from,
+        breaks on a library upgrade, and that nothing here regenerates. The fit is a second
+        on cached features, so refitting means the deployed model is always the one the
+        current cache and manifest imply.
+  - [x] **Three defects found by running it, which is the point of running it.** `run_due`
+        hands `on_slot` the **exception** when a slot fails — one dead camera must not stop
+        the other pitches — and the first version printed `run.verdict` unconditionally, so
+        it died inside the handler for the failure it was reporting. The schedule derived
+        from the recordings names four slot instances and only two were exported, so this
+        fired immediately. Overlapping slot windows would also have run a slot twice, since
+        `run_due` runs everything due at that moment.
+  - [x] ★ **The third is the one worth keeping: `run_due` persists only when it is given a
+        connection.** `main` did not pass one, so the first version classified both slots in
+        full, wrote nothing, and printed "2 slot(s) written to the database". Found by
+        looking in the database rather than by reading the output — the rows there were
+        dated 2026-09-06 and had come from `pitch seed`. Not a crash; a confident sentence
+        about something that did not happen. Fixed, and a test now asserts the connection
+        reaches `run_due` with the schema initialised.
+  - [ ] ★ **The confidence is not calibrated.** It is the probe's maximum class probability,
+        which `fuse` uses to weigh two cameras and `aggregate_slot` never reads. Anything
+        that wants a *threshold* on it — a REVIEW band, RQ6's operating point — has to go
+        through `evaluation/calibration.py` and state the temperature it fitted. Blocked on
+        the same test-set degeneracy as WP4-T9.
+  - [x] ★ **M5's end-to-end criterion was weaker than it reads, and now has a committed
+        artefact behind it.** It was satisfied by `results/end_to_end_slots.csv`, whose
+        per-minute sequences are rebuilt from the **label column** — so "end-to-end run on
+        real slots" had never included the model, and the run that does writes to a
+        `.gitignore`d database no gate criterion can read.
+        `experiments/end_to_end_model.py` → `end_to_end_model_slots.csv`, a `reproduce_all`
+        stage, 8 tests: **2/2 verdicts and 106/106 comparable minutes agree** with the
+        label-derived answers. Two caveats travel with that number and are in the module's
+        first paragraph — it is **in-sample**, and the minutes are compared scene-to-scene
+        rather than frame-aligned, because the worker reads minute x 60 s and the labelled
+        frames sit at irregular instants.
+    - [ ] ★ **Point a gate criterion at it.** `gate_check.py` still reads the label-derived
+          table for M5. Now that the model-in-the-loop artefact is committed, the criterion
+          can require it — and be tested by removal, the way M4's two were.
+  - [ ] ★ **Still not a deployment.** This replays recordings through the scheduler; the
+        live path (`scheduler.live_sources`) has still never been pointed at a camera, and
+        there is no supervision or restart policy. WP7-T2 and WP7-T3.
+- [x] ~~WP6-T2 original~~ `main.py`: reads `config/slots_schedule.json`; during active
       slots pulls 1 frame/min per camera (VIDEO_SIM | API_SIM | RTSP_LIVE), classifies, fuses, writes
       DB; at slot end runs the aggregator (threshold or STAN per config) + evidence selection.
       *Accept:* runs continuously; DB fills; verdicts correct on recorded slots.

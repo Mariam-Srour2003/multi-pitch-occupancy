@@ -222,6 +222,15 @@ STAGES: list[Stage] = [
         note="decision layer on the real slots",
     ),
     Stage(
+        name="end-to-end-model",
+        command=[*PY, "-m", "experiments.end_to_end_model"],
+        produces=[RESULTS / "end_to_end_model_slots.csv"],
+        requires=[DATA / "processed" / "manifest.csv", DATA / "cache" / "dinov2.npz",
+                  DATA / "raw" / "venue_01"],
+        note="WP6-T2: the same slots through the deployed classifier, beside the labels",
+        minutes=5,
+    ),
+    Stage(
         name="efficiency",
         command=[*PY, "-m", "experiments.efficiency_latency"],
         produces=[RESULTS / "efficiency_latency.csv"],

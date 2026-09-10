@@ -20,9 +20,9 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import Callable, Protocol, runtime_checkable
 
 import numpy as np
 
@@ -43,8 +43,14 @@ from pitch_occupancy.slots.fusion import fuse
 __all__ = ["Classifier", "SlotRun", "run_slot", "main"]
 
 
+@runtime_checkable
 class Classifier(Protocol):
-    """Anything that turns one frame into a class and a confidence."""
+    """Anything that turns one frame into a class and a confidence.
+
+    Runtime-checkable so that a caller assembling the pipeline can assert it has one. The
+    check is shallow - it sees a `__call__` and nothing about its signature - so a test
+    that means to pin the contract should compare signatures, as `test_classifier.py` does.
+    """
 
     def __call__(self, image_bgr: np.ndarray) -> tuple[Class3, float]: ...
 
@@ -221,17 +227,117 @@ def run_slot(
 
 
 def main() -> None:
+    """Run the sampler over recorded slots, with the real classifier (WP6-T2).
+
+    This is the acceptance criterion the work package was written around - *"runs
+    continuously; DB fills; verdicts correct on recorded slots"* - and until
+    `vision/classifier.py` existed it could not be met, because nothing in the repository
+    could turn a frame into a class outside an experiment. This function raised
+    `NotImplementedError` instead, and its message named the missing piece.
+
+    ``--source video`` replays footage through the scheduler rather than pretending to be
+    live: the same `run_due` a deployment calls, given recordings instead of cameras. The
+    live path is `scheduler.live_sources` and it has still never been pointed at a camera
+    (WP7-T3).
+
+    ``--dry-run`` lists what would run and exits before the backbone is loaded, which is the
+    shape `pitch retention` and `pitch schedule` already use: deciding is separable from
+    doing, and a run that writes to the database should be something you asked for twice.
+    """
+    from pitch_occupancy.db.schema import connect, initialise
+    from pitch_occupancy.scheduler import (
+        describe,
+        run_due,
+        schedule_from_recordings,
+        sources_from_recordings,
+    )
+
     parser = argparse.ArgumentParser(description="Sample and evaluate slots.")
-    parser.add_argument("--source", choices=["video"], default="video")
+    parser.add_argument("--source", choices=["video"], default="video",
+                        help="video replays recordings; there is no live choice here yet")
     parser.add_argument("--raw-dir", type=Path, default=settings.raw_dir / "venue_01")
     parser.add_argument("--model", default=settings.default_model_key)
+    parser.add_argument("--dry-run", action="store_true",
+                        help="list the slots and exit, loading no model and writing nothing")
+    parser.add_argument("--evidence-dir", type=Path, default=None,
+                        help="save evidence frames here; off by default, because these are "
+                             "images of identifiable people")
+    parser.add_argument("--limit", type=int, default=None,
+                        help="stop after this many slots")
     args = parser.parse_args()
 
-    raise NotImplementedError(
-        "The live loop still needs the classifier wiring (a probe over cached features) "
-        "and the schedule reader. run_slot() is complete and covered by tests; "
-        "experiments/end_to_end_slots.py exercises the same path on the recorded slots."
-    )
+    schedule, days = schedule_from_recordings(args.raw_dir)
+    if not schedule.slots:
+        raise SystemExit(f"no recorded slots under {args.raw_dir}")
+
+    print(f"{len(schedule.slots)} slot(s) over {len(days)} day(s) under {args.raw_dir}")
+    for day in days:
+        for line in describe(schedule, datetime.combine(day, time.min), days=1):
+            print(f"  {line}")
+    if args.dry_run:
+        print("\ndry run: nothing was classified and nothing was written")
+        return
+
+    from pitch_occupancy.vision.classifier import load_classifier
+
+    classify = load_classifier(args.model)
+    print(f"\nclassifier: {classify.backbone} probe fitted on {classify.n_train} "
+          f"development frames (the locked venues are not among them)")
+
+    source_for = sources_from_recordings(args.raw_dir)
+
+    def report(slot_id: str, outcome: object) -> None:
+        """Print one line per slot, whichever way it went.
+
+        `run_due` hands this callback **the exception** when a slot fails, because one dead
+        camera must not stop the other pitches being observed. A callback that assumed a
+        `SlotRun` therefore crashed inside the handler for the failure it existed to report,
+        which turns a skipped slot into a dead run. Found by running it: the schedule
+        derived from recordings names four slot instances and only two were ever exported.
+        """
+        if isinstance(outcome, BaseException):
+            print(f"  {slot_id:<34} SKIPPED  {type(outcome).__name__}: {outcome}")
+            return
+        print(f"  {slot_id:<34} {outcome.verdict.status:<8} "
+              f"{outcome.minutes_captured:>3}/"
+              f"{outcome.minutes_captured + outcome.minutes_missed} minutes  "
+              f"capture {outcome.capture_rate:.0%}  "
+              f"play {outcome.verdict.play_ratio:.2f} empty {outcome.verdict.empty_ratio:.2f}")
+
+    # `run_due` persists only when it is given a connection - without one it classifies the
+    # whole slot and stores nothing. The first version of this function did exactly that and
+    # then printed "2 slot(s) written to the database", which is the shape of failure this
+    # project keeps finding: not a crash, a confident sentence about something that did not
+    # happen. `pitch info` names the file this opens.
+    connection = connect(settings.db_path)
+    initialise(connection)
+    ran: list[str] = []
+    seen: set[str] = set()
+    try:
+        for day in days:
+            for slot in schedule.slots:
+                if args.limit is not None and len(ran) >= args.limit:
+                    break
+                # `run_due` runs everything due at that moment, so two slots whose windows
+                # overlap are both reached by the first call. Without this, the second call
+                # would run the pair again and write one slot's verdict twice.
+                if slot.slot_id(day) in seen:
+                    continue
+                # It selects by clock, so a slot is reached by standing inside its own
+                # window rather than by calling `run_slot` directly - the point is to
+                # exercise the scheduler's path, not to step around it.
+                begins, _ = slot.window(day)
+                just_ran = run_due(
+                    schedule, begins,
+                    source_for=source_for, classify=classify, model_key=args.model,
+                    connection=connection, evidence_dir=args.evidence_dir, on_slot=report,
+                )
+                seen.update(just_ran)
+                ran += just_ran
+    finally:
+        connection.close()
+
+    print(f"\n{len(ran)} slot(s) written to the database")
 
 
 if __name__ == "__main__":

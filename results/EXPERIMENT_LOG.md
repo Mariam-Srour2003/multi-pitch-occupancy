@@ -3652,3 +3652,139 @@ experiment that keeps nothing until it finishes is one crash away from having do
 - 2026-09-10 | WP3-T6 augmentation across cameras | `python experiments/augmentation_transfer.py --views 4` | `augmentation_transfer.csv` | `light` 0.8550 vs 0.4406 unaugmented and 0.3625 for the duplicate-rows control; closes 75% of the gap one labelled frame closes; `full` erases the gain entirely
 
 - 2026-09-10 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
+
+---
+
+## 2026-09-10 — WP6-T2: the pipeline had no head on it
+
+`src/pitch_occupancy/vision/classifier.py`, a runnable `python -m pitch_occupancy.worker`,
+14 new tests - 10 on the classifier, 4 on the entry point.
+
+`run_slot` has taken a `classify` callable since it was written, and `run_due` passes one
+straight through. **Nothing outside a test ever supplied one.** Every scheduler test hands
+the seam a stub, `end_to_end_slots.py` rebuilds each slot's per-minute sequence from the
+*labels* rather than from a model, and `worker.main` raised `NotImplementedError` whose
+message named exactly this. So sampling, two-camera fusion, aggregation, evidence selection
+and reconciliation had all been exercised end to end without a single frame ever having been
+classified by the system itself.
+
+Nothing was broken and no test failed. The pipeline simply had no head on it, and the
+missing piece was small enough to keep not noticing — which is the same shape as the RTSP
+source that could not get past its first line, and the evidence images that recorded three
+paths to nothing.
+
+### The input path is the whole risk
+
+A deployed classifier that embeds frames even slightly differently from the way the feature
+cache was built is a model evaluated on one distribution and run on another, and this project
+has already been bitten by that once: every published number comes from raw frames handed to
+the HF processor, which keeps roughly the middle half of a 16:9 pitch, and letterboxing
+instead moved ConvNeXtV2's false-play rate from 99.2% to 2.1%.
+
+So the module implements no preprocessing of its own. It converts BGR to RGB, wraps the array
+in a PIL image and calls the same `embed_batch` under the same processor geometry that
+`feature_cache.py` uses. The check is against the cache itself rather than against a
+description of it: a test embeds real frames through the deployment path — OpenCV decode, BGR
+to RGB — and compares them with the stored vectors. The two decoders agree **exactly** (max
+absolute difference 0.0 across the sampled frames), which is the assumption everything else
+rests on and the one thing nothing else in the repository would notice breaking.
+
+### Two decisions worth stating
+
+**Fitted at construction, not loaded from a pickle.** A serialised sklearn pipeline is a
+second artefact that can drift from the manifest it claims to come from, breaks on a library
+upgrade, and that nothing here regenerates — three failure modes bought for the sake of
+saving a second. Refitting from the cache means the deployed model is always the one the
+current cache and manifest imply.
+
+**Development rows only.** The probe is fitted on 1,578 frames and the locked venues are not
+among them, so a deployment cannot quietly train on the held-out set and make the one honest
+number in the thesis unquotable. There is a second explicit check behind `development_rows`
+that fires only if that function ever changes.
+
+The confidence is the winning class probability and is **not calibrated**. `fuse` uses it to
+weigh two cameras against each other and `aggregate_slot` never reads it, so nothing turns it
+into a verdict on its own; anything that wants a threshold on it has to go through
+`evaluation/calibration.py` and say which temperature it fitted.
+
+### Running it found three defects, which is why it was run
+
+`run_due` hands `on_slot` **the exception** when a slot fails — one dead camera must not stop
+the other pitches being observed. The first version of `main` printed `run.verdict`
+unconditionally and so died inside the handler for the failure it was there to report. It
+fired on the first real run, because the schedule derived from the recordings names four slot
+instances and only two were ever exported. Two slots whose windows overlap are both reached
+by the first `run_due` call, so the second call would have run the pair again and written one
+slot's verdict twice.
+
+The third is the one worth keeping. **`run_due` persists only when it is given a
+connection**, and `main` did not give it one — so the first version classified both slots in
+full, stored nothing, and printed *"2 slot(s) written to the database"*. It was caught by
+looking in the database rather than by reading the output: the two rows there were dated
+2026-09-06 and had come from `pitch seed`. A defaulted parameter whose absence silently
+disables the write is the same shape as the evidence images that recorded three paths to
+nothing, and the failure is not a crash but a confident sentence about something that did not
+happen. All three are fixed and pinned by tests.
+
+### The acceptance criterion, with a model in the loop
+
+WP6-T2's original criterion was *"runs continuously; DB fills; verdicts correct on recorded
+slots"*. Both exported slots now agree with the label-derived verdicts in
+`end_to_end_slots.csv`, and the rows in the database were written by this run rather than by
+`pitch seed`:
+
+| slot | model | labels |
+|---|---|---|
+| `venue_01_2026-07-11_1000` | NOTUSED, play 0.018 empty 0.947, 57/57 minutes | NOTUSED, play 0.017 empty 0.932 |
+| `venue_01_2026-07-12_2030` | USED, play 1.000 empty 0.000, 59/59 minutes | USED, play 1.0 empty 0.0 |
+
+The ratios differ slightly because the counts do: the video source yields 57 readable minutes
+of the first slot where the manifest holds 59 labelled frames of it. The two remaining slot
+instances are reported as SKIPPED — the schedule derived from the recordings names four and
+only two were ever exported — which is the "one dead camera does not stop the other pitches"
+guard doing its job on real input.
+
+**That the model wrote them is checkable rather than asserted.** The seeded rows carried a
+constant `mean_confidence` of 0.95; these carry 0.9932 and 0.9999, and the 469 frame samples
+behind them hold 233 distinct confidences.
+
+**This is a wiring check and not an accuracy result.** Both slots' frames are in the probe's
+training set, so what it demonstrates is that the pipeline is connected end to end — not
+anything about generalisation, which is what WP4 measures honestly and on held-out venues. It
+is still worth having: until today the only thing that had ever produced a per-minute class
+for these slots was the label column.
+
+### The comparison is now an artefact, not a paragraph
+
+`experiments/end_to_end_model.py` -> `results/end_to_end_model_slots.csv`, a `reproduce_all`
+stage, 8 tests. M5's *"end-to-end run on real slots"* has been satisfied by
+`end_to_end_slots.csv`, whose per-minute sequences are rebuilt from the **label column** — a
+criterion that reads as though a model were involved and was true of nothing in the
+repository. The database rows this run writes are `.gitignore`d, so without a committed table
+the distinction would stay a claim in a log entry.
+
+| slot | model | labels | minutes agreeing |
+|---|---|---|---|
+| `venue_01_2026-07-11_1000` | NOTUSED, play 0.018 empty 0.947 | NOTUSED, play 0.017 empty 0.932 | 53/53 |
+| `venue_01_2026-07-12_2030` | USED, play 1.000 empty 0.000 | USED, play 1.000 empty 0.000 | 53/53 |
+
+**106 of 106 comparable minutes agree, and that number needs its two caveats attached.** Both
+slots' frames are in the probe's training set, so this is in-sample and not an accuracy
+measurement — WP4 measures that honestly, on held-out venues, and gets very different numbers.
+And the minutes are not frame-aligned: `VideoSlotSource` reads the frame at exactly minute x
+60 s while the labelled frames of that minute sit at irregular instants, so a prediction is
+compared against **the labels of its minute**.
+
+**Ten minutes were set aside because their own labels disagree** — four in the first slot, six
+in the second. Two frames seconds apart caught a change, or the two cameras were labelled
+differently. Such a minute cannot make a single prediction right or wrong, and folding it into
+either column would be a choice dressed as a measurement, so it is counted and reported
+separately. It is also a small, real observation about label granularity: the taxonomy is
+per-frame and the decision layer is per-minute, and those disagree about 8% of the time here.
+
+Still not a deployment. The live path has never been pointed at a camera, and there is no
+supervision or restart policy (WP7-T2, WP7-T3).
+
+- 2026-09-10 | WP6-T2 production classifier | `python -m pitch_occupancy.worker --source video` | `vision/classifier.py` | 14 new tests; the `classify` seam had never been given a real classifier, so the whole pipeline had been run end to end without a frame ever being classified. Both recorded slots now agree with the label-derived verdicts; the deployment input path reproduces the cached features exactly
+
+- 2026-09-10 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 32 claims verified against their artefacts, 0 recorded as unsupported

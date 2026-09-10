@@ -8,7 +8,8 @@ booking records.
 Layout::
 
     data/        manifest, splits, taxonomy, feature cache   (WP0, WP2)
-    vision/      preprocessing, ROI, backbones, heads        (WP3, WP4)
+    vision/      preprocessing, ROI, backbones, heads,
+                 and the deployed classifier                 (WP3, WP4, WP6-T2)
     slots/       two-camera fusion, aggregation, STAN        (WP5)
     evaluation/  metrics, statistics, calibration            (WP0-T6, WP4)
     db/          SQLite schema and access                    (WP6)

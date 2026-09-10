@@ -211,3 +211,143 @@ def test_the_worker_passes_the_slot_length_through() -> None:
     assert run.minutes_missed == 48
     assert run.verdict.status is SlotStatus.REVIEW
     assert "12 of 60" in run.verdict.reason
+
+
+# --- the entry point (WP6-T2) ------------------------------------------------------------
+#
+# `main` raised NotImplementedError until 2026-09-10, naming the missing classifier. What
+# these check is the wiring, not the model: that the run reaches the scheduler rather than
+# calling `run_slot` behind its back, that a dry run loads nothing and writes nothing, and
+# that evidence images stay off unless asked for. The model itself is `test_classifier.py`.
+
+
+def _recordings(tmp_path):
+    """A directory shaped like the export, with no video in it.
+
+    `schedule_from_recordings` reads the filenames and nothing else, so the schedule can be
+    derived without a gigabyte of footage - and every test below stops before a frame is
+    read.
+    """
+    raw = tmp_path / "venue_01"
+    raw.mkdir(parents=True)
+    for name in ("StatBox_Replay_X_2026-07-11_10-00.mp4",
+                 "StatBox_Replay_X_2026-07-11_10-00 (1).mp4"):
+        (raw / name).write_bytes(b"")
+    return raw
+
+
+def test_a_dry_run_loads_no_model_and_writes_nothing(tmp_path, monkeypatch, capsys) -> None:
+    """Deciding is separable from doing, the same shape `pitch retention` and
+    `pitch schedule` use. A run that writes verdicts to the database should be something
+    that was asked for, and asking twice costs nothing."""
+    import sys
+
+    import pitch_occupancy.vision.classifier as classifier
+    from pitch_occupancy import worker
+
+    def explode(*a, **k):
+        raise AssertionError("a dry run loaded the backbone")
+
+    monkeypatch.setattr(classifier, "load_classifier", explode)
+    monkeypatch.setattr(sys, "argv",
+                        ["worker", "--raw-dir", str(_recordings(tmp_path)), "--dry-run"])
+    worker.main()
+    out = capsys.readouterr().out
+    assert "venue_01_2026-07-11_1000" in out
+    assert "nothing was classified and nothing was written" in out
+
+
+def test_it_goes_through_the_scheduler_with_the_real_classifier(tmp_path, monkeypatch) -> None:
+    """The point of the exercise: `run_due` is the path a deployment takes, so replaying
+    recordings has to go through it rather than calling `run_slot` directly. Bypassing it
+    would leave the part that decides *when* untested by the thing that runs."""
+    import sys
+
+    import pitch_occupancy.scheduler as scheduler
+    import pitch_occupancy.vision.classifier as classifier
+    from pitch_occupancy import worker
+    from pitch_occupancy.config import settings
+
+    seen: dict[str, object] = {}
+    sentinel = object()
+    monkeypatch.setattr(classifier, "load_classifier",
+                        lambda key=None, **k: type("C", (), {
+                            "backbone": "dinov2", "n_train": 7, "__call__": lambda *a: None,
+                        })())
+
+    def fake_run_due(schedule, now, *, source_for, classify, **kwargs):
+        seen["now"] = now
+        seen["classify"] = classify
+        seen["evidence_dir"] = kwargs.get("evidence_dir", sentinel)
+        connection = kwargs.get("connection", sentinel)
+        seen["connection"] = connection
+        # read the schema here: `main` closes the connection on the way out, which is
+        # correct and means it cannot be inspected afterwards
+        if connection not in (sentinel, None):
+            seen["tables"] = {r[0] for r in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'")}
+        return [f"slot_at_{now:%H%M}"]
+
+    monkeypatch.setattr(scheduler, "run_due", fake_run_due)
+    # never the developer's real database: `main` opens `settings.db_path`
+    monkeypatch.setattr(settings, "db_path", tmp_path / "db" / "test.db")
+    monkeypatch.setattr(sys, "argv", ["worker", "--raw-dir", str(_recordings(tmp_path))])
+    worker.main()
+
+    assert seen["now"].hour == 10, "the clock must stand inside the slot's own window"
+    assert getattr(seen["classify"], "backbone", None) == "dinov2"
+    assert seen["evidence_dir"] is None, "evidence images are opt-in: they show real people"
+
+    # `run_due` persists only when it is given a connection; without one it classifies the
+    # whole slot, stores nothing, and returns the slot id anyway. The first version of
+    # `main` forgot it and then printed "2 slot(s) written to the database" over an empty
+    # table - a confident sentence about something that did not happen.
+    assert seen["connection"] not in (sentinel, None)
+    assert {"slot_evaluations", "frame_samples"} <= seen["tables"]
+
+
+def test_no_recordings_is_an_error_not_an_empty_success(tmp_path, monkeypatch) -> None:
+    """A run that finds nothing and exits 0 reads as "there was nothing to do" when it means
+    "the path was wrong", and the two want different responses at 3am."""
+    import sys
+
+    from pitch_occupancy import worker
+
+    empty = tmp_path / "nothing"
+    empty.mkdir()
+    monkeypatch.setattr(sys, "argv", ["worker", "--raw-dir", str(empty), "--dry-run"])
+    with pytest.raises(SystemExit):
+        worker.main()
+
+def test_a_slot_that_cannot_run_is_reported_and_the_others_continue(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """`run_due` passes the **exception** to `on_slot` when a slot fails - that is how one
+    dead camera avoids stopping the other pitches. The first version of `main` printed
+    `run.verdict` unconditionally and so died inside the handler for the failure it was
+    reporting, on the very first real run: the schedule derived from the recordings names
+    four slot instances and only two were exported.
+    """
+    import sys
+
+    import pitch_occupancy.scheduler as scheduler
+    import pitch_occupancy.vision.classifier as classifier
+    from pitch_occupancy import worker
+    from pitch_occupancy.config import settings
+
+    monkeypatch.setattr(classifier, "load_classifier",
+                        lambda key=None, **k: type("C", (), {
+                            "backbone": "dinov2", "n_train": 7, "__call__": lambda *a: None,
+                        })())
+
+    def fake_run_due(schedule, now, *, source_for, classify, on_slot=None, **kwargs):
+        on_slot("venue_01_2026-07-11_2030", FileNotFoundError("no recording"))
+        return []
+
+    monkeypatch.setattr(scheduler, "run_due", fake_run_due)
+    monkeypatch.setattr(settings, "db_path", tmp_path / "db" / "test.db")
+    monkeypatch.setattr(sys, "argv", ["worker", "--raw-dir", str(_recordings(tmp_path))])
+    worker.main()  # must not raise
+    out = capsys.readouterr().out
+    assert "SKIPPED" in out and "no recording" in out
+    assert "0 slot(s) written" in out

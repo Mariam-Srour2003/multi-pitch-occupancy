@@ -60,6 +60,7 @@ OUT_OF_SCOPE = {
     "rq6_risk_coverage.csv": "RQ6: shown as figs/risk_coverage_band rather than as a table",
     "label_efficiency.csv": "shown as a figure rather than a table",
     "end_to_end_slots.csv": "two real slots; too few to tabulate",
+    "end_to_end_model_slots.csv": "the same two slots with the model in the loop; in-sample, so a wiring check rather than a number worth exporting",
     "reconciliation_value.csv": "WP6-T10: a break-even under stated assumptions, not a measurement",
     "benchmark_v2_protocols.json": "diagnostics behind benchmark_v2.csv",
     "gate_status.json": "milestone gate criteria; the readable form is results/gate_status.md",

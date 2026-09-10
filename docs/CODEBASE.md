@@ -191,9 +191,9 @@ on the Mini-PC.
 | File | What it does |
 |---|---|
 | `config.py` | Paths and runtime settings via pydantic-settings (`PITCH_*` env vars or `.env`). Holds the aggregation thresholds and `default_model_key = "dinov2"`. |
-| `cli.py` | The `pitch` command: `info`, `coverage`, `cache`, `extract-clips`, `manifest`, `serve`. |
+| `cli.py` | The `pitch` command: `info`, `seed`, `coverage`, `cache`, `extract-clips`, `manifest`, `serve`, `retention`, `schedule`, `bookings`, `retraining`. |
 | `frame_source.py` | Where frames come from — `VideoSlotSource` (replay), `RTSPSource` (live), and `discover_slots()`. A failed read returns `None`, never a substituted frame. |
-| `worker.py` | The scheduler's slot loop: sample → classify → fuse → aggregate → evidence. Classifier is injected. |
+| `worker.py` | The scheduler's slot loop: sample → classify → fuse → aggregate → evidence. Classifier is injected. `python -m pitch_occupancy.worker` replays the recorded slots through `scheduler.run_due` with the real classifier and writes the verdicts; `--dry-run` lists them and loads no model. |
 
 ### `data/` — dataset plumbing
 
@@ -218,8 +218,9 @@ on the Mini-PC.
 | `camera_id.py` | Identify a camera by *what it sees*. Lighting-invariant descriptor; the `(1)` filename suffix flips between recording days. **The runtime one** — `db/seed.py` encodes its result. |
 | `fingerprint.py` | Group *views into venues*, for auditing a hand-made grouping — median background, gradient-orientation grid, rg-chromaticity, watermark masked. An audit tool, not a runtime component: 1-NN assigns 67/70 views correctly but same- and different-venue distances overlap, so it checks a grouping rather than inventing one. It shares only the median-background step with `camera_id.py`, and `tests/test_camera_id_agreement.py` holds the two to the same conclusion about the suffix swap — two independent descriptors agreeing, which is why both modules exist. |
 | `zeroshot.py` | CLIP prompt sets, templates and descriptors, and the class-direction encoding. |
+| `classifier.py` | **The production classifier** — the only thing in the package that turns a frame into a class outside an experiment. Frozen backbone plus a probe fitted at construction from the cached features; embeds through the same path the cache was built with, and trains on development rows only so the venue lock holds in deployment too. Confidence is the winning class probability and is **not** calibrated. |
 | `quality.py` | Frame quality and camera health. **Every threshold is relative to the camera's own history under the same lighting** — a global cutoff flags one venue rather than bad frames, which is this project's confound in a third disguise. Exposure clipping is the one absolute check. |
-| `augment.py` | Train-time augmentation — the complement to `preprocess.py`. Preprocessing removes information permanently and has a floor; augmentation varies it and keeps every pixel at inference. Photometric jitter, synthetic fog and rain, night gamma, horizontal flip. **No rotations or warps** — the cameras are bolted down. Not wired into the experiments yet: augmenting means re-running the backbone per view, so the feature cache no longer applies. |
+| `augment.py` | Train-time augmentation — the complement to `preprocess.py`. Preprocessing removes information permanently and has a floor; augmentation varies it and keeps every pixel at inference. Photometric jitter, synthetic fog and rain, night gamma, horizontal flip. **No rotations or warps** — the cameras are bolted down. Not a flag in the main benchmark, because augmenting means re-running the backbone per view and the feature cache no longer applies; `experiments/augmentation_transfer.py` spends that budget on the one boundary where it answers something. |
 
 ### `slots/` — from frames to a billing decision
 
@@ -272,7 +273,8 @@ library; the dependency points one way.
 | `prompt_search.py` | How well can zero-shot do with no labels at all? |
 | `h6_zero_shot_gap.py` | H6: does zero-shot lag the trained probes? (the prompt matters more than the model) |
 | `efficiency_latency.py` | Does one CPU serve 20 cameras in a 60-second cycle? |
-| `end_to_end_slots.py` | Is the decision layer correct on the real recorded slots? |
+| `end_to_end_slots.py` | Is the decision layer correct on the real recorded slots? (from the **label** column — no model is involved) |
+| `end_to_end_model.py` | The same slots through the deployed classifier, beside the labels. In-sample, so a wiring check rather than an accuracy result. |
 | `make_figures.py` | Regenerate the thesis figures from the CSVs. |
 | `make_search_viewer.py` | Regenerate the search results page. |
 | `error_taxonomy.py` | What the models get wrong, and whether the error set is worth categorising. |

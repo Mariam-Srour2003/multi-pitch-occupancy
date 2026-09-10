@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
 from scripts.branch_report import (
     DOC, block, branch_table, branches, chain, contains_everything,
     documented_branches, git, tip_branch,
