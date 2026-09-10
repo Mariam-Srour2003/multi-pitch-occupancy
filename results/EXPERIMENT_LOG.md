@@ -3650,3 +3650,5 @@ finished, because the CSV was written after the loop. It saves after every prese
 experiment that keeps nothing until it finishes is one crash away from having done nothing.
 
 - 2026-09-10 | WP3-T6 augmentation across cameras | `python experiments/augmentation_transfer.py --views 4` | `augmentation_transfer.csv` | `light` 0.8550 vs 0.4406 unaugmented and 0.3625 for the duplicate-rows control; closes 75% of the gap one labelled frame closes; `full` erases the gain entirely
+
+- 2026-09-10 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
