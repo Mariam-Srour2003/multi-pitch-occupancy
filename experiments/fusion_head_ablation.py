@@ -92,7 +92,7 @@ from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.data.splits import development_rows, leave_one_group_out
 from pitch_occupancy.db.seed import PHYSICAL_CAMERA
 from pitch_occupancy.evaluation.experiment_log import record
-from pitch_occupancy.evaluation.stats import sign_flip_test
+from pitch_occupancy.evaluation.stats import holm_bonferroni, sign_flip_test
 from pitch_occupancy.slots.fusion_head import (
     GATE_STATISTIC_NAMES,
     FusionHead,
@@ -342,6 +342,25 @@ COMPARISONS = (
 )
 
 
+def _cohens_d(deltas: list[float]) -> float:
+    """Standardised mean of the paired fold deltas.
+
+    Reported beside every p-value because WP0-T6 says so, and because a mean delta over
+    seven folds carries no sense of how wide those folds were. `-0.0238` and `+0.1015` read
+    as different sizes of thing; standardised, the second is a fold-to-fold difference the
+    design cannot separate from noise either.
+
+    Zero variance gives 0.0 rather than an infinity: identical deltas across folds mean the
+    comparison found nothing to vary, which is a null and not an unbounded effect.
+    """
+    import statistics
+
+    if len(deltas) < 2:
+        return 0.0
+    sd = statistics.stdev(deltas)
+    return 0.0 if sd == 0 else statistics.fmean(deltas) / sd
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.parse_args()
@@ -406,13 +425,38 @@ def main() -> None:
 
     print("\n=== paired sign-flip tests over the folds ===")
     tests = []
+    fold_deltas: dict[str, list[float]] = {}
     for label, model, reference in COMPARISONS:
         deltas = [per_fold[model][f] - per_fold[reference][f] for f in folds]
+        fold_deltas[label] = deltas
         r = sign_flip_test(deltas)
         floor = "" if r.can_reach() else "  (0.05 UNREACHABLE at this resolution)"
         print(f"  {label:<40} d={r.estimate:+.4f}  p={r.p_value:.4f}  "
               f"floor={r.min_achievable_p:.4f}  informative={r.n_informative}/{r.n_pairs}{floor}")
         tests.append((label, model, reference, r))
+
+    # Holm over the declared family, and an effect size beside every p - WP0-T6's standing
+    # rule, which this report was quoting p-values without. It changes no conclusion here,
+    # and that is worth saying rather than leaving it to be assumed: nothing in the family
+    # was significant uncorrected, so nothing can become significant corrected. The reason
+    # to apply it anyway is that "five comparisons, one of them p=0.125" is a family whether
+    # or not it is declared one, and a reader cannot tell which unless the report says.
+    #
+    # The effect size is Cohen's d over the fold deltas rather than the mean delta alone:
+    # seven folds with a spread as wide as these have means that look decisive and
+    # distributions that do not.
+    adjusted, rejected = holm_bonferroni([r.p_value for _, _, _, r in tests])
+    print("\n=== the same family, Holm-corrected ===")
+    print(f"  family: {len(tests)} paired sign-flip tests over {len(folds)} venue folds, "
+          f"declared before running them (COMPARISONS)")
+    for (label, _, _, r), p_adj, rej in zip(tests, adjusted, rejected, strict=True):
+        deltas = fold_deltas[label]
+        d = _cohens_d(deltas)
+        print(f"  {label:<40} p={r.p_value:.4f} -> p_holm={p_adj:.4f}  "
+              f"d={d:+.3f}  {'rejected' if rej else 'not rejected'}")
+    if not any(rejected):
+        print("  none rejected, and none was significant before correction either - the "
+              "correction is reported for completeness, not because it changed an outcome")
 
     print("\n=== what the gate did ===")
     spreads = [g["spread"] for g in gate_log]
@@ -447,10 +491,14 @@ def main() -> None:
     # experiment failed to find the comparison it was written to check.
     with COMPARISONS_OUT.open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
+        adjusted, rejected = holm_bonferroni([r.p_value for _, _, _, r in tests])
         w.writerow(["comparison", "model", "reference", "mean_delta", "p_value",
+                    "p_holm", "rejected_holm", "cohens_d",
                     "min_achievable_p", "n_informative", "n_pairs", "isolates_one_cause"])
-        for label, model, reference, r in tests:
+        for (label, model, reference, r), p_adj, rej in zip(tests, adjusted, rejected,
+                                                            strict=True):
             w.writerow([label, model, reference, f"{r.estimate:+.4f}", f"{r.p_value:.4f}",
+                        f"{p_adj:.4f}", rej, f"{_cohens_d(fold_deltas[label]):+.3f}",
                         f"{r.min_achievable_p:.4f}", r.n_informative, r.n_pairs,
                         label.startswith(("routing:", "learned mixing:"))])
 

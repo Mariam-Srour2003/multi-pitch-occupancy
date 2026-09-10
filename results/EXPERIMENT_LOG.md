@@ -4159,3 +4159,42 @@ written — the sink works, and a detector would make it deliberate rather than 
 it is a new module in write-up week and nothing rests on it.
 
 - 2026-09-10 | WP2-T11 C3 decision | `thesis/protocol.md` | `empty_recognition.csv` | the recommended Option C is refuted for the production model: 2-class takes DINOv2 from 0.309 false-play on held-out empty frames to 1.000. C3 stays as a load-bearing "none of the above" sink that converts 69% of would-be billing errors into NOTUSED/REVIEW; the class is kept and the claim dropped
+
+- 2026-09-10 | WP5-T2 gated fusion head, ablated | `python experiments/fusion_head_ablation.py` | `fusion_head_ablation.csv` | routing worth -0.0238 recall, p=1.000 (floor 1.000); no model exceeds 0.1646 EMPTY accuracy on the held-out camera
+
+---
+
+## 2026-09-10 — WP4-T4b: the one report that quoted p-values without its own standing rule
+
+`experiments/fusion_head_ablation.py` → `fusion_head_comparisons.csv`.
+
+WP0-T6 says Holm-corrected families and an effect size beside every p-value, and the gate
+check confirms "Holm-corrected families in 3 reports". Auditing every results CSV for the
+four columns found the exception: **`fusion_head_comparisons.csv` shipped five paired
+sign-flip tests with raw p-values, no correction and no effect size** — the WP5-T2 ablation,
+which is an M4 gate artefact.
+
+Now corrected, and the correction changes nothing, which is the honest headline:
+
+| comparison | p | p_holm | d |
+|---|---|---|---|
+| routing: mlp vs constant gate | 1.0000 | 1.0000 | −0.378 |
+| learned mixing: constant vs uniform | 0.5000 | 1.0000 | −0.483 |
+| gate vs mean-probability ensemble | 0.5000 | 1.0000 | −0.387 |
+| confound: stats gate vs lighting gate | 0.5000 | 1.0000 | +0.416 |
+| trainer control: torch vs published probe | 1.0000 | 1.0000 | +0.330 |
+
+Nothing was significant uncorrected, so nothing could become significant corrected. The run
+says exactly that rather than leaving a reader to work it out — the reason to apply the
+correction anyway is that *five comparisons, one of them at p = 0.125* is a family whether or
+not it is declared one, and a reader cannot tell which unless the report says so. The family
+and its size are now printed with the source they were declared from.
+
+**The effect sizes earn their place on the first run.** The lighting-gate confound's mean
+delta of **+0.1015** reads as a different order of thing from routing's **−0.0238** — one
+looks like a finding and the other like nothing. Standardised over the seven folds they are
+**+0.416** and **−0.378**: the same size of effect, and both are differences this design
+cannot separate from fold-to-fold variation. A mean delta over seven folds this wide carries
+no sense of how wide they were, which is the whole argument for the rule.
+
+- 2026-09-10 | WP4-T4b Holm and effect sizes | `python -m experiments.fusion_head_ablation` | `fusion_head_comparisons.csv` | the one report quoting p-values without the project's own standing rule; Holm and Cohen's d added, no conclusion changes, and the +0.1015 confound delta turns out to be d=+0.416 against routing's d=-0.378

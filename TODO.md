@@ -1001,8 +1001,20 @@ tagged with the question it answers. Fix that first — it is what turns a build
         what made it robust.
 - [ ] **WP4-T4b Statistical testing for the remaining hypotheses.** Bootstrap CIs + McNemar (frame level) + paired bootstrap (slot
       level) for every headline pair. *Accept:* every claim carries CI + p-value columns.
-  - [ ] ★ Apply the Holm–Bonferroni correction from WP0-T6 and say so in the caption.
-  - [ ] ★ Report effect sizes next to p-values.
+  - [x] ★ **Holm applied and the family declared, everywhere a family exists** (2026-09-10).
+        The gap was `fusion_head_comparisons.csv`: five paired sign-flip tests shipping raw
+        p-values with no correction and no effect size, against WP0-T6's standing rule. Now
+        `p_holm`, `rejected_holm` and `cohens_d` are columns and the run prints the family
+        size and what it was declared from. **It changes no conclusion** — nothing was
+        significant before correction, so nothing could become significant after — and that
+        is said in the output rather than left to be assumed, because "five comparisons, one
+        at p=0.125" is a family whether or not anyone declares it.
+  - [x] ★ **Effect sizes beside the p-values, and they earn their place immediately.** The
+        lighting-gate confound's mean delta of **+0.1015** reads as a different order of
+        thing from routing's **−0.0238**; standardised over the seven folds they are
+        **+0.416** and **−0.378** — the same size of effect, both of which this design cannot
+        separate from noise. A mean delta over seven wide folds carries no sense of how wide
+        they were.
   - [x] ★ **H4 reported** (2026-09-07) → `experiments/h4_model_equivalence.py`,
         `results/h4_model_equivalence.csv`. First of the three pre-registered hypotheses that
         had never been reported. **Refuted as a whole**, and instructively:
