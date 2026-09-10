@@ -137,3 +137,55 @@ It is **not** the default yet, for two reasons.
 processor geometry improves transfer, the preprocessing path becomes genuinely single and
 the search results should be regenerated under it. If it does not, the finding stands as a
 documented property of the pipeline and the switches keep their asterisk.
+
+---
+
+## WP2-T11: the starved third class stays, and not for the reason it was created
+
+**Decision taken 2026-09-10, on measurement rather than on the plan.** Pending supervisor
+confirmation at the next check-in, which is the only part of this item a person still owns.
+
+C3 (`3_people_not_playing` + `4_maintenance` → MAINTENANCE_NON_SPORTING) holds **6 frames**,
+all from one moment on one camera. The fallback tree written in week 3 offered three ways out
+and the risk register recommended **Option C** — report the benchmark as 2-class and state the
+scope reduction. `experiments/empty_recognition.py` measured what that would cost, on the 243
+held-out empty frames of the camera-transfer control:
+
+| configuration | DINOv2 false-play rate | absorbed by C3 |
+|---|---|---|
+| 3-class, balanced | **0.309** | 0.691 |
+| 3-class, unbalanced | 0.881 | 0.119 |
+| **2-class** (Option C) | **1.000** | — |
+
+**Option C is refuted for the production model.** Dropping C3 does not leave the false-play
+axis unchanged; it takes DINOv2 from calling 31% of unfamiliar empty pitches *play* to calling
+**all of them** play. The six frames are absorbing 69% of the frames the model cannot place.
+
+**Why that matters operationally rather than statistically.** `empty_accuracy` is 0.000 in
+every configuration — the model never correctly identifies an empty pitch on this transfer
+set, and no arrangement of classes changes that. What changes is **where the errors land**.
+C3 maps to NOTUSED/REVIEW and ACTIVE_PLAY maps to USED, so a misplaced empty frame is either a
+slot sent to a human, or a slot billed as used. The starved class converts 69% of would-be
+billing errors into correct-or-reviewable verdicts. It earns its place as a *none of the
+above* sink, which is not the job it was defined to do.
+
+**So the taxonomy is unchanged and the claim is what shrinks.** Three classes stay. C3 is
+**not a claimable class**: 6 frames from one moment cannot support a per-class metric, no
+leakage-free split puts it on both sides (WP3-T7), and `taxonomy.py` already forbids reporting
+a 4-class macro-F1 improvement while its support is near zero. Every table that reports macro
+over three classes must name C3's support beside it, and no sentence anywhere may describe the
+system as detecting maintenance. It does not. It has a sink, and the sink is load-bearing.
+
+**What would change this.** Real maintenance footage (WP2-T8, `data_requests.md`) turns C3
+into a class that can be claimed and makes the question a genuine three-class one. Until then
+the honest statement is the one above, and it is stronger than the scope reduction it
+replaces: the class is kept for a measured operational reason rather than dropped for a
+presentational one.
+
+**What was rejected, and why.** *Option A* (compositing hi-vis workers onto empty pitches) was
+already ruled out on 2026-09-09: no configuration of C3 recovers empty-pitch accuracy, and what
+does is one labelled frame of the target camera, so synthesising maintenance crops answers a
+question the data says is not binding. *Option B* (an open-vocabulary detector as a rule-based
+C3 branch) remains available and is now better motivated than before — the sink works, and a
+detector would make it deliberate rather than incidental — but it is a new module in write-up
+week, and nothing currently rests on it.

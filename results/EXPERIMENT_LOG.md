@@ -4111,3 +4111,51 @@ number in this table is the wrong machine — which is a separate problem from h
 wrong conditions.
 
 - 2026-09-10 | WP0-T10 latency re-measured idle | `python experiments/efficiency_latency.py` | `efficiency_latency.csv` | the published table was taken under load, as its own docstring warned: ConvNeXtV2 150.9 -> 100.5 ms, DINOv2 418.3 -> 219.4, ViT 303.3 -> 169.4. Contention inflates ratios between models of different weight, so H4's speed clause now fails on both readings (1.69x, 1.63x) and cycle headroom rises to 14-31x
+
+---
+
+## 2026-09-10 — WP2-T11: the starved class stays, and the recommendation was wrong
+
+`thesis/protocol.md`, from `results/empty_recognition.csv` (measured 2026-09-09).
+
+C3 holds six frames from one moment on one camera. The fallback tree written in week 3
+offered three ways out, and the risk register had recommended **Option C** — report the
+benchmark as 2-class and state the scope reduction plainly. The decision was overdue by
+thirteen weeks, which is its own small finding: an item that says *"decide by week 6 — do not
+drift past it"* drifted, and nothing in the repository could notice, because a decision is not
+an artefact.
+
+**Taken now, and the measurement refuses the recommended option.** On the 243 held-out empty
+frames of the camera-transfer control:
+
+| configuration | DINOv2 false-play rate | absorbed by C3 |
+|---|---|---|
+| 3-class, balanced | **0.309** | 0.691 |
+| 3-class, unbalanced | 0.881 | 0.119 |
+| **2-class (Option C)** | **1.000** | — |
+
+Dropping C3 does not leave the false-play axis unchanged, which is how the earlier note put
+it. It takes the production model from calling 31% of unfamiliar empty pitches *play* to
+calling **all of them** play. Six frames are absorbing 69% of what the model cannot place.
+
+**The reason is operational, and that is what makes it worth keeping.** `empty_accuracy` is
+0.000 in every configuration — no arrangement of classes makes the model recognise an empty
+pitch on this transfer set. What changes is **where the errors land**. C3 maps to
+NOTUSED/REVIEW and ACTIVE_PLAY maps to USED, so a misplaced empty frame is either a slot sent
+to a human or a slot billed as used. The starved class converts 69% of would-be **billing
+errors** into correct-or-reviewable verdicts. It earns its place as a *none of the above*
+sink — which is not the job it was defined to do, and is a better reason than the one it was
+created for.
+
+**So the taxonomy is unchanged and the claim is what shrinks.** Three classes stay; C3 is not
+claimable — six frames from one moment support no per-class metric, and no leakage-free split
+puts it on both sides. Every table reporting macro over three classes must name C3's support
+beside it, and no sentence may say the system detects maintenance. It has a sink, and the sink
+is load-bearing.
+
+Option A (compositing hi-vis workers) stays rejected on the 2026-09-09 evidence. Option B (an
+open-vocabulary detector as an explicit C3 branch) is now *better* motivated than when it was
+written — the sink works, and a detector would make it deliberate rather than incidental — but
+it is a new module in write-up week and nothing rests on it.
+
+- 2026-09-10 | WP2-T11 C3 decision | `thesis/protocol.md` | `empty_recognition.csv` | the recommended Option C is refuted for the production model: 2-class takes DINOv2 from 0.309 false-play on held-out empty frames to 1.000. C3 stays as a load-bearing "none of the above" sink that converts 69% of would-be billing errors into NOTUSED/REVIEW; the class is kept and the claim dropped

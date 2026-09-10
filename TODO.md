@@ -485,29 +485,38 @@ tagged with the question it answers. Fix that first — it is what turns a build
         Revisit when more venues arrive; more references should lift 1-NN.
 
 ### 2.D Contingency for the C3 class (the #1 scientific risk)
-- [ ] **WP2-T11 ★ C3 fallback decision tree.** Decide by **week 6** — do not drift past it. If C3
-      is still under ~100 real frames:
+- [x] **WP2-T11 ★ C3 fallback decision — taken 2026-09-10, and it is none of the three.**
+      The tree offered Option A, B or C if C3 stayed under ~100 real frames. It has 6. The
+      measurement refutes the recommended option and produces a fourth answer:
+      **the class stays, and the claim shrinks instead.** Written up in `thesis/protocol.md`.
   - [x] ★ **Measured rather than argued (2026-09-09, `empty_recognition.py`).** The six-frame
         class *is* doing damage, but not the damage assumed: with `class_weight="balanced"` it
         absorbs 168 of 243 out-of-distribution frames, and removing it moves those into
-        ACTIVE_PLAY instead. So **Option C is defensible on the macro-F1 claim and buys nothing
-        on the false-play axis** — argue it on the first, never the second.
+        ACTIVE_PLAY instead.
+  - [x] ★ **Option C is refuted for the production model, not merely unhelpful.** On the 243
+        held-out empty frames, DINOv2's false-play rate is **0.309** at 3-class balanced and
+        **1.000** at 2-class. Dropping C3 does not leave the false-play axis alone; it takes
+        the model from calling 31% of unfamiliar empty pitches "play" to calling all of them
+        that.
+  - [x] ★ **And the reason is operational, which is what makes it worth writing.**
+        `empty_accuracy` is 0.000 in every configuration — no arrangement of classes makes the
+        model recognise an empty pitch here. What moves is *where the errors land*: C3 maps to
+        NOTUSED/REVIEW and ACTIVE_PLAY to USED, so the starved class converts 69% of would-be
+        **billing errors** into correct-or-reviewable verdicts. It earns its place as a "none
+        of the above" sink — not as the maintenance detector it was defined to be.
   - [x] **Option A (copy-paste augmentation) is not worth building yet.** The blocker is not
         C3's size: no configuration of the class recovers empty-pitch accuracy, and what does
         is one labelled frame of the target camera. Synthesising maintenance crops would be
         answering a question the data says is not the binding one.
-  - [ ] **Option A — copy-paste augmentation.** Composite hi-vis worker / mower crops onto real
-        empty-pitch backgrounds. A recognised, citable augmentation technique (the "cut, paste and
-        learn" line of work). Must be reported honestly as synthetic, and evaluated separately on
-        whatever real C3 frames exist.
-  - [ ] **Option B — detector-based C3.** Use open-vocabulary detection (YOLO-World: "person in
-        high-visibility vest", "lawnmower") as a rule-based C3 branch, evaluated as its own module
-        rather than as a class of the main classifier.
-  - [ ] **Option C — reframe the taxonomy.** Report the main benchmark as 2-class (EMPTY /
-        ACTIVE_PLAY) with C3 handled as a flagged exception, and state the scope reduction plainly.
-  - [ ] *Whichever you pick:* write the justification into `protocol.md` and tell your supervisor at
-        the next check-in. A documented, defended scope reduction costs you nothing; an undocumented
-        starved class costs you the macro-F1 claim.
+  - [x] **Option B (detector-based C3) stays available and is now better motivated** — the
+        sink works, and a detector would make it deliberate rather than incidental. It is a
+        new module in write-up week and nothing rests on it, so it is not being built.
+  - [x] **The consequence for every table.** Three classes stay; **C3 is not claimable**.
+        Macro-over-three must name C3's support beside it, and no sentence may say the system
+        detects maintenance. It does not — it has a sink, and the sink is load-bearing.
+  - [ ] **[H] Tell the supervisor at the next check-in.** The decision is documented and
+        defended; this is the half a person owns. Real maintenance footage (WP2-T8) is what
+        would turn C3 back into a claimable class.
 - [x] **WP2-T7 M2 gate check — generated, and M2 is met.** `experiments/gate_check.py` →
       `results/gate_status.md`. All six re-cut criteria check out against artefacts:
       coverage matrix, EMPTY in exactly one venue (494 frames), near-duplicate rate,
@@ -2093,7 +2102,7 @@ polish is not worth thesis marks.
 | Risk | Trigger to watch | Action |
 |---|---|---|
 | ~~Ethics/DPIA blocks collection~~ | — | **Resolved.** Operator holds the approval; `thesis/ethics.md`. One supervisor question remains, and it blocks nothing. |
-| ~~C3 data stays scarce~~ | — | **Resolved as fact, not as risk.** 6 frames, 0 maintenance, no more footage coming. Act on it: take the WP2-T11 decision (Option C, 2-class + flagged exception, is the recommendation) rather than watching a cell that cannot change. |
+| ~~C3 data stays scarce~~ | — | **Resolved as fact, and the recommendation it carried was wrong.** 6 frames, 0 maintenance, no more footage coming — and WP2-T11 was decided on 2026-09-10 *against* the Option C this row recommended: dropping to 2 classes takes DINOv2 from 0.309 false-play on held-out empty frames to **1.000**. The class stays as a load-bearing "none of the above" sink and the *claim* shrinks instead. See `thesis/protocol.md`. |
 | ~~Real slots stay < 30~~ | — | **Resolved as fact.** 2 exist. STAN is already demoted to preliminary and M4 re-cut onto 5.B. Nothing left to watch. |
 | ~~Only 1 venue accessible~~ | — | **Resolved better than feared.** 9 venues for ACTIVE_PLAY. *But* still exactly 1 venue for EMPTY — which is the live risk below, and is not the same thing. |
 | **EMPTY stays single-venue** | Now — it already is | **The live scientific risk, and the one worth acting on.** It is what makes RQ6 unanswerable, keeps cross-venue evaluation recall-only, and leaves the false-play comparison on 3–10 effective scenes. Action: the 0.3(a) request. If declined, all three stay scoped as unanswerable in `preregistration.md` — which is already written, so the cost is bounded. |
