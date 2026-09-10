@@ -160,7 +160,7 @@ weight on DINOv2 in every fold and moves it by 0.086. And the implementation **c
 a fixture where the useful backbone flips, the lower rungs score 0.671 and routing scores
 1.000. The null is about the data.
 
-### 13. STAN — preliminary, and the benchmark is saturated
+### 13. STAN — preliminary, and the benchmark is saturated in three draws of five
 
 A 1,651-parameter temporal convolution, against four tuned baselines including an HMM. It
 scores **1.0000** on 200 composed slots, beating the HMM by 0.105 at p < 0.0001.
@@ -169,6 +169,12 @@ scores **1.0000** on 200 composed slots, beating the HMM by 0.105 at p < 0.0001.
 is a deterministic function of five templates, so a model that reads contiguity recovers the
 generating process. **The real test set is two slots.** The ≥30-slot rule is enforced in code —
 `assert_preliminary` raises, and the M4 gate criterion checks the caveat is in the results.
+
+*If asked whether that 1.0000 is stable:* it is not, and the answer is measured. Re-composing
+the slots from four further draws gives 1.0000 three times, then 0.9100 and 0.8000 — mean
+0.9420, sd 0.0884. **The ordering is what survived**: STAN is first in five draws of five and
+no baseline matches it in any. Volunteer this before it is asked; it is the same check that
+retracted the augmentation headline, and running it on your own headline is the point.
 
 ### 14. The decision layer, which is not a classifier
 

@@ -320,8 +320,9 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="stan-preliminary",
-        command=[*PY, "-m", "experiments.stan_preliminary"],
-        produces=[RESULTS / "stan_preliminary.csv"],
+        command=[*PY, "-m", "experiments.stan_preliminary",
+                 "--seeds", "42,7,13,99,123"],
+        produces=[RESULTS / "stan_preliminary.csv", RESULTS / "stan_draw_spread.csv"],
         requires=[DATA / "cache" / "dinov2.npz", DATA / "processed" / "manifest.csv"],
         note="WP5-T1 against four tuned baselines; preliminary by the WP5-T8 gate - 2 real slots",
         minutes=3,

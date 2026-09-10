@@ -72,7 +72,7 @@ Either axis alone rewards a bias rather than an ability. Under leave-one-venue-o
 summary is built from EMPTY **accuracy** rather than from `1 - false_play` — built the other
 way it ranked the gated fusion head first in the table on the strength of 243 wrong answers.
 
-### 1.3 The composed slot benchmark is saturated *(quantified)*
+### 1.3 The composed slot benchmark is saturated — in three draws of five *(quantified)*
 
 STAN scores **1.0000** on 200 held-out composed slots, beating a tuned HMM by 0.105 at
 p < 0.0001. That is not a result about slot classification. The composed label is a
@@ -81,6 +81,19 @@ are jittered; so a model that reads *contiguity* — one long block of play vers
 short runs, exactly what a play ratio discards — recovers the generating process exactly.
 Reaching the ceiling shows the architecture can do the thing. It says nothing about real slots,
 where the verdict is not a function of five shapes.
+
+**Replicated over five construction draws, and the ceiling is not a property of the
+benchmark.** The pool split and both slot compositions move with a seed; the probe does not.
+STAN scores 1.0000 in three of the five draws and 0.9100 and 0.8000 in the other two — mean
+0.9420, sd 0.0884 (`stan_draw_spread.csv`). So *"the composed set is exhausted"* describes
+particular compositions rather than the design, and the honest form of this threat is that it
+**can be** exhausted, often enough that a single draw is likely to show it.
+
+**What did survive replication is the ordering**: STAN is first in five draws of five, and no
+baseline matches it in any. The baselines are themselves less stable than the published table
+suggests — `summary_logistic` ranges 0.7350–0.9550 (sd 0.0863) and is the best baseline in one
+draw and the worst in another — so the *margin* of 0.105 over the HMM is one draw's margin,
+not a quantity to quote on its own.
 
 *Unfixable by more synthesis:* composing more slots cannot break the tie. Only labelled real
 slots can (WP2-T8), and there are two.

@@ -1212,17 +1212,27 @@ tagged with the question it answers. Fix that first — it is what turns a build
         in the dataset.** The other 396 are highlight clips, all ACTIVE_PLAY. So "train on
         synthetic, test on real slots only" cannot be made frame-disjoint here. This is the
         sharpest statement of why **WP2-T8 blocks WP5-T1**, and it is measured, not asserted.
-  - [ ] ★ **[NEW 2026-09-10] STAN rests on one synthetic draw, and that is now a known
-        risk rather than a theoretical one.** `stan_preliminary.py` composes its train and
-        test sequences from a single seeded draw (`SEED`, `SEED + 1`). The project
-        replicates wherever the draw is the object of study — the benchmark takes five split
-        replicates per protocol, the label-efficiency curve five seeds per size, the
-        onboarding curve reports `n_seeds` — and skips it wherever the draw is a *means to
-        an end*. There were exactly two of those: the augmentation views and these
-        sequences. The augmentation one moved **0.855 → 0.350 between two draws** and took a
-        published headline with it. Re-run STAN over five composition draws and report the
-        spread; the stage is three minutes, so this costs a quarter of an hour and either
-        removes a doubt or finds the same thing twice.
+  - [x] ★ **[2026-09-10] STAN rested on one synthetic draw. Now it rests on five, and the
+        answer split.** `stan_preliminary.py` composed its train and test sequences from a
+        single seeded draw, and the project replicates wherever the draw is the object of
+        study — five split replicates per benchmark protocol, five seeds per label-efficiency
+        point, `n_seeds` on the onboarding curve — and skipped it wherever the draw was a
+        means to an end. There were exactly two of those; the augmentation one moved
+        **0.855 → 0.350** between draws and took a published headline with it, so this one
+        was run rather than noted. `--seeds`, `stan_draw_spread.csv`, 4 new tests.
+    - [x] **The ordering survives, and that is now a stronger claim than the entry could
+          make.** STAN is first in **five draws of five**, mean 0.9420, and no baseline
+          matches it in any (`test_stan_is_first_in_every_draw`). Still preliminary by the
+          WP5-T8 gate — that is about the two real slots and is untouched.
+    - [x] ★ **The ceiling does not.** 1.0000 in three draws, 0.9100 and 0.8000 in the other
+          two. So *"the composed test set is exhausted"* is a property of a composition, not
+          of the design: it **can** be exhausted, often enough that one draw is likely to
+          show it. `threats_to_validity.md` §1.3 and defence slide 13 both said the stronger
+          version and now say this one.
+    - [x] ★ **The 0.105 margin over the HMM is one draw's margin.** `summary_logistic` runs
+          0.7350–0.9550 (sd 0.0863) and is the best baseline in one draw and the worst in
+          another. The five-draw mean gap is +0.116, and that is the number with a spread
+          behind it.
   - [ ] **WP5-T6 remains open**: STAN consumes the *fused* sequence, not both camera halves.
 - [ ] **WP5-T6 ★ Feed both camera halves separately instead of pre-fusing them.** Current design
       fuses camera A/B with a max-activity rule *before* aggregation, which throws away information:

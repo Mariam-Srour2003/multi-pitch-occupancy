@@ -8,6 +8,8 @@ check it by asking it to pass.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -32,6 +34,8 @@ from pitch_occupancy.slots.synthetic import (
     compose_slot,
     template_states,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 INDEX = {c: i for i, c in enumerate(CLASS_ORDER)}
 
@@ -303,3 +307,63 @@ def test_the_same_seed_reproduces_the_fit_exactly() -> None:
 def test_the_loss_falls() -> None:
     losses = STAN(epochs=150).fit(training_set()).training_loss
     assert losses[-1] < losses[0] / 2
+
+
+# --- the construction draws (2026-09-10) ---------------------------------------------------
+#
+# `stan_preliminary.py` composed its slots from one seeded draw. So did the augmentation
+# experiment, whose headline did not survive being drawn again - so the same check was run
+# here. It came back differently: the ordering replicates and the ceiling does not.
+
+
+def _spread() -> dict[str, dict]:
+    import csv
+
+    path = ROOT / "results" / "stan_draw_spread.csv"
+    if not path.exists():
+        pytest.skip("draw replication not run")
+    return {r["model"]: r for r in csv.DictReader(path.open(encoding="utf-8"))}
+
+
+def test_stan_is_first_in_every_draw() -> None:
+    """What replication confirmed. If a baseline ever matches it in some draw, the ordering
+    is no longer the part that survives and the write-up has to change with it."""
+    rows = _spread()
+    stan = rows["stan"]
+    seeds = [k for k in stan if k.startswith("seed_") and stan[k]]
+    assert len(seeds) >= 4, "the claim rests on the draws; do not thin them out"
+    for seed in seeds:
+        best_baseline = max(float(r[seed]) for name, r in rows.items()
+                            if name != "stan" and r.get(seed))
+        assert float(stan[seed]) > best_baseline, f"a baseline caught stan in {seed}"
+
+
+def test_the_ceiling_is_a_property_of_the_draw_not_the_benchmark() -> None:
+    """What replication corrected. The published 1.0000 was reported as an exhausted test
+    set; it is exhausted in some compositions and not others, and both halves of that have
+    to stay visible or the caveat drifts back to being unconditional."""
+    stan = _spread()["stan"]
+    assert float(stan["max"]) >= 1.0, "no draw reaches the ceiling any more"
+    assert float(stan["min"]) < 1.0, "every draw saturates - the correction is stale"
+
+
+def test_the_baselines_move_enough_to_forbid_quoting_one_margin() -> None:
+    """`summary_logistic` is the best baseline in one draw and the worst in another, so the
+    published 0.105 margin over the HMM is one draw's margin."""
+    rows = _spread()
+    assert float(rows["summary_logistic"]["sd"]) > 0.05
+
+
+def test_a_draw_cannot_be_built_from_the_next_draw_s_test_pool() -> None:
+    """`seed + 1` composes the test slots, so seeds one apart would share a construction -
+    correlated draws reported as independent, which is the opposite of replication."""
+    import argparse
+    import importlib
+    import sys
+
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    exp = importlib.import_module("experiments.stan_preliminary")
+    assert exp.parse_seeds("42,7,13") == [42, 7, 13]
+    with pytest.raises(argparse.ArgumentTypeError):
+        exp.parse_seeds("42,43")

@@ -29,15 +29,30 @@ What *is* clean is the synthetic comparison. The frame pool is split in two befo
 composed, training slots are built only from the first half and test slots only from the
 second, so no frame appears on both sides. The five predictors are compared there.
 
-**And the result there is a ceiling, which is a finding about the benchmark.** STAN scores
-1.0000 on 200 held-out composed slots, beating a tuned HMM by 0.105 (p < 0.0001) - and the
-right reading is not "STAN wins" but "this test set is exhausted". The composed label is a
-deterministic function of the template, and the five templates stay separable under jitter,
-so a model that reads contiguity - one long block of play versus scattered short runs, the
-thing a play *ratio* throws away - can recover the generating process exactly. That STAN does
-so is worth knowing; it is necessary for the architecture to be worth anything. It is not
-evidence that it beats an HMM on real slots, where the verdict is not a function of five
-shapes. Composing more slots cannot break this tie. Only labelling real ones can.
+**And the result there is a ceiling in three draws of five, which is a finding about the
+benchmark.** STAN scores 1.0000 on 200 held-out composed slots, beating a tuned HMM by 0.105
+(p < 0.0001) - and the right reading is not "STAN wins" but "this test set can be exhausted".
+The composed label is a deterministic function of the template, and the five templates stay
+separable under jitter, so a model that reads contiguity - one long block of play versus
+scattered short runs, the thing a play *ratio* throws away - can recover the generating
+process exactly. That STAN does so is worth knowing; it is necessary for the architecture to
+be worth anything. It is not evidence that it beats an HMM on real slots, where the verdict is
+not a function of five shapes. Composing more slots cannot break this tie. Only labelling real
+ones can.
+
+**The ceiling is a property of the draw, and the ordering is not** (`--seeds`,
+`stan_draw_spread.csv`). The pool split and both compositions move with the seed; the probe
+does not, so a difference between draws is the construction rather than the fit. Over five
+draws STAN scores 1.0000, 1.0000, 1.0000, 0.9100, 0.8000 - mean 0.9420, sd 0.0884 - so
+"saturated" describes particular compositions rather than the design. **STAN is first in all
+five** and no baseline matches it in any, which is the part that replicates. The baselines
+move more than the published table suggests: `summary_logistic` runs 0.7350-0.9550 and is the
+best baseline in one draw and the worst in another, so the 0.105 margin over the HMM is one
+draw's margin and should not be quoted alone.
+
+This replication exists because the augmentation experiment's headline was a single
+construction draw and did not survive being drawn again. Two results in this project consumed
+a draw once; that was one and this was the other.
 
 **Composed labels come from the template, not from the threshold rule.** A full match is USED
 because it is a full match. Labelling by `aggregate_slot` would make the threshold baseline
@@ -189,31 +204,109 @@ def per_slot_correct(predicted, truth) -> np.ndarray:
     return np.array([1.0 if p is t else 0.0 for p, t in zip(predicted, truth, strict=True)])
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--slots-per-template", type=int, default=40)
-    args = ap.parse_args()
+SPREAD = settings.results_dir / "stan_draw_spread.csv"
 
-    rows, features = load()
-    train_pool, test_pool = split_frame_pool(rows)
-    print(f"{len(rows)} frames; pool split "
-          f"{sum(len(v) for v in train_pool.values())}/{sum(len(v) for v in test_pool.values())}")
 
-    # The frame classifier is fitted on the training pool only. It is the same probe the rest
-    # of the project uses, so the sequence models are handed the perception this system
-    # actually has rather than an idealised one.
+def parse_seeds(text: str) -> list[int]:
+    seeds = [int(part) for part in str(text).replace(",", " ").split()]
+    if not seeds:
+        raise argparse.ArgumentTypeError("--seeds needs at least one integer")
+    if len(set(seeds)) != len(seeds):
+        raise argparse.ArgumentTypeError(f"--seeds repeats a value: {seeds}")
+    #: `seed + 1` composes the test slots, so a pair of seeds one apart would build one
+    #: draw's test set from the next draw's training pool - correlated draws reported as
+    #: independent, which is the opposite of what replication is for.
+    collisions = sorted(set(seeds) & {s + 1 for s in seeds})
+    if collisions:
+        raise argparse.ArgumentTypeError(
+            f"seeds {collisions} collide with another seed's test composition (seed + 1); "
+            f"space them out"
+        )
+    return seeds
+
+
+def one_draw(rows, features, slots_per_template: int, seed: int):
+    """Everything the construction seed touches, for one draw.
+
+    The pool split and both compositions move with ``seed``; the probe's own seed does not,
+    so a difference between two draws is the *construction* and cannot be the fit. That is
+    the same separation `augmentation_transfer.py` uses, and for the same reason - it was
+    the un-replicated construction there that produced a headline which did not survive
+    being drawn again.
+    """
+    train_pool, test_pool = split_frame_pool(rows, seed=seed)
     train_idx = np.concatenate(list(train_pool.values()))
     probe = LinearProbe(BACKBONE, seed=SEED).fit(
         features[train_idx], [rows[i] for i in train_idx]
     )
     score = scorer(probe, features)
+    train_slots = compose_dataset(train_pool, score, n_per_template=slots_per_template,
+                                  seed=seed)
+    test_slots = compose_dataset(test_pool, score, n_per_template=slots_per_template,
+                                 seed=seed + 1)
+    return train_slots, test_slots, real_slots(rows, features, probe)
 
+
+def evaluate_draw(train_slots, test_slots, recorded):
+    """Fit every predictor on one draw. Returns its rows and the per-slot correctness."""
+    truth = [s.truth for s in test_slots]
+    results, correctness = [], {}
+    for factory in PREDICTORS:
+        model = factory()
+        model.fit(train_slots)
+        predicted = model.predict(test_slots)
+        correctness[model.name] = per_slot_correct(predicted, truth)
+        on_real = model.predict(recorded)
+        results.append((model.name, accuracy(predicted, truth),
+                        accuracy(on_real, [s.truth for s in recorded]), on_real))
+    return results, correctness
+
+
+def save_spread(per_draw: dict[str, dict[int, float]], n_test: int) -> None:
+    """One row per model: its accuracy in each draw, and the spread across them.
+
+    A separate artefact from `stan_preliminary.csv`, which stays the published draw. The
+    question this answers is not "how good is STAN" but "does the answer depend on which
+    slots happened to be composed", and mixing the two tables would make the second easy to
+    read as the first.
+    """
+    import statistics
+
+    seeds = sorted({s for by_seed in per_draw.values() for s in by_seed})
+    SPREAD.parent.mkdir(parents=True, exist_ok=True)
+    with SPREAD.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["model", "n_draws", "n_composed_test_per_draw", "mean", "sd", "min", "max"]
+                   + [f"seed_{s}" for s in seeds])
+        for name, by_seed in per_draw.items():
+            vals = [by_seed[s] for s in seeds if s in by_seed]
+            sd = f"{statistics.stdev(vals):.4f}" if len(vals) > 1 else ""
+            w.writerow([name, len(vals), n_test, f"{statistics.fmean(vals):.4f}", sd,
+                        f"{min(vals):.4f}", f"{max(vals):.4f}"]
+                       + [f"{by_seed[s]:.4f}" if s in by_seed else "" for s in seeds])
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--slots-per-template", type=int, default=40)
+    ap.add_argument(
+        "--seeds", default=str(SEED),
+        help="comma-separated construction draws. The first is the published one and gets "
+             "the full write-up; the rest are replicates that feed the spread table.",
+    )
+    args = ap.parse_args()
+    seeds = parse_seeds(args.seeds)
+
+    rows, features = load()
+    print(f"{len(rows)} frames; draws: {', '.join(str(s) for s in seeds)}")
     print(f"composing {args.slots_per_template} slots per template from each pool...")
-    train_slots = compose_dataset(train_pool, score, n_per_template=args.slots_per_template,
-                                  seed=SEED)
-    test_slots = compose_dataset(test_pool, score, n_per_template=args.slots_per_template,
-                                 seed=SEED + 1)
-    recorded = real_slots(rows, features, probe)
+
+    # The frame classifier is fitted on the training pool only. It is the same probe the rest
+    # of the project uses, so the sequence models are handed the perception this system
+    # actually has rather than an idealised one.
+    train_slots, test_slots, recorded = one_draw(
+        rows, features, args.slots_per_template, seeds[0]
+    )
 
     print(f"  train {len(train_slots)} composed, test {len(test_slots)} composed, "
           f"{len(recorded)} recorded")
@@ -231,21 +324,10 @@ def main() -> None:
     print(preliminary_caveat(recorded))
 
     print("\n=== held-out composed slots (the only comparison with a usable n) ===")
-    truth = [s.truth for s in test_slots]
-    results = []
-    correctness = {}
-    for factory in PREDICTORS:
-        model = factory()
-        model.fit(train_slots)
-        predicted = model.predict(test_slots)
-        acc = accuracy(predicted, truth)
-        correctness[model.name] = per_slot_correct(predicted, truth)
-        on_real = model.predict(recorded)
-        real_acc = accuracy(on_real, [s.truth for s in recorded])
-        results.append((model.name, acc, real_acc, on_real))
-        extra = f"  ({model.n_parameters} params)" if hasattr(model, "n_parameters") else ""
-        print(f"  {model.name:<20} composed {acc:.4f}   recorded {real_acc:.3f} "
-              f"({len(recorded)} slots){extra}")
+    results, correctness = evaluate_draw(train_slots, test_slots, recorded)
+    for name, acc, real_acc, _ in results:
+        print(f"  {name:<20} composed {acc:.4f}   recorded {real_acc:.3f} "
+              f"({len(recorded)} slots)")
 
     # A ceiling score is not a good result, it is an exhausted benchmark, and saying so is
     # the difference between "STAN is better" and "this test set can no longer tell".
@@ -306,6 +388,46 @@ def main() -> None:
         w.writerow([])
         w.writerow(["caveat", preliminary_caveat(recorded)])
     print(f"\nwrote {OUT.name}")
+
+    # --- the other draws -------------------------------------------------------------
+    #
+    # Everything above is one construction: one pool split, one set of composed slots. The
+    # augmentation experiment was exactly that shape, and its headline did not survive being
+    # drawn again - so the same question is asked here rather than left to be asked later.
+    per_draw = {name: {seeds[0]: acc} for name, acc, _, _ in results}
+    for seed in seeds[1:]:
+        print(f"\n  replicate draw {seed}...", end="", flush=True)
+        rep_train, rep_test, rep_recorded = one_draw(
+            rows, features, args.slots_per_template, seed
+        )
+        rep_results, _ = evaluate_draw(rep_train, rep_test, rep_recorded)
+        for name, acc, _, _ in rep_results:
+            per_draw[name][seed] = acc
+        print("\r  replicate draw {}: {}".format(
+            seed, "  ".join(f"{n} {a:.4f}" for n, a, _, _ in rep_results)))
+
+    save_spread(per_draw, len(test_slots))
+    if len(seeds) > 1:
+        import statistics
+
+        print(f"\n=== does the comparison depend on which slots were composed? "
+              f"({len(seeds)} draws) ===")
+        print(f"{'model':<20}{'mean':>9}{'sd':>9}{'min':>9}{'max':>9}")
+        for name, by_seed in per_draw.items():
+            vals = list(by_seed.values())
+            sd = f"{statistics.stdev(vals):.4f}" if len(vals) > 1 else "-"
+            print(f"{name:<20}{statistics.fmean(vals):>9.4f}{sd:>9}"
+                  f"{min(vals):>9.4f}{max(vals):>9.4f}")
+        stan_by_seed = per_draw["stan"]
+        beaten = [
+            s for s in stan_by_seed
+            if any(by_seed[s] >= stan_by_seed[s] for n, by_seed in per_draw.items()
+                   if n != "stan" and s in by_seed)
+        ]
+        print(f"\n  stan is matched or beaten by a baseline in {len(beaten)} of "
+              f"{len(stan_by_seed)} draws"
+              + (f" (seeds {sorted(beaten)})" if beaten else ""))
+        print(f"  wrote {SPREAD.name}")
 
     best_baseline = max(
         (r for r in results if r[0] != "stan"), key=lambda r: r[1]

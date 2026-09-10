@@ -3883,3 +3883,56 @@ so an un-retraction has to be a deliberate act.
 - 2026-09-10 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 34 claims verified against their artefacts, 0 recorded as unsupported
 
 - 2026-09-10 | WP6-T2 end-to-end with the model | `python -m experiments.end_to_end_model` | `end_to_end_model_slots.csv` | 2/2 slot verdicts agree with the label-derived ones and 106/106 comparable minutes agree; in-sample, so a wiring check rather than an accuracy result
+
+- 2026-09-10 | WP5-T1 STAN, preliminary | `python experiments/stan_preliminary.py` | `stan_preliminary.csv` | composed test: stan 1.0000 vs best baseline hmm 0.8950; 2 real slots, below the 30-slot gate
+
+---
+
+## 2026-09-10 — WP5-T1: the same check on STAN, and this one mostly survives
+
+`python experiments/stan_preliminary.py --seeds 42,7,13,99,123` → `stan_draw_spread.csv`,
+4 new tests.
+
+The augmentation retraction earlier today identified exactly two results in this project that
+consumed a random draw as a means to an end and took it once. That was one. This is the
+other: `stan_preliminary.py` splits the frame pool and composes both slot sets from a single
+seed, and every number in the WP5-T1 entry rests on that one construction. Rather than note
+the risk and move on — which is precisely what the augmentation entry did, in its last
+paragraph, hours before it was retracted — the draws were run.
+
+The seed moves the pool split and both compositions. The probe's own seed does not, so a
+difference between draws is the construction and cannot be the fit.
+
+| model | mean | sd | min | max |
+|---|---|---|---|---|
+| tuned_thresholds | 0.7990 | 0.0334 | 0.7500 | 0.8350 |
+| median_smoothing | 0.8250 | 0.0354 | 0.7800 | 0.8700 |
+| hmm | 0.8260 | 0.0446 | 0.7850 | 0.8950 |
+| summary_logistic | 0.8420 | 0.0863 | 0.7350 | 0.9550 |
+| **stan** | **0.9420** | 0.0884 | 0.8000 | 1.0000 |
+
+**The ordering survives: STAN is first in five draws of five**, and no baseline matches it in
+any of them. That is a stronger statement than the original entry could make, and it is the
+part of WP5-T1 worth carrying forward — still preliminary by the WP5-T8 gate, which is about
+the two real slots and is untouched by any of this.
+
+**The ceiling does not survive.** STAN scores 1.0000 in three draws and 0.9100 and 0.8000 in
+the other two. The published entry read that 1.0000 as *"this test set is exhausted"* — a
+claim about the benchmark's design. It is a claim about particular compositions: the composed
+set **can** be exhausted, often enough that one draw is likely to show it, which is a
+different and weaker statement. `threats_to_validity.md` §1.3 and the defence deck's slide 13
+both said the stronger one and now say this.
+
+**And the baselines move more than the table suggested.** `summary_logistic` runs
+0.7350–0.9550 (sd 0.0863) and is the best baseline in one draw and the worst in another. So
+the published *"beats a tuned HMM by 0.105"* is one draw's margin between two quantities that
+each move by more than a tenth. The mean gap over five draws is +0.116, which is the number
+with a spread behind it.
+
+**Two replications, two different outcomes, and that is the point.** The augmentation one
+destroyed its headline; this one confirmed the direction and corrected the overstatement
+built on top of it. Neither result could have been told from the other in advance, and
+neither was visible from a single draw — which is the argument for the check rather than for
+any particular expectation about what it will find.
+
+- 2026-09-10 | WP5-T1 STAN construction draws | `python experiments/stan_preliminary.py --seeds 42,7,13,99,123` | `stan_draw_spread.csv` | stan first in 5 of 5 draws (mean 0.9420, sd 0.0884) - the ordering replicates; the 1.0000 does not, holding in 3 of 5, so "the benchmark is saturated" is a property of the draw

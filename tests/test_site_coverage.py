@@ -56,6 +56,7 @@ OUT_OF_SCOPE = {
     "fusion_head_comparisons.csv": "WP5-T2: paired tests, none of which the design could make significant",
     "fusion_head_gate.csv": "WP5-T2: the gate's per-fold weights and their -0.65 correlation with night",
     "stan_preliminary.csv": "WP5-T1: preliminary by the WP5-T8 gate - 2 real slots, and a saturated composed set",
+    "stan_draw_spread.csv": "WP5-T1: five construction draws - the 1.0000 holds in three of them and the ordering in all five; the argument is the result",
     "rq6_calibration.csv": "RQ6: blocked by the class mix",
     "rq6_reliability.csv": "RQ6: the reliability bins - 905 of 907 frames land in one, so there is no diagram to draw",
     "rq6_risk_coverage.csv": "RQ6: shown as figs/risk_coverage_band rather than as a table",
