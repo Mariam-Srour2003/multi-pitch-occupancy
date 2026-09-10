@@ -1143,6 +1143,21 @@ tagged with the question it answers. Fix that first — it is what turns a build
 - [ ] **WP4-T11 ★ Efficiency table with honest methodology.** Using WP0-T10: median and p95 ms/frame,
       peak RAM, concurrent-20-camera throughput, PyTorch vs OpenVINO, on both the dev laptop and the
       target Mini-PC. **(RQ2)**
+  - [x] Median and p95 ms/frame, and concurrent-20-camera throughput measured and reported
+        — and re-measured on an idle machine on 2026-09-10 after the committed table turned
+        out to have been taken under load (A13).
+  - [x] ★ **Resident memory is measured but the column is deliberately unpopulated**
+        (2026-09-11). `efficiency_latency.resident_mb` reads RSS after the model is loaded
+        and has run a batch — ~440 MB with ConvNeXtV2 resident, which is the number a
+        Mini-PC deployment actually needs. It is **not** back-filled here: re-running would
+        replace a carefully idle measurement with another one and force the six documents
+        that quote it to be re-edited, for a column that is only meaningful on the target
+        hardware. It populates on WP7-T1's run, which is where it belongs.
+  - [ ] **PyTorch vs OpenVINO** — not attempted. A new runtime, a new dependency, and the
+        comparison only matters if latency is binding, which 14–31× headroom says it is not.
+  - [ ] **[H] The Mini-PC half** — WP7-T1. Every number in the table is an AMD development
+        laptop; the deployment target has never been measured, which is a different problem
+        from having measured this one under load.
 - [ ] **WP4-T12 ★ Measure actual power draw.** A €15 plug meter on the Mini-PC gives W under load →
       kWh/year → €/year and gCO₂/year. Trivial effort, and it substantiates the "low-bandwidth,
       low-power edge" framing with a real measurement instead of a datasheet quote.

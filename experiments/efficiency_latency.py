@@ -40,6 +40,35 @@ CYCLE_SECONDS = 60.0
 N_CAMERAS = 20
 
 
+def resident_mb() -> float | None:
+    """Resident set size of this process in MB, or None if it cannot be read.
+
+    The memory question a Mini-PC deployment actually asks is *"does this fit"*, and the
+    answer is dominated by the loaded backbone rather than by the frames passing through it.
+    RSS after a model is resident and has run a batch is the closest honest proxy: it
+    includes the weights, the interpreter, torch's allocator and whatever the OS has decided
+    to keep, which is what the machine has to find.
+
+    **Not comparable across machines**, and neither is anything else in this table - that is
+    what `machine_dependent` on the stage means. It is here so the number exists for the run
+    that matters, which is WP7-T1's on the target hardware, not this laptop's.
+
+    psutil arrives transitively through ultralytics and is deliberately **not** a declared
+    dependency: declaring it forces a reinstall of the console script, which fails while a
+    `pitch` process is running, and a memory column is not worth breaking `uv run` for. The
+    import is optional and the column is blank without it - an empty cell is honest where a
+    zero would not be. Declare it properly the next time the venv is rebuilt anyway.
+    """
+    try:
+        import os
+
+        import psutil
+
+        return psutil.Process(os.getpid()).memory_info().rss / 1e6
+    except Exception:  # noqa: BLE001 - a memory reading must never fail a latency benchmark
+        return None
+
+
 def main() -> None:
     import platform
 
@@ -74,6 +103,7 @@ def main() -> None:
             f"  [{'OK' if wall < CYCLE_SECONDS else 'OVER BUDGET'}]\n"
         )
 
+        rss = resident_mb()
         records.append(
             {
                 "backbone": key,
@@ -89,6 +119,9 @@ def main() -> None:
                 "naive_extrapolation_s": round(naive, 2),
                 "cycle_headroom_x": round(headroom, 2),
                 "fits_60s_cycle": wall < CYCLE_SECONDS,
+                # blank when psutil cannot read it; a memory reading must never fail a
+                # latency benchmark, and an empty cell is honest where a 0 would not be
+                "resident_mb": "" if rss is None else round(rss, 1),
             }
         )
 
