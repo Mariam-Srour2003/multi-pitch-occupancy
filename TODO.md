@@ -768,6 +768,31 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [x] The first control used 9 EMPTY frames and said 0.000 for both — it would have led to
         the wrong recommendation. Splitting on physical camera gives 243 and reverses it.
 - [ ] **WP3-T8 Preprocessing ablation (E-PRE).** *(search done; see the correction below)* Best model + grouped split; toggle
+  - [x] ★ **[2026-09-11] The input ablation could not run, and its best variant was an
+        artefact.** Two findings, and the first hid the second.
+    - [x] ★ **The stage raised on its first line and `--check` said "done".**
+          `vars(cfg)` on a `slots=True` `PreprocessConfig` is a `TypeError`; the fingerprint
+          line had been dead since the config gained slots. **Second time this script has
+          been un-runnable while its numbers were cited** — the first was the
+          `grayscale=True` → `saturation=0.0` rename recorded in its own source. Both times
+          the pipeline reported the stage done because the CSV from before the breakage still
+          existed. Existence is not health, one level below yesterday's freshness check.
+    - [x] ★ **`crop50` led the table at 0.998 recall with empty accuracy 0.000.** The
+          ablation was reported as play recall on held-out venues with **no false-play
+          control** — the axis where a constant predictor scores 1.000. Added (the WP4-T13
+          camera-transfer control) and the reading reverses: the crop did not show the border
+          was redundant, it moved the model toward PLAY. `blur4` is starker still — "signal
+          survives" at 0.929 recall while calling **every** held-out empty frame a match.
+    - [x] ★ **Grayscale is the real finding and was indistinguishable from the artefact.**
+          The only removal that improves *both* axes: recall +0.023 and false-play
+          0.230 → **0.021** at 0.979 empty accuracy. Turf hue is a venue cue that does not
+          transfer, and discarding it helps the model recognise an empty pitch rather than
+          helping it say PLAY.
+    - [x] **Corrected in six places** — `augment.py`, `thesis_site.py`, `diagrams.py` (the
+          drawn figure carries the false-play rate in each box now), `make_site.py`,
+          `IDEAS.md` and the ablation's own docstring. The export's table gained both columns
+          and tells the reader to read them first. Adding rows also broke `make_site.py`,
+          which assumed every row had a `play_recall`.
   - [x] ★ **[B] Before quoting any searched result: the search's resolution floor is
         0.0119, and it has adopted switches on margins below it** — measured 2026-09-08 by
         `experiments/search_resolution.py` → `results/search_resolution.csv`, 11 tests, stage

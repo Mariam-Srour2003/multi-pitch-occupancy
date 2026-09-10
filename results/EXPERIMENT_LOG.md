@@ -4411,3 +4411,67 @@ which is blocked on calibration and must not be fixed by choosing a number — t
 "hyper-parameters, not constants" mistake this project has already met three times.
 
 - 2026-09-11 | disk-space guard | `retention.has_room` in `run_slot` | runbook row 7 | a full disk mid-slot left a verdict backed by a partial set of evidence images, which an inspector cannot tell from none; the check now runs once before the first write and the verdict is produced either way
+
+- 2026-09-10 | input ablation | `python experiments/input_ablation.py` | `input_ablation.csv` | 6 variants x 7 folds, dinov2
+
+---
+
+## 2026-09-11 — WP3-T8: the input ablation could not run, and its best variant was an artefact
+
+`experiments/input_ablation.py`, `input_ablation.csv`, and corrections in six places.
+
+Two findings, and the first is the reason the second went unnoticed.
+
+### The stage could not run at all
+
+`input_ablation.py` raised `TypeError: vars() argument must have __dict__ attribute` on its
+first variant. `PreprocessConfig` is `@dataclass(frozen=True, slots=True)` and a slotted class
+has no `__dict__`, so `vars(cfg)` cannot work — the fingerprint line has been dead since the
+config gained slots. `asdict` is the fix.
+
+**This is the second time this script has been un-runnable while its numbers were cited.**
+The first is recorded in its own source: `grayscale=True` became `saturation=0.0` when the
+switch was generalised into a dial, and the module-level dict raised on import. Both times
+`reproduce_all --check` reported the stage **done**, because the CSV it wrote before the
+breakage still existed. Existence is not health, which is the same distinction the freshness
+check drew yesterday, one level further down: that check asks whether an output is older than
+its inputs, and this asks whether the thing that produced it still runs.
+
+### And the best row in the table never identifies an empty pitch
+
+The ablation was reported as ACTIVE_PLAY recall on held-out venues **with no false-play
+control** — the axis this project has twice established is gameable, because every held-out
+venue is 100% active play and a constant predictor scores 1.000 there. Added, using the
+camera-transfer control WP4-T13 settled on:
+
+| variant | recall | false-play | empty accuracy |
+|---|---|---|---|
+| `full` | 0.960 | 0.230 | 0.770 |
+| **`grayscale`** | **0.982** | **0.021** | **0.979** |
+| `blur4` | 0.929 | 1.000 | 0.000 |
+| `blur8` | 0.840 | 0.926 | 0.074 |
+| `crop50` | **0.998** | 0.313 | **0.000** |
+| `gray+crop50` | 0.899 | 0.988 | 0.012 |
+
+**`crop50` was the best row and it has empty accuracy 0.000.** Its 0.998 recall is the
+artefact the axis cannot see: the folds hold nothing it could get wrong. Read on recall alone
+it says *the border was redundant*; read with the control it says the crop moved the model
+toward PLAY. `blur4` is the same story more starkly — "signal survives" at 0.929 recall while
+calling **every** held-out empty frame a match.
+
+**Grayscale is the real finding, and it was previously indistinguishable from the artefact.**
+It is the only removal that improves both axes: recall +0.023 *and* false-play 0.230 → 0.021
+at 0.979 empty accuracy. Turf hue is a venue cue that does not transfer, and discarding it
+helps the model recognise an empty pitch rather than helping it say PLAY.
+
+So the cited reading — *"removal has a floor: grayscale helped, the crop helped more, both
+together fell below baseline"* — was two-thirds artefact. One removal helps; the second only
+appeared to; the combination is worse than either and calls 98.8% of empty pitches a match.
+Corrected in `augment.py`, `thesis_site.py`, `diagrams.py` (the drawn figure now carries the
+false-play rate in each box), `make_site.py`, `IDEAS.md` and the ablation's own docstring. The
+standalone export's table gained both columns and tells the reader to read them first.
+
+Adding rows to the CSV also broke `make_site.py`, which assumed every row carried a
+`play_recall`. Fixed, and it now renders the control rather than skipping it.
+
+- 2026-09-11 | WP3-T8 input ablation | `python -m experiments.input_ablation` | `input_ablation.csv` | the stage had been un-runnable since `PreprocessConfig` gained slots (second time it could not run while cited); with the false-play control added, `crop50`'s table-leading 0.998 recall comes with **0.000 empty accuracy** and grayscale is the only removal that improves both axes

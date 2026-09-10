@@ -1,9 +1,13 @@
 """Train-time augmentation (WP3-T6).
 
 Augmentation is the complement to preprocessing, and the input ablation is what makes the
-distinction sharp. Removing information helped up to a point and then stopped: grayscale
-alone gained recall, a centre crop alone gained more, and both together scored *below* the
-untouched baseline. There is a floor.
+distinction sharp. Removing information helps in exactly one place and stops: **grayscale**
+gains recall *and* takes false-play from 0.230 to 0.021 at 0.979 empty accuracy, which is a
+real improvement on both axes. A centre crop appeared to gain more, and did not — 0.998
+recall with **empty accuracy 0.000**, a variant that never identifies an empty pitch on an
+axis whose folds contain none to catch it (corrected 2026-09-11 when the ablation gained its
+false-play control). The two together fall below the untouched baseline and call 98.8% of
+empty pitches a match. There is a floor, and only one removal is above it.
 
 Augmentation does not have that floor, because **nothing is discarded at inference time**.
 Where grayscale threw colour away permanently, colour jitter leaves the pixels intact and

@@ -280,11 +280,11 @@ def augmentation_axes() -> str:
     # --- removal: a one-way chain that ends below where it started
     a = (box(40, 36, 124, 40, "source frame", "everything")
          + arrow(170, 56, 200, 56)
-         + box(206, 36, 124, 40, "grayscale", "+0.022")
+         + box(206, 36, 124, 40, "grayscale", "+0.022 &middot; fp 0.02")
          + arrow(336, 56, 366, 56)
-         + box(372, 36, 150, 40, "gray + crop50", "&minus;0.061")
-         + f'<text class="dg-l" x="536" y="52" fill="var(--warn)">below the untouched</text>'
-         + f'<text class="dg-l" x="536" y="67" fill="var(--warn)">baseline &mdash; the floor</text>')
+         + box(372, 36, 150, 40, "gray + crop50", "&minus;0.061 &middot; fp 0.99")
+         + '<text class="dg-l" x="536" y="52" fill="var(--warn)">below the untouched</text>'
+         + '<text class="dg-l" x="536" y="67" fill="var(--warn)">baseline &mdash; the floor</text>')
 
     # --- variation: a fan for training, and the source still reaches inference
     views = "".join(
@@ -319,8 +319,11 @@ def augmentation_axes() -> str:
 </svg>
 <figcaption>The asymmetry is the whole argument. Every preprocessing arrow points away from
 the source and never returns, so what it discarded is missing at prediction time - which is
-how grayscale and a centre crop, each helpful alone, combined to score below the untouched
-baseline. Augmentation's fan exists only during training; inference still receives the
+how grayscale and a centre crop combined to score below the untouched baseline. Each box
+carries recall and the false-play rate (<code>fp</code>), because recall alone is not
+readable here: grayscale is a real gain on both axes, and the centre crop's larger apparent
+gain was a variant answering PLAY more often - 0.998 recall at <strong>empty accuracy
+0.000</strong>. Augmentation's fan exists only during training; inference still receives the
 original frame, so there is no floor to cross.</figcaption>
 </figure>"""
 

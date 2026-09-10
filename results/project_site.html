@@ -339,16 +339,22 @@ li { margin-bottom:7px; }
   </table></div>
 
   <h2>What the model is actually reading</h2>
-  <p>Removing information from the input and re-measuring shows which parts carried the signal.</p>
+  <p>Removing information from the input and re-measuring shows which parts carried the signal.
+  <b>Read the last two columns first:</b> the held-out venues contain no empty pitch, so play
+  recall alone rewards a variant for answering PLAY more often, and the false-play control is
+  what separates a real gain from a shifted boundary.</p>
   <div class="scroll"><table>
-    <thead><tr><th>Input variant</th><th class="num">Play recall</th><th class="num">Worst fold</th></tr></thead>
-    <tbody><tr><td class="sw">crop50</td><td class="num strong">0.998</td><td class="num">0.988</td></tr><tr><td class="sw">grayscale</td><td class="num strong">0.982</td><td class="num">0.917</td></tr><tr><td class="sw">full</td><td class="num strong">0.960</td><td class="num">0.800</td></tr><tr><td class="sw">blur4</td><td class="num strong">0.929</td><td class="num">0.589</td></tr><tr><td class="sw">gray+crop50</td><td class="num strong">0.899</td><td class="num">0.667</td></tr><tr><td class="sw">blur8</td><td class="num strong">0.840</td><td class="num">0.583</td></tr></tbody>
+    <thead><tr><th>Input variant</th><th class="num">Play recall</th><th class="num">Worst fold</th><th class="num">False play</th><th class="num">Empty accuracy</th></tr></thead>
+    <tbody><tr><td class="sw">crop50</td><td class="num strong">0.998</td><td class="num">0.988</td><td class="num">0.313</td><td class="num">0.000</td></tr><tr><td class="sw">grayscale</td><td class="num strong">0.982</td><td class="num">0.917</td><td class="num">0.021</td><td class="num">0.979</td></tr><tr><td class="sw">full</td><td class="num strong">0.960</td><td class="num">0.800</td><td class="num">0.231</td><td class="num">0.769</td></tr><tr><td class="sw">blur4</td><td class="num strong">0.929</td><td class="num">0.589</td><td class="num">1.000</td><td class="num">0.000</td></tr><tr><td class="sw">gray+crop50</td><td class="num strong">0.899</td><td class="num">0.667</td><td class="num">0.988</td><td class="num">0.012</td></tr><tr><td class="sw">blur8</td><td class="num strong">0.840</td><td class="num">0.583</td><td class="num">0.926</td><td class="num">0.074</td></tr></tbody>
   </table></div>
   <div class="callout"><p><b>Blurring costs 0.12 recall</b>, and at that scale no individual
-  person is visible &mdash; so the prediction rests on people, not scenery. Colour and the
-  frame border are net distractions, each helping when removed. <b>But not together</b>:
-  grayscale plus cropping falls below the untouched baseline. Removing information has a
-  floor.</p></div>
+  person is visible &mdash; so the prediction rests on people, not scenery. <b>Colour is a net
+  distraction and the frame border is not</b>: discarding colour improves both axes at once
+  (recall +0.022, false-play 0.230 &rarr; 0.021), while the centre crop's larger apparent gain
+  was a variant answering PLAY more often &mdash; 0.998 recall at <b>empty accuracy
+  0.000</b>, on folds that contain no empty pitch to catch it. Together they fall below the
+  untouched baseline and call 98.8% of empty pitches a match. Removing information has a
+  floor, and one removal is above it.</p></div>
 </section>
 
 <section class="view" data-view="system" hidden>

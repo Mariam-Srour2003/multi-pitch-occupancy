@@ -79,7 +79,9 @@ at varying density and angle, plus a slight contrast reduction and a wet-turf sp
 lift.
 
 **Why it is the right shape of fix.** The input ablation established that *removing*
-information has a floor - grayscale plus crop fell below the untouched baseline. Augmentation
+information has a floor - grayscale plus crop fell below the untouched baseline, and (once the
+false-play control was added on 2026-09-11) that only grayscale is above it: the crop's larger
+apparent gain was 0.998 recall at **empty accuracy 0.000**. Augmentation
 is the complement: it makes the model invariant to a nuisance factor **without discarding
 anything at inference time**, so it cannot cross that floor. Where grayscale threw colour
 away permanently, colour jitter and synthetic rain leave the pixels intact and teach the

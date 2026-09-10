@@ -122,12 +122,24 @@ def collect() -> dict:
         "ms": "—", "conc": "—",
     }
 
-    # ablation means
+    # ablation means, and the false-play control that decides how to read them. The control
+    # rows carry no `play_recall` - they are one row per variant, not one per fold - so a
+    # reader that assumed every row had a recall broke when they were added, which is how
+    # this comment came to exist.
     abl_means: dict[str, list[float]] = {}
+    abl_control: dict[str, tuple[float, float]] = {}
     for r in abl:
+        if r.get("venue") == "CONTROL_held_out_empty":
+            abl_control[r["variant"]] = (
+                float(r["false_play_rate"]), float(r["empty_accuracy"])
+            )
+            continue
         abl_means.setdefault(r["variant"], []).append(float(r["play_recall"]))
     ablation = sorted(
-        ({"variant": k, "mean": sum(v) / len(v), "worst": min(v)} for k, v in abl_means.items()),
+        ({"variant": k, "mean": sum(v) / len(v), "worst": min(v),
+          "false_play": abl_control.get(k, (float("nan"), float("nan")))[0],
+          "empty_accuracy": abl_control.get(k, (float("nan"), float("nan")))[1]}
+         for k, v in abl_means.items()),
         key=lambda d: -d["mean"],
     )
 
@@ -221,6 +233,8 @@ def build(d: dict) -> str:
         f'<td class="sw">{a["variant"]}</td>',
         f'<td class="num strong">{a["mean"]:.3f}</td>',
         f'<td class="num">{a["worst"]:.3f}</td>',
+        f'<td class="num">{a["false_play"]:.3f}</td>',
+        f'<td class="num">{a["empty_accuracy"]:.3f}</td>',
     ])
     prompt_rows = rows(d["prompts"], lambda p: [
         f'<td class="sw">{p["desc"]}</td>',
@@ -596,16 +610,22 @@ li {{ margin-bottom:7px; }}
   </table></div>
 
   <h2>What the model is actually reading</h2>
-  <p>Removing information from the input and re-measuring shows which parts carried the signal.</p>
+  <p>Removing information from the input and re-measuring shows which parts carried the signal.
+  <b>Read the last two columns first:</b> the held-out venues contain no empty pitch, so play
+  recall alone rewards a variant for answering PLAY more often, and the false-play control is
+  what separates a real gain from a shifted boundary.</p>
   <div class="scroll"><table>
-    <thead><tr><th>Input variant</th><th class="num">Play recall</th><th class="num">Worst fold</th></tr></thead>
+    <thead><tr><th>Input variant</th><th class="num">Play recall</th><th class="num">Worst fold</th><th class="num">False play</th><th class="num">Empty accuracy</th></tr></thead>
     <tbody>{abl_rows}</tbody>
   </table></div>
   <div class="callout"><p><b>Blurring costs 0.12 recall</b>, and at that scale no individual
-  person is visible &mdash; so the prediction rests on people, not scenery. Colour and the
-  frame border are net distractions, each helping when removed. <b>But not together</b>:
-  grayscale plus cropping falls below the untouched baseline. Removing information has a
-  floor.</p></div>
+  person is visible &mdash; so the prediction rests on people, not scenery. <b>Colour is a net
+  distraction and the frame border is not</b>: discarding colour improves both axes at once
+  (recall +0.022, false-play 0.230 &rarr; 0.021), while the centre crop's larger apparent gain
+  was a variant answering PLAY more often &mdash; 0.998 recall at <b>empty accuracy
+  0.000</b>, on folds that contain no empty pitch to catch it. Together they fall below the
+  untouched baseline and call 98.8% of empty pitches a match. Removing information has a
+  floor, and one removal is above it.</p></div>
 </section>
 
 <section class="view" data-view="system" hidden>
