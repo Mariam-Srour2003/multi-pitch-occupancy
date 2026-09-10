@@ -225,7 +225,7 @@ tagged with the question it answers. Fix that first — it is what turns a build
         significant at p_holm 1.2e-07 and negligible in size (0.007 macro-F1).
 - [x] **WP0-T10 ★ Latency-measurement harness — done and run.** `evaluation/latency.py`.
       Median/p95, warm-up discarded, threads recorded. **All three backbones fit the 60 s
-      cycle with 10-24x headroom**, so latency is *not* the binding constraint and the model
+      cycle with 14-31x headroom**, so latency is *not* the binding constraint and the model
       choice falls to accuracy. Concurrency proved *faster* than naive 20x extrapolation, the
       opposite of the expectation the harness was built to test.
 - [ ] **WP0-T10b Repeat on the target Mini-PC** (WP7-T1). Nothing above settles deployment.
@@ -233,9 +233,20 @@ tagged with the question it answers. Fix that first — it is what turns a build
       N≥50 reps, report **median and p95** (not mean), declare thread count, pin CPU affinity,
       measure with nothing else running. The pilot's ms/frame numbers were probably measured
       casually — the whole "20–30 cameras on one Mini-PC" claim rests on them.
-  - [ ] ★ **Concurrency test, not multiplication.** Measure 20 cameras *actually running
-        concurrently*, not `20 × single-frame latency`. Memory-bandwidth contention on a Mini-PC
-        makes those two numbers different, and the honest one is the one you must report.
+  - [x] ★ **Concurrency test, not multiplication — built, and it earned its keep twice.**
+        `evaluation/latency.py:measure_concurrent` runs 20 streams and the CSV carries
+        `round_wall_s` against `naive_extrapolation_s`, so the measured and the multiplied
+        numbers sit side by side (1.9 s against 2.0 s for ConvNeXtV2).
+    - [x] ★ **And the second use was not the one it was built for.** The concurrent column
+          is what showed that H4's speed clause fails: 1.63x under load against the >= 2x
+          required, where the single-frame median alone read 2.01x and looked like a pass.
+    - [x] ★ **[2026-09-10] The whole table had been measured under load, as its own
+          docstring warned.** ConvNeXtV2 150.9 → **100.5 ms**, DINOv2 418.3 → **219.4**, ViT
+          303.3 → **169.4**, re-measured on an idle machine. Contention costs the heavier
+          model more, so it *inflates* a ratio between models of different weight — the
+          direction that flatters the compact backbone. H4's speed clause now fails on both
+          readings (1.69x single, 1.63x concurrent) and headroom rises to 14–31x. See
+          amendment A13.
 - [x] **WP0-T7 Experiment log.** `results/EXPERIMENT_LOG.md`, pilot backfilled, appended
       automatically by every experiment script.
 - [x] **WP0-T11 ★ Reproduction script.** `make reproduce` (or `tools/reproduce_all.py`) that
@@ -409,11 +420,34 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [x] **H1's leakage quantified:** the random split puts **37.1%** of near-duplicate pairs
         across the train/test boundary, the grouped split **0.8%** - a 49x reduction.
   - [x] Reported pairwise after single-link chaining gave a meaningless 96.9%.
-  - [ ] ★ **Fix two verified label errors** - `2_playing/slot_20260711_1000_camA_t000021_m.jpg`
+  - [ ] ★ **Fix two verified label errors** — `2_playing/slot_20260711_1000_camA_t000021_m.jpg`
         and `..._t000027_m.jpg` show an empty pitch. Both are human-labelled. They are two of
         only six daytime ACTIVE_PLAY frames at `venue_01`, so correcting them makes the
-        day/night confound *more* absolute. Deferred because moving them invalidates every
-        feature cache; do it between search runs, then re-run `reproduce_all.py`.
+        day/night confound *more* absolute.
+    - [x] ★ **Both re-verified by eye, 2026-09-10, and the target class checked against the
+          protocol.** The playing surface is empty in both; the only people are off-pitch, by
+          the sideline shelter behind the barrier. §2.1 says people outside the pitch do not
+          count and §2.3 defines EMPTY as no people *within the ROI* — so the correct folder
+          is **`1_empty`** (C1), not `3_people_not_playing`. The error is real and the
+          destination is not ambiguous.
+    - [ ] ★ **[H] The cost is measured, and it is a scope decision rather than a task.**
+          Moving the two files changes their cache keys and their labels, so: rebuild the
+          feature caches, then re-run the **24 stages that read a cache — 203 minutes** —
+          and re-verify the ledger, of which **32 of 34 claims would move**. Every one of
+          those numbers is also quoted in prose somewhere. Call it half a day, most of it
+          editing rather than computing.
+          *The pixels are not the expensive part:* the images themselves are unchanged, so
+          the cached vectors could be re-keyed rather than recomputed. It is the two labels
+          that move everything downstream.
+    - [ ] ★ **Recommendation: correct the record, not the pixels — unless there is time.**
+          The correction buys no scientific gain: it makes a known confound slightly worse
+          and moves 32 numbers by amounts nobody would notice (2 frames of 1,692, 0.12%).
+          What it costs is a day in write-up week and a re-check of every quoted figure. The
+          honest alternative is free and arguably better: report the two frames as a
+          **measured label-noise floor of 0.12%** in `threats_to_validity.md`, name them, and
+          say why they were left. A thesis that states its label errors is stronger than one
+          that quietly fixed two and cannot say how many remain — the 396 `bulk` clip frames
+          have never been spot-checked one by one (WP2-T3), so 0.12% is a floor either way.
 - [ ] **WP2-T5 Double-labelling & κ.** 10% sample → second annotator, blind → `tools/kappa.py`
       computes Cohen's κ, logs disagreements → resolve, amend `protocol.md`. *Accept:* κ ≥ 0.85.
   - [ ] **WP2-T9 ★ Human ceiling on the test set.** While the second annotator is labelling, have
@@ -1375,7 +1409,7 @@ tagged with the question it answers. Fix that first — it is what turns a build
 - [ ] **WP5-T2b Conditional-compute variant.** Run ConvNeXt first; invoke DINOv2 only when confidence
       < τ. Report accuracy **and** average ms/frame vs always-both. *Accept:* ablation table with CIs,
       p-values, latency; adopt/reject decision logged.
-  - [ ] ★ **State the honest motivation.** WP0-T10 measured 10–24× headroom in the 60 s cycle, so
+  - [ ] ★ **State the honest motivation.** WP0-T10 measured 14–31× headroom in the 60 s cycle, so
         this variant does **not** buy needed speed on the dev machine and must not be sold as if it
         did. Its real justification is the *target Mini-PC* (WP7-T1, unmeasured) and the
         scaling claim beyond 20 cameras. Frame it that way or drop it to the extensions list.

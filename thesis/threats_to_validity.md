@@ -193,6 +193,28 @@ never run; and evidence selection that recorded a path of `None` for every frame
 **deliberately breaking the thing it guards** and confirming the guard fires. That is the
 practice the write-up should argue for, and it is what turned up half the findings here.
 
+### 2.5 Known label errors, uncorrected and named *(quantified — a floor, not a rate)*
+
+Two human-labelled frames in `2_playing/` show an empty pitch:
+`slot_20260711_1000_camA_t000021_m.jpg` and `..._t000027_m.jpg`. Both were re-verified by eye
+on 2026-09-10 and the destination checked against the protocol — the playing surface is empty
+in both and the only people are off-pitch behind the barrier, which §2.1 says do not count, so
+the correct folder is `1_empty`. That is **0.12%** of 1,692 frames.
+
+They are **not corrected**, and the reason is a scope decision rather than an oversight. The
+two frames are 2 of only 6 daytime ACTIVE_PLAY frames at `venue_01`, so fixing them makes the
+day/night confound of §2.2 *more* absolute rather than less. Against that, moving them changes
+their cache keys and their labels: 24 stages read a feature cache (203 minutes of recompute)
+and **32 of the 34 ledger claims would move**, every one of them also quoted in prose. The
+correction buys no scientific gain and costs a day of re-checking in write-up week.
+
+**0.12% is a floor and not an estimate of the label error rate.** It counts the errors that
+were found, and the search was not systematic: the 396 clip frames carry `labeled_by=bulk` —
+verified with a detector plus visual review of the outliers, not inspected one by one — and
+that spot-check (WP2-T3) is still open. A thesis that names its known label errors and says
+how it found them is in a better position than one that quietly corrected two and cannot say
+how many remain.
+
 ---
 
 ## 3 · External validity — does it generalise?
@@ -231,7 +253,7 @@ The nine clip venues add pitch-appearance variety to ACTIVE_PLAY only.
 ### 3.4 Deployment hardware is unmeasured *(unquantifiable, and cheap to fix)*
 
 Every latency number is from the development laptop. The target Mini-PC has never run this
-code, so the 10–24× headroom in the 60-second cycle, the 20-camera scaling claim and the
+code, so the 14–31× headroom in the 60-second cycle, the 20-camera scaling claim and the
 conditional-compute variant's justification are all extrapolations (WP7-T1).
 
 ---

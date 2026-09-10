@@ -85,9 +85,15 @@ production choice then resting on latency. Both halves fail to deliver:
   two models emit *identical* predictions - ACTIVE_PLAY for all 907 frames, EMPTY zero times,
   C1 F1 = 0.000. 0.4975 is the score of a model that never recognises an empty pitch, and both
   sit exactly there. They are equivalent to each other and to a constant predictor.
-- The speed clause is **not met under the condition the pre-registration names**: 1.83x on the
-  20-camera concurrent median, against the >= 2x required. It reaches 2.01x only on the
-  single-frame median, which that document explicitly declined to rely on.
+- The speed clause is **not met on either measurement**: 1.63x on the 20-camera concurrent
+  median - the condition the pre-registration names - and 1.69x on the single-frame median,
+  against the >= 2x required.
+- **It was reported as 1.83x and 2.01x until 2026-09-10, and the difference was load.** The
+  committed latency table had been measured with other work in flight. Re-measured on an idle
+  machine, ConvNeXtV2 reads 100.5 ms rather than 150.9 and ViT 169.4 rather than 303.3.
+  Contention costs the heavier model more, so it *inflates* a speed ratio between models of
+  different weight - which is the direction that flatters the compact backbone, and it was
+  enough to carry the single-frame line over the 2x bar it does not clear.
 
 So the DINOv2 recommendation rests on the **cross-venue** evidence, where the three models are
 not equivalent at all - and where DINOv2 is the only one that ever predicts EMPTY. See

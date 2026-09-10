@@ -4027,3 +4027,87 @@ from a column never added.
 - 2026-09-10 | WP0-T4 split identity | `split_identity()`, `write_split`/`read_split` digest | `src/pitch_occupancy/data/splits.py` | the "materialised, never re-randomised" claim was not practised and the retrofit would have changed published rows; the claim was dropped, the row list made part of the split's identity, and the materialisation path now verifies its own partition on read
 
 - 2026-09-10 | H4 model equivalence | `python experiments/h4_model_equivalence.py` | `h4_model_equivalence.csv` | ConvNeXtV2 vs ViT: equivalent at margin 0.02
+
+---
+
+## 2026-09-10 — WP2-T4: the two label errors, verified and costed rather than fixed
+
+`thesis/threats_to_validity.md` §2.5, `thesis/labelling_protocol.md`, TODO WP2-T4.
+
+Two human-labelled frames in `2_playing/` have been on the open list since September as
+"verified label errors". They were re-verified by eye today, and the destination was checked
+against the protocol rather than assumed: the playing surface is empty in both, and the only
+people are off-pitch by the sideline shelter behind the barrier. §2.1 says people outside the
+pitch do not count and §2.3 defines EMPTY as no people *within the ROI*, so the correct folder
+is `1_empty` — C1, not `3_people_not_playing`. The error is real and the target is not
+ambiguous.
+
+**They stay as they are, and the reason is now measured rather than asserted.** The pixels are
+not the expensive part: the images do not change, so the cached vectors could be re-keyed
+rather than recomputed. It is the two *labels* that move everything downstream. Counted from
+the pipeline's own stage table, 24 stages read a feature cache — **203 minutes** — and
+**32 of the 34 ledger claims** derive from one and would move, each of them also quoted in
+prose somewhere. Half a day, most of it re-checking sentences.
+
+Against that: the two frames are 2 of only 6 daytime ACTIVE_PLAY frames at `venue_01`, so
+correcting them makes the day/night confound **more** absolute, not less. The correction buys
+no scientific gain and moves 32 numbers by amounts nobody would notice.
+
+So the record is corrected instead of the data. §2.5 reports them as a **0.12% label-noise
+floor** — and says plainly that it is a floor and not a rate, because it counts the errors that
+were found and the search was not systematic: the 396 clip frames carry `labeled_by=bulk`,
+verified with a detector plus review of the outliers rather than one by one, and that
+spot-check is still open. Naming two known errors and how they were found is a better position
+than quietly fixing them and being unable to say how many remain.
+
+The option stays open and is now cheap to take, because the cost is written down.
+
+- 2026-09-10 | WP2-T4 label errors | visual re-verification + `reproduce_all` stage costs | `threats_to_validity.md` §2.5 | both confirmed empty and `1_empty` confirmed as the destination; correcting them costs 203 min of recompute and moves 32 of 34 claims for no scientific gain, so they are reported as a 0.12% label-noise floor instead
+
+- 2026-09-10 | efficiency | `python experiments/efficiency_latency.py` | `efficiency_latency.csv` | dev laptop, 4 threads
+
+---
+
+## 2026-09-10 — WP0-T10: the latency table was measured under load, and the bias has a sign
+
+`python experiments/efficiency_latency.py` on an idle machine, `efficiency_latency.csv`,
+`h4_model_equivalence.csv`, pre-registration amendment A13.
+
+`efficiency_latency.py`'s docstring has said since September that ConvNeXtV2 read **150.9 ms**
+in a batch against **101.2 ms** idle, that this moved H4's speed ratio, and that
+`reproduce_all.py` therefore leaves the stage out of `--force`. All true, all written down —
+and the stage was never re-run. `results/efficiency_latency.csv` has one commit in its
+history, and the value in it is 150.9. **The number the warning describes is the number that
+was published**, which is the same shape as every other finding in this project: not a missing
+guard, a guard that was written and then not acted on.
+
+Re-measured with nothing else running, on the same hardware and thread count:
+
+| backbone | published | idle | concurrent x20, published | idle |
+|---|---|---|---|---|
+| ConvNeXtV2 | 150.9 ms | **100.5 ms** | 2388.1 ms | **1858.3 ms** |
+| DINOv2 | 418.3 ms | **219.4 ms** | 5501.8 ms | **4021.5 ms** |
+| ViT | 303.3 ms | **169.4 ms** | 4361.5 ms | **3023.1 ms** |
+
+100.5 against the docstring's remembered 101.2 — the diagnosis was exactly right.
+
+**The interesting part is the direction.** Contention costs the heavier model more, so load
+does not merely add noise to a speed comparison: it **inflates the ratio between models of
+different weight**. ViT slowed by 1.79x under load where ConvNeXtV2 slowed by 1.50x, so the
+published ratio was biased *towards the compact model* — the direction that would have
+supported shipping ConvNeXtV2 — and it was enough to carry H4's single-frame line over a 2x
+bar it does not clear. Idle, ConvNeXtV2 is **1.69x** faster than ViT on single frames and
+**1.63x** under a 20-camera load, against the >= 2x the hypothesis requires: refuted on both
+readings, where A9 could refute it on only one.
+
+**Nothing about the recommendation changes, and one thing gets stronger.** The 60-second-cycle
+headroom improves from 10–24x to **14–31x**, so "latency is not the binding constraint" holds
+with more room than was claimed, and RQ2's choice of DINOv2 continues to rest on cross-venue
+accuracy. `README.md`, `rq_matrix.md`, `threats_to_validity.md` and `TODO.md` carry the
+corrected figures; A9 stands as written with A13 beside it.
+
+**Measured on an AMD development laptop, not the Mini-PC.** WP7-T1 is still open, and every
+number in this table is the wrong machine — which is a separate problem from having been the
+wrong conditions.
+
+- 2026-09-10 | WP0-T10 latency re-measured idle | `python experiments/efficiency_latency.py` | `efficiency_latency.csv` | the published table was taken under load, as its own docstring warned: ConvNeXtV2 150.9 -> 100.5 ms, DINOv2 418.3 -> 219.4, ViT 303.3 -> 169.4. Contention inflates ratios between models of different weight, so H4's speed clause now fails on both readings (1.69x, 1.63x) and cycle headroom rises to 14-31x

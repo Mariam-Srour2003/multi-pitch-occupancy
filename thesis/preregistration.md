@@ -440,3 +440,42 @@ subject on `exp/h1-h2-baseline-floor` is history and stays as written.
 whole reason this went unnoticed for a day: the ledger checks what is in it, and a claim
 outside it has nothing checking it. WP8-T5's standing instruction — add a claim when you
 write the sentence — applies to amendments too.
+
+---
+
+### 2026-09-10 — A13: H4's speed clause was measured under load, and fails on both readings
+
+The committed latency table had been measured **with other work in flight**, and the
+codebase knew: `efficiency_latency.py`'s own docstring records that ConvNeXtV2 read 150.9 ms
+in a batch against 101.2 ms idle, and `reproduce_all.py` excludes the stage from `--force` for
+exactly that reason. The stage was never re-run. The number the warning describes is the
+number that was published.
+
+Re-measured on an idle machine (2026-09-10, same hardware, 4 threads):
+
+| backbone | published (under load) | idle | concurrent x20, published | idle |
+|---|---|---|---|---|
+| ConvNeXtV2 | 150.9 ms | **100.5 ms** | 2388.1 ms | **1858.3 ms** |
+| DINOv2 | 418.3 ms | **219.4 ms** | 5501.8 ms | **4021.5 ms** |
+| ViT | 303.3 ms | **169.4 ms** | 4361.5 ms | **3023.1 ms** |
+
+**H4's speed clause fails on both readings now, where it previously failed on one.** A9
+reported 1.83x on the 20-camera concurrent median — the condition this document names — and
+2.01x on the single-frame median, which it declined to rely on. Idle, those are **1.63x** and
+**1.69x**. The pre-registered verdict is unchanged: the clause was refuted then and is refuted
+now, more clearly.
+
+**Why the direction matters more than the size.** Contention costs the heavier model more, so
+load *inflates* a speed ratio between models of different weight. It flatters the compact
+backbone — the direction that would have supported "ship ConvNeXtV2" — and it was enough to
+carry the single-frame line over a 2x bar it does not clear. A benchmark run in a batch does
+not simply add noise; here it added bias, with a sign.
+
+**What else moves.** The 60-second-cycle headroom improves from 10–24x to **14–31x**, which
+strengthens rather than weakens the finding that latency is not the binding constraint, so
+RQ2's recommendation of DINOv2 on cross-venue evidence is untouched. `README.md`,
+`thesis/rq_matrix.md`, `thesis/threats_to_validity.md` and `TODO.md` carry the corrected
+figures; A9's text stands as written, with this beside it.
+
+**Still this machine, not the deployment target.** WP7-T1 remains open: every figure here is
+an AMD development laptop, and the Mini-PC has never been measured.

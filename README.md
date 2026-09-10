@@ -86,7 +86,7 @@ own reasoning in [results/EXPERIMENT_LOG.md](results/EXPERIMENT_LOG.md).
 **On the models**
 
 - **DINOv2** is the production recommendation, on cross-venue evidence rather than latency —
-  latency is not the binding constraint, with 10–24× headroom in the 60 s cycle. The pick was
+  latency is not the binding constraint, with 14–31× headroom in the 60 s cycle. The pick was
   challenged on an input-path finding and the challenge was tested and did not survive.
 - **The prompt matters ~9× more than the model.** Zero-shot with a pre-declared prompt beats every
   trained probe, but across the whole prompt space macro-F1 spans 0.021–0.747 where the three

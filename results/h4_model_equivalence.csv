@@ -5,5 +5,5 @@ convnextv2_vs_vit,all frames,f73f5a29b425,907,0.0,0.0,0.0,0.02,equivalent,1.000e
 convnextv2_vs_vit,distinct scenes,f73f5a29b425,95,0.0,0.0,0.0,0.02,equivalent,1.000e+00,1.000e+00,False,0.0,0
 dinov2_vs_vit,all frames,f73f5a29b425,907,0.0819,-0.0028,0.2308,0.02,inconclusive,1.250e-01,3.750e-01,False,0.357,7
 dinov2_vs_vit,distinct scenes,f73f5a29b425,95,-0.0027,-0.0109,0.0,0.02,equivalent,1.000e+00,1.000e+00,False,0.5,1
-latency_convnextv2_vs_vit,single_frame_median,,,,,,,2.01x,,,,,
-latency_convnextv2_vs_vit,concurrent20_median,,,,,,,1.83x,,,,,
+latency_convnextv2_vs_vit,single_frame_median,,,,,,,1.69x,,,,,
+latency_convnextv2_vs_vit,concurrent20_median,,,,,,,1.63x,,,,,

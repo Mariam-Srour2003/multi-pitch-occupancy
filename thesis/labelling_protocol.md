@@ -169,10 +169,21 @@ frames are still awaiting an individual spot-check (WP2-T3).
 ### Known label errors, uncorrected
 
 Two frames in `2_playing/` show an empty pitch:
-`slot_20260711_1000_camA_t000021_m.jpg` and `..._t000027_m.jpg`. Both are human-labelled. They
-are 2 of only 6 daytime ACTIVE_PLAY frames at `venue_01`, so **correcting them makes the
-day/night confound more absolute, not less**. Deferred because moving them invalidates every
-feature cache (WP2-T4); do it between search runs, then re-run `reproduce_all.py`.
+`slot_20260711_1000_camA_t000021_m.jpg` and `..._t000027_m.jpg`. Both are human-labelled.
+
+**Re-verified by eye on 2026-09-10**, and the destination checked against the rules above
+rather than assumed: the playing surface is empty in both, and the only people are off-pitch
+by the sideline shelter behind the barrier. §2.1 says people outside the pitch do not count
+and §2.3 defines EMPTY as no people *within the ROI*, so the correct folder is **`1_empty`**
+(C1) and not `3_people_not_playing`.
+
+They are 2 of only 6 daytime ACTIVE_PLAY frames at `venue_01`, so **correcting them makes the
+day/night confound more absolute, not less**. They stay as they are, deliberately: moving them
+changes their cache keys and their labels, which means 24 cache-reading stages to re-run (203
+minutes) and 32 of the 34 ledger claims to move, each also quoted in prose. The correction buys
+no scientific gain and costs a day in write-up week, so the record is corrected instead — see
+`thesis/threats_to_validity.md` §2.5, which reports them as a **0.12% label-noise floor** and
+says why that is a floor rather than a rate.
 
 The `lighting` column for the 396 clip frames is a **brightness proxy, not a clock**, and is
 wrong for at least `b_floodlit_track`, `f_outdoor_bldg` and `c_teal_boards` — night football
