@@ -349,12 +349,20 @@ def test_augmentation_tab_exists_and_renders(client) -> None:
     assert "discards nothing" in html
 
 
-def test_augmentation_tab_states_what_is_not_measured(client) -> None:
-    """The module is built but unbenchmarked. A page that showed the presets without saying
-    so would imply a result that does not exist."""
+def test_augmentation_tab_never_shows_the_headline_without_its_retraction(client) -> None:
+    """This page said "Not measured yet" for as long as that was true, and the test pinned
+    the sentence. Then it was measured, the headline was retracted the same day, and the
+    page kept saying it - so the guard is now on the pairing rather than on a phrase.
+
+    `light` reached 0.8550 in one draw of five and 0.3479-0.4136 in the other four. Either
+    number alone misleads: the first is the maximum of five, the second hides that the
+    effect can appear at all. If the page shows one it must show the spread."""
     html = client.get("/").text
-    assert "Not measured yet" in html
-    assert "no footage in this dataset" in html.lower()
+    if "0.8550" in html or "0.687" in html:
+        assert "0.2206" in html, "the headline is on the page without its standard deviation"
+        assert "maximum of five" in html
+        assert "0.4406" in html, "nothing says four of five draws are below no augmentation"
+    assert "no footage in this dataset" in html.lower()  # the wet-weather caveat stands
 
 
 def test_figures_are_served(client) -> None:

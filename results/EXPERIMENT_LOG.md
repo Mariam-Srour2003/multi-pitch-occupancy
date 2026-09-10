@@ -3615,6 +3615,14 @@ strong and the number would be meaningless.
 
 ## 2026-09-10 — WP3-T6: one augmentation works, and turning them all on erases it
 
+> **RETRACTED 2026-09-10, later the same day** — the headline below is one augmentation
+> draw, not an effect. Re-drawn four more times with the same rows, the same probe seed and
+> the same test set, `light` scores 0.3479, 0.3501, 0.3510 and 0.4136 against the 0.8550
+> reported here; **four of the five draws land below the 0.4406 the probe reaches with no
+> augmentation at all**, and three of them are the trivial one-class predictor. The
+> duplicate-rows control and the `full` observation still stand as reasoning; the number
+> does not. See the retraction entry at the end of this log.
+
 `experiments/augmentation_transfer.py`, `augmentation_transfer.csv`, 11 tests. The question
 `onboarding_cost.py` left open: a probe trained on camera A scores 0.441 macro-F1 on camera B
 and 0.9895 with one labelled frame of B — **can augmentation close that without any labels?**
@@ -3788,3 +3796,90 @@ supervision or restart policy (WP7-T2, WP7-T3).
 - 2026-09-10 | WP6-T2 production classifier | `python -m pitch_occupancy.worker --source video` | `vision/classifier.py` | 14 new tests; the `classify` seam had never been given a real classifier, so the whole pipeline had been run end to end without a frame ever being classified. Both recorded slots now agree with the label-derived verdicts; the deployment input path reproduces the cached features exactly
 
 - 2026-09-10 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 32 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-10 | WP3-T6 augmentation across cameras | `python experiments/augmentation_transfer.py --views 4 --seeds 13,99,123` | `augmentation_transfer.csv` | best preset light 0.4635 (5 draws, 0.3479-0.8550) vs 0.4406 unaugmented and 0.3625 for the duplicate-rows control; closes 4% of the gap one labelled frame closes
+
+---
+
+## 2026-09-10 — WP3-T6 RETRACTED: the augmentation result was a draw, not an effect
+
+`experiments/augmentation_transfer.py --seeds 42,7,13,99,123 --presets light`,
+`augmentation_transfer_spread.csv`. **This retracts the headline of the WP3-T6 entry above,
+written earlier the same day.**
+
+That entry reported `light` — brightness, gamma and sensor noise — taking empty-pitch recall
+on an unseen camera from 0.000 to **0.687** with no target labels, at 0.8550 macro-F1 against
+0.4406 unaugmented, and called it "the one preset that works". It also said, in its own last
+paragraph, that only one draw had been taken and nothing bounded the variance. That paragraph
+was the whole finding, and it was filed as a caveat.
+
+| draw (seed) | macro-F1 | EMPTY recall | frames called EMPTY (of 521) |
+|---|---|---|---|
+| 99 | 0.3479 | 0.000 | 0 |
+| 7 | 0.3501 | 0.000 | 0 |
+| 123 | 0.3510 | 0.000 | 0 |
+| 13 | 0.4136 | 0.062 | 15 |
+| **42** *(the published draw)* | **0.8550** | **0.687** | — |
+| *no augmentation* | *0.4406* | *0.000* | *0* |
+
+Mean 0.4635, sd **0.2206**, median **0.3510**. The published number is the **maximum of
+five**, and four of the five are below the unaugmented baseline.
+
+**Nothing differs between those rows but the random draw.** Same 775 source frames, same
+preset, same probe seed, same test set, same 3,875 training rows. `light` applies each of its
+three effects with probability 0.5, so a draw is 3,100 views' worth of coin flips whose
+aggregate distribution is near-identical between seeds. The metric is not: the range is 0.3479-0.8550 with a standard deviation of 0.2206, on a metric bounded in [0, 1].
+
+**The mechanism is a boundary that either reaches camera B or does not.** `pred_empty` counts
+how many of camera B's 521 frames the probe called EMPTY: three of the five draws call **none** of them empty, one calls 15, and the published draw found the boundary. Camera A's
+EMPTY frames are one morning at one venue, so the fitted boundary for EMPTY sits close to
+camera B's empty pitch without being anchored by anything from it; which side it lands on is
+decided by where the random brightness and gamma shifts happened to fall. That is why the
+result does not degrade gracefully across draws.
+
+**And it explains the numbers that repeat exactly.** `colour` scored 0.3479 on seed 42 and
+0.3479 again on seed 7 — a suspicious agreement that turns out to be the tell. A preset
+scoring 0.3479 has predicted ACTIVE_PLAY for all 521 frames; 0.3479 is the macro-F1 of the
+trivial one-class predictor on this test set, not a measurement of colour jitter. The
+`pred_empty` column was added for this run precisely because the repeated value looked wrong,
+and it is what made the collapse legible.
+
+### What survives
+
+- **The duplicate-rows control still did its job.** It moved *down* from the baseline, so the
+  seed-42 gain was never attributable to row count. That reasoning was sound; it was
+  answering a question about the wrong thing.
+- **Augmentation can do this, on this boundary.** One draw reached 0.687 empty recall from no
+  target labels at all, and that is not noise — the four remaining draws are the reason it
+  cannot be quoted as a method.
+- **The five-frame recipe is unaffected**, and its case is now stronger: 0.9895 every time,
+  against a recipe that works occasionally and gives no warning which run you are in.
+
+### What this says about the rest of the project
+
+The check that found this is the cheapest one available — run it again with a different seed
+— and it was not run because the draw was a *means to an end* rather than the object of
+study. Where the draw is the object, this project already replicates: the benchmark takes
+five split replicates per protocol, the label-efficiency curve five seeds per training size,
+the onboarding curve reports `n_seeds` and a min–max. Exactly two results consumed a random
+draw once. This was one. **The other is STAN**, whose composed train and test sequences come
+from a single seeded draw (`stan_preliminary.py`, `SEED` and `SEED + 1`) — already reported
+as preliminary for a different reason, and now carrying this one too. That stage runs in
+three minutes; five draws of it is a quarter of an hour and is on the list.
+
+A bootstrap interval over a test set does not cover this. Every interval in this project
+resamples the *observations*; none of them resample the construction — which split, which
+augmentation draw, which synthetic sequence. Those are separate sources of variance and only
+the first is reported.
+
+**Two tests pinned the retracted claim** and neither could have caught it: both read the
+seed-42 row, which is still exactly what it was. A test that fixes a value can only detect a
+change in that value, and nothing had changed. They now pin the spread instead — including
+one that fails if the range ever narrows enough to make the original claim quotable again,
+so an un-retraction has to be a deliberate act.
+
+- 2026-09-10 | WP3-T6 RETRACTION: augmentation draws | `python experiments/augmentation_transfer.py --seeds 42,7,13,99,123 --presets light` | `augmentation_transfer_spread.csv` | the 0.8550 headline is the maximum of five draws (median 0.3510, sd 0.2206); four of five fall below the 0.4406 unaugmented baseline and three are the trivial one-class predictor. The effect was a draw
+
+- 2026-09-10 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 34 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-10 | WP6-T2 end-to-end with the model | `python -m experiments.end_to_end_model` | `end_to_end_model_slots.csv` | 2/2 slot verdicts agree with the label-derived ones and 106/106 comparable minutes agree; in-sample, so a wiring check rather than an accuracy result

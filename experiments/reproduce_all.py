@@ -328,11 +328,13 @@ STAGES: list[Stage] = [
     ),
     Stage(
         name="augmentation-transfer",
-        command=[*PY, "-m", "experiments.augmentation_transfer"],
-        produces=[RESULTS / "augmentation_transfer.csv"],
+        command=[*PY, "-m", "experiments.augmentation_transfer",
+                 "--seeds", "42,7,13,99,123", "--presets", "light"],
+        produces=[RESULTS / "augmentation_transfer.csv",
+                  RESULTS / "augmentation_transfer_spread.csv"],
         requires=[DATA / "cache" / "dinov2.npz", DATA / "processed" / "manifest.csv"],
-        note="WP3-T6: 15,500 forward passes - `light` recovers empty recall, `full` erases the gain",
-        minutes=60,
+        note="WP3-T6: the `light` headline was one draw of five - median 0.3510, sd 0.2206",
+        minutes=65,
     ),
     Stage(
         name="onboarding-cost",

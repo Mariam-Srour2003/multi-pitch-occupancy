@@ -11,7 +11,7 @@ any draft goes out:
 uv run python -m experiments.verify_claims --check
 ```
 
-**32 claims are checked against an artefact. 0 are not, and say why.**
+**34 claims are checked against an artefact. 0 are not, and say why.**
 
 ## Checked
 
@@ -47,8 +47,10 @@ uv run python -m experiments.verify_claims --check
 | One labelled empty frame of the held-out camera takes DINOv2 from 0.0000 to 0.9793 empty-pitch accuracy; without it the model has never seen that camera and gets none of the 243 right. | `0.9793` | `results/empty_recognition.csv` | — | ✔ |
 | One labelled frame of a new camera takes DINOv2 from 0.441 to 0.990 macro-F1 on that camera's unseen frames. | `0.9895` | `results/onboarding_cost.csv` | — | ✔ |
 | From five labelled frames of the new camera, training on those alone matches training on them plus 775 frames from the source camera - the source set stops contributing. | `0.9902` | `results/onboarding_cost.csv` | — | ✔ |
-| Brightness-and-gamma augmentation takes empty-pitch recall on an unseen camera from 0.000 to 0.687, with no labels from that camera. | `0.6872` | `results/augmentation_transfer.csv` | — | ✔ |
-| Turning every augmentation on scores 0.3479, the same as colour jitter alone and below no augmentation at all - even though it contains every effect that made `light` work. | `0.3479` | `results/augmentation_transfer.csv` | — | ✔ |
+| In one augmentation draw of five, brightness-and-gamma augmentation took empty-pitch recall on an unseen camera from 0.000 to 0.687 with no labels from that camera. The other four did not reproduce it. | `0.6872` | `results/augmentation_transfer.csv` | — | ✔ |
+| Across five augmentation draws that differ in nothing but the random draw, `light` has a standard deviation of 0.2206 macro-F1 - and four of the five score below the 0.4406 the probe reaches with no augmentation at all. | `0.2206` | `results/augmentation_transfer_spread.csv` | — | ✔ |
+| A preset scoring 0.3479 predicts EMPTY for none of the unseen camera's 521 frames: that score is the macro-F1 of answering ACTIVE_PLAY to everything, not a measurement of the augmentation. | `0.0` | `results/augmentation_transfer.csv` | — | ✔ |
+| Turning every augmentation on scored 0.3479 in the published draw, the same as colour jitter alone and below no augmentation at all, though it contains every effect `light` has. | `0.3479` | `results/augmentation_transfer.csv` | — | ✔ |
 
 ## Notes on individual claims
 
@@ -68,5 +70,7 @@ uv run python -m experiments.verify_claims --check
 - **camera-transfer-one-frame** — Read with its two caveats, both in the source table: the 243 held-out empty frames are 3 distinct scenes, which is *why* one frame suffices, and every k-shot row carries the count of near-duplicate pairs crossing the train/test boundary - 1,400 already at k=1. `where` is empty until this reaches the write-up.
 - **onboarding-one-frame** — An optimistic bound on onboarding a new *venue*: a second camera on the same pitch is an easier target than a new site, and leave-one-venue-out adaptation is not runnable here because only one of eight venues carries more than one class. Read beside the source table's leak column - camera B is 12 distinct scenes, which is why a single frame goes so far.
 - **onboarding-source-stops-helping** — The control that reframes the transfer story. Compare against `adapted_mean` in the same row, which is equal to four decimal places. Holds for all three backbones.
-- **augmentation-light-recovers-empty** — Compare the `baseline` row's 0.0000 in the same table, and the `none` row - four identical copies of each frame - which does not move it. One seed per preset, so read the ordering rather than the third decimal.
-- **augmentation-full-erases-the-gain** — The practical finding: match the augmentation to the shift being fought. Adding the rest does not dilute the benefit, it erases it - `full` returns empty-pitch recall to zero.
+- **augmentation-light-recovers-empty** — **Retracted as a claim about the method on 2026-09-10 and restated as a claim about the draw.** It was published as "augmentation recovers empty recall" on this single seed; four further draws scored 0.000, 0.000, 0.000 and 0.062. The row itself is unchanged and reproducible, which is exactly why a test that fixed this value could not catch the problem. Quote it only beside `augmentation-light-is-draw-dependent`.
+- **augmentation-light-is-draw-dependent** — The retraction, as a number. Range 0.3479-0.8550, median 0.3510, mean 0.4635 - so the published 0.8550 is the maximum of five. On a metric bounded in [0, 1] this is the finding, and it is why the mean is not quotable either.
+- **augmentation-collapse-is-one-class** — The `pred_empty` column was added because 0.3479 kept recurring across presets and draws that share nothing else - `colour`, `full`, and three of the five `light` draws. It is the trivial predictor each time. Rows written before the column existed leave it blank rather than claiming zero.
+- **augmentation-full-erases-the-gain** — One draw of `full` against one draw of `light`, so the "match the augmentation to the shift" reading it was written for no longer follows - `light`'s own number moved 0.5 across draws. What the 0.3479 does say is `augmentation-collapse-is-one-class`: this configuration produced the trivial predictor.

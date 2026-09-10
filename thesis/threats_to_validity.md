@@ -256,6 +256,39 @@ answered.
 *Mitigation:* `risk_coverage_band` reports the band across tie orderings rather than one
 arbitrary curve.
 
+### 4.5 The intervals cover the sample, not the construction *(quantified — and it cost a finding)*
+
+Every interval in this project is a bootstrap over *observations*: resample the test rows,
+recompute the metric. None of them resample the **construction** — which split was drawn,
+which augmentation views were drawn, which synthetic sequences were composed. Those are a
+separate source of variance, and one of them turned out to be the larger one.
+
+Where the draw is the object of study, this project does replicate: the benchmark takes five
+split replicates per protocol, the label-efficiency curve five seeds per training size, the
+onboarding curve reports `n_seeds` with a min and a max. Exactly two results consumed a
+random draw as a *means to an end* and took it once.
+
+**The first was WP3-T6, and it was wrong.** `light` augmentation was reported at 0.8550
+macro-F1 with empty-pitch recall 0.687. Re-drawn four times with the same rows, the same
+preset, the same probe seed and the same test set, it scores 0.3479, 0.3501, 0.3510 and
+0.4136 — sd **0.2206**, median **0.3510**, and four of the five draws below the 0.4406 the
+probe reaches with no augmentation at all (`augmentation-light-is-draw-dependent`). A
+bootstrap interval on any one of those five rows would have been narrow and would have told
+the reader nothing about the other four.
+
+**The second is STAN**, whose composed train and test sequences come from a single seeded
+draw (`stan_preliminary.py`, `SEED` and `SEED + 1`). It is already reported as preliminary
+for a different reason — two real slots — and this is a second, independent reason to hold
+it there until the draws are replicated. The stage runs in three minutes.
+
+*Mitigation:* `augmentation_transfer_spread.csv` reports mean, sd and range per preset, and
+`augmentation_transfer.py` takes `--seeds`. The STAN replication is open (WP5-T1).
+
+*What it costs to fix elsewhere:* nothing, where the replication already exists. The general
+lesson is the cheap one — **a result that depends on a draw needs more than one draw, and a
+confidence interval is not a substitute for it**, because the two quantify different things
+and only the reported one is small.
+
 ---
 
 ## 5 · What would actually change these

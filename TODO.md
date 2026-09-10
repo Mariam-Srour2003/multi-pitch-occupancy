@@ -651,24 +651,50 @@ tagged with the question it answers. Fix that first — it is what turns a build
         rendered as white poles at 320×180 and would have been invisible hairlines at 1080p
         after the resize to 224. Now every dimension is a fraction of frame height, pinned by
         a test. **No shape/dtype check could have caught that** — only looking at it.
-  - [x] ★ **Run where it answers something — `experiments/augmentation_transfer.py`**, 11
+  - [x] ★ **Run where it answers something — `experiments/augmentation_transfer.py`**, 29
         tests. A generic benchmark flag still needs its own extraction budget (`IDEAS.md` #2);
         this asks one question on one boundary: **can augmentation buy what five labelled
         frames of a new camera buy?**
-  - [x] **`light` (brightness, gamma, noise) takes empty-pitch recall on an unseen camera from
-        0.000 to 0.687** with no target labels, closing **75%** of the gap one labelled frame
-        closes (`augmentation-light-recovers-empty`). The duplicate-rows control moves *down*,
-        so this is variety and not row count.
-  - [x] ★ **`full` — every effect at once, including all of `light`'s — scores 0.3479, the
-        same as colour jitter alone and below no augmentation, with empty recall back at
-        zero** (`augmentation-full-erases-the-gain`). Turning more on did not dilute the gain,
-        it **erased** it. Match the augmentation to the shift; adding the rest costs you the
-        benefit. This runs against instinct, so a test pins it.
-  - [x] Neither clean story is true: 0.855 is not the 0.9895 a labelled frame reaches, so
-        augmentation is no substitute — but "it does not help across cameras" was also wrong.
-  - [ ] One seed per preset, so nothing bounds the variance of `light`'s 0.855. Read the
-        ordering, not the third decimal.
-  - [ ] Flag in the full benchmark — still deferred, still for the extraction-budget reason.
+  - [x] ★ **RETRACTED, same day, by the check this list was already asking for.** The bullet
+        below reported `light` taking empty-pitch recall from 0.000 to **0.687** at 0.8550
+        macro-F1, and the next bullet noted that only one draw had been taken. That note was
+        the finding. Four further draws — same rows, same preset, same probe seed, same test
+        set, only the random draw differs — score **0.3479, 0.3501, 0.3510 and 0.4136**.
+        Median 0.3510, sd 0.2206, and **four of the five land below the 0.4406 the probe
+        reaches with no augmentation at all** (`augmentation-light-is-draw-dependent`). The
+        published number is the maximum of five.
+  - [x] ★ **The repeated 0.3479 was the tell, and `pred_empty` made it legible.** Presets
+        and draws sharing nothing else kept scoring exactly 0.3479 — `colour`, `full`, and
+        three of the five `light` draws. It is the macro-F1 of answering ACTIVE_PLAY to all
+        521 frames (`augmentation-collapse-is-one-class`). What varies between draws is
+        whether the fitted boundary reaches camera B's empty pitch at all, so the result does
+        not degrade gracefully; it is a working classifier or the trivial one.
+  - [x] ~~**`light` (brightness, gamma, noise) takes empty-pitch recall on an unseen camera
+        from 0.000 to 0.687** with no target labels, closing **75%** of the gap one labelled
+        frame closes~~ — **true of one draw in five** (`augmentation-light-recovers-empty`,
+        restated as a claim about that draw). The duplicate-rows control still rules out row
+        count *in that draw*, which is worth keeping: what the draw was not is a separate
+        question from what it was, and only the second answer was wrong.
+  - [x] ★ ~~**`full` — every effect at once — scores 0.3479 … turning more on erased the
+        gain. Match the augmentation to the shift.**~~ — one draw of `full` against one draw
+        of `light`, and `light`'s own number moves by 0.5 between draws, so the comparison
+        cannot carry that reading. What the 0.3479 does say is that this configuration
+        produced the trivial predictor.
+  - [x] Neither clean story is true, and the third one was not either: 0.855 is not the
+        0.9895 a labelled frame reaches, "it does not help across cameras" was too strong,
+        and "the right preset recovers most of the distance" was one draw.
+  - [x] ★ **Five draws taken, and the run is now built for it**: `--seeds`, `--presets`,
+        resume from the CSV, a `pred_empty` column, an `augmentation_transfer_spread.csv`
+        with the range and sd, and a lock file — resuming made two concurrent runs erase
+        each other's rows, which nearly happened during development.
+  - [ ] ★ **What would make augmentation quotable here.** Not more presets: the variance is
+        in the fit, not the recipe. Either anchor the EMPTY boundary with target-camera
+        frames (which is the five-frame recipe, and it already works), or get empty-pitch
+        footage from a second venue so the class is not one morning at one site — 0.3(a)
+        again, from a different direction.
+  - [ ] Flag in the full benchmark — still deferred, still for the extraction-budget reason,
+        and now also because a flag whose effect moves 0.5 between draws would need every
+        cell of that table replicated to mean anything.
 - [x] **WP3-T7 Class balancing.** `class_weight='balanced'` + optional weighted sampling, default ON
       for 3-class runs. *Accept:* C3 recall improves on validation vs unweighted.
   - [x] Default is already ON. `experiments/class_balancing.py` → `class_balancing.csv`.
@@ -1186,6 +1212,17 @@ tagged with the question it answers. Fix that first — it is what turns a build
         in the dataset.** The other 396 are highlight clips, all ACTIVE_PLAY. So "train on
         synthetic, test on real slots only" cannot be made frame-disjoint here. This is the
         sharpest statement of why **WP2-T8 blocks WP5-T1**, and it is measured, not asserted.
+  - [ ] ★ **[NEW 2026-09-10] STAN rests on one synthetic draw, and that is now a known
+        risk rather than a theoretical one.** `stan_preliminary.py` composes its train and
+        test sequences from a single seeded draw (`SEED`, `SEED + 1`). The project
+        replicates wherever the draw is the object of study — the benchmark takes five split
+        replicates per protocol, the label-efficiency curve five seeds per size, the
+        onboarding curve reports `n_seeds` — and skips it wherever the draw is a *means to
+        an end*. There were exactly two of those: the augmentation views and these
+        sequences. The augmentation one moved **0.855 → 0.350 between two draws** and took a
+        published headline with it. Re-run STAN over five composition draws and report the
+        spread; the stage is three minutes, so this costs a quarter of an hour and either
+        removes a doubt or finds the same thing twice.
   - [ ] **WP5-T6 remains open**: STAN consumes the *fused* sequence, not both camera halves.
 - [ ] **WP5-T6 ★ Feed both camera halves separately instead of pre-fusing them.** Current design
       fuses camera A/B with a max-activity rule *before* aggregation, which throws away information:
