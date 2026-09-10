@@ -1480,7 +1480,12 @@ tagged with the question it answers. Fix that first — it is what turns a build
       (KL on cached logits — cheap); OpenVINO export FP32/INT8 of the ConvNeXtV2 backbone; measure
       accuracy delta + latency on the actual target CPU. *Accept:* `results/efficiency.csv`
       (PyTorch vs OV-FP32 vs OV-INT8: ms, RAM, accuracy). **(RQ2)**
-- [ ] **WP5-T5 M4 gate check** — ≥ STAN + one fusion module fully ablated with significance.
+- [x] **WP5-T5 M4 gate check — generated, and M4 passes on artefacts.**
+      `experiments/gate_check.py` → `results/gate_status.md`. Both re-cut criteria check out:
+      the fusion head is ablated against its own ungated rung (routing worth −0.0238, now
+      Holm-corrected with effect sizes) and STAN is reported against four tuned baselines with
+      the preliminary caveat in the results file. Each is tested **by removing the work and
+      confirming the criterion fails**, not by asserting a filename.
 - [ ] **M4 GATE [H]** *By week 18.*
 
 ---
@@ -1832,7 +1837,11 @@ tagged with the question it answers. Fix that first — it is what turns a build
       chapter and enforce it in code: output is decision support, a human confirms every anomaly, no
       automated financial action. Cheap to state, and it is the answer to the ethics question you
       *will* be asked about auditing staff.
-- [ ] **WP6-T9 M5 gate check** — full pipeline including reconciliation runs end-to-end on mock feeds.
+- [x] **WP6-T9 M5 gate check — generated, and M5 passes on artefacts.** All five criteria:
+      reconciliation implemented, retention enforced, the capture-rate degraded mode present,
+      the scheduler service, and — since 2026-09-10 — an end-to-end run **with the model in
+      it** rather than a table rebuilt from the label column, checked by comparing the
+      verdicts rather than by finding a file.
 - [ ] **M5 GATE [H]** *By week 19.*
 
 ---
@@ -1967,9 +1976,22 @@ tagged with the question it answers. Fix that first — it is what turns a build
         file is either rendered or named in `OUT_OF_SCOPE` with a reason. 21 are out of scope.
         A companion test asserts the sections reach the **generated HTML**, not just the
         builder — the distinction the search-viewer safeguard failed on.
-  - [ ] ★ Decide what else belongs on the export before the defence. The list is now
-        explicit, so this is a review rather than an archaeology exercise; `rq6_risk_coverage`
-        in particular needs its band drawn as a band (WP4-T9) before it can go on.
+  - [x] ★ **Reviewed 2026-09-11, and the answer is "nothing more, deliberately".** The
+        blocker named here is gone — `rq6_risk_coverage` has its band (WP4-T9,
+        `figs/risk_coverage_band`) and is on the export as a figure rather than a table,
+        which is the right form for a quantity whose ordering of tied points is arbitrary.
+        The export renders nine artefacts and names 23 out of scope with a reason each.
+    - [x] **The four added today stay off, for the reason the list already gives.**
+          `augmentation_transfer_spread`, `stan_draw_spread`, `end_to_end_model_slots` and
+          the per-draw augmentation rows are all *arguments* rather than headline numbers —
+          a retraction, a spread, and an in-sample wiring check. A reader who sees the
+          0.8550 without the five draws around it is worse off than one who reads the log,
+          and the served site renders `EXPERIMENT_LOG.md` in full, so nothing is hidden.
+    - [ ] ★ **[H] One judgement left to the author.** The export leads with results and the
+          most defensible thing in this project is the *method* — the retractions, the
+          guards that did not guard, the draw-dependence. Whether the standalone export
+          should carry a short "what we got wrong and how we found it" section is a framing
+          decision, and `thesis/defence_deck.md` slide 1 already forces the same choice.
 - [x] **WP8-T2 Figure set — three done.** `results/figs/`: label-efficiency curve,
       ranking-inversion slope chart, cross-venue per-fold recall. Regenerated from the CSVs,
       validated palette, PNG + PDF.
