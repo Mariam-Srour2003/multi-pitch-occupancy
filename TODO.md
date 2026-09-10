@@ -773,7 +773,21 @@ tagged with the question it answers. Fix that first — it is what turns a build
         `experiments/search_resolution.py` → `results/search_resolution.csv`, 11 tests, stage
         `search-resolution`. **Neither fix was "re-run the search":** all 88 evaluations still
         have their caches, so this is re-scoring. Both published tables reproduce first — 88
-        unweighted recalls and all 52 repaired false-play rates.
+        unweighted recalls and the repaired false-play rates.
+    - [x] ★ **[2026-09-10] The repaired table covered 52 of the 88, not all of them.** Found
+          by the new freshness check in `reproduce_all --check`: `preprocess_search.json` was
+          committed thirteen hours after `false_play_rescored.csv`, so the rescoring had been
+          run against an earlier search. Re-run, it goes **52 → 88 rows** and **not one of
+          the 52 moved** — same `play_recall`, same `worst_fold`, same `false_play_fixed`.
+          The table was incomplete rather than wrong, and it now covers the whole search.
+    - [ ] ★ **A caveat that came out of it: `false_play_old` reads a moving target.** The
+          column is meant to show what the *broken* control returned (0.0000 for everything),
+          but it reads `false_play` out of the search JSON — and `preprocess_search.py`
+          repairs cached entries **in place** when it meets them. Seven DINOv2 rows now show
+          the repaired value in the "old" column, so the before/after contrast is quietly
+          eroding as the JSON is touched. The original zeros are not recoverable; the log
+          entry of 2026-09-08 records what the broken control returned, and that entry is now
+          the only place it survives.
     - [x] ★ **RETRACTION: the CLAHE gate is weak, not vacuous.** The diagnostic this bullet
           used to quote said `auto` fires on **99.81%** of frames and differs from `on` on
           **3**. It measured contrast on the letterboxed 224×224 *output*; the gate runs in
@@ -2096,10 +2110,18 @@ polish is not worth thesis marks.
       lists what the floor deliberately does *not* require (STAN as a headline, 30 real slots, a
       non-degenerate RQ6 test set, live deployment, a released dataset), so a failure in any of them
       is a scoping note rather than a crisis.
-  - [ ] ★ **The one genuine hole in the floor: the labelling protocol (WP1-T2) is unwritten.**
-        All 1,692 labels rest on a definition that exists only in one person's head, and it is the
-        M1 artefact that was due week 4. It is a writing task, it is cheap, and it should come
-        **before anything in WP5**. Everything else in the floor is done.
+  - [x] ★ **The one genuine hole in the floor — the labelling protocol (WP1-T2) — was
+        written on 2026-09-07.** `thesis/labelling_protocol.md`, 219 lines: the ROI rule, the
+        four folders and their three reporting classes, the ordered decision rules, the slot
+        aggregation thresholds, the known label errors and the agreement plan. Until it
+        existed, all 1,692 labels rested on a definition that lived in one person's head,
+        which is the first thing a sharp examiner asks about a single-annotator dataset.
+    - [ ] **[H] What remains is not writing.** Supervisor sign-off, and two open items that
+          need the client (the slot-level rules, and whether a booked slot used for a
+          non-sporting purpose counts as USED). One item *is* ours: no ROI polygons exist
+          (WP3-T1), so "people outside the pitch do not count" is the annotator's judgement
+          rather than a constraint in code — and §2.1 says so in the document rather than
+          implying otherwise.
 
 ---
 
@@ -2118,7 +2140,7 @@ polish is not worth thesis marks.
 | ~~Real slots stay < 30~~ | — | **Resolved as fact.** 2 exist. STAN is already demoted to preliminary and M4 re-cut onto 5.B. Nothing left to watch. |
 | ~~Only 1 venue accessible~~ | — | **Resolved better than feared.** 9 venues for ACTIVE_PLAY. *But* still exactly 1 venue for EMPTY — which is the live risk below, and is not the same thing. |
 | **EMPTY stays single-venue** | Now — it already is | **The live scientific risk, and the one worth acting on.** It is what makes RQ6 unanswerable, keeps cross-venue evaluation recall-only, and leaves the false-play comparison on 3–10 effective scenes. Action: the 0.3(a) request. If declined, all three stay scoped as unanswerable in `preregistration.md` — which is already written, so the cost is bounded. |
-| **The labelling protocol stays unwritten** | Now — it is | Highest-value open item in the plan (see `thesis/mvt.md`). 1,692 labels rest on it and it is the overdue M1 artefact. Write WP1-T2 before starting WP5. |
+| ~~The labelling protocol stays unwritten~~ | — | **Resolved 2026-09-07.** `thesis/labelling_protocol.md` is written and is what the M1 gate checks. The residual risk is not writing but **sign-off**: it is unapproved, two of its open questions need the client, and its ROI rule is annotator judgement until WP3-T1 draws the polygons. |
 | Booking DB access blocked | No sample export by the time WP6-T4 starts | Manual booking sheet for the case study; RQ4 reported as design + fixtures, not measured precision |
 | Novel module gives no gain | WP5 ablation p > 0.05 | Report as a negative result with analysis — still a contribution, **provided** WP5-T9's logit-average baseline was run first so the null is about the gate and not the ensemble |
 | Laptop sleep kills runs | Any multi-hour run | Chunk runs, incremental writes, cache-resumable (WP0-T11). ★ Note the feature-cache stage is *not* in fact resumable — see the reproduction audit |

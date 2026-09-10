@@ -77,7 +77,7 @@ still stands.
 
 ---
 
-## The one thing the floor *does* require that is not yet done
+## The one thing the floor required beyond the four — written, and not fully closed
 
 **A labelling protocol (WP1-T2).**
 

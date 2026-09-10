@@ -24,11 +24,47 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / "results"
 DATA = ROOT / "data"
+
+
+@lru_cache(maxsize=None)
+def _last_content_change(path: Path) -> int | None:
+    """When this file's *content* last changed, as a unix timestamp, or None if unknown.
+
+    Git rather than `st_mtime`, and the difference is the whole reason this function exists.
+    A modification time answers "when was this file last written", which is not the question:
+    re-running a stage that produces identical bytes updates the mtime and makes everything
+    downstream look stale. Measured on this repository, an mtime comparison reported four
+    stale stages and every one was that false positive - `h3_cross_venue_recall.csv` had been
+    rewritten byte-for-byte on 2026-09-08 and has not changed content since 2026-09-06.
+
+    Git commits only when content changed, so the timestamp of the last commit touching a
+    file is a content check that this project already keeps. An uncommitted modification
+    counts as "changed now", because it is a change the pipeline has not seen either.
+
+    Returns None for anything git does not track, which is the correct answer rather than a
+    guess: `data/` is ignored, so a cache or a manifest has no history here and no stage
+    should be called stale on account of one.
+    """
+    try:
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--", str(path)],
+            capture_output=True, cwd=ROOT, timeout=30,
+        ).stdout.decode("utf-8", "replace").strip()
+        if dirty:
+            return int(time.time())
+        out = subprocess.run(
+            ["git", "log", "-1", "--format=%ct", "--", str(path)],
+            capture_output=True, cwd=ROOT, timeout=30,
+        ).stdout.decode("utf-8", "replace").strip()
+        return int(out) if out else None
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +85,42 @@ class Stage:
 
     def satisfied(self) -> bool:
         return all(p.exists() for p in self.produces)
+
+    def stale_inputs(self) -> list[Path]:
+        """Required inputs whose content changed after this stage's output was last built.
+
+        `satisfied()` asks whether an output exists, which is a different question from
+        whether it is still the output of its inputs - and on 2026-09-10 the difference cost
+        three artefacts. Re-measuring the latency table left `figs/accuracy_vs_latency.png`
+        plotting the old numbers and `project_site.html` quoting them, while `--check`
+        reported every stage "done", because every file existed.
+
+        Content, via `_last_content_change`, not modification time. The mtime version of this
+        check was written first and reported four stale stages on this repository, all four of
+        them files rewritten byte-for-byte by a rerun. A check that cries wolf on its first
+        contact with the data is worse than no check, because the next person learns to skim
+        past it.
+
+        **Advisory, and never used to decide what to run.** Untracked inputs return None and
+        are skipped rather than guessed at, so a stage reading only `data/` - which is
+        gitignored - is never called stale.
+        """
+        if not self.satisfied() or not self.requires:
+            return []
+        built = [_last_content_change(p) for p in self.produces]
+        known = [t for t in built if t is not None]
+        if not known:
+            return []
+        oldest_output = min(known)
+        stale = []
+        for p in self.requires:
+            if not p.is_file():
+                continue
+            changed = _last_content_change(p)
+            if changed is not None and changed > oldest_output:
+                stale.append(p)
+        return sorted(stale)
+
 
     def blocked_by(self) -> list[Path]:
         return [p for p in self.requires if not p.exists()]
@@ -479,6 +551,7 @@ def main() -> int:
     print("-" * 96)
     todo: list[Stage] = []
     held: list[str] = []
+    outdated: list[tuple[Stage, list[Path]]] = []
     blocked: list[tuple[Stage, list[Path]]] = []
     for s in stages:
         missing = s.blocked_by()
@@ -492,7 +565,10 @@ def main() -> int:
             state = "held (machine)"
             held.append(s.name)
         elif s.satisfied() and not args.force:
-            state = "done"
+            stale = s.stale_inputs()
+            state = "done" if not stale else "done (stale?)"
+            if stale:
+                outdated.append((s, stale))
         else:
             state = "to run"
             todo.append(s)
@@ -504,6 +580,18 @@ def main() -> int:
         if state == "DEFERRED":
             outstanding.append(s.name)
         print(f"{s.name:<24}{state:<12}{s.minutes:>6}  {s.note}")
+
+    if outdated:
+        print(
+            "\nmay be stale - an input's content changed after the output was last built."
+            "\nRead from git, so a rerun that produced identical bytes does not trigger it;"
+            "\nbut an output can also be legitimately unchanged because the input's change did"
+            "\nnot reach it, so this says re-run to be sure rather than this is wrong:"
+        )
+        for s, inputs in outdated:
+            names = ", ".join(str(i.relative_to(ROOT)) for i in inputs)
+            print(f"  {s.name}: built before {names}")
+        print("  rerun with --only <stage> to settle it.")
 
     if blocked:
         print("\nblocked stages and what they need:")

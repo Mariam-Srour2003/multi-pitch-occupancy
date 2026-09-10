@@ -4198,3 +4198,79 @@ cannot separate from fold-to-fold variation. A mean delta over seven folds this 
 no sense of how wide they were, which is the whole argument for the rule.
 
 - 2026-09-10 | WP4-T4b Holm and effect sizes | `python -m experiments.fusion_head_ablation` | `fusion_head_comparisons.csv` | the one report quoting p-values without the project's own standing rule; Holm and Cohen's d added, no conclusion changes, and the +0.1015 confound delta turns out to be d=+0.416 against routing's d=-0.378
+
+---
+
+## 2026-09-10 — the derived artefacts the latency correction left behind
+
+`results/figs/accuracy_vs_latency.png`, `results/project_site.html`, and a stale claim in
+`thesis/mvt.md` and the risk register.
+
+Re-measuring the latency table moved three numbers. Three things downstream had already been
+built from the old ones and did not notice, because **`reproduce_all --check` tests whether an
+output exists, not whether it is older than its input.** Every stage read "done".
+
+- `figs/accuracy_vs_latency.png` plotted the contended concurrent times. Regenerated: DINOv2
+  4.1 s, ViT 3.1 s, ConvNeXtV2 1.9 s, against the 5.5/4.4/2.5 it was drawn with. Its argument
+  is unchanged and slightly stronger — the 60-second budget line is further away than the
+  figure claimed. Only this PNG changed; the other seven are byte-identical, which is the
+  check that says the latency table was the only input that moved.
+- `results/project_site.html` carried 418/151/303 ms in its model table and now carries
+  219/100/169.
+- `thesis/mvt.md` still headed its labelling-protocol section *"The one thing the floor does
+  require that is not yet done"* while its own body said the document was drafted on
+  2026-09-07, and the risk register still listed *"the labelling protocol stays unwritten"* as
+  live. It is 219 lines long and the M1 gate checks it. The residual risk is **sign-off**, not
+  writing, and both now say so.
+
+**The useful part is the shape, not the three files.** A freshness check is a different thing
+from an existence check, and this pipeline only has the second. Nothing here was wrong when it
+was written; it went stale silently, which is the same failure as the latency table itself —
+a warning recorded and then not acted on — one level up.
+
+- 2026-09-10 | derived artefacts refreshed | `make_figures`, `make_site` | `figs/accuracy_vs_latency.png`, `project_site.html` | the latency correction left three downstream artefacts stale and `reproduce_all --check` could not see it: it tests existence, not freshness
+
+---
+
+## 2026-09-10 — a freshness check for the reproduction pipeline, and what it found first
+
+`experiments/reproduce_all.py` — `Stage.stale_inputs()` and a `--check` section.
+
+Re-measuring the latency table left three artefacts built from the old numbers, and
+`--check` reported every stage "done" throughout, because **it tests whether an output exists,
+not whether it is still the output of its inputs.** That gap is now reported.
+
+**It was written twice, and the first version was wrong in an instructive way.** The obvious
+implementation compares modification times. Run against this repository it reported four stale
+stages and **every one was a false positive**: `h3_cross_venue_recall.csv` had been rewritten
+byte-for-byte by a rerun on 2026-09-08 and has not changed *content* since 2026-09-06, so
+everything downstream of it looked stale. A check that cries wolf on its first contact with
+the data is worse than no check, because the next person learns to skim past it.
+
+The second version reads **git**, which commits only when content changed — a content check
+this project already keeps. An uncommitted modification counts as "changed now"; anything git
+does not track returns None and is skipped, so a stage reading only the gitignored `data/` is
+never called stale. It is advisory, printed beside "done", and never used to decide what to
+run: an output can also be legitimately unchanged because the input's change did not reach it,
+and a build system that guessed would be worse than one that asks.
+
+### What it found on its first run
+
+**`false_play_rescored.csv` covered 52 of the search's 88 evaluations.** `preprocess_search.json`
+was committed thirteen hours after it, so the rescoring had been run against an earlier search
+and nothing said so. Re-run: **52 → 88 rows, and not one of the 52 moved** — identical
+`play_recall`, `worst_fold` and `false_play_fixed` throughout. The table was incomplete, not
+wrong, and the sentence claiming "all 52 repaired false-play rates" was describing 59% of the
+search.
+
+**And a caveat that fell out of it.** `false_play_old` is meant to hold what the *broken*
+control returned — 0.0000 for everything — but it reads `false_play` from the search JSON, and
+`preprocess_search.py` repairs cached entries **in place** when it encounters them. Seven
+DINOv2 rows now carry the repaired value in the "old" column, so the before/after contrast the
+table exists to show is eroding as the JSON is touched. The original zeros cannot be recovered;
+the 2026-09-08 entry above is now the only record of what the broken control returned.
+
+That is a second instance of the same shape as the latency table: an artefact whose meaning
+depends on when it was built, with nothing recording when that was.
+
+- 2026-09-10 | reproduction freshness check | `python experiments/reproduce_all.py --check` | `experiments/reproduce_all.py` | existence is not freshness; the mtime version gave 4/4 false positives so it reads git instead. First true positive: `false_play_rescored.csv` covered 52 of 88 search evaluations, now 88 with none of the 52 moved

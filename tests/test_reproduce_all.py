@@ -219,3 +219,59 @@ def test_the_claims_ledger_runs_last() -> None:
     """It checks artefacts every other stage writes, so running it earlier would verify a
     previous run's numbers and report success on a pipeline that had not finished."""
     assert STAGES[-1].name == "claims-ledger"
+
+
+# --- freshness, which is not existence (2026-09-10) ----------------------------------------
+
+
+def test_a_stage_with_no_inputs_is_never_stale(tmp_path) -> None:
+    """`stale_inputs` compares against `requires`. A stage with none has nothing to be
+    older than, and must not be reported on the strength of an empty comparison."""
+    out = tmp_path / "made.csv"
+    out.write_text("x\n", encoding="utf-8")
+    stage = reproduce_all.Stage(name="s", command=["true"], produces=[out], requires=[])
+    assert stage.stale_inputs() == []
+
+
+def test_an_unsatisfied_stage_is_not_reported_as_stale(tmp_path) -> None:
+    """It has not been built at all, so "built before its input" says nothing about it -
+    and it is already listed as `to run`. Reporting it twice under two names is noise."""
+    stage = reproduce_all.Stage(name="s", command=["true"], produces=[tmp_path / "absent.csv"],
+                     requires=[tmp_path / "in.csv"])
+    assert stage.stale_inputs() == []
+
+
+def test_an_untracked_input_is_skipped_rather_than_guessed_at(tmp_path) -> None:
+    """`data/` is gitignored, so most stages read inputs git knows nothing about. Treating
+    "no history" as "changed now" would mark almost every stage stale forever."""
+    src = tmp_path / "untracked.npz"
+    src.write_text("x", encoding="utf-8")
+    out = tmp_path / "out.csv"
+    out.write_text("y", encoding="utf-8")
+    stage = reproduce_all.Stage(name="s", command=["true"], produces=[out], requires=[src])
+    assert stage.stale_inputs() == []
+
+
+def test_freshness_is_read_from_content_not_from_modification_time() -> None:
+    """The reason this check was written twice.
+
+    The mtime version reported four stale stages on this repository and every one was a
+    rerun that wrote identical bytes - `h3_cross_venue_recall.csv` was rewritten on
+    2026-09-08 and has not changed content since 2026-09-06. So the check must not move when
+    a tracked file is touched, only when its content is committed as different.
+    """
+    tracked = ROOT / "results" / "h3_cross_venue_recall.csv"
+    if not tracked.exists():
+        pytest.skip("results not present")
+    before = reproduce_all._last_content_change(tracked)
+    if before is None:
+        pytest.skip("file is not tracked in this checkout")
+    reproduce_all._last_content_change.cache_clear()
+    tracked.touch()
+    try:
+        assert reproduce_all._last_content_change(tracked) == before, (
+            "touching a file changed its recorded content time - this is an mtime check "
+            "again, and it will report every rerun as staleness"
+        )
+    finally:
+        reproduce_all._last_content_change.cache_clear()
