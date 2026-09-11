@@ -4538,3 +4538,7 @@ one on which two sequence models can actually differ. Composing more synthetic s
 break the tie, and that was measured rather than assumed.
 
 - 2026-09-11 | WP5-T3/T4/T6 blocked | `stan_draw_spread.csv` | TODO WP5-T6 | the composed benchmark hits its ceiling in 3 draws of 5 with sd 0.0884, so it cannot rank a new architecture against the current one; the three unbuilt modules are blocked on measurement rather than on effort, and ≥30 real slots is what changes that
+
+- 2026-09-11 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 34 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-11 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
