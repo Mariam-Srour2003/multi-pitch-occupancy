@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from pitch_occupancy import __version__
 from pitch_occupancy.api.clip_page import CLIP_HTML
 from pitch_occupancy.api.clip_review import router as clip_router
+from pitch_occupancy.api.clip_walkthrough import router as walkthrough_router
 from pitch_occupancy.api.dashboard import dashboard_response
 from pitch_occupancy.api.routes import router
 from pitch_occupancy.api.schedule_editor import router as schedule_router
@@ -46,6 +47,9 @@ app.include_router(schedule_router)
 # WP6-T6. Analyses an uploaded clip and keeps none of it - see the module docstring for
 # why a POST that stores nothing sits beside /schedule/validate rather than the override.
 app.include_router(clip_router)
+# WP4-T5. The same analysis streamed step by step, with the evidence map that
+# `vision/explain.py` has been able to produce since WP4-T5 and nothing showed.
+app.include_router(walkthrough_router)
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)

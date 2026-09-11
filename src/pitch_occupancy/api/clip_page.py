@@ -124,6 +124,22 @@ del{color:var(--ink-3);text-decoration-color:var(--flag);margin-right:7px}
 .note b{color:var(--ink)}
 .warn{border-left-color:var(--flag)}
 .err{border-left-color:var(--flag);color:var(--flag)}
+#stage{display:none}#stage.on{display:block}
+.stagebar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px;
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.stagebar .spacer{margin-left:auto}
+.stagenow{font:600 12.5px 'JetBrains Mono',monospace;color:var(--accent)}
+.stagebar input[type=range]{width:150px;accent-color:var(--accent)}
+.panes{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.panes figure{margin:0;background:var(--surface);border:1px solid var(--line);
+  border-radius:10px;overflow:hidden}
+.panes img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:var(--surface-2)}
+.panes figcaption{font:500 10.5px 'JetBrains Mono',monospace;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-3);padding:9px 13px;border-top:1px solid var(--line)}
+.verdictbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 14px}
+.verdictbar .spacer{margin-left:auto}
+.tile .v.sm{font-size:17px}
 #busy{display:none;align-items:center;gap:10px;color:var(--ink-2);font-size:13px;margin-top:14px}
 #busy.on{display:flex}
 .spin{width:15px;height:15px;border:2px solid var(--line);border-top-color:var(--accent);
@@ -158,11 +174,71 @@ state changed. Nothing is stored: the file is deleted as soon as it has been rea
       <option value="5">5 - fix pairs</option>
       <option value="7">7 - fix triples</option>
     </select></div>
+  <div><label for="expn">Explain in detail</label>
+    <select id="expn">
+      <option value="8" selected>first 8 frames</option>
+      <option value="20">first 20</option>
+      <option value="-1">every frame</option>
+      <option value="0">none</option>
+    </select></div>
   <button class="act" id="go" disabled>Analyse</button>
+  <button class="act" id="watch" disabled>Watch it work</button>
 </div>
 
 <div id="busy"><div class="spin"></div><span id="busytxt">Analysing&hellip;</span></div>
 <div id="err" class="note err" style="display:none"></div>
+
+<div id="stage">
+  <h2>Watching it work</h2>
+  <p class="sub2">Each frame is sampled, embedded by the frozen backbone, and scored by the
+    linear probe. The overlay is <b>not a saliency heuristic</b> — the probe is linear over
+    mean-pooled features, so the map below <i>is</i> the summands of the score, and the
+    reconstruction error beside it proves that rather than asserting it.</p>
+
+  <div class="stagebar">
+    <span class="stagenow" id="stage-step">waiting</span>
+    <span class="spacer"></span>
+    <label for="speed" style="font-size:12px;color:var(--ink-3)">slow motion</label>
+    <input type="range" id="speed" min="0" max="3000" step="100" value="1200">
+    <span class="mono" id="speedtxt">1.2s</span>
+    <button class="ghost" id="skip">Continue without slow motion</button>
+  </div>
+  <p class="sub2" style="margin:-6px 0 14px">Slow motion is a pause this page adds between
+    steps; the button drops it. The backbone runs at the same speed either way &mdash; it does
+    not make the model faster. The control that changes the actual work is
+    <b>explain in detail</b>, because an explained frame costs about twice a bare prediction.</p>
+
+  <div class="panes">
+    <figure><img id="img-raw" alt="sampled frame">
+      <figcaption>the frame as sampled</figcaption></figure>
+    <figure><img id="img-heat" alt="evidence map">
+      <figcaption>where the score came from</figcaption></figure>
+  </div>
+
+  <div class="verdictbar" id="verdictbar">
+    <span class="pill" id="v-pred">&mdash;</span>
+    <span class="mono" id="v-conf"></span>
+    <span class="spacer"></span>
+    <span class="mono" id="v-ms"></span>
+  </div>
+
+  <div class="tiles" style="margin-top:14px">
+    <div class="tile"><div class="k">Score from map</div>
+      <div class="v sm" id="x-map">&mdash;</div></div>
+    <div class="tile"><div class="k">Score direct</div>
+      <div class="v sm" id="x-dir">&mdash;</div></div>
+    <div class="tile"><div class="k">Reconstruction err</div>
+      <div class="v sm" id="x-err">&mdash;</div></div>
+    <div class="tile"><div class="k">People detected</div>
+      <div class="v sm" id="x-ppl">&mdash;</div></div>
+    <div class="tile" id="x-focus-tile"><div class="k">Evidence focus</div>
+      <div class="v sm" id="x-focus">&mdash;</div></div>
+  </div>
+  <p class="sub2" id="focusnote" style="margin-top:10px"></p>
+
+  <div class="tl" id="livetl" style="margin-top:16px"></div>
+  <div class="axis"><span>0:00</span><span id="livecount"></span></div>
+</div>
 
 <div id="out">
   <h2>Timeline</h2>
@@ -215,7 +291,7 @@ function pick(f){
   if(!f) return;
   chosen=f;
   $('chosen').textContent=f.name+'  \\u00b7  '+(f.size/1048576).toFixed(1)+' MB';
-  go.disabled=false;
+  go.disabled=false;$('watch').disabled=false;
 }
 drop.onclick=()=>file.click();
 drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();file.click();}};
@@ -241,6 +317,114 @@ go.onclick=async()=>{
     $('err').textContent=e.message;$('err').style.display='block';
   }finally{
     go.disabled=false;$('busy').classList.remove('on');
+  }
+};
+
+// --- the walkthrough ------------------------------------------------------------------
+// Steps are rendered from a queue rather than as they arrive, because the two rates are
+// different things: the network delivers a step the moment the backbone finishes it, and the
+// reader wants to look at it for a beat. Slow motion is this pause and nothing else - the
+// skip button empties the queue, it does not make the model faster, and the copy says so.
+const NL=String.fromCharCode(10);
+let queue=[],draining=false,delay=1200,streamDone=false;
+
+$('speed').oninput=e=>{
+  delay=+e.target.value;
+  $('speedtxt').textContent=delay?(delay/1000).toFixed(1)+'s':'none';
+};
+$('skip').onclick=()=>{
+  delay=0;$('speed').value=0;$('speedtxt').textContent='none';
+};
+
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+async function drain(){
+  if(draining) return;
+  draining=true;
+  while(queue.length||!streamDone){
+    if(!queue.length){await sleep(60);continue;}
+    paint(queue.shift());
+    if(delay) await sleep(delay);
+  }
+  draining=false;
+  $('stage-step').textContent='finished';
+  $('busy').classList.remove('on');
+}
+
+function paint(s){
+  $('stage-step').textContent='step '+s.index+'  ·  '+s.clock;
+  $('v-pred').textContent=s.predicted;
+  $('v-pred').className='pill '+s.predicted;
+  $('v-conf').textContent='confidence '+s.confidence.toFixed(3);
+  $('v-ms').textContent=Math.round(s.elapsed_ms)+' ms'+(s.explained?' (explained)':'');
+
+  if(s.explained){
+    $('img-raw').src=s.frame;$('img-heat').src=s.heat;
+    $('x-map').textContent=s.score_from_map.toFixed(3);
+    $('x-dir').textContent=s.score_direct.toFixed(3);
+    $('x-err').textContent=s.reconstruction_error.toExponential(1);
+    $('x-ppl').textContent=s.n_people;
+    const f=s.focus_ratio;
+    $('x-focus').textContent=f==null?'—':f.toFixed(2)+'x';
+    $('x-focus-tile').className='tile'+(f!=null&&f<1?' flagged':'');
+    $('focusnote').innerHTML=f==null
+      ? 'No people were detected in this frame, so there is no area to compare the evidence '+
+        'against. A ratio over zero area is not a small number — it is not a number.'
+      : ('Positive evidence on people over the area they cover. Above 1 means the score '+
+         'concentrates on <b>people</b>; near or below 1 means it is spread as though they '+
+         'were not there — which for an ACTIVE_PLAY prediction is worth a look.');
+  } else {
+    $('x-map').textContent='—';$('x-dir').textContent='—';$('x-err').textContent='—';
+    $('x-ppl').textContent='—';$('x-focus').textContent='—';
+    $('x-focus-tile').className='tile';
+    $('focusnote').textContent='This frame was predicted without an evidence map — '+
+      '"explain in detail" bounds how many get one, because explaining costs about twice a '+
+      'bare prediction.';
+  }
+
+  const i=document.createElement('i');
+  i.className=s.predicted;i.style.width='14px';i.title=s.clock+'  '+s.predicted;
+  if(!s.explained) i.style.opacity='.55';
+  $('livetl').appendChild(i);
+  $('livecount').textContent=(s.index+1)+' steps';
+}
+
+$('watch').onclick=async()=>{
+  if(!chosen) return;
+  queue=[];streamDone=false;delay=+$('speed').value;
+  $('livetl').innerHTML='';$('err').style.display='none';
+  $('out').classList.remove('on');$('stage').classList.add('on');
+  $('go').disabled=$('watch').disabled=true;
+  $('busy').classList.add('on');
+  $('busytxt').textContent='Streaming… the first step also loads the model, '+
+    'which takes about 15 seconds.';
+  $('stage-step').textContent='loading the model';
+
+  const q=new URLSearchParams({interval_s:$('iv').value,explain_n:$('expn').value});
+  try{
+    const r=await fetch('/api/v1/clip/walkthrough?'+q,{method:'POST',body:chosen,
+      headers:{'Content-Type':'application/octet-stream'}});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    drain();
+    const reader=r.body.getReader(),dec=new TextDecoder();
+    let buf='';
+    for(;;){
+      const {done,value}=await reader.read();
+      if(done) break;
+      buf+=dec.decode(value,{stream:true});
+      const lines=buf.split(NL);buf=lines.pop();
+      for(const ln of lines){
+        if(!ln.trim()) continue;
+        const d=JSON.parse(ln);
+        if(d.type==='step') queue.push(d);
+        else if(d.type==='error') throw new Error(d.detail);
+      }
+    }
+  }catch(e){
+    $('err').textContent=e.message;$('err').style.display='block';
+  }finally{
+    streamDone=true;
+    $('go').disabled=$('watch').disabled=false;
   }
 };
 

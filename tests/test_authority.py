@@ -162,6 +162,11 @@ ALLOWED_MUTATING = {
     #: `finally`, and no database row is written. Same category as `/schedule/validate`,
     #: and pinned the same way by `test_the_clip_route_keeps_nothing` below.
     "/clip/analyse",
+    #: The same analysis streamed step by step with its evidence maps (WP4-T5). A POST for
+    #: the same reason and with the same guarantee - the upload is removed in the streaming
+    #: generator's `finally` rather than the handler's, because the body outlives the
+    #: handler. Pinned by `test_the_walkthrough_deletes_the_upload_after_streaming`.
+    "/clip/walkthrough",
 }
 
 

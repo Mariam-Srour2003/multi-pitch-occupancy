@@ -268,6 +268,23 @@ somebody has in their hand: a disputed hour exported after the fact, or a camera
 checked before it goes into the schedule. **The upload is deleted as soon as it has been
 read**, and nothing is written to the database.
 
+**Watch it work.** The same page's "Watch it work" button streams the analysis step by step —
+one newline-delimited JSON record per frame, flushed before the next is computed, so the
+browser renders step *k* while the backbone is still on *k+1*. Each explained step shows the
+frame beside its evidence map.
+
+That map is **not a saliency heuristic**. The probe is a logistic regression over mean-pooled
+frozen features, so a class score is exactly the mean of per-position contributions plus a
+constant — `class_evidence_map` returns those summands, and the map therefore *sums to the
+score*. The page prints `score_from_map`, `score_direct` and the error between them (about
+10⁻¹⁵) so the claim is checkable rather than asserted. It also reports how much positive
+evidence lands on detected people against the area they occupy: far above 1 means the model
+is reading *players*, near 1 means it is reading the scene around them.
+
+The slow motion is a pause the page adds between steps and the button drops it — the backbone
+runs at the same speed either way. The control that changes the actual work is *explain in
+detail*, since an explained frame costs about twice a bare prediction.
+
 A lone sample that disagrees with both its neighbours is usually a misread frame, so a
 median filter (`slots.stan.majority_smooth`, the same one the STAN baseline uses) corrects
 it. **The correction is always shown, never applied silently** — the timeline stripes it, the
