@@ -19,14 +19,17 @@ which it has.
 from __future__ import annotations
 
 import argparse
+import json
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, time, timezone
+from datetime import UTC, datetime, time
 from pathlib import Path
-from typing import Callable, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
+from urllib.parse import urlparse
 
 import numpy as np
 
-from pitch_occupancy.config import settings
+from pitch_occupancy.config import CONFIGS_DIR, settings
 from pitch_occupancy.data.taxonomy import Class3
 from pitch_occupancy.db.store import Sample
 from pitch_occupancy.frame_source import FrameSource
@@ -168,7 +171,7 @@ def run_slot(
                     minute_index=minute,
                     predicted=state.value,
                     confidence=confidence,
-                    captured_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    captured_at=datetime.now(UTC).isoformat(timespec="seconds"),
                     image_path=frame.source_path,
                 )
             )
@@ -241,6 +244,168 @@ def run_slot(
     )
 
 
+CAMERA_CONFIG: Path = CONFIGS_DIR / "cameras.json"
+
+
+def load_camera_urls(path: Path | None = None) -> dict[str, dict[str, str]]:
+    """Read `configs/cameras.json`: venue id -> camera id -> RTSP URL.
+
+    Keys beginning with an underscore are dropped, so the example file's `_comment` block
+    can explain the format in the file people actually open rather than in a docstring they
+    would have to go looking for.
+
+    Raises with the copy-this instruction rather than returning an empty mapping: a live run
+    that finds no cameras and proceeds would report every slot as unobserved, and "no camera
+    was configured" and "no camera responded" are different facts that must not arrive as the
+    same verdict.
+    """
+    path = path or CAMERA_CONFIG
+    if not path.exists():
+        raise SystemExit(
+            f"{path} does not exist. Copy configs/cameras.example.json to it and fill in one "
+            f"RTSP URL per camera. It is gitignored, because an RTSP URL usually carries the "
+            f"credentials for a camera watching identifiable people."
+        )
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    urls = {
+        venue: {cam: url for cam, url in cameras.items() if not cam.startswith("_")}
+        for venue, cameras in raw.items()
+        if not venue.startswith("_") and isinstance(cameras, dict)
+    }
+    if not urls:
+        raise SystemExit(f"{path} defines no cameras")
+    return urls
+
+
+def _confirm_live(urls: dict[str, dict[str, str]], schedule, evidence_dir: Path | None) -> None:
+    """Make opening a real camera a deliberate act.
+
+    Nothing in this project has ever connected to one. The live path is tested against an
+    injected capture opener, which is the right way to test it and is not the same as having
+    run it - so the first person to do so should see what it is about to open, and say yes.
+
+    Credentials are not printed. A terminal scrollback is a place URLs leak from, and the
+    host is enough to tell you whether you are pointed at the right camera.
+    """
+    print("\n=== live mode: this opens real camera streams ===")
+    for venue, cameras in sorted(urls.items()):
+        for cam, url in sorted(cameras.items()):
+            host = urlparse(url).hostname or "?"
+            print(f"  {venue}/{cam:<10} {urlparse(url).scheme}://{host}  (credentials hidden)")
+    print(f"  {len(schedule.slots)} scheduled slot(s) from configs/slots_schedule.json")
+    if evidence_dir is not None:
+        print(f"  evidence images WILL be written to {evidence_dir} - these are frames of "
+              f"identifiable people (thesis/ethics.md)")
+    else:
+        print("  evidence images: off (pass --evidence-dir to save them)")
+    print("  the runbook's ladder has never met a real outage: docs/runbook.md")
+    if input("\ntype 'yes' to connect: ").strip().lower() != "yes":
+        raise SystemExit("not confirmed; nothing was opened")
+
+
+def _run_live(args) -> None:
+    """Follow the real schedule against real cameras (WP6-T3, WP7-T3).
+
+    The path itself is not new — `scheduler.live_sources` and `frame_source.RTSPSource` have
+    existed since 2026-09-09 and are tested against an injected capture opener. What was
+    missing was any way to *invoke* it: `--source` accepted only `video`, and the camera URLs
+    had nowhere to live, so pointing this at a camera meant writing Python.
+
+    **It has still never been run against a camera.** Everything below is the first honest
+    attempt, and the runbook's ladder is a prediction until it has met a real outage. The two
+    things that make that survivable are already true: one dead camera is reported and skipped
+    rather than taking the loop down, and a slot with too few minutes becomes REVIEW rather
+    than a verdict.
+    """
+    from pitch_occupancy.db.schema import connect, initialise
+    from pitch_occupancy.scheduler import describe, live_sources, load_schedule, run_forever
+
+    urls = load_camera_urls(args.cameras)
+    schedule = load_schedule()
+    if not schedule.slots:
+        raise SystemExit("configs/slots_schedule.json defines no slots")
+
+    # Every configured venue must appear in the schedule and vice versa. A camera with no
+    # slot is never read, and a slot with no camera raises inside `live_sources` an hour
+    # later - both are better found now, before anything connects.
+    scheduled = {s.venue_id for s in schedule.slots}
+    for venue in sorted(set(urls) - scheduled):
+        print(f"  note: {venue} has cameras configured and no scheduled slot")
+    for venue in sorted(scheduled - set(urls)):
+        raise SystemExit(
+            f"slot venue {venue!r} has no cameras in the config; add it or remove the slot. "
+            f"A slot with no reachable camera has no state, and defaulting to one invents it"
+        )
+
+    # And every camera a slot names, not just its venue. `live_sources` does check this, but
+    # it checks at slot time: a config that names camera_A for a slot wanting A and B starts
+    # cleanly, runs for an hour, and dies at the first slot boundary. Checking it here is the
+    # difference between a typo caught in the first second and one caught after an evening.
+    for slot in schedule.slots:
+        missing = [c for c in slot.cameras if c not in urls.get(slot.venue_id, {})]
+        if missing:
+            raise SystemExit(
+                f"slot {slot.venue_id} {slot.start} expects camera(s) {', '.join(missing)} "
+                f"which have no URL in the camera config. A silently dropped camera is half a "
+                f"pitch reported as the whole one, so this refuses rather than covering half"
+            )
+
+    if args.dry_run:
+        print(f"{len(schedule.slots)} scheduled slot(s), cameras for {len(urls)} venue(s)")
+        for line in describe(schedule, datetime.now(), days=1):
+            print(f"  {line}")
+        print("\ndry run: no stream was opened and nothing was written")
+        return
+
+    if not args.yes:
+        _confirm_live(urls, schedule, args.evidence_dir)
+
+    from pitch_occupancy.vision.classifier import load_classifier
+
+    classify = load_classifier(args.model)
+    print(f"\nclassifier: {classify.backbone} probe fitted on {classify.n_train} "
+          f"development frames (the locked venues are not among them)")
+
+    connection = connect(settings.db_path)
+    initialise(connection)
+    try:
+        ran = run_forever(
+            schedule,
+            source_for=live_sources(urls),
+            classify=classify,
+            connection=connection,
+            model_key=args.model,
+            evidence_dir=args.evidence_dir,
+            iterations=args.iterations,
+            on_slot=_report,
+        )
+    except KeyboardInterrupt:
+        print("\ninterrupted; slots already finished are written")
+        return
+    finally:
+        connection.close()
+    print(f"\n{len(ran)} slot(s) written to the database")
+
+
+def _report(slot_id: str, outcome: object) -> None:
+    """Print one line per slot, whichever way it went.
+
+    `run_due` hands this callback **the exception** when a slot fails, because one dead
+    camera must not stop the other pitches being observed. A callback that assumed a
+    `SlotRun` therefore crashed inside the handler for the failure it existed to report,
+    which turns a skipped slot into a dead run. Found by running it: the schedule
+    derived from recordings names four slot instances and only two were ever exported.
+    """
+    if isinstance(outcome, BaseException):
+        print(f"  {slot_id:<34} SKIPPED  {type(outcome).__name__}: {outcome}")
+        return
+    print(f"  {slot_id:<34} {outcome.verdict.status:<8} "
+          f"{outcome.minutes_captured:>3}/"
+          f"{outcome.minutes_captured + outcome.minutes_missed} minutes  "
+          f"capture {outcome.capture_rate:.0%}  "
+          f"play {outcome.verdict.play_ratio:.2f} empty {outcome.verdict.empty_ratio:.2f}")
+
+
 def main() -> None:
     """Run the sampler over recorded slots, with the real classifier (WP6-T2).
 
@@ -268,8 +433,11 @@ def main() -> None:
     )
 
     parser = argparse.ArgumentParser(description="Sample and evaluate slots.")
-    parser.add_argument("--source", choices=["video"], default="video",
-                        help="video replays recordings; there is no live choice here yet")
+    parser.add_argument(
+        "--source", choices=["video", "live"], default="video",
+        help="video replays the recordings under --raw-dir; live opens the RTSP streams in "
+             "configs/cameras.json and follows configs/slots_schedule.json in real time",
+    )
     parser.add_argument("--raw-dir", type=Path, default=settings.raw_dir / "venue_01")
     parser.add_argument("--model", default=settings.default_model_key)
     parser.add_argument("--dry-run", action="store_true",
@@ -279,13 +447,29 @@ def main() -> None:
                              "images of identifiable people")
     parser.add_argument("--limit", type=int, default=None,
                         help="stop after this many slots")
+    parser.add_argument("--cameras", type=Path, default=None,
+                        help="live only: path to the camera URL file (default "
+                             "configs/cameras.json)")
+    parser.add_argument("--iterations", type=int, default=None,
+                        help="live only: stop after this many scheduler ticks. The default "
+                             "runs until interrupted")
+    parser.add_argument("--yes", action="store_true",
+                        help="live only: skip the confirmation prompt. For a service unit, "
+                             "not for the first run")
     args = parser.parse_args()
+
+    if args.source == "live":
+        _run_live(args)
+        return
 
     schedule, days = schedule_from_recordings(args.raw_dir)
     if not schedule.slots:
         raise SystemExit(f"no recorded slots under {args.raw_dir}")
 
-    print(f"{len(schedule.slots)} slot(s) over {len(days)} day(s) under {args.raw_dir}")
+    # Slots are per-day, so the total is the product. Printing the per-day count above a
+    # list of every day's slots read as a miscount.
+    print(f"{len(schedule.slots) * len(days)} slot(s): {len(schedule.slots)} per day "
+          f"over {len(days)} day(s) under {args.raw_dir}")
     for day in days:
         for line in describe(schedule, datetime.combine(day, time.min), days=1):
             print(f"  {line}")
@@ -300,24 +484,6 @@ def main() -> None:
           f"development frames (the locked venues are not among them)")
 
     source_for = sources_from_recordings(args.raw_dir)
-
-    def report(slot_id: str, outcome: object) -> None:
-        """Print one line per slot, whichever way it went.
-
-        `run_due` hands this callback **the exception** when a slot fails, because one dead
-        camera must not stop the other pitches being observed. A callback that assumed a
-        `SlotRun` therefore crashed inside the handler for the failure it existed to report,
-        which turns a skipped slot into a dead run. Found by running it: the schedule
-        derived from recordings names four slot instances and only two were ever exported.
-        """
-        if isinstance(outcome, BaseException):
-            print(f"  {slot_id:<34} SKIPPED  {type(outcome).__name__}: {outcome}")
-            return
-        print(f"  {slot_id:<34} {outcome.verdict.status:<8} "
-              f"{outcome.minutes_captured:>3}/"
-              f"{outcome.minutes_captured + outcome.minutes_missed} minutes  "
-              f"capture {outcome.capture_rate:.0%}  "
-              f"play {outcome.verdict.play_ratio:.2f} empty {outcome.verdict.empty_ratio:.2f}")
 
     # `run_due` persists only when it is given a connection - without one it classifies the
     # whole slot and stores nothing. The first version of this function did exactly that and
@@ -345,7 +511,7 @@ def main() -> None:
                 just_ran = run_due(
                     schedule, begins,
                     source_for=source_for, classify=classify, model_key=args.model,
-                    connection=connection, evidence_dir=args.evidence_dir, on_slot=report,
+                    connection=connection, evidence_dir=args.evidence_dir, on_slot=_report,
                 )
                 seen.update(just_ran)
                 ran += just_ran

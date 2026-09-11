@@ -105,3 +105,11 @@ Stated so the gaps are visible rather than discovered in production.
    reproduction pipeline holds that stage back from `--force` for this reason.
 4. Confirm the disk has room for 7 days of raw frames plus 365 days of evidence.
 5. Agree with the facility who adjudicates a `REVIEW` and how fast.
+6. Copy `configs/cameras.example.json` to `configs/cameras.json` and fill in one RTSP URL per
+   camera. The real file is gitignored: an RTSP URL usually carries the camera's credentials.
+   Every camera named by a slot in `configs/slots_schedule.json` needs a URL — the run
+   refuses to start otherwise, because half a pitch reported as the whole one is a wrong
+   verdict rather than a missing one.
+7. `uv run python -m pitch_occupancy.worker --source live --dry-run` first. It lists what it
+   would open and connects to nothing. The run without `--dry-run` prints each camera as
+   `scheme://host` — credentials withheld — and waits for you to type `yes`.

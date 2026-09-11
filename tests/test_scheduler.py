@@ -201,6 +201,36 @@ def test_the_loop_is_bounded_and_its_sleep_is_injectable() -> None:
     assert naps == [60.0, 60.0], "it should not sleep after the final iteration"
 
 
+def test_the_loop_forwards_the_model_key_and_the_evidence_dir(tmp_path) -> None:
+    """`run_due` has accepted both since it was written and `run_forever` dropped both on the
+    floor, so every verdict the loop produced was stored with no model key and no evidence
+    however the caller asked. Nothing caught it because nothing called the loop with either:
+    it had no entry point until `worker --source live`. Asserting on what reaches `run_due`
+    rather than on the database, because forwarding is the part that was missing."""
+    import pitch_occupancy.scheduler as sched
+
+    seen: dict[str, object] = {}
+
+    def spy(schedule, now, **kwargs):
+        seen.update(kwargs)
+        return ["slot"]
+
+    original, sched.run_due = sched.run_due, spy
+    try:
+        sched.run_forever(
+            Schedule((slot("10:00", 60),)),
+            source_for=lambda sl, day: Stub(), classify=always(Class3.EMPTY),
+            clock=lambda: datetime(2026, 7, 11, 10, 5),
+            sleep=lambda _: None, iterations=1,
+            model_key="dinov2", evidence_dir=tmp_path,
+        )
+    finally:
+        sched.run_due = original
+
+    assert seen["model_key"] == "dinov2"
+    assert seen["evidence_dir"] == tmp_path
+
+
 # --- against the real recordings --------------------------------------------------
 
 

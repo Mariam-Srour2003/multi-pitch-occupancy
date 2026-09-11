@@ -235,13 +235,22 @@ def run_forever(
     sleep: Callable[[float], None] | None = None,
     interval_s: float = 60.0,
     iterations: int | None = None,
+    model_key: str | None = None,
     on_slot: Callable[[str, object], None] | None = None,
+    evidence_dir: Path | None = None,
 ) -> list[str]:
     """The loop. Not a daemon - no supervision, no restart policy (WP7-T2).
 
     ``iterations`` bounds it so a test can run the loop rather than a single tick, and
     ``sleep`` is injectable so that test takes microseconds. A loop whose only observable
     behaviour is that it does not return is a loop with no tests.
+
+    ``model_key`` and ``evidence_dir`` are forwarded to `run_due`, and **were not until
+    2026-09-11**. `run_due` has accepted both since it was written; this function simply did
+    not pass them on, so every verdict the loop produced was stored with no model key and no
+    evidence images, whatever the caller asked for. Nothing caught it because nothing called
+    this with either argument - the loop had no entry point until `worker --source live`, and
+    adding one is what surfaced it.
     """
     import time as _time
 
@@ -250,7 +259,8 @@ def run_forever(
     count = 0
     while iterations is None or count < iterations:
         ran += run_due(schedule, clock(), source_for=source_for, classify=classify,
-                       connection=connection, on_slot=on_slot)
+                       connection=connection, model_key=model_key, on_slot=on_slot,
+                       evidence_dir=evidence_dir)
         count += 1
         if iterations is None or count < iterations:
             naps(interval_s)

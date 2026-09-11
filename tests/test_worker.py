@@ -155,8 +155,8 @@ def test_a_slot_that_lost_most_of_its_minutes_is_reviewed_not_decided() -> None:
     Degraded mode is REVIEW. The verdict says how much was captured, so an operator can see
     why without opening the slot.
     """
-    from pitch_occupancy.slots.aggregate import aggregate_slot
     from pitch_occupancy.data.taxonomy import Class3, SlotStatus
+    from pitch_occupancy.slots.aggregate import aggregate_slot
 
     empty_fragment = [Class3.EMPTY] * 12          # 12 of a 60-minute slot
     decided = aggregate_slot(empty_fragment)
@@ -170,8 +170,8 @@ def test_a_slot_that_lost_most_of_its_minutes_is_reviewed_not_decided() -> None:
 def test_a_slot_above_the_capture_floor_is_still_decided() -> None:
     """The gate must not turn every imperfect slot into REVIEW; a few dropped frames are
     ordinary and the verdict should survive them."""
-    from pitch_occupancy.slots.aggregate import aggregate_slot
     from pitch_occupancy.data.taxonomy import Class3, SlotStatus
+    from pitch_occupancy.slots.aggregate import aggregate_slot
 
     got = aggregate_slot([Class3.EMPTY] * 55, minutes_expected=60)
     assert got.status is SlotStatus.NOTUSED
@@ -351,3 +351,107 @@ def test_a_slot_that_cannot_run_is_reported_and_the_others_continue(
     out = capsys.readouterr().out
     assert "SKIPPED" in out and "no recording" in out
     assert "0 slot(s) written" in out
+
+
+# --- the live entry point (WP6-T3, 2026-09-11) ---------------------------------------------
+#
+# `live_sources` and `RTSPSource` have existed and been tested against an injected capture
+# opener since September. What was missing was any way to *invoke* them: `--source` accepted
+# only `video` and the camera URLs had nowhere to live, so pointing this at a camera meant
+# writing Python. These cover the refusals, because the thing being opened is a real camera
+# watching real people and every one of these failures is silent otherwise.
+
+
+def test_a_missing_camera_config_says_what_to_copy(tmp_path) -> None:
+    """Not an empty mapping. A live run that finds no cameras and proceeds reports every slot
+    as unobserved, and "no camera was configured" and "no camera responded" are different
+    facts that must not arrive as the same verdict."""
+    from pitch_occupancy import worker
+
+    with pytest.raises(SystemExit, match="cameras.example.json"):
+        worker.load_camera_urls(tmp_path / "absent.json")
+
+
+def test_an_empty_camera_config_is_refused(tmp_path) -> None:
+    config = tmp_path / "cameras.json"
+    config.write_text('{"_comment": "only a comment"}', encoding="utf-8")
+    from pitch_occupancy import worker
+
+    with pytest.raises(SystemExit, match="no cameras"):
+        worker.load_camera_urls(config)
+
+
+def test_comment_keys_are_dropped_so_the_example_can_explain_itself(tmp_path) -> None:
+    """The example file carries its own instructions, which is where someone will look."""
+    config = tmp_path / "cameras.json"
+    config.write_text(
+        '{"_comment": ["read me"], "venue_01": {"_note": "x", "camera_A": "rtsp://h/1"}}',
+        encoding="utf-8",
+    )
+    from pitch_occupancy import worker
+
+    assert worker.load_camera_urls(config) == {"venue_01": {"camera_A": "rtsp://h/1"}}
+
+
+def test_a_scheduled_venue_with_no_cameras_stops_the_run(tmp_path, monkeypatch, capsys) -> None:
+    """Found now rather than an hour later inside `live_sources`. A slot with no reachable
+    camera has no state, and defaulting to one invents it."""
+    import argparse
+
+    from pitch_occupancy import worker
+
+    config = tmp_path / "cameras.json"
+    config.write_text('{"venue_99": {"camera_A": "rtsp://h/1"}}', encoding="utf-8")
+    args = argparse.Namespace(cameras=config, dry_run=True, yes=True, model="dinov2",
+                              evidence_dir=None, iterations=1)
+    with pytest.raises(SystemExit, match="no cameras in the config"):
+        worker._run_live(args)
+
+
+def test_a_slot_camera_with_no_url_stops_the_run(tmp_path) -> None:
+    """The venue check is not enough. `live_sources` does catch a missing camera id, but it
+    catches it at slot time: a config naming camera_A for a slot that wants A and B starts
+    cleanly, runs for an hour, and dies at the first boundary. Half a pitch reported as the
+    whole one is the failure this refuses, so it has to happen before anything connects."""
+    import argparse
+
+    from pitch_occupancy import worker
+
+    config = tmp_path / "cameras.json"
+    # venue_01 is scheduled with camera_A and camera_B; only one of them is configured.
+    config.write_text('{"venue_01": {"camera_A": "rtsp://h/1"}}', encoding="utf-8")
+    args = argparse.Namespace(cameras=config, dry_run=True, yes=True, model="dinov2",
+                              evidence_dir=None, iterations=1)
+    with pytest.raises(SystemExit, match="camera_B"):
+        worker._run_live(args)
+
+
+def test_the_confirmation_hides_credentials(capsys, monkeypatch) -> None:
+    """A terminal scrollback is a place URLs leak from, and the host is enough to tell you
+    whether you are pointed at the right camera."""
+    from pitch_occupancy import worker
+    from pitch_occupancy.scheduler import Schedule
+
+    monkeypatch.setattr("builtins.input", lambda *_: "no")
+    with pytest.raises(SystemExit):
+        worker._confirm_live(
+            {"venue_01": {"camera_A": "rtsp://user:hunter2@10.0.0.5:554/s1"}},
+            Schedule(()), None,
+        )
+    out = capsys.readouterr().out
+    assert "hunter2" not in out and "user" not in out
+    assert "10.0.0.5" in out
+
+
+def test_live_says_whether_evidence_images_will_be_written(capsys, monkeypatch) -> None:
+    """They are frames of identifiable people, so the prompt must say which way it is set
+    before anything connects."""
+    from pathlib import Path
+
+    from pitch_occupancy import worker
+    from pitch_occupancy.scheduler import Schedule
+
+    monkeypatch.setattr("builtins.input", lambda *_: "no")
+    with pytest.raises(SystemExit):
+        worker._confirm_live({"v": {"c": "rtsp://h/1"}}, Schedule(()), Path("/tmp/ev"))
+    assert "identifiable people" in capsys.readouterr().out

@@ -1,0 +1,24 @@
+{
+  "_comment": [
+    "Camera URLs for the live path (WP6-T3, WP7-T2). Copy to `cameras.json` and fill in.",
+    "",
+    "`configs/cameras.json` is gitignored, and deliberately: an RTSP URL usually carries the",
+    "credentials for a camera that watches identifiable people, and a committed one is a",
+    "credential leak that outlives the commit. This example exists so the shape is obvious",
+    "without anyone having to read `scheduler.live_sources` to find it out.",
+    "",
+    "Keys are venue id -> camera id -> URL. The camera ids must match the ones in",
+    "`slots_schedule.json` for the same venue: `live_sources` refuses a slot whose cameras it",
+    "has no URL for, because a silently dropped camera is half a pitch reported as the whole",
+    "one.",
+    "",
+    "Run it with `uv run python -m pitch_occupancy.worker --source live`, which asks for",
+    "confirmation first and refuses to save evidence images unless told to. Nothing else in",
+    "this project has ever opened a real camera stream - see the ladder in docs/runbook.md for",
+    "what is and is not enforced when one stops responding."
+  ],
+  "venue_01": {
+    "camera_A": "rtsp://username:password@192.0.2.10:554/Streaming/Channels/101",
+    "camera_B": "rtsp://username:password@192.0.2.11:554/Streaming/Channels/101"
+  }
+}

@@ -234,6 +234,32 @@ uv run pitch serve --reload
 uv run uvicorn pitch_occupancy.api.app:app --reload
 ```
 
+Run the pipeline over the recorded slots — sample, classify, fuse, aggregate, reconcile, and
+write the verdicts to the database:
+
+```bash
+uv run python -m pitch_occupancy.worker --source video --dry-run   # list, load no model
+uv run python -m pitch_occupancy.worker --source video             # verdicts to the database
+uv run python -m pitch_occupancy.worker --source video --evidence-dir data/evidence
+```
+
+Evidence images are off by default because they are frames of identifiable people. With
+`--evidence-dir` the winning camera's frame is written for every observed minute and all but
+the three that justify the verdict are deleted once the slot is complete.
+
+**Against real cameras** — copy `configs/cameras.example.json` to `configs/cameras.json`
+(gitignored: an RTSP URL usually carries the camera's credentials) and:
+
+```bash
+uv run python -m pitch_occupancy.worker --source live --dry-run    # what it would open
+uv run python -m pitch_occupancy.worker --source live              # asks before connecting
+```
+
+This follows `configs/slots_schedule.json` in real time, taking one frame per camera per
+minute. It has **never been run against a camera** — the path is tested against an injected
+capture opener, which is the right way to test it and is not the same thing. `docs/runbook.md`
+lists what happens when one dies mid-slot and which rows of that are enforced.
+
 `uv.lock` and `.python-version` are committed deliberately: they are what lets another machine —
 or an examiner — reproduce the numbers.
 

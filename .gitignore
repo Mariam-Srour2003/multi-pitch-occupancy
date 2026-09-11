@@ -83,6 +83,10 @@ desktop.ini
 .~lock.*
 
 # Secrets / local config
+# An RTSP URL carries the credentials for a camera watching identifiable people, and a
+# committed one is a leak that outlives the commit. configs/cameras.example.json shows
+# the shape; the real file never leaves the machine.
+/configs/cameras.json
 .env
 .env.*
 secrets.json
