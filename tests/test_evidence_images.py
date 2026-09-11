@@ -9,6 +9,7 @@ anomaly is what the advisory-only guarantee rests on.
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 
 import numpy as np
@@ -222,3 +223,72 @@ def test_the_inspector_renders_images_rather_than_listing_paths(served) -> None:
     assert "/evidence/${i}" in page or "/evidence/" in page
     assert "<img" in page
     assert "no longer on disk" in page, "a deleted frame must read as gone in the UI too"
+
+
+# --- the configured evidence directory (2026-09-11) ----------------------------------------
+
+
+def test_the_configured_evidence_dir_is_a_permitted_root() -> None:
+    """`settings.evidence_dir` is where `run_slot` writes, `retention.py` sweeps and
+    `pitch info` prints - and it was missing from the API's allowlist.
+
+    A real run with `--evidence-dir data/evidence` produced three images on disk that the
+    inspector refused to serve, reporting *"retention may have removed it"* while the files
+    sat there. The allowlist was the right shape; it simply did not contain the one place the
+    system puts evidence.
+    """
+    from pitch_occupancy.api.routes import _evidence_roots
+    from pitch_occupancy.config import settings
+
+    assert settings.evidence_dir.resolve() in _evidence_roots()
+
+
+def test_a_path_relative_to_the_project_root_resolves(tmp_path, monkeypatch) -> None:
+    """The worker stores what it was given: `--evidence-dir data/evidence` reaches the
+    database as `data/evidence/...`. Resolving that against `dataset_dir` produced
+    `data/processed/data/evidence/...`, which is nowhere - and the handler then blamed
+    retention for a file that existed."""
+    import json
+
+    from fastapi.testclient import TestClient
+
+    from pitch_occupancy.api.app import app
+    from pitch_occupancy.config import PROJECT_ROOT, settings
+    from pitch_occupancy.db.schema import connect, initialise
+    from pitch_occupancy.db.store import ensure_slot
+
+    relative = Path("data") / "evidence" / "pytest_slot" / "minute_000_camA.jpg"
+    target = PROJECT_ROOT / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    import cv2
+
+    cv2.imwrite(str(target), np.full((16, 16, 3), 120, np.uint8))
+
+    conn = connect(settings.db_path)
+    initialise(conn)
+    try:
+        # the schema's foreign keys want the venue, field, camera and rental slot declared
+        # first - `ensure_slot` is the function that exists for exactly that, and using it
+        # here keeps the test honest about the shape a real row has
+        ensure_slot(conn, slot_id="pytest_slot", venue_id="venue_pytest",
+                    field_id="field_pytest", cameras=("camA",),
+                    slot_date="2026-09-11", start_time="10:00", end_time="11:00")
+        conn.execute(
+            """INSERT OR REPLACE INTO slot_evaluations
+               (slot_id, status, reason, play_ratio, empty_ratio, maintenance_ratio,
+                n_samples, mean_confidence, evidence_paths, evaluated_at, model_key)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            ("pytest_slot", "USED", "test", 1.0, 0.0, 0.0, 1, 0.9,
+             json.dumps([str(relative)]), "2026-09-11T00:00:00+00:00", "dinov2"),
+        )
+        conn.commit()
+        r = TestClient(app).get("/api/v1/slots/pytest_slot/evidence/0")
+        assert r.status_code == 200, r.json()
+        assert r.headers["content-type"] == "image/jpeg"
+    finally:
+        conn.execute("DELETE FROM slot_evaluations WHERE slot_id = 'pytest_slot'")
+        conn.commit()
+        conn.close()
+        target.unlink(missing_ok=True)
+        with contextlib.suppress(OSError):  # the directory is shared if two tests overlap
+            target.parent.rmdir()

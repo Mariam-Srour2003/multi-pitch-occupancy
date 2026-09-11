@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from pitch_occupancy.config import settings
+from pitch_occupancy.config import PROJECT_ROOT, settings
 from pitch_occupancy.data.taxonomy import SlotStatus
 from pitch_occupancy.db.schema import connect, initialise
 from pitch_occupancy.db.store import load_verdict, override_verdict
@@ -158,8 +158,16 @@ def slot_evidence(slot_id: str, conn: sqlite3.Connection = Depends(get_conn)) ->
 
 #: Roots an evidence image may live under. Checked after resolving, so a symlink or a
 #: `..` inside a stored path cannot reach outside them.
+#:
+#: **`settings.evidence_dir` was missing from this list until 2026-09-11**, which is the
+#: directory `worker.run_slot` writes to, `retention.py` sweeps, and `pitch info` prints. A
+#: slot run with `--evidence-dir data/evidence` — the configured default — produced three
+#: images on disk that the inspector refused to serve, and said *"retention may have removed
+#: it"* while the files sat there. The allowlist is the right shape; it simply did not
+#: contain the one place the system puts evidence.
 def _evidence_roots() -> tuple[Path, ...]:
     return (
+        settings.evidence_dir.resolve(),
         (settings.interim_dir / "evidence").resolve(),
         settings.dataset_dir.resolve(),
     )
@@ -185,7 +193,13 @@ def evidence_image(
 
     path = Path(paths[index])
     if not path.is_absolute():
-        path = (settings.dataset_dir / path)
+        # Relative against the **project root** first, because that is what the worker
+        # stores: `--evidence-dir data/evidence` reaches the database as `data/evidence/...`.
+        # Resolving that against `dataset_dir` gave `data/processed/data/evidence/...`, which
+        # is nowhere, and the handler then blamed retention for a file that was on disk.
+        # `dataset_dir` is kept as a fallback for rows written when that was the only rule.
+        candidates = [(PROJECT_ROOT / path).resolve(), (settings.dataset_dir / path).resolve()]
+        path = next((c for c in candidates if c.is_file()), candidates[0])
     path = path.resolve()
     if not any(path.is_relative_to(root) for root in _evidence_roots()):
         raise HTTPException(404, "evidence image is outside the permitted directories")
