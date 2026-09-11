@@ -159,17 +159,57 @@ def _augmentation() -> str:
     one of those still passes a shape and dtype check. The only reliable check is a person
     looking, so the sheet is what the page leads with.
     """
-    grid = RESULTS / "figs" / "augmentation_grid.jpg"
-    image = (
-        '<figure class="fig"><img src="/figs/augmentation_grid.jpg" alt="Each augmentation '
-        'preset applied three times to a night active-play frame and a day empty frame">'
-        "<figcaption>Every preset, three draws each, over a night play frame and a day empty "
-        "frame. Probability is forced to 1 so the sheet shows the effect rather than the coin "
-        "flip that gates it; in training each effect fires with probability <code>p</code>, so "
-        "a real batch mixes these with untouched originals.</figcaption></figure>"
-    ) if grid.exists() else (
-        "<p class='missing'>No grid yet. Run "
-        "<code>uv run python experiments/augmentation_grid.py</code>.</p>"
+    def figure(name: str, alt: str, caption: str) -> str:
+        """One sheet, or the command that would produce it.
+
+        The fallback names the script rather than hiding the gap, because a tab whose
+        argument rests on a picture and silently shows none is the shape of failure this
+        project keeps finding.
+        """
+        if not (RESULTS / "figs" / name).exists():
+            return (
+                f"<p class='missing'>No <code>{name}</code> yet. Run "
+                "<code>uv run python experiments/augmentation_grid.py</code>.</p>"
+            )
+        return (
+            f'<figure class="fig"><img src="/figs/{name}" alt="{alt}" loading="lazy">'
+            f"<figcaption>{caption}</figcaption></figure>"
+        )
+
+    image = figure(
+        "augmentation_grid.jpg",
+        "Each augmentation preset applied three times to a night active-play frame and a "
+        "day empty frame",
+        "Every preset, three draws each, over a night play frame and a day empty frame. "
+        "Probability is forced to 1 so the sheet shows the effect rather than the coin flip "
+        "that gates it; in training each effect fires with probability <code>p</code>, so a "
+        "real batch mixes these with untouched originals.",
+    )
+    effects = figure(
+        "augmentation_effects.jpg",
+        "Each of the nine augmentation effects applied on its own, three draws each",
+        "<strong>One effect at a time</strong>, at the magnitude the <code>full</code> "
+        "preset uses for it - brightness 0.2, contrast 0.2, saturation 0.35, hue 6&deg;, "
+        "gamma 0.3, noise &sigma;=5, fog 0.3, rain 0.3, and the horizontal flip. The magnitudes "
+        "are read off the preset rather than retyped, so this sheet cannot drift from the "
+        "config it illustrates. <code>flip</code> is shown once because a mirror is "
+        "deterministic; every other row is three draws. This is the sheet that says "
+        "<em>which knob</em> - a preset row compounds up to nine effects, so when one is "
+        "wrong it shows that something is wrong and not what.",
+    )
+    removal = figure(
+        "preprocess_effects.jpg",
+        "Every preprocessing switch applied to the same two frames, at the model's 224x224 "
+        "input size",
+        "<strong>Every preprocessing switch the search tries</strong>, rendered at the real "
+        "224&times;224 the backbone receives rather than scaled up. The grey bands are the "
+        "letterbox padding; <code>letterbox=False</code> is the squashing resize it is "
+        "measured against. Look at <code>blur_sigma=4.0</code> and "
+        "<code>centre_crop=0.5</code> on the night frame: the first has removed the people, "
+        "the second the goalmouth - which is what a false-play rate of 100% and an empty "
+        "accuracy of 0.000 look like before they are numbers. <code>roi</code> is absent "
+        "deliberately: no pitch polygon has been drawn yet, so a tile captioned ROI would "
+        "sit beside an unmodified frame.",
     )
     return (
         "<h1>Augmentation</h1>"
@@ -183,6 +223,8 @@ def _augmentation() -> str:
         "two together fall below the untouched baseline and call 98.8% of empty pitches a "
         "match. Augmentation cannot cross that floor, because nothing is discarded when a "
         "prediction is made.</p>"
+        "<h2>What removal looks like</h2>"
+        "<p>The floor is easier to see than to read. These are the same two frames under every preprocessing switch, at the size the model actually receives them.</p>" + removal +
         "<p>So the same shortcut is targeted from the other side. Turf hue encodes venue "
         "identity and does not transfer; grayscale answered that by throwing colour away, "
         "jitter answers it by making colour unreliable. The pixels stay.</p>"
@@ -197,7 +239,7 @@ def _augmentation() -> str:
         "change whether people are playing, but it breaks memorisation of <em>this</em> "
         "pitch's layout - the failure the cross-venue evaluation exists to catch. Both rules "
         "are pinned by tests, not left in a comment.</p>"
-        "<h2>What the sheet is for</h2>" + image +
+        "<h2>What the sheets are for</h2>" + image + effects +
         "<h2>What it caught on the first run</h2>"
         "<p>Rain streak geometry was written in absolute pixels. At 320&times;180 that drew "
         "white poles spanning a tenth of the frame; on 1080p source they would have been "

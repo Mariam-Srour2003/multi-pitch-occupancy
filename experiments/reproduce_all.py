@@ -254,9 +254,14 @@ STAGES: list[Stage] = [
     Stage(
         name="augmentation-grid",
         command=[*PY, "-m", "experiments.augmentation_grid"],
-        produces=[RESULTS / "figs" / "augmentation_grid.jpg"],
+        produces=[
+            RESULTS / "figs" / "augmentation_grid.jpg",
+            RESULTS / "figs" / "augmentation_effects.jpg",
+            RESULTS / "figs" / "preprocess_effects.jpg",
+        ],
         requires=[DATA / "processed" / "manifest.csv"],
-        note="every augmentation preset over two real frames - the visual check",
+        note="every preset, every effect on its own, and every preprocessing switch over "
+             "two real frames - the visual check",
     ),
     Stage(
         name="class-balancing",
