@@ -21,6 +21,8 @@ from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
 from pitch_occupancy import __version__
+from pitch_occupancy.api.clip_page import CLIP_HTML
+from pitch_occupancy.api.clip_review import router as clip_router
 from pitch_occupancy.api.dashboard import dashboard_response
 from pitch_occupancy.api.routes import router
 from pitch_occupancy.api.schedule_editor import router as schedule_router
@@ -41,6 +43,9 @@ app.include_router(simulator_router)
 # WP6-T6. The API's only write path, and the module docstring says why that is defensible
 # here when bookings.py refuses to have one at all.
 app.include_router(schedule_router)
+# WP6-T6. Analyses an uploaded clip and keeps none of it - see the module docstring for
+# why a POST that stores nothing sits beside /schedule/validate rather than the override.
+app.include_router(clip_router)
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
@@ -51,6 +56,16 @@ def thesis() -> HTMLResponse:
     there is no build step to forget and no copy that can drift from the results.
     """
     return HTMLResponse(thesis_page())
+
+
+@app.get("/clip", response_class=HTMLResponse, include_in_schema=False)
+def clip_reviewer() -> HTMLResponse:
+    """The clip reviewer - hand it a video, get a timeline of what the pitch was doing.
+
+    Separate from the dashboard because there is no slot, no booking and no database row
+    behind it: the input is a file somebody has in their hand, and nothing is kept.
+    """
+    return HTMLResponse(CLIP_HTML)
 
 
 @app.get("/client", response_class=HTMLResponse, include_in_schema=False)

@@ -157,6 +157,11 @@ ALLOWED_MUTATING = {
     #: it cannot be a GET, and returns whether the scheduler would accept it. Pinned by
     #: `test_the_validate_route_really_writes_nothing` below rather than trusted.
     "/schedule/validate",
+    #: The clip reviewer (WP6-T6). A POST because the body is a video, not because it
+    #: persists one: the upload is streamed to a temp file, read, and deleted in a
+    #: `finally`, and no database row is written. Same category as `/schedule/validate`,
+    #: and pinned the same way by `test_the_clip_route_keeps_nothing` below.
+    "/clip/analyse",
 }
 
 

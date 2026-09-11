@@ -141,7 +141,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 <header><div class="hin">
   <div class="brand">Pitch Occupancy<span>.</span></div>
   <div class="sub">Operator dashboard</div>
-  <a href="/">&larr; Thesis</a><a href="/docs" style="margin-left:14px">API docs &rarr;</a>
+  <a href="/">&larr; Thesis</a><a href="/clip" style="margin-left:14px">Clip reviewer</a><a href="/docs" style="margin-left:14px">API docs &rarr;</a>
 </div></header>
 
 <main>

@@ -47,6 +47,7 @@ from pitch_occupancy.slots.aggregate import Thresholds, aggregate_slot, tune_thr
 from pitch_occupancy.slots.synthetic import SlotSequence
 
 __all__ = [
+    "majority_smooth",
     "CLASS_ORDER",
     "MIN_REAL_SLOTS",
     "NotEnoughRealSlots",
@@ -127,6 +128,30 @@ def _labelled(sequences: Sequence[SlotSequence]) -> list[tuple[list[Class3], Slo
     return [(_states(s), s.truth) for s in sequences]
 
 
+def majority_smooth(states: Sequence[Class3], window: int) -> list[Class3]:
+    """Majority vote in a sliding window of ``window`` entries centred on each position.
+
+    An isolated disagreeing entry between two agreeing neighbours is replaced by them, which
+    is the cheapest correction for a single misread frame. It is also the cheapest way to
+    erase a real brief event, so a caller showing this to a person should show what it
+    changed rather than only the result - `clip_analysis.py` does.
+
+    Lives here, at module level, because two callers need it: `MedianSmoothing`, where it is
+    the STAN baseline that any sequence model has to beat, and the clip reviewer. One
+    implementation rather than two that drift.
+
+    Windows are odd by convention; an even one leans earlier, and at the sequence edges the
+    window is truncated rather than padded, so the first and last entries are smoothed
+    against fewer neighbours than the middle.
+    """
+    half = window // 2
+    out = []
+    for i in range(len(states)):
+        chunk = states[max(0, i - half): i + half + 1]
+        out.append(Counter(chunk).most_common(1)[0][0])
+    return out
+
+
 class _Predictor:
     name = "predictor"
 
@@ -183,14 +208,7 @@ class MedianSmoothing(TunedThresholds):
         self.train_accuracy, self.window, self.thresholds = best
         return self
 
-    @staticmethod
-    def _smooth(states: Sequence[Class3], window: int) -> list[Class3]:
-        half = window // 2
-        out = []
-        for i in range(len(states)):
-            chunk = states[max(0, i - half): i + half + 1]
-            out.append(Counter(chunk).most_common(1)[0][0])
-        return out
+    _smooth = staticmethod(majority_smooth)
 
     def predict(self, sequences: Sequence[SlotSequence]) -> list[SlotStatus]:
         return [

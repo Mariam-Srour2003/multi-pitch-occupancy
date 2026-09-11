@@ -260,6 +260,23 @@ minute. It has **never been run against a camera** — the path is tested agains
 capture opener, which is the right way to test it and is not the same thing. `docs/runbook.md`
 lists what happens when one dies mid-slot and which rows of that are enforced.
 
+### Reviewing a single clip
+
+`/clip` takes a video, samples a frame at a fixed interval, classifies each one and reports
+when the state changed. There is no schedule, booking or slot behind it — it is for a file
+somebody has in their hand: a disputed hour exported after the fact, or a camera being
+checked before it goes into the schedule. **The upload is deleted as soon as it has been
+read**, and nothing is written to the database.
+
+A lone sample that disagrees with both its neighbours is usually a misread frame, so a
+median filter (`slots.stan.majority_smooth`, the same one the STAN baseline uses) corrects
+it. **The correction is always shown, never applied silently** — the timeline stripes it, the
+table strikes the raw prediction through, and a toggle switches back to raw. That matters
+because the same filter erases real brief events: on the ten-minute clip this was built
+against it correctly absorbed one flicker *and* deleted a genuine 15-second maintenance
+event that the labels confirm was real. The samples alone cannot tell those apart; a person
+looking at the footage can.
+
 `uv.lock` and `.python-version` are committed deliberately: they are what lets another machine —
 or an examiner — reproduce the numbers.
 
