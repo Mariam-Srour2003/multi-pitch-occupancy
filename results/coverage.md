@@ -1,8 +1,8 @@
 # Dataset coverage
 
-Generated 2026-09-13 | `uv run pitch coverage` | 1692 recorded frames | 10 venues | +121 generated (excluded)
+Generated 2026-09-14 | `uv run pitch coverage` | 1692 recorded frames | 10 venues | +125 generated (excluded)
 
-**121 generated frame(s) are excluded from every table above the Generated section** (A13). They are a training-side augmentation and counting them here would make a gap look filled that is not.
+**125 generated frame(s) are excluded from every table above the Generated section** (A13). They are a training-side augmentation and counting them here would make a gap look filled that is not.
 
 ## Class x lighting
 
@@ -47,7 +47,7 @@ A class drawn overwhelmingly from one venue or one lighting condition cannot be 
 
 | class | top venue | share | top lighting | share |
 |---|---|---|---|---|
-| EMPTY | `venue_01` | 99% | `day` | 97% |
+| EMPTY | `venue_01` | 98% | `day` | 96% |
 | ACTIVE_PLAY | `venue_01` | 67% | `night` | 81% |
 | MAINTENANCE_NON_SPORTING | `venue_01` | 89% | `unknown` | 95% |
 
@@ -57,16 +57,16 @@ Training-side augmentation, listed apart from the recorded corpus because a gap 
 
 | class | clipvenue_a_blue_barrier | venue_01 | total |
 |---|---|---|---|
-| EMPTY | 6 | - | 6 |
+| EMPTY | 10 | - | 10 |
 | ACTIVE_PLAY | - | - | 0 |
 | MAINTENANCE_NON_SPORTING | 13 | 102 | 115 |
-| **total** | 19 | 102 | 121 |
+| **total** | 23 | 102 | 125 |
 
 | recorded defect | frames |
 |---|---|
 | `synthetic:cinematic` | 6 |
 | `synthetic:cinematic;sign_prop` | 1 |
-| `synthetic:ok` | 96 |
+| `synthetic:ok` | 100 |
 | `synthetic:timestamp_overlay` | 2 |
 | `synthetic:timestamp_overlay;sign_prop` | 1 |
 | `synthetic:timestamp_overlay;wrong_venue` | 6 |
