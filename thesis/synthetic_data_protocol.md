@@ -257,6 +257,52 @@ better while measuring less. Source frames come from the corpus or they do not g
 
 ---
 
+## 4h · Weather — useful, and dangerous in one specific way
+
+The corpus has **no rain and no fog**. `thesis/data_requests.md` §6 asks for them but does
+not schedule them, so weather variation is a real gap and worth generating.
+
+Append to any prompt above:
+
+| id | suffix |
+|---|---|
+| R1 | Add light rain: a faint drizzle in the air, the pitch surface slightly darker and patchily wet, small puddles near the touchline. Keep it subtle - overcast and damp, not a downpour. |
+| R2 | Add heavier rain: visible streaks, a clearly wet and reflective surface with standing water in places, and the background slightly hazed by it. |
+| R3 | Add light fog or mist so the far end of the pitch and the background buildings are softened and lower in contrast. The near half stays clear. |
+| R4 | Overcast and grey, no rain: flat diffuse light, no hard shadows anywhere, slightly desaturated. |
+
+### The one rule that makes this safe
+
+> **Spread every weather variant evenly across all classes.**
+
+Generate rain for EMPTY *and* maintenance *and* people *and* the ball cases, in roughly equal
+numbers. Rain on maintenance frames only would make "is it raining" predict "is it
+maintenance", and a frozen backbone would take that shortcut in preference to anything about
+the pitch - the same failure as the burned-in timestamps in batch gemini01, arriving by a
+different road.
+
+Weather is recorded per frame in the `quality` column (`synthetic:ok;rain_light` and so on),
+so the balance across classes can be checked afterwards rather than assumed.
+
+---
+
+## 4i · One chat per source image
+
+Not the same chat for all of them. Three reasons, in order of how much they cost:
+
+1. **"The ORIGINAL photo" stops being unambiguous** once a second image is uploaded, and
+   every prompt in this pack depends on that phrase pointing at one specific frame.
+2. **Style carries over.** A long thread drifts towards whatever it has already produced, so
+   venue 4 starts inheriting venue 1's choices instead of its own frame's.
+3. **Retrieval gets slower and riskier.** Images are collected by sweeping the page, so a
+   chat holding four venues means sorting out which frame belongs to which venue after the
+   fact - and a mislabelled venue is worse than a missing one.
+
+One chat per venue also means one sweep per venue, and the whole download is already labelled
+by the venue it came from.
+
+---
+
 ## 5 · Bringing them back in
 
 1. Save to `data/processed/4_maintenance/` and `data/processed/3_people_not_playing/`.
