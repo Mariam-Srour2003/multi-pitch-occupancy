@@ -205,6 +205,58 @@ support.
 
 ---
 
+## 4g · Other venues — and the one frame you must never use as a source
+
+The corpus has ten venues. Nine of them have **zero** EMPTY frames, which is the single
+biggest hole in it, so generating at those venues is worth more than anything in 4a-4f.
+
+### The rule that comes first
+
+> **Never condition a generated frame on a frame from `clipvenue_b_floodlit_track` or
+> `clipvenue_c_teal_boards`.**
+
+Those two are the **locked final test set** (`results/splits/FINAL_TESTSET_venues.csv`).
+Generating from one puts the final test set's own pixels into training. It is the most
+damaging leak available here and the hardest to see afterwards, because the result looks
+exactly like every other generated frame. `scripts/pick_venue_sources.py` refuses them by
+name rather than leaving it to memory.
+
+The seven usable venues, each staged as the frame with the fewest people in it:
+`clipvenue_a_blue_barrier`, `_d_indoor_dome`, `_e_pink_boards`, `_f_outdoor_bldg`,
+`_g_netting`, `_h_teal_pitch`, `_i_outdoor_trees`.
+
+### E · EMPTY, by removing the players
+
+Every clip venue frame is active play, so the empty version has to be made by subtraction:
+
+> Remove every person and every ball from this pitch, leaving it completely empty. Keep the
+> camera, the framing, the lighting, the pitch markings, the barriers, the goals, the
+> banners and the background exactly as they are, including any watermark. Fill the areas
+> where people were with the same grass, keeping the mowing stripes and the wear patterns
+> continuous. Change nothing else.
+
+Then run the M, W, P and B prompts against the same source frame, so each venue gets all
+four classes rather than only the one it happens to have.
+
+### What this fixes, and what it does not
+
+It fixes **training**: a model that has only ever seen an empty pitch at venue_01 has no way
+to learn what "empty" looks like in general, and this gives it nine more.
+
+It does **not** fix RQ1. RQ1 asks whether an empty pitch is recognised *at an unseen venue*,
+and that is a question about the **test** set, which stays real under A13. Item 1 of
+`thesis/data_requests.md` is unchanged: twenty minutes of a real camera pointed at a real
+empty pitch is still the only thing that answers it.
+
+### And a source that is not a venue at all
+
+A stock photograph of some other pitch is **not** a tenth venue, however much it looks like
+one. Conditioning on it invents a venue, which A13 condition 2 forbids for exactly the
+reason this project exists: a venue that is not a venue makes leave-one-venue-out look
+better while measuring less. Source frames come from the corpus or they do not get used.
+
+---
+
 ## 5 · Bringing them back in
 
 1. Save to `data/processed/4_maintenance/` and `data/processed/3_people_not_playing/`.
