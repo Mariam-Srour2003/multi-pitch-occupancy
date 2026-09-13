@@ -71,3 +71,34 @@ has their own basis for it.
 Scene state is classified, never identity. No face recognition, no re-identification, no tracking
 of individuals between frames or across cameras. Tier-2 detection counts people and detects
 attributes (hi-vis vest, machinery); it never matches a person to a person.
+
+---
+
+## Amendment (recorded 2026-09-13) — approval to use selected frames with an external image model
+
+The position above says the footage is "not published, redistributed, or shared outside the
+project". That clause is now qualified, with approval obtained **before** any frame left the
+machine:
+
+- the **supervisor** approved the use, and
+- the **facility operator / image owner**, who holds the original consent, approved it.
+
+**Scope of the approval, as it must be honoured in practice:**
+
+1. **Selected frames only, never the corpus.** A small, hand-chosen set — not a bulk upload,
+   not an automated one. Every frame sent is listed in
+   `thesis/synthetic_data_protocol.md`, so the set that left the project is auditable
+   after the fact rather than remembered.
+2. **Prefer frames with no identifiable person.** Empty pitch and equipment frames carry no
+   personal data and should be the ones used wherever a prompt does not require a person.
+   Where a person is unavoidable, use `vision/explain.redact_people` first.
+3. **Generated output is not the footage.** What comes back is a new image and is not
+   covered by the facility's consent in either direction — it is neither restricted by it
+   nor legitimised by it.
+4. **The no-dataset-release consequence above is unchanged.** Approval to use an external
+   tool is not approval to publish.
+
+> **Still to confirm in writing.** This records what was reported verbally on 2026-09-13.
+> The date of each approval and the name/role of each approver should be filled in here, and
+> an email or a line in the supervision minutes is worth more at the viva than this
+> paragraph. Ask for it at the next meeting.

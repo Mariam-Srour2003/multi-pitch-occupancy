@@ -17,6 +17,8 @@ from pitch_occupancy.data.splits import (
     DEFAULT_SPLIT_DIR,
     LEGACY_GROUP_KEY,
     check_split,
+    SYNTHETIC_SOURCE,
+    Split,
     development_rows,
     final_test_rows,
     grouped_split,
@@ -34,11 +36,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def row(
-    file: str, *, venue: str = "v1", slot: str = "s1", cls: str = "C1_EMPTY", date: str = "2026-07-11"
+    file: str, *, venue: str = "v1", slot: str = "s1", cls: str = "C1_EMPTY",
+    date: str = "2026-07-11", source: str = "regular",
 ) -> ManifestRow:
     return ManifestRow(
         file=file, class4="1_empty", class3=cls, venue=venue, camera=f"{slot}_camA",
-        slot_date=date, slot_time="10:00", slot_id=slot, t_s=0, source="regular",
+        slot_date=date, slot_time="10:00", slot_id=slot, t_s=0, source=source,
         labeled_by="human", lighting="day", quality="unknown", split_role="",
     )
 
@@ -512,3 +515,35 @@ def test_the_two_scripts_that_once_disagreed_now_build_the_same_split() -> None:
         f"{audit_ids} vs {equiv_ids}. Their row lists have drifted apart again - see the "
         f"WP0-T4 decision in splits.py."
     )
+
+
+# --- A13: generated frames are training-side only -------------------------------------
+
+
+def test_check_split_flags_synthetic_frames_on_the_test_side() -> None:
+    """A13 condition 1. The convention is worthless unless the checker enforces it.
+
+    A model scored against its own generator's output measures the generator, and this
+    repository's recurring defect is a guard that exists and does not operate.
+    """
+    train = [row(f"t{i}.jpg", slot="a", cls="C1_EMPTY" if i < 5 else "C2_ACTIVE_PLAY")
+             for i in range(10)]
+    test = [row(f"e{i}.jpg", slot="b", cls="C1_EMPTY" if i < 5 else "C2_ACTIVE_PLAY")
+            for i in range(10)]
+    test[0] = row("syn_e0.jpg", slot="b", cls="C1_EMPTY", source=SYNTHETIC_SOURCE)
+
+    problems = check_split(Split(name="a13", train=train, test=test, group_key="slot_id", seed=0))
+    assert any("generated frame" in p for p in problems), problems
+    assert any("A13" in p or "training-only" in p for p in problems), problems
+
+
+def test_check_split_allows_synthetic_frames_on_the_train_side() -> None:
+    """The other half of the rule: training-side generated frames are the intended use."""
+    train = [row(f"t{i}.jpg", slot="a", cls="C1_EMPTY" if i < 5 else "C2_ACTIVE_PLAY")
+             for i in range(10)]
+    train.append(row("syn_t0.jpg", slot="a", cls="C1_EMPTY", source=SYNTHETIC_SOURCE))
+    test = [row(f"e{i}.jpg", slot="b", cls="C1_EMPTY" if i < 5 else "C2_ACTIVE_PLAY")
+            for i in range(10)]
+
+    problems = check_split(Split(name="a13", train=train, test=test, group_key="slot_id", seed=0))
+    assert not any("generated frame" in p for p in problems), problems

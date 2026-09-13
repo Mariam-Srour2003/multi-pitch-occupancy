@@ -479,3 +479,45 @@ figures; A9's text stands as written, with this beside it.
 
 **Still this machine, not the deployment target.** WP7-T1 remains open: every figure here is
 an AMD development laptop, and the Mini-PC has never been measured.
+
+---
+
+### 2026-09-13 — A13: generated frames are admitted, for training only
+
+**What changes.** §"Data available" states *"No further data collection is planned."* That
+sentence now has an exception: frames **generated** by an external image model, conditioned
+on frames from this corpus, may enter the **training side only**. Ethics approval for the
+upload was obtained from the supervisor and from the facility operator before any frame left
+the machine, and is recorded in `thesis/ethics.md`.
+
+**Why it is being considered at all.** `results/coverage.md` reports
+`MAINTENANCE_NON_SPORTING` at **6 frames**, one venue, one camera, one moment, daylight only,
+with `MAINTENANCE × night` empty. Six frames cannot train a class and cannot test one. The
+third class is currently decorative: every macro-average in this thesis is a two-class
+average carrying a three-class name.
+
+**The three conditions, and none of them is optional.**
+
+1. **Training only, enforced in code.** `splits.SYNTHETIC_SOURCE` marks generated rows and
+   `splits.check_split` reports any that reach a test side. A model scored against its own
+   generator's output measures the generator. This project's recurring defect is *guards that
+   exist and do not operate*, so this one is a check, not a convention.
+2. **No synthetic venue, ever.** Generated frames inherit the venue of the frame that
+   conditioned them and are never given a venue of their own. A generated "venue B" is
+   venue_01's pixels wearing a filter; admitting one into leave-one-venue-out would
+   manufacture exactly the inflation this project exists to remove — and would do it
+   invisibly, because the number would look better.
+3. **Reported as an ablation, not folded in.** Every headline figure is quoted on real data.
+   The synthetic contribution appears as a separate with/without row. If no such row appears
+   in the thesis, the augmentation was not used.
+
+**What it does not fix, stated here so it is not quietly forgotten.** Generation cannot
+supply the two things most needed: an empty pitch **at a second venue** (item 1 of
+`thesis/data_requests.md`) and **complete slots with a real verdict** (item 2, still n=2).
+Both are test-side needs, and the test side must be real. A13 makes the third class trainable.
+It does not make it *evaluable*, and RQ1 and RQ6 remain blocked on real footage.
+
+**Pre-declared failure condition.** If a real-vs-generated probe on frozen features separates
+the two sets at macro-F1 > 0.90, the generated frames are a distinguishable distribution
+rather than an augmentation of this one, and the augmentation is withdrawn. Declared before
+the frames exist so the threshold cannot be chosen after seeing them.

@@ -66,6 +66,7 @@ __all__ = [
     "temporal_split",
     "check_split", "split_identity",
     "LEGACY_GROUP_KEY",
+    "SYNTHETIC_SOURCE",
     "DEFAULT_SPLIT_DIR",
     "write_split",
     "read_split",
@@ -84,6 +85,14 @@ DEFAULT_FINAL_VENUES = RESULTS_DIR / "splits" / "FINAL_TESTSET_venues.csv"
 #: field, so the group-overlap check cannot run against it - and `check_split` says so
 #: rather than raising, which is what it used to do on every materialised split.
 LEGACY_GROUP_KEY = "<from file - not recorded>"
+
+#: `source` value marking a frame that was generated rather than recorded (A13). Generated
+#: frames may be used for training only. They must never reach a test side: a model scored
+#: against its own generator's output measures the generator, and the whole point of this
+#: project is that an evaluation which looks fine can be measuring the wrong thing.
+#: :func:`check_split` enforces this, because a convention that is only written down is the
+#: defect class this repository keeps finding - a guard that exists and does not operate.
+SYNTHETIC_SOURCE = "synthetic"
 
 
 @dataclass(frozen=True, slots=True)
@@ -395,6 +404,16 @@ def check_split(split: Split) -> list[str]:
 
     if shared := {r.file for r in split.train} & {r.file for r in split.test}:
         problems.append(f"{len(shared)} frame(s) appear in both train and test")
+
+    # A13. Generated frames are a training-side-only augmentation; on the test side they
+    # would make every headline number unreportable, so this is checked rather than trusted.
+    if synthetic := [
+        r for r in split.test if getattr(r, "source", "") == SYNTHETIC_SOURCE
+    ]:
+        problems.append(
+            f"{len(synthetic)} generated frame(s) are on the test side - synthetic data is "
+            f"training-only under A13, and results from this split cannot be reported"
+        )
 
     train_classes = {r.class3 for r in split.train}
     test_counts = Counter(r.class3 for r in split.test)
