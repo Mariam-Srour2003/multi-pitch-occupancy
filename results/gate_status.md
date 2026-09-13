@@ -34,7 +34,7 @@ A gate passes only when nothing under it is unmet *and* nothing needs a person.
 | | criterion | evidence |
 |---|---|---|
 | ✔ | Coverage matrix published | results/coverage.md |
-| ✔ | Concentration of EMPTY reported | EMPTY appears in exactly one venue (494 frames) |
+| ✔ | Concentration of EMPTY reported | EMPTY appears in 2 of 10 venues |
 | ✔ | Near-duplicate rate measured | results/near_duplicates.csv |
 | ✔ | Per-split leakage measured | 100% of leaky-split errors had a near-duplicate; 0 on the honest split |
 | ✔ | Effective sample size reported | results/effective_sample_audit.csv |
