@@ -1,0 +1,130 @@
+{
+  "frozen": [
+    {
+      "key": "convnextv2",
+      "label": "ConvNeXtV2",
+      "hf_id": "facebook/convnextv2-tiny-22k-224",
+      "role": "production lead - smallest and fastest",
+      "params": 27866496,
+      "trainable_params": 0,
+      "unused_pooler_params": 0,
+      "pretraining": "ImageNet-22k, masked autoencoder then supervised",
+      "pretraining_labels": "labels used",
+      "pooling": "last_hidden_state.mean(dim=(2,3))",
+      "processor_geometry": "crop_pct 0.875: resize to 256, then centre-crop 224 - discards 23.4%",
+      "geometry_is_a_no_op": false,
+      "architecture": {
+        "family": "convnet",
+        "depths": [
+          3,
+          3,
+          9,
+          3
+        ],
+        "widths": [
+          96,
+          192,
+          384,
+          768
+        ],
+        "output_dim": 768
+      }
+    },
+    {
+      "key": "vit",
+      "label": "ViT",
+      "hf_id": "google/vit-base-patch16-224",
+      "role": "supervised ImageNet-21k->1k; accuracy reference",
+      "params": 86389248,
+      "trainable_params": 0,
+      "unused_pooler_params": 590592,
+      "pretraining": "supervised ImageNet-21k then fine-tuned to 1k",
+      "pretraining_labels": "labels used",
+      "pooling": "last_hidden_state.mean(dim=1)",
+      "processor_geometry": "resize to exactly 224x224 - a true no-op on a 224x224 input",
+      "geometry_is_a_no_op": true,
+      "architecture": {
+        "family": "transformer",
+        "layers": 12,
+        "hidden": 768,
+        "heads": 12,
+        "patch": 16,
+        "output_dim": 768
+      }
+    },
+    {
+      "key": "dinov2",
+      "label": "DINOv2",
+      "hf_id": "facebook/dinov2-base",
+      "role": "self-supervised; robustness reference",
+      "params": 86580480,
+      "trainable_params": 0,
+      "unused_pooler_params": 0,
+      "pretraining": "self-supervised on LVD-142M",
+      "pretraining_labels": "no labels at all",
+      "pooling": "last_hidden_state.mean(dim=1)",
+      "processor_geometry": "resize shortest edge 256, then centre-crop 224 - discards 23.4%",
+      "geometry_is_a_no_op": false,
+      "architecture": {
+        "family": "transformer",
+        "layers": 12,
+        "hidden": 768,
+        "heads": 12,
+        "patch": 14,
+        "output_dim": 768
+      }
+    }
+  ],
+  "frozen_total_params": 200836224,
+  "frozen_gradients_received": 0,
+  "trained": {
+    "probe": {
+      "name": "Linear probe (logistic regression)",
+      "shape": "768 features x 3 classes + 3 biases",
+      "params": 2307,
+      "coefficients": 2304,
+      "biases": 3,
+      "detail": "StandardScaler -> LogisticRegression(max_iter=2000, class_weight=\"balanced\", random_state=42)",
+      "why": "C3 has 6 frames in the whole dataset; an unweighted fit never predicts it.",
+      "refit": "from scratch for every backbone x protocol x seed, in under a second"
+    },
+    "fusion": [
+      {
+        "rung": "uniform",
+        "params": 6915,
+        "note": "weights fixed at 1/K - no mixing learned"
+      },
+      {
+        "rung": "constant",
+        "params": 6918,
+        "note": "K learned weights, shared by every frame"
+      },
+      {
+        "rung": "mlp",
+        "params": 6974,
+        "note": "weights learned per frame from 3 statistics - the only actual router"
+      }
+    ],
+    "stan": {
+      "name": "STAN (spatio-temporal aggregation network)",
+      "params": 1651,
+      "ceiling": 100000,
+      "shape": "Conv1d(3 -> 16, k=5) -> Conv1d(16 -> 16, k=5, dilation=2) -> Linear(32 -> 3)",
+      "receptive_field_minutes": 13,
+      "pooling": "masked mean and max, concatenated",
+      "training": "300 epochs, Adam, lr 0.01, weight decay 0.001, seed 42"
+    }
+  },
+  "trained_total_params": 10932,
+  "frozen_to_trained_ratio": 18371,
+  "probe_ratio": 87055,
+  "zero_shot": {
+    "name": "OpenCLIP zero-shot",
+    "hf_id": "laion/CLIP-ViT-B-32-laion2B-s34B-b79K",
+    "params": 151277313,
+    "trained_params": 0,
+    "why": "fit() is a deliberate no-op, so the same per-frame prediction is scored under every protocol - any movement is caused by the test set alone."
+  },
+  "feature_dim": 768,
+  "n_classes": 3
+}

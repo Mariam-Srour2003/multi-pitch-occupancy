@@ -1,15 +1,15 @@
 # Dataset coverage
 
-Generated 2026-09-06 | `uv run pitch coverage` | 1692 frames | 10 venues
+Generated 2026-09-13 | `uv run pitch coverage` | 1775 frames | 10 venues
 
 ## Class x lighting
 
-| class | day | night | total |
-|---|---|---|---|
-| EMPTY | 485 | 9 | 494 |
-| ACTIVE_PLAY | 222 | 970 | 1192 |
-| MAINTENANCE_NON_SPORTING | 6 | - | 6 |
-| **total** | 713 | 979 | 1692 |
+| class | day | night | unknown | total |
+|---|---|---|---|---|
+| EMPTY | 485 | 9 | - | 494 |
+| ACTIVE_PLAY | 222 | 970 | - | 1192 |
+| MAINTENANCE_NON_SPORTING | 6 | - | 83 | 89 |
+| **total** | 713 | 979 | 83 | 1775 |
 
 ## Class x venue
 
@@ -17,27 +17,29 @@ Generated 2026-09-06 | `uv run pitch coverage` | 1692 frames | 10 venues
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | EMPTY | - | - | - | - | - | - | - | - | - | 494 | 494 |
 | ACTIVE_PLAY | 168 | 78 | 36 | 18 | 18 | 12 | 30 | 18 | 18 | 796 | 1192 |
-| MAINTENANCE_NON_SPORTING | - | - | - | - | - | - | - | - | - | 6 | 6 |
-| **total** | 168 | 78 | 36 | 18 | 18 | 12 | 30 | 18 | 18 | 1296 | 1692 |
+| MAINTENANCE_NON_SPORTING | - | - | - | - | - | - | - | - | - | 89 | 89 |
+| **total** | 168 | 78 | 36 | 18 | 18 | 12 | 30 | 18 | 18 | 1379 | 1775 |
 
 ## Provenance
 
-| class | bulk | human | total |
-|---|---|---|---|
-| EMPTY | 238 | 256 | 494 |
-| ACTIVE_PLAY | 396 | 796 | 1192 |
-| MAINTENANCE_NON_SPORTING | - | 6 | 6 |
-| **total** | 634 | 1058 | 1692 |
+| class | bulk | human | synthetic | total |
+|---|---|---|---|---|
+| EMPTY | 238 | 256 | - | 494 |
+| ACTIVE_PLAY | 396 | 796 | - | 1192 |
+| MAINTENANCE_NON_SPORTING | - | 6 | 83 | 89 |
+| **total** | 634 | 1058 | 83 | 1775 |
 
 ## Gaps
 
 Combinations with **no frames at all** - claims this dataset cannot support:
 
+- `EMPTY` x `unknown`
+- `ACTIVE_PLAY` x `unknown`
 - `MAINTENANCE_NON_SPORTING` x `night`
 
-Classes below the 100-frame working target **in total**: `MAINTENANCE_NON_SPORTING` (6)
+Classes below the 100-frame working target **in total**: `MAINTENANCE_NON_SPORTING` (89)
 
-13 of 16 populated cells are below target.
+14 of 17 populated cells are below target.
 
 ## Concentration
 
@@ -47,4 +49,4 @@ A class drawn overwhelmingly from one venue or one lighting condition cannot be 
 |---|---|---|---|---|
 | EMPTY | `venue_01` | 100% | `day` | 98% |
 | ACTIVE_PLAY | `venue_01` | 67% | `night` | 81% |
-| MAINTENANCE_NON_SPORTING | `venue_01` | 100% | `day` | 100% |
+| MAINTENANCE_NON_SPORTING | `venue_01` | 100% | `unknown` | 93% |

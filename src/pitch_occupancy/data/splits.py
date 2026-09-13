@@ -144,11 +144,24 @@ def load_final_venues(path: Path | None = None) -> frozenset[str]:
 
 
 def development_rows(
-    rows: list[ManifestRow], *, final_venues: frozenset[str] | None = None
+    rows: list[ManifestRow],
+    *,
+    final_venues: frozenset[str] | None = None,
+    include_synthetic: bool = False,
 ) -> list[ManifestRow]:
-    """Everything a split is allowed to touch: all rows outside the locked venues."""
+    """Everything a split is allowed to touch: all rows outside the locked venues.
+
+    **Generated frames are excluded by default** (A13). They are an augmentation to be
+    reported as a with/without ablation, so the default development set has to be the one
+    every existing table describes - otherwise ingesting a batch silently redefines every
+    published number, and nobody re-reads the tables. Pass ``include_synthetic=True`` in the
+    ablation itself, and only there.
+    """
     locked = load_final_venues() if final_venues is None else final_venues
-    return [r for r in rows if r.venue not in locked]
+    out = [r for r in rows if r.venue not in locked]
+    if not include_synthetic:
+        out = [r for r in out if getattr(r, "source", "") != SYNTHETIC_SOURCE]
+    return out
 
 
 def final_test_rows(

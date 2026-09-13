@@ -26,6 +26,8 @@ from pitch_occupancy.api.diagrams import (
     protocols,
     schema,
 )
+from pitch_occupancy.api.findings_summary import STYLES as FINDINGS_STYLES
+from pitch_occupancy.api.findings_summary import render_summary as render_findings
 from pitch_occupancy.api.markdown import render
 from pitch_occupancy.api.models_view import STYLES as MODEL_STYLES
 from pitch_occupancy.api.models_view import render as render_models
@@ -58,9 +60,25 @@ LEADS = {
     "database": schema,
 }
 
+#: Tabs whose source document is too long to serve whole, mapped to what renders instead.
+#:
+#: Findings was the whole of `EXPERIMENT_LOG.md` - 75 dated entries, a quarter of a megabyte,
+#: every one of them open. The log is the right archive and the wrong page: it is append-only
+#: history, so a reader looking for what the project found had to read what it found *and*
+#: everything it later withdrew, in the order it happened. `findings_summary` puts the
+#: verified claims and the retractions above it and collapses the entries, so nothing is
+#: dropped and the page is scannable in a screen or two.
+#:
+#: A tab belongs here only when its document is an archive. The pre-registration and the RQ
+#: matrix are *arguments* - they are written to be read start to finish, and collapsing them
+#: would hide the reasoning that is their whole content.
+SUMMARIES = {"findings": render_findings}
+
 
 def _doc(path: Path, key: str = "") -> str:
     lead = LEADS[key]() if key in LEADS else ""
+    if key in SUMMARIES:
+        return lead + SUMMARIES[key]()
     if not path.exists():
         return lead + f"<p class='missing'>Not generated yet: <code>{path.name}</code></p>"
     return lead + render(path.read_text(encoding="utf-8"))
@@ -324,7 +342,8 @@ def page() -> str:
             .replace("__TABS__", '<button data-view="models">Models</button>' + tabs
                      + '<button data-view="augmentation">Augmentation</button>')
             .replace("__VIEWS__", models + views + augmentation + searches)
-            .replace("__MODEL_STYLES__", MODEL_STYLES + PANEL_STYLES + DIAGRAM_STYLES)
+            .replace("__MODEL_STYLES__",
+                     MODEL_STYLES + PANEL_STYLES + DIAGRAM_STYLES + FINDINGS_STYLES)
             .replace("__PANEL_SCRIPT__", PANEL_SCRIPT))
 
 

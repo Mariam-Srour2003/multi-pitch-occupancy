@@ -547,3 +547,16 @@ def test_check_split_allows_synthetic_frames_on_the_train_side() -> None:
 
     problems = check_split(Split(name="a13", train=train, test=test, group_key="slot_id", seed=0))
     assert not any("generated frame" in p for p in problems), problems
+
+
+def test_development_rows_excludes_generated_frames_by_default() -> None:
+    """A13. Ingesting a batch must not silently redefine every published number."""
+    real = [row(f"r{i}.jpg", venue="v1") for i in range(5)]
+    syn = [row(f"syn{i}.jpg", venue="v1", source=SYNTHETIC_SOURCE) for i in range(3)]
+
+    default = development_rows(real + syn, final_venues=frozenset())
+    assert {r.file for r in default} == {r.file for r in real}
+
+    opted_in = development_rows(real + syn, final_venues=frozenset(),
+                                include_synthetic=True)
+    assert len(opted_in) == 8

@@ -585,3 +585,94 @@ def test_a_missing_interval_renders_nothing_rather_than_a_dash() -> None:
     assert _ci(None, None) == ""
     assert _ci("", "") == ""
     assert "0.100" in _ci("0.1", "0.9")
+
+
+# --- the findings summary ---------------------------------------------------
+
+
+def test_the_findings_tab_summarises_instead_of_serving_the_whole_log(client) -> None:
+    """The tab used to render all 76 entries open - a quarter of a megabyte of prose.
+
+    The log is the right archive and the wrong page: it is append-only history, so a reader
+    looking for what the project found had to read that *and* everything later withdrawn,
+    in the order it happened. Asserted on the served page rather than on the builder,
+    because the wall is what a reader got.
+    """
+    html = client.get("/").text
+    assert "What the project found" in html
+    # Entries are collapsed, and collapsed means `<details>` rather than a class that only
+    # looks closed - a CSS-hidden wall is still a wall to find-in-page and to a saved copy.
+    assert '<details class="fentry"' in html
+    assert html.count('<details class="fentry"') > 20
+
+
+def test_no_log_entry_is_dropped_by_the_summary() -> None:
+    """Summarising must not mean omitting: every `##` heading in the log gets an entry.
+
+    This is the property that makes collapsing honest. A page that showed the best entries
+    and quietly lost the rest would be the same failure as the export that stopped covering
+    the thesis - and would be just as invisible.
+    """
+    from pitch_occupancy.api.findings_summary import LOG, log_entries
+
+    if not LOG.exists():
+        pytest.skip("no experiment log yet")
+    headings = sum(
+        1 for line in LOG.read_text(encoding="utf-8").splitlines()
+        if line.startswith("## ")
+    )
+    entries = log_entries()
+    # One extra for the preamble, which has no heading and is kept as its own entry.
+    assert len(entries) == headings + 1
+
+
+def test_entry_dates_are_found_wherever_the_heading_puts_them() -> None:
+    """A third of the log's headings put the date last: `## Title (WP3-T8) - 2026-09-07`.
+
+    A pattern anchored to the front of the heading read 19 of 76 as undated and dropped
+    them into one unsorted pile, titles and all. So this asserts the weaker, real property:
+    if the heading contains a date, the entry carries it.
+    """
+    import re
+
+    from pitch_occupancy.api.findings_summary import log_entries
+
+    for entry in log_entries():
+        source = f'{entry["date"]} {entry["title"]}'
+        if re.search(r"\d{4}-\d{2}-\d{2}", source) and not entry["date"]:
+            pytest.fail(f"date left in the title: {entry['title']!r}")
+
+
+def test_every_retraction_link_points_at_an_entry_that_exists(client) -> None:
+    """The retraction strip is the reason to keep the log reachable at all.
+
+    A number that was published and then withdrawn is part of the method, so those entries
+    stay as written - this strip only makes them findable. A link into an id the page does
+    not contain would make the most valuable entries the least reachable, which is worse
+    than not linking them.
+    """
+    import re
+
+    html = client.get("/").text
+    targets = set(re.findall(r'href="#(entry-\d+)"', html))
+    if not targets:
+        pytest.skip("no retractions detected in this log")
+    for target in targets:
+        assert f'id="{target}"' in html, f"retraction links to a missing {target}"
+
+
+def test_the_claims_summary_carries_every_ledger_claim() -> None:
+    """The summary is the ledger, so a claim missing from it is a claim nobody reads.
+
+    Counted against `claims.toml` rather than a fixed 34: adding a claim should not need a
+    test edit, but losing one silently should fail.
+    """
+    import tomllib
+
+    from pitch_occupancy.api.findings_summary import LEDGER, claim_groups
+
+    if not LEDGER.exists():
+        pytest.skip("no claims ledger")
+    declared = len(tomllib.loads(LEDGER.read_text(encoding="utf-8"))["claim"])
+    shown = sum(len(g["claims"]) for g in claim_groups())
+    assert shown == declared

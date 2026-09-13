@@ -1,0 +1,1030 @@
+{
+  "stages": [
+    {
+      "name": "manifest",
+      "level": 0,
+      "minutes": 1,
+      "note": "index the labelled frames",
+      "machine_dependent": false,
+      "produces": [
+        "data/processed/manifest.csv"
+      ],
+      "requires": [
+        "data/processed"
+      ],
+      "depends_on": [],
+      "external_inputs": [
+        "data/processed"
+      ],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "coverage",
+      "level": 1,
+      "minutes": 1,
+      "note": "class x lighting x venue matrix",
+      "machine_dependent": false,
+      "produces": [
+        "results/coverage.md"
+      ],
+      "requires": [
+        "data/processed/manifest.csv"
+      ],
+      "depends_on": [
+        "manifest"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "feature-cache",
+      "level": 1,
+      "minutes": 25,
+      "note": "embed every frame once per backbone - the expensive stage",
+      "machine_dependent": false,
+      "produces": [
+        "data/cache/convnextv2.npz",
+        "data/cache/dinov2.npz",
+        "data/cache/vit.npz"
+      ],
+      "requires": [
+        "data/processed/manifest.csv"
+      ],
+      "depends_on": [
+        "manifest"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "h1-h2-baseline-floor",
+      "level": 2,
+      "minutes": 3,
+      "note": "split leakage and the trivial-baseline floor",
+      "machine_dependent": false,
+      "produces": [
+        "results/h1_h2_baseline_floor.csv"
+      ],
+      "requires": [
+        "data/cache/dinov2.npz"
+      ],
+      "depends_on": [
+        "feature-cache"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "h3-cross-venue",
+      "level": 2,
+      "minutes": 2,
+      "note": "cross-venue play recall",
+      "machine_dependent": false,
+      "produces": [
+        "results/h3_cross_venue_recall.csv"
+      ],
+      "requires": [
+        "data/cache/dinov2.npz"
+      ],
+      "depends_on": [
+        "feature-cache"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "h3-sensitivity",
+      "level": 2,
+      "minutes": 2,
+      "note": "H3 with the two audited venues merged",
+      "machine_dependent": false,
+      "produces": [
+        "results/h3_sensitivity_merged_venues.csv"
+      ],
+      "requires": [
+        "data/cache/dinov2.npz"
+      ],
+      "depends_on": [
+        "feature-cache"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "label-efficiency",
+      "level": 2,
+      "minutes": 3,
+      "note": "macro-F1 against labelling budget",
+      "machine_dependent": false,
+      "produces": [
+        "results/label_efficiency.csv"
+      ],
+      "requires": [
+        "data/cache/dinov2.npz"
+      ],
+      "depends_on": [
+        "feature-cache"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "rq6-calibration",
+      "level": 2,
+      "minutes": 2,
+      "note": "calibration and risk-coverage (reports as blocked - see the log)",
+      "machine_dependent": false,
+      "produces": [
+        "results/rq6_calibration.csv",
+        "results/rq6_risk_coverage.csv",
+        "results/rq6_reliability.csv"
+      ],
+      "requires": [
+        "data/cache/dinov2.npz"
+      ],
+      "depends_on": [
+        "feature-cache"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "input-ablation",
+      "level": 1,
+      "minutes": 30,
+      "note": "what the model reads - re-embeds per variant",
+      "machine_dependent": false,
+      "produces": [
+        "results/input_ablation.csv"
+      ],
+      "requires": [
+        "data/processed/manifest.csv"
+      ],
+      "depends_on": [
+        "manifest"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "camera-health",
+      "level": 1,
+      "minutes": 4,
+      "note": "per-camera frame quality; a global threshold would flag one venue",
+      "machine_dependent": false,
+      "produces": [
+        "results/camera_health.csv",
+        "results/frame_quality.csv"
+      ],
+      "requires": [
+        "data/processed/manifest.csv"
+      ],
+      "depends_on": [
+        "manifest"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "near-duplicate-audit",
+      "level": 1,
+      "minutes": 6,
+      "note": "quantifies H1's leakage: 37.1% of duplicate pairs straddle a random split",
+      "machine_dependent": false,
+      "produces": [
+        "results/near_duplicates.csv"
+      ],
+      "requires": [
+        "data/processed/manifest.csv"
+      ],
+      "depends_on": [
+        "manifest"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "camera-fingerprint",
+      "level": 1,
+      "minutes": 1,
+      "note": "proves the (1).mp4 camera suffix swaps between venue_01's two days",
+      "machine_dependent": false,
+      "produces": [
+        "results/camera_fingerprint.csv"
+      ],
+      "requires": [
+        "data/processed/manifest.csv"
+      ],
+      "depends_on": [
+        "manifest"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "augmentation-grid",
+      "level": 1,
+      "minutes": 1,
+      "note": "every preset, every effect on its own, and every preprocessing switch over two real frames - the visual check",
+      "machine_dependent": false,
+      "produces": [
+        "results/figs/augmentation_grid.jpg",
+        "results/figs/augmentation_effects.jpg",
+        "results/figs/preprocess_effects.jpg"
+      ],
+      "requires": [
+        "data/processed/manifest.csv"
+      ],
+      "depends_on": [
+        "manifest"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "class-balancing",
+      "level": 0,
+      "minutes": 2,
+      "note": "why balancing stays on: unweighted calls 46.5% of empty pitches a match",
+      "machine_dependent": false,
+      "produces": [
+        "results/class_balancing.csv"
+      ],
+      "requires": [
+        "data/cache/ablate_dinov2_full.npz"
+      ],
+      "depends_on": [],
+      "external_inputs": [
+        "data/cache/ablate_dinov2_full.npz"
+      ],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "h3-false-play",
+      "level": 3,
+      "minutes": 2,
+      "note": "H3 with the control it never had; ConvNeXtV2 calls 99.2% of empties a match",
+      "machine_dependent": false,
+      "produces": [
+        "results/h3_with_false_play.csv"
+      ],
+      "requires": [
+        "data/cache/dinov2.npz",
+        "results/h3_cross_venue_recall.csv"
+      ],
+      "depends_on": [
+        "feature-cache",
+        "h3-cross-venue"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "false-play-significance",
+      "level": 4,
+      "minutes": 3,
+      "note": "CIs, McNemar and Holm - and the de-duplication that overturns them",
+      "machine_dependent": false,
+      "produces": [
+        "results/false_play_significance.csv"
+      ],
+      "requires": [
+        "results/h3_with_false_play.csv"
+      ],
+      "depends_on": [
+        "h3-false-play"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "effective-sample-audit",
+      "level": 3,
+      "minutes": 5,
+      "note": "how many distinct scenes each reported test actually rests on",
+      "machine_dependent": false,
+      "produces": [
+        "results/effective_sample_audit.csv"
+      ],
+      "requires": [
+        "results/h1_h2_baseline_floor.csv",
+        "data/cache/dinov2.npz"
+      ],
+      "depends_on": [
+        "feature-cache",
+        "h1-h2-baseline-floor"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "end-to-end-slots",
+      "level": 1,
+      "minutes": 1,
+      "note": "decision layer on the real slots",
+      "machine_dependent": false,
+      "produces": [
+        "results/end_to_end_slots.csv"
+      ],
+      "requires": [
+        "data/processed/manifest.csv"
+      ],
+      "depends_on": [
+        "manifest"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "end-to-end-model",
+      "level": 2,
+      "minutes": 5,
+      "note": "WP6-T2: the same slots through the deployed classifier, beside the labels",
+      "machine_dependent": false,
+      "produces": [
+        "results/end_to_end_model_slots.csv"
+      ],
+      "requires": [
+        "data/processed/manifest.csv",
+        "data/cache/dinov2.npz",
+        "data/raw/venue_01"
+      ],
+      "depends_on": [
+        "feature-cache",
+        "manifest"
+      ],
+      "external_inputs": [
+        "data/raw/venue_01"
+      ],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "efficiency",
+      "level": 1,
+      "minutes": 5,
+      "note": "latency and 20-camera throughput - hardware-specific, run --only on an idle machine",
+      "machine_dependent": true,
+      "produces": [
+        "results/efficiency_latency.csv"
+      ],
+      "requires": [
+        "data/processed/manifest.csv"
+      ],
+      "depends_on": [
+        "manifest"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "prompt-search",
+      "level": 1,
+      "minutes": 25,
+      "note": "zero-shot prompt sweep - the RQ1 cold-start baseline",
+      "machine_dependent": false,
+      "produces": [
+        "results/prompt_search.csv",
+        "results/prompt_search_best.json"
+      ],
+      "requires": [
+        "data/processed/manifest.csv"
+      ],
+      "depends_on": [
+        "manifest"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "geometry-probe",
+      "level": 1,
+      "minutes": 50,
+      "note": "WP3-T3: keep the processor geometry; ConvNeXtV2 false-play 0.99 -> 0.02 letterboxed",
+      "machine_dependent": false,
+      "produces": [
+        "results/geometry_convention_probe.csv"
+      ],
+      "requires": [
+        "data/processed/manifest.csv"
+      ],
+      "depends_on": [
+        "manifest"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "benchmark-v2",
+      "level": 3,
+      "minutes": 12,
+      "note": "WP4-T1: four split protocols; a constant predictor scores 1.000 cross-venue",
+      "machine_dependent": false,
+      "produces": [
+        "results/benchmark_v2.csv",
+        "results/benchmark_v2_protocols.json"
+      ],
+      "requires": [
+        "data/cache/dinov2.npz",
+        "results/h1_h2_baseline_floor.csv"
+      ],
+      "depends_on": [
+        "feature-cache",
+        "h1-h2-baseline-floor"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "input-path-protocol",
+      "level": 2,
+      "minutes": 6,
+      "note": "WP3-T3(b): the input-path finding reverses under the camera swap - not established",
+      "machine_dependent": false,
+      "produces": [
+        "results/input_path_protocol.csv"
+      ],
+      "requires": [
+        "data/cache/convnextv2.npz",
+        "data/cache/geom_probe/convnextv2.npz",
+        "results/geometry_convention_probe.csv"
+      ],
+      "depends_on": [
+        "feature-cache",
+        "geometry-probe"
+      ],
+      "external_inputs": [
+        "data/cache/geom_probe/convnextv2.npz"
+      ],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "h6-zero-shot",
+      "level": 3,
+      "minutes": 9,
+      "note": "H6: inconclusive - the prompt matters more than the model (0.021-0.747 macro-F1)",
+      "machine_dependent": false,
+      "produces": [
+        "results/h6_zero_shot_gap.csv"
+      ],
+      "requires": [
+        "data/cache/clip_image_features.npz",
+        "data/cache/dinov2.npz",
+        "results/h1_h2_baseline_floor.csv",
+        "results/prompt_search_best.json"
+      ],
+      "depends_on": [
+        "feature-cache",
+        "h1-h2-baseline-floor",
+        "prompt-search"
+      ],
+      "external_inputs": [
+        "data/cache/clip_image_features.npz"
+      ],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "h4-equivalence",
+      "level": 3,
+      "minutes": 8,
+      "note": "H4: ConvNeXtV2 == ViT exactly because neither ever predicts EMPTY; 1.83x concurrent",
+      "machine_dependent": false,
+      "produces": [
+        "results/h4_model_equivalence.csv"
+      ],
+      "requires": [
+        "data/cache/vit.npz",
+        "results/h1_h2_baseline_floor.csv",
+        "results/efficiency_latency.csv"
+      ],
+      "depends_on": [
+        "efficiency",
+        "feature-cache",
+        "h1-h2-baseline-floor"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "logit-average",
+      "level": 3,
+      "minutes": 6,
+      "note": "WP5-T9 on raw caches; its false-play half is refuted - see logit-average-preproc",
+      "machine_dependent": false,
+      "produces": [
+        "results/logit_average_baseline.csv"
+      ],
+      "requires": [
+        "data/cache/dinov2.npz",
+        "results/h3_cross_venue_recall.csv"
+      ],
+      "depends_on": [
+        "feature-cache",
+        "h3-cross-venue"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "logit-average-preproc",
+      "level": 0,
+      "minutes": 6,
+      "note": "WP5-T9 on letterboxed caches: refutes finding 2, strengthens finding 1 to 100%",
+      "machine_dependent": false,
+      "produces": [
+        "results/logit_average_baseline_preproc.csv"
+      ],
+      "requires": [
+        "data/cache/geom_probe/dinov2.npz"
+      ],
+      "depends_on": [],
+      "external_inputs": [
+        "data/cache/geom_probe/dinov2.npz"
+      ],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "fusion-head",
+      "level": 4,
+      "minutes": 9,
+      "note": "WP5-T2: routing is worth -0.024 recall; and no model exceeds 0.165 EMPTY accuracy",
+      "machine_dependent": false,
+      "produces": [
+        "results/fusion_head_ablation.csv",
+        "results/fusion_head_comparisons.csv",
+        "results/fusion_head_gate.csv"
+      ],
+      "requires": [
+        "data/cache/dinov2.npz",
+        "results/logit_average_baseline.csv"
+      ],
+      "depends_on": [
+        "feature-cache",
+        "logit-average"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "stan-preliminary",
+      "level": 2,
+      "minutes": 3,
+      "note": "WP5-T1 against four tuned baselines; preliminary by the WP5-T8 gate - 2 real slots",
+      "machine_dependent": false,
+      "produces": [
+        "results/stan_preliminary.csv",
+        "results/stan_draw_spread.csv"
+      ],
+      "requires": [
+        "data/cache/dinov2.npz",
+        "data/processed/manifest.csv"
+      ],
+      "depends_on": [
+        "feature-cache",
+        "manifest"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "augmentation-transfer",
+      "level": 2,
+      "minutes": 65,
+      "note": "WP3-T6: the `light` headline was one draw of five - median 0.3510, sd 0.2206",
+      "machine_dependent": false,
+      "produces": [
+        "results/augmentation_transfer.csv",
+        "results/augmentation_transfer_spread.csv"
+      ],
+      "requires": [
+        "data/cache/dinov2.npz",
+        "data/processed/manifest.csv"
+      ],
+      "depends_on": [
+        "feature-cache",
+        "manifest"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "onboarding-cost",
+      "level": 2,
+      "minutes": 7,
+      "note": "WP4-T3: one labelled frame of a new camera is worth most of it; from five the source set stops helping",
+      "machine_dependent": false,
+      "produces": [
+        "results/onboarding_cost.csv"
+      ],
+      "requires": [
+        "data/cache/dinov2.npz",
+        "data/processed/manifest.csv"
+      ],
+      "depends_on": [
+        "feature-cache",
+        "manifest"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "empty-recognition",
+      "level": 4,
+      "minutes": 6,
+      "note": "WP4-T13: the false-play control is a camera-transfer test; one labelled frame fixes it",
+      "machine_dependent": false,
+      "produces": [
+        "results/empty_recognition.csv"
+      ],
+      "requires": [
+        "data/cache/dinov2.npz",
+        "results/h3_with_false_play.csv"
+      ],
+      "depends_on": [
+        "feature-cache",
+        "h3-false-play"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "xai-figures",
+      "level": 2,
+      "minutes": 5,
+      "note": "WP4-T5: exact linear evidence maps, redacted; ViT puts 1.02x evidence on players",
+      "machine_dependent": false,
+      "produces": [
+        "results/xai_evidence_focus.csv"
+      ],
+      "requires": [
+        "data/cache/dinov2.npz",
+        "data/processed/manifest.csv"
+      ],
+      "depends_on": [
+        "feature-cache",
+        "manifest"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "preprocess-search",
+      "level": 1,
+      "minutes": 740,
+      "note": "740-min preprocessing sweep - named so it is reported, not omitted; run it deliberately with --only",
+      "machine_dependent": false,
+      "produces": [
+        "results/preprocess_search.json"
+      ],
+      "requires": [
+        "data/processed/manifest.csv"
+      ],
+      "depends_on": [
+        "manifest"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "search-resolution",
+      "level": 2,
+      "minutes": 14,
+      "note": "WP3-T8: floor 0.0119; weighting changes 3 of 6 winners; CLAHE gate fires on 78%",
+      "machine_dependent": false,
+      "produces": [
+        "results/search_resolution.csv",
+        "results/search_resolution_gate.json"
+      ],
+      "requires": [
+        "results/preprocess_search.json",
+        "data/cache/search"
+      ],
+      "depends_on": [
+        "preprocess-search"
+      ],
+      "external_inputs": [
+        "data/cache/search"
+      ],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "h5-preprocessing",
+      "level": 2,
+      "minutes": 9,
+      "note": "H5: ROI clause unrunnable (no polygon); CLAHE clause refuted - it hurts",
+      "machine_dependent": false,
+      "produces": [
+        "results/h5_preprocessing_switches.csv"
+      ],
+      "requires": [
+        "results/preprocess_search.json",
+        "data/cache/search"
+      ],
+      "depends_on": [
+        "preprocess-search"
+      ],
+      "external_inputs": [
+        "data/cache/search"
+      ],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "rescore-false-play",
+      "level": 2,
+      "minutes": 10,
+      "note": "repairs the search's false-play control, which scored probes on their own training data",
+      "machine_dependent": false,
+      "produces": [
+        "results/false_play_rescored.csv"
+      ],
+      "requires": [
+        "results/preprocess_search.json"
+      ],
+      "depends_on": [
+        "preprocess-search"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "figures",
+      "level": 4,
+      "minutes": 1,
+      "note": "thesis figures, regenerated from the CSVs",
+      "machine_dependent": false,
+      "produces": [
+        "results/figs/label_efficiency.png",
+        "results/figs/ranking_inversion.png",
+        "results/figs/cross_venue_recall.png",
+        "results/figs/risk_coverage_band.png",
+        "results/figs/baseline_floor.png",
+        "results/figs/accuracy_vs_latency.png",
+        "results/figs/leakage_decomposition.png"
+      ],
+      "requires": [
+        "results/label_efficiency.csv",
+        "results/h3_cross_venue_recall.csv",
+        "results/rq6_risk_coverage.csv",
+        "results/benchmark_v2.csv",
+        "results/efficiency_latency.csv",
+        "results/h3_with_false_play.csv"
+      ],
+      "depends_on": [
+        "benchmark-v2",
+        "efficiency",
+        "h3-cross-venue",
+        "h3-false-play",
+        "label-efficiency",
+        "rq6-calibration"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "error-taxonomy",
+      "level": 2,
+      "minutes": 12,
+      "note": "WP4-T6: 100% of leaky-split errors had a near-duplicate in training; 0% of honest ones",
+      "machine_dependent": false,
+      "produces": [
+        "results/error_taxonomy.csv",
+        "results/error_taxonomy_summary.csv"
+      ],
+      "requires": [
+        "data/cache/dinov2.npz"
+      ],
+      "depends_on": [
+        "feature-cache"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "reconciliation-value",
+      "level": 0,
+      "minutes": 1,
+      "note": "WP6-T10: break-even flag precision ~95%; a EUR10 slot never pays at any precision",
+      "machine_dependent": false,
+      "produces": [
+        "results/reconciliation_value.csv"
+      ],
+      "requires": [],
+      "depends_on": [],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "gate-check",
+      "level": 0,
+      "minutes": 1,
+      "note": "WP2-T7/WP4-T8: milestone criteria checked against the artefacts, not ticked by hand",
+      "machine_dependent": false,
+      "produces": [
+        "results/gate_status.md",
+        "results/gate_status.json"
+      ],
+      "requires": [],
+      "depends_on": [],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "model-inventory",
+      "level": 0,
+      "minutes": 2,
+      "note": "WP8-T4: 200.8M frozen parameters against 10,932 trained, counted by loading every model rather than by reading a config table",
+      "machine_dependent": false,
+      "produces": [
+        "results/model_inventory.json"
+      ],
+      "requires": [],
+      "depends_on": [],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "preprocess-pairs",
+      "level": 1,
+      "minutes": 1,
+      "note": "WP8-T5: before/after per switch, with how far the frame moved - which is how denoise=25.0 is shown to be a near no-op carrying a searched +0.016",
+      "machine_dependent": false,
+      "produces": [
+        "results/preprocess_pairs.csv"
+      ],
+      "requires": [
+        "data/processed/manifest.csv"
+      ],
+      "depends_on": [
+        "manifest"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "pipeline-graph",
+      "level": 0,
+      "minutes": 1,
+      "note": "WP8-T6: the stage graph the Reproduce page is drawn from - levels, runtimes and status, derived from STAGES so it cannot disagree with the runner",
+      "machine_dependent": false,
+      "produces": [
+        "results/pipeline_graph.json"
+      ],
+      "requires": [],
+      "depends_on": [],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    },
+    {
+      "name": "claims-ledger",
+      "level": 5,
+      "minutes": 1,
+      "note": "WP8-T5: re-derives every quantitative claim from the artefact that produced it",
+      "machine_dependent": false,
+      "produces": [
+        "thesis/claims.md"
+      ],
+      "requires": [
+        "results/augmentation_transfer.csv",
+        "results/augmentation_transfer_spread.csv",
+        "results/benchmark_v2.csv",
+        "results/empty_recognition.csv",
+        "results/error_taxonomy_summary.csv",
+        "results/fusion_head_ablation.csv",
+        "results/h1_h2_baseline_floor.csv",
+        "results/h3_cross_venue_recall.csv",
+        "results/h3_with_false_play.csv",
+        "results/h5_preprocessing_switches.csv",
+        "results/h6_zero_shot_gap.csv",
+        "results/onboarding_cost.csv",
+        "results/reconciliation_value.csv",
+        "results/rq6_risk_coverage.csv",
+        "results/search_resolution.csv"
+      ],
+      "depends_on": [
+        "augmentation-transfer",
+        "benchmark-v2",
+        "empty-recognition",
+        "error-taxonomy",
+        "fusion-head",
+        "h1-h2-baseline-floor",
+        "h3-cross-venue",
+        "h3-false-play",
+        "h5-preprocessing",
+        "h6-zero-shot",
+        "onboarding-cost",
+        "reconciliation-value",
+        "rq6-calibration",
+        "search-resolution"
+      ],
+      "external_inputs": [],
+      "blocked_by": [],
+      "stale_inputs": [],
+      "status": "done"
+    }
+  ],
+  "n_stages": 46,
+  "total_minutes": 1114,
+  "critical_path_minutes": 756,
+  "max_level": 5,
+  "by_status": {
+    "done": 46
+  },
+  "external_inputs": [
+    "data/cache/ablate_dinov2_full.npz",
+    "data/cache/clip_image_features.npz",
+    "data/cache/geom_probe/convnextv2.npz",
+    "data/cache/geom_probe/dinov2.npz",
+    "data/cache/search",
+    "data/processed",
+    "data/raw/venue_01"
+  ]
+}
