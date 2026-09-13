@@ -1,6 +1,6 @@
 # Dataset coverage
 
-Generated 2026-09-13 | `uv run pitch coverage` | 1775 frames | 10 venues
+Generated 2026-09-13 | `uv run pitch coverage` | 1794 frames | 10 venues
 
 ## Class x lighting
 
@@ -8,8 +8,8 @@ Generated 2026-09-13 | `uv run pitch coverage` | 1775 frames | 10 venues
 |---|---|---|---|---|
 | EMPTY | 485 | 9 | - | 494 |
 | ACTIVE_PLAY | 222 | 970 | - | 1192 |
-| MAINTENANCE_NON_SPORTING | 6 | - | 83 | 89 |
-| **total** | 713 | 979 | 83 | 1775 |
+| MAINTENANCE_NON_SPORTING | 6 | - | 102 | 108 |
+| **total** | 713 | 979 | 102 | 1794 |
 
 ## Class x venue
 
@@ -17,8 +17,8 @@ Generated 2026-09-13 | `uv run pitch coverage` | 1775 frames | 10 venues
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | EMPTY | - | - | - | - | - | - | - | - | - | 494 | 494 |
 | ACTIVE_PLAY | 168 | 78 | 36 | 18 | 18 | 12 | 30 | 18 | 18 | 796 | 1192 |
-| MAINTENANCE_NON_SPORTING | - | - | - | - | - | - | - | - | - | 89 | 89 |
-| **total** | 168 | 78 | 36 | 18 | 18 | 12 | 30 | 18 | 18 | 1379 | 1775 |
+| MAINTENANCE_NON_SPORTING | - | - | - | - | - | - | - | - | - | 108 | 108 |
+| **total** | 168 | 78 | 36 | 18 | 18 | 12 | 30 | 18 | 18 | 1398 | 1794 |
 
 ## Provenance
 
@@ -26,8 +26,8 @@ Generated 2026-09-13 | `uv run pitch coverage` | 1775 frames | 10 venues
 |---|---|---|---|---|
 | EMPTY | 238 | 256 | - | 494 |
 | ACTIVE_PLAY | 396 | 796 | - | 1192 |
-| MAINTENANCE_NON_SPORTING | - | 6 | 83 | 89 |
-| **total** | 634 | 1058 | 83 | 1775 |
+| MAINTENANCE_NON_SPORTING | - | 6 | 102 | 108 |
+| **total** | 634 | 1058 | 102 | 1794 |
 
 ## Gaps
 
@@ -37,9 +37,7 @@ Combinations with **no frames at all** - claims this dataset cannot support:
 - `ACTIVE_PLAY` x `unknown`
 - `MAINTENANCE_NON_SPORTING` x `night`
 
-Classes below the 100-frame working target **in total**: `MAINTENANCE_NON_SPORTING` (89)
-
-14 of 17 populated cells are below target.
+13 of 17 populated cells are below target.
 
 ## Concentration
 
@@ -49,4 +47,4 @@ A class drawn overwhelmingly from one venue or one lighting condition cannot be 
 |---|---|---|---|---|
 | EMPTY | `venue_01` | 100% | `day` | 98% |
 | ACTIVE_PLAY | `venue_01` | 67% | `night` | 81% |
-| MAINTENANCE_NON_SPORTING | `venue_01` | 100% | `unknown` | 93% |
+| MAINTENANCE_NON_SPORTING | `venue_01` | 100% | `unknown` | 94% |
