@@ -68,29 +68,56 @@ def _table(rows: list[ManifestRow], col_attr: str) -> str:
     return "\n".join(lines)
 
 
+#: Rows with this `source` were generated, not recorded (A13).
+SYNTHETIC_SOURCE = "synthetic"
+
+
+def recorded(rows: list[ManifestRow]) -> list[ManifestRow]:
+    """Only frames that came off a camera.
+
+    Every headline table in this report counts these and these only. A coverage report that
+    silently mixed the two would answer "how many empty pitches do we have at other venues?"
+    with a number made partly of pictures - and that question is the one
+    `thesis/data_requests.md` exists to ask, the one the supervisor will ask, and the one
+    the M2 gate measures. Generated frames get their own section below, never a share of the
+    main tables.
+    """
+    return [r for r in rows if getattr(r, "source", "") != SYNTHETIC_SOURCE]
+
+
 def render_report(rows: list[ManifestRow]) -> str:
-    """Full markdown report."""
-    n_venues = len({r.venue for r in rows})
-    per_class = Counter(r.class3 for r in rows)
-    gaps = empty_cells(rows)
+    """Full markdown report. Headline tables count recorded frames only; see `recorded`."""
+    real = recorded(rows)
+    gen = [r for r in rows if r not in real]
+    n_venues = len({r.venue for r in real})
+    per_class = Counter(r.class3 for r in real)
+    gaps = empty_cells(real)
+
+    banner = (
+        f"**{len(gen)} generated frame(s) are excluded from every table above the "
+        f"Generated section** (A13). They are a training-side augmentation and counting "
+        f"them here would make a gap look filled that is not."
+    ) if gen else ""
 
     out = [
         "# Dataset coverage",
         "",
         f"Generated {date.today().isoformat()} | `uv run pitch coverage` | "
-        f"{len(rows)} frames | {n_venues} venues",
+        f"{len(real)} recorded frames | {n_venues} venues"
+        + (f" | +{len(gen)} generated (excluded)" if gen else ""),
         "",
+        *( [banner, ""] if banner else [] ),
         "## Class x lighting",
         "",
-        _table(rows, "lighting"),
+        _table(real, "lighting"),
         "",
         "## Class x venue",
         "",
-        _table(rows, "venue"),
+        _table(real, "venue"),
         "",
         "## Provenance",
         "",
-        _table(rows, "labeled_by"),
+        _table(real, "labeled_by"),
         "",
         "## Gaps",
         "",
@@ -104,7 +131,7 @@ def render_report(rows: list[ManifestRow]) -> str:
         out.append("")
 
     thin = sorted(
-        (c for c in coverage_cells(rows) if c.n < TARGET_PER_CELL),
+        (c for c in coverage_cells(real) if c.n < TARGET_PER_CELL),
         key=lambda c: c.n,
     )
     starved = [c for c in CLASS3_ORDER if per_class.get(c.value, 0) < TARGET_PER_CELL]
@@ -139,4 +166,21 @@ def render_report(rows: list[ManifestRow]) -> str:
             f"| {c.name} | `{v}` | {vn / len(members):.0%} | `{li}` | {ln / len(members):.0%} |"
         )
     out.append("")
+
+    if gen:
+        out.append("## Generated frames (A13) - not counted above")
+        out.append("")
+        out.append(
+            "Training-side augmentation, listed apart from the recorded corpus because a "
+            "gap they appear to fill is still a gap: the test set stays real, so a venue "
+            "whose only empty pitch is a generated one still has no empty pitch."
+        )
+        out.append("")
+        out.append(_table(gen, "venue"))
+        out.append("")
+        out.append("| recorded defect | frames |")
+        out.append("|---|---|")
+        for k, n in sorted(Counter(getattr(r, "quality", "") for r in gen).items()):
+            out.append(f"| `{k or 'unrecorded'}` | {n} |")
+        out.append("")
     return "\n".join(out)
