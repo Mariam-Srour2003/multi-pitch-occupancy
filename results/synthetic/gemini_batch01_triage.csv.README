@@ -1,0 +1,10 @@
+Batch chatgpt01 (22 frames, 2026-09-13) was checked the same way as gemini01:
+top and bottom strips of every frame tiled and read at full width.
+
+Result: no burned-in timestamp, no text overlay, no second venue, nothing
+cinematic. Every top strip shows the identical barrier, fence and building,
+which is the check that the camera never moved. All 22 recorded as
+quality=synthetic:ok, and that value was assigned only after this check.
+
+3 of the 22 are held unlabelled in data/interim/_pending_4d/ and are in
+neither manifest.csv nor labels.csv.
