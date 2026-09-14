@@ -521,6 +521,38 @@ STAGES: list[Stage] = [
         minutes=1,
     ),
     Stage(
+        name="model-inventory",
+        command=[*PY, "-m", "experiments.model_inventory"],
+        produces=[RESULTS / "model_inventory.json"],
+        # No data requirement: it counts the models rather than running them, so it is the
+        # one stage here that can be reproduced on a checkout with no footage in it.
+        requires=[],
+        note="WP8-T4: 200.8M frozen parameters against 10,932 trained, counted by loading "
+             "every model rather than by reading a config table",
+        minutes=2,
+    ),
+    Stage(
+        name="preprocess-pairs",
+        command=[*PY, "-m", "experiments.preprocess_pairs"],
+        produces=[RESULTS / "preprocess_pairs.csv"],
+        requires=[DATA / "processed" / "manifest.csv"],
+        note="WP8-T5: before/after per switch, with how far the frame moved - which is how "
+             "denoise=25.0 is shown to be a near no-op carrying a searched +0.016",
+        minutes=1,
+    ),
+    Stage(
+        name="pipeline-graph",
+        command=[*PY, "-m", "experiments.pipeline_graph"],
+        produces=[RESULTS / "pipeline_graph.json"],
+        # Reads this list rather than the repository, so it needs no inputs - and it
+        # describes itself, which is correct: a stage the graph omitted would be a stage
+        # the Reproduce page told nobody about.
+        requires=[],
+        note="WP8-T6: the stage graph the Reproduce page is drawn from - levels, runtimes "
+             "and status, derived from STAGES so it cannot disagree with the runner",
+        minutes=1,
+    ),
+    Stage(
         name="claims-ledger",
         command=[*PY, "-m", "experiments.verify_claims"],
         produces=[ROOT / "thesis" / "claims.md"],

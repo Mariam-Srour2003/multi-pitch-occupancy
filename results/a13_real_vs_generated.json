@@ -1,0 +1,17 @@
+{
+  "backbone": "dinov2",
+  "n_recorded": 1692,
+  "n_generated": 125,
+  "protocol": "leave-one-venue-out over venues holding generated frames",
+  "per_venue_macro_f1": {
+    "clipvenue_a_blue_barrier": 0.7106060606060607,
+    "venue_01": 0.5168314094145297
+  },
+  "pooled_macro_f1": 0.5331692939673317,
+  "ci95": [
+    0.505509526244339,
+    0.5612216172274405
+  ],
+  "threshold": 0.9,
+  "verdict": "RETAIN"
+}
