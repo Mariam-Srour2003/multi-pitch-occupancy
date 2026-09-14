@@ -59,9 +59,22 @@ def classify_lighting(_path: Path) -> str:
 
 
 def load_defects(path: Path | None) -> dict[int, str]:
-    """``{index: "defect;defect"}`` from a CSV of ``idx,defects``. Absent file means none."""
-    if path is None or not path.exists():
+    """``{index: "defect;defect"}`` from a CSV of ``idx,defects``.
+
+    Not passing ``--defects`` means no defects. **Passing one that does not exist is an
+    error**, where it used to mean the same thing as not passing one at all - so a mistyped
+    path, or a value that was never a path (``--defects "rain_heavy"`` reads as a filename
+    once argparse casts it), recorded every frame as clean and said nothing. Defect flags are
+    the only record that a generated frame carries a known problem; losing them silently is
+    the one failure this column cannot afford.
+    """
+    if path is None:
         return {}
+    if not path.exists():
+        raise SystemExit(
+            f"--defects {path} does not exist. It takes a CSV of `idx,defects`, not a "
+            f"defect string. Write the file, or omit the flag to record no defects."
+        )
     out: dict[int, str] = {}
     with path.open(encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
