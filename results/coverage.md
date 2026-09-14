@@ -1,8 +1,8 @@
 # Dataset coverage
 
-Generated 2026-09-14 | `uv run pitch coverage` | 1692 recorded frames | 10 venues | +146 generated (excluded)
+Generated 2026-09-14 | `uv run pitch coverage` | 1692 recorded frames | 10 venues | +159 generated (excluded)
 
-**146 generated frame(s) are excluded from every table above the Generated section** (A13). They are a training-side augmentation and counting them here would make a gap look filled that is not.
+**159 generated frame(s) are excluded from every table above the Generated section** (A13). They are a training-side augmentation and counting them here would make a gap look filled that is not.
 
 ## Class x lighting
 
@@ -39,7 +39,7 @@ Combinations with **no frames at all** - claims this dataset cannot support:
 
 Classes below the 100-frame working target **in total**: `MAINTENANCE_NON_SPORTING` (6)
 
-13 of 21 populated cells are below target.
+13 of 23 populated cells are below target.
 
 ## Concentration
 
@@ -47,26 +47,26 @@ A class drawn overwhelmingly from one venue or one lighting condition cannot be 
 
 | class | top venue | share | top lighting | share |
 |---|---|---|---|---|
-| EMPTY | `venue_01` | 97% | `day` | 95% |
+| EMPTY | `venue_01` | 96% | `day` | 95% |
 | ACTIVE_PLAY | `venue_01` | 67% | `night` | 81% |
-| MAINTENANCE_NON_SPORTING | `venue_01` | 84% | `unknown` | 96% |
+| MAINTENANCE_NON_SPORTING | `venue_01` | 79% | `unknown` | 96% |
 
 ## Generated frames (A13) - not counted above
 
 Training-side augmentation, listed apart from the recorded corpus because a gap they appear to fill is still a gap: the test set stays real, so a venue whose only empty pitch is a generated one still has no empty pitch.
 
-| class | clipvenue_a_blue_barrier | clipvenue_d_indoor_dome | venue_01 | total |
-|---|---|---|---|---|
-| EMPTY | 10 | 4 | - | 14 |
-| ACTIVE_PLAY | - | - | - | 0 |
-| MAINTENANCE_NON_SPORTING | 13 | 9 | 110 | 132 |
-| **total** | 23 | 13 | 110 | 146 |
+| class | clipvenue_a_blue_barrier | clipvenue_d_indoor_dome | clipvenue_e_pink_boards | venue_01 | total |
+|---|---|---|---|---|---|
+| EMPTY | 10 | 4 | 5 | - | 19 |
+| ACTIVE_PLAY | - | - | - | - | 0 |
+| MAINTENANCE_NON_SPORTING | 13 | 9 | 8 | 110 | 140 |
+| **total** | 23 | 13 | 13 | 110 | 159 |
 
 | recorded defect | frames |
 |---|---|
 | `synthetic:cinematic` | 6 |
 | `synthetic:cinematic;sign_prop` | 1 |
-| `synthetic:ok` | 121 |
+| `synthetic:ok` | 134 |
 | `synthetic:timestamp_overlay` | 2 |
 | `synthetic:timestamp_overlay;sign_prop` | 1 |
 | `synthetic:timestamp_overlay;wrong_venue` | 6 |
