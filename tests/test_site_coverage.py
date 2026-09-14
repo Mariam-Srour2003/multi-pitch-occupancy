@@ -36,6 +36,11 @@ OUT_OF_SCOPE = {
     "error_taxonomy.csv": "WP4-T6: one row per misclassification, too granular for the export",
     "error_taxonomy_summary.csv": "WP4-T6: the per-protocol summary and its derived findings",
     "class_balancing.csv": "method: why class weighting stays on",
+    "a13_real_vs_generated.json": (
+        "A13 gate: whether generated frames are separable from recorded ones. A "
+        "pass licenses the augmentation and says nothing about the results, so a "
+        "row on the export would read as a finding about the pitch."
+    ),
     "coverage.md": "method: the class x lighting x venue matrix",
     # Hypothesis reports whose value is the argument, not the row. They are written up in
     # EXPERIMENT_LOG.md, which the served site renders in full.
