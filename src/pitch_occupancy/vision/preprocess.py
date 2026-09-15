@@ -127,10 +127,15 @@ class PreprocessConfig:
 
 #: Search space: switch name -> values to try. Consumed by the preprocessing search.
 #:
-#: ``roi`` is deliberately absent. Masking needs a per-camera polygon, none have been drawn
-#: yet (WP3-T1), and :func:`roi_mask` with no polygon returns the frame untouched - so
-#: searching it would evaluate a no-op and record "ROI does not help", which is false. It
-#: joins the search the day polygons exist.
+#: ``roi`` is deliberately absent, and the reason has changed shape: boundaries can now be
+#: drawn (`vision/roi.py`, the editor at `/roi`), but none exist **for the dataset's own
+#: cameras**. :func:`roi_mask` with no polygon returns the frame untouched, so searching it
+#: today would still evaluate a no-op and record "ROI does not help", which is false.
+#:
+#: What it now needs is a boundary per venue in `configs/roi.json`, keyed the way the
+#: manifest names its cameras, and a search that looks one up per frame rather than applying
+#: one polygon to nine venues that share no geometry. That is the remaining work, and it is
+#: a labelling job rather than a missing mechanism.
 SWITCHES: dict[str, list] = {
     "undistort": [0.15, 0.30],
     "centre_crop": [0.5, 0.7],
@@ -150,15 +155,22 @@ def rms_contrast(image_bgr: np.ndarray) -> float:
     return float(cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY).std())
 
 
-def roi_mask(image_bgr: np.ndarray, polygon: list[list[float]] | None) -> np.ndarray:
-    """Black out everything outside ``polygon`` (normalised 0-1 coordinates)."""
-    if not polygon:
-        return image_bgr
-    h, w = image_bgr.shape[:2]
-    pts = np.array([[int(x * w), int(y * h)] for x, y in polygon], dtype=np.int32)
-    mask = np.zeros((h, w), np.uint8)
-    cv2.fillPoly(mask, [pts], 255)
-    return cv2.bitwise_and(image_bgr, image_bgr, mask=mask)
+def roi_mask(image_bgr: np.ndarray, polygon: list[list[float]] | None,
+             *, fill: str = "black") -> np.ndarray:
+    """Suppress everything outside ``polygon`` (normalised 0-1 coordinates).
+
+    Delegates to :func:`vision.roi.apply`, which is the single implementation now that
+    boundaries can actually be drawn (WP3-T1). Kept as a name here because this is the
+    preprocessing stage's vocabulary and callers reach for it from `preprocess`, but the
+    masking itself must not exist twice: `roi.py` is what the editor previews and what the
+    live worker applies, and a second copy behind the same switch is how the two paths
+    start disagreeing about what "inside the pitch" means.
+
+    ``fill`` defaults to black, which is what this function has always done.
+    """
+    from pitch_occupancy.vision.roi import apply as apply_roi
+
+    return apply_roi(image_bgr, polygon, fill=fill)
 
 
 def undistort_fisheye(image_bgr: np.ndarray, strength: float) -> np.ndarray:

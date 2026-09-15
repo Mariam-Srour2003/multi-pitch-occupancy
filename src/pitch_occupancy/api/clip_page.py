@@ -150,7 +150,7 @@ del{color:var(--ink-3);text-decoration-color:var(--flag);margin-right:7px}
 <header><div class="hin">
   <div class="brand">Pitch Occupancy<span>.</span></div>
   <div class="sub">Clip reviewer</div>
-  <a href="/client">Dashboard</a><a href="/">Findings</a>
+  <a href="/images">Image reviewer</a><a href="/client">Dashboard</a><a href="/">Findings</a>
 </div></header>
 <main>
 
@@ -181,9 +181,17 @@ state changed. Nothing is stored: the file is deleted as soon as it has been rea
       <option value="-1">every frame</option>
       <option value="0">none</option>
     </select></div>
+  <div><label for="camera">Pitch boundary</label>
+    <select id="camera" style="width:auto;min-width:148px">
+      <option value="">whole frame</option>
+    </select></div>
   <button class="act" id="go" disabled>Analyse</button>
   <button class="act" id="watch" disabled>Watch it work</button>
 </div>
+<p class="sub2" style="margin-top:9px">Masks everything outside this camera's pitch on
+<b>every sampled frame</b> &mdash; the fix for a neighbouring pitch appearing in shot. Draw
+one on the clip's first frame in the <a href="/roi" style="color:var(--accent)">boundary
+editor</a>.</p>
 
 <div id="busy"><div class="spin"></div><span id="busytxt">Analysing&hellip;</span></div>
 <div id="err" class="note err" style="display:none"></div>
@@ -300,13 +308,27 @@ drop.ondragover=e=>{e.preventDefault();drop.classList.add('over')};
 drop.ondragleave=()=>drop.classList.remove('over');
 drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');pick(e.dataTransfer.files[0])};
 
+// Saved boundaries. A failure to load leaves the selector at "whole frame", which is the
+// behaviour the page had before boundaries existed.
+(async()=>{
+  try{
+    const b=await (await fetch('/api/v1/roi')).json();
+    (b.cameras||[]).forEach(k=>{
+      const o=document.createElement('option');
+      o.value=k;o.textContent=k+'  '+(b.boundaries[k].coverage*100).toFixed(0)+'%';
+      $('camera').appendChild(o);
+    });
+  }catch(_){}
+})();
+
 go.onclick=async()=>{
   if(!chosen) return;
   go.disabled=true;$('busy').classList.add('on');$('err').style.display='none';
   $('out').classList.remove('on');
   $('busytxt').textContent='Analysing\u2026 the first run also loads '+
     'the model, which takes about 15 seconds.';
-  const q=new URLSearchParams({interval_s:$('iv').value,window:$('win').value});
+  const q=new URLSearchParams({interval_s:$('iv').value,window:$('win').value,
+    camera:$('camera').value});
   try{
     const r=await fetch('/api/v1/clip/analyse?'+q,{method:'POST',body:chosen,
       headers:{'Content-Type':'application/octet-stream'}});
@@ -400,7 +422,8 @@ $('watch').onclick=async()=>{
     'which takes about 15 seconds.';
   $('stage-step').textContent='loading the model';
 
-  const q=new URLSearchParams({interval_s:$('iv').value,explain_n:$('expn').value});
+  const q=new URLSearchParams({interval_s:$('iv').value,explain_n:$('expn').value,
+    camera:$('camera').value});
   try{
     const r=await fetch('/api/v1/clip/walkthrough?'+q,{method:'POST',body:chosen,
       headers:{'Content-Type':'application/octet-stream'}});

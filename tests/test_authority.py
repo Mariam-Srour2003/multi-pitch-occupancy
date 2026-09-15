@@ -101,10 +101,21 @@ def test_a_review_verdict_never_becomes_an_anomaly() -> None:
 
 
 def _http_methods(path: Path) -> list[tuple[str, str]]:
-    """(method, route) for every FastAPI decorator in a module."""
+    """(method, route) for every FastAPI decorator in a module.
+
+    **Async handlers count, and for a while they did not.** This walked `ast.FunctionDef`
+    alone, which does not match `async def` - so every asynchronous route was invisible to
+    the allowlist below, and a route that streams or reads a request body is exactly the
+    kind that is written `async`. `/images/walkthrough` was added and never challenged; the
+    two clip routes are on the list only because someone put them there by hand, not because
+    this check ever saw them.
+
+    A guard that silently skips the routes most likely to need it is the failure this
+    project keeps rediscovering: the safeguard existed, passed, and certified nothing.
+    """
     out = []
     for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-        if not isinstance(node, ast.FunctionDef):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         for dec in node.decorator_list:
             if not isinstance(dec, ast.Call) or not isinstance(dec.func, ast.Attribute):
@@ -167,6 +178,34 @@ ALLOWED_MUTATING = {
     #: generator's `finally` rather than the handler's, because the body outlives the
     #: handler. Pinned by `test_the_walkthrough_deletes_the_upload_after_streaming`.
     "/clip/walkthrough",
+    #: The same analysis over still images (WP6-T6). A POST because the body carries the
+    #: images, not because it keeps them: they are written to a temp directory, read, and
+    #: removed in the streaming generator's `finally`, and nothing reaches the database.
+    #: Pinned by `test_the_uploads_are_deleted_after_streaming` in test_image_walkthrough.
+    #:
+    #: It was added without ever appearing here, because this check could not see `async def`
+    #: routes - see `_http_methods`. That is the entry's own small lesson.
+    "/images/walkthrough",
+    #: A person configuring this system's own capture geometry (WP3-T1): which part of the
+    #: frame is this camera's pitch. Same category as `/schedule` - it edits the system's
+    #: configuration, never a client record - and a narrower one, because a boundary is
+    #: geometry rather than money or time. PUT and DELETE share the path.
+    #:
+    #: The write lands in `configs/roi.json`, not the database, so it is reviewable in a
+    #: diff. `roi.validate` refuses a mis-click rather than persisting one, which is the
+    #: protection that matters here: a boundary keeping 1% of the frame would not raise, would
+    #: not look wrong, and would produce confident answers about a sliver of a pitch.
+    "/roi",
+    #: Writes nothing at all. It applies a proposed boundary to one frame and returns what
+    #: the model makes of it, twice - masked and unmasked - so an operator can check a
+    #: boundary before saving it. A POST because the body carries an image. Same category as
+    #: `/schedule/validate`, and pinned by `test_the_preview_saves_nothing` below.
+    "/roi/preview",
+    #: Writes nothing either. It takes a posted video and returns its first frame, so a
+    #: boundary for a clip can be drawn on the frame the analysis will actually see rather
+    #: than on one the browser decoded separately. A POST because the body is a video; the
+    #: upload is deleted in a `finally`, as on every other route here that takes footage.
+    "/roi/first-frame",
 }
 
 
@@ -226,3 +265,38 @@ def test_reconciliation_is_never_attributed_to_a_person() -> None:
     scientifically and a great deal of ethical exposure."""
     fields = set(Reconciliation.__dataclass_fields__)
     assert not (fields & {"entered_by", "staff_id", "person", "user"}), fields
+
+
+def test_the_preview_saves_nothing() -> None:
+    """`/roi/preview` is on the allowlist as "writes nothing at all", and that claim is
+    checked rather than believed - an allowlist entry justified by a property is only as
+    good as the test for the property, which is the rule `/schedule/validate` set.
+
+    The risk here is specific: preview and save take the same polygon and differ by one
+    call, so a preview that quietly persisted its argument would be an easy change to make
+    and an invisible one to review. It would also be the worst kind of wrong - an operator
+    trying boundaries to see which is right would be saving every one they tried.
+    """
+    import base64
+    import io
+
+    import cv2
+    import numpy as np
+    from fastapi.testclient import TestClient
+
+    from pitch_occupancy.api.app import app
+    from pitch_occupancy.vision import roi
+
+    before = roi.load_all()
+    ok, buf = cv2.imencode(".jpg", np.full((48, 48, 3), 90, np.uint8))
+    assert ok
+
+    TestClient(app).post("/api/v1/roi/preview", json={
+        "image": base64.b64encode(io.BytesIO(buf).getvalue()).decode(),
+        "polygon": [[0.2, 0.2], [0.8, 0.2], [0.8, 0.8], [0.2, 0.8]],
+        # `explain=False` keeps this off the backbone: the property under test is whether
+        # anything is persisted, and loading a model to establish it would make a guard
+        # about writes into the slowest test in the file.
+        "explain": False,
+    })
+    assert roi.load_all() == before

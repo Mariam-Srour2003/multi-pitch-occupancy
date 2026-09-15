@@ -1,0 +1,10 @@
+{
+  "_comment": [
+    "Pitch boundaries, one per camera, drawn in the editor at /roi.",
+    "Points are [x, y] as fractions of the frame (0-1), so a resolution change does",
+    "not invalidate them. Everything outside the outline is filled before the frame",
+    "reaches the model - see src/pitch_occupancy/vision/roi.py.",
+    "Committed on purpose: a boundary is geometry, not a credential, and re-drawing",
+    "one by hand after a clone is setup nobody repeats identically."
+  ]
+}

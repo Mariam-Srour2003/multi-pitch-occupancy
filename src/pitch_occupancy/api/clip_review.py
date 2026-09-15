@@ -42,6 +42,7 @@ from pitch_occupancy.clip_analysis import (
     MAX_SAMPLES,
     analyse_clip,
 )
+from pitch_occupancy.vision import roi
 
 __all__ = ["router", "MAX_UPLOAD_BYTES"]
 
@@ -100,6 +101,11 @@ class ClipOut(BaseModel):
     dominant: str | None
     samples: list[SampleOut]
     segments: list[SegmentOut] = Field(default_factory=list)
+    #: Which boundary was asked for, and whether one was found. Reported rather than
+    #: assumed: a camera named with no boundary saved means the whole frame was analysed,
+    #: which is the case the boundary exists to avoid.
+    camera: str | None = None
+    boundary: bool = False
 
 
 def _clock(t_s: float) -> str:
@@ -112,6 +118,7 @@ async def analyse(
     request: Request,
     interval_s: float = Query(DEFAULT_INTERVAL_S, gt=0.5, le=600),
     window: int = Query(DEFAULT_WINDOW, ge=1, le=31),
+    camera: str = Query("", max_length=120),
 ) -> ClipOut:
     """Sample the posted video every ``interval_s`` seconds and return its timeline.
 
@@ -139,9 +146,22 @@ async def analyse(
         if size == 0:
             raise HTTPException(422, "no video in the request body")
 
+        # A boundary is applied by wrapping the classifier rather than by teaching
+        # `analyse_clip` about polygons. It takes a `classify` callable precisely so that
+        # what a frame means is the caller's business, and a masked frame is still just a
+        # frame - so the timeline, the smoothing and the segmentation stay unaware of ROI,
+        # and there is one masking call rather than a second code path through them.
+        classify = _classifier()
+        polygon = roi.get(camera) if camera else None
+        if polygon:
+            inner = classify
+
+            def classify(frame):  # noqa: F811 - deliberately shadows, one frame at a time
+                return inner(roi.apply(frame, polygon))
+
         try:
             result = analyse_clip(
-                path, _classifier(), interval_s=interval_s, window=window,
+                path, classify, interval_s=interval_s, window=window,
                 max_samples=MAX_SAMPLES,
             )
         except ValueError as exc:
@@ -150,6 +170,8 @@ async def analyse(
         path.unlink(missing_ok=True)
 
     return ClipOut(
+        camera=camera or None,
+        boundary=bool(polygon),
         duration_s=result.duration_s,
         interval_s=result.interval_s,
         window=result.window,

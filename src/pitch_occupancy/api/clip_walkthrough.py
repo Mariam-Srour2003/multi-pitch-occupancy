@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import os
 import tempfile
 from collections.abc import Iterator
@@ -39,6 +40,9 @@ from pitch_occupancy.clip_analysis import DEFAULT_INTERVAL_S
 __all__ = ["router", "JPEG_WIDTH"]
 
 router = APIRouter(prefix="/api/v1", tags=["clip review"])
+
+#: The traceback goes here rather than to the browser.
+LOG = logging.getLogger(__name__)
 
 #: Frames reach the browser as JPEGs at this width. 640 keeps a sixty-step walkthrough to a
 #: few megabytes while leaving the heatmap legible. The explanation is always computed on the
@@ -61,20 +65,33 @@ def _jpeg(image_bgr, width: int = JPEG_WIDTH) -> str:
 
 
 def walk_records(path: Path, *, interval_s: float, explain_n: int,
-                 redact: bool) -> Iterator[str]:
-    """One NDJSON line per step. A generator, because streaming it is the whole point."""
+                 redact: bool, camera: str = "") -> Iterator[str]:
+    """One NDJSON line per step. A generator, because streaming it is the whole point.
+
+    ``camera`` names a saved pitch boundary (WP3-T1), applied to every sampled frame. A
+    fixed camera's pitch does not move between the first frame and the last, so an outline
+    drawn once on frame 0 is correct for the whole recording - which is why the editor takes
+    a video and draws on its first frame rather than asking for a separate still.
+    """
+    from pitch_occupancy.vision import roi
     from pitch_occupancy.vision.explain import overlay_heatmap
     from pitch_occupancy.vision.walkthrough import walk_clip
 
+    # Reported rather than assumed, as on the image route: asking for a boundary that does
+    # not exist and silently analysing the whole frame gives back exactly the answers the
+    # boundary was meant to prevent.
+    polygon = roi.get(camera) if camera else None
     classifier = _classifier()
     yield json.dumps({
         "type": "meta", "backbone": getattr(classifier, "backbone", "?"),
         "n_train": getattr(classifier, "n_train", 0), "redacted": redact,
+        "camera": camera or None, "boundary": bool(polygon),
+        "coverage": roi.coverage(polygon) if polygon else 1.0,
     }) + "\n"
 
     seen = 0
     for step in walk_clip(path, classifier, interval_s=interval_s,
-                          explain_n=explain_n, redact=redact):
+                          explain_n=explain_n, redact=redact, polygon=polygon):
         seen += 1
         record = {
             "type": "step", "index": step.index, "t_s": step.t_s,
@@ -106,6 +123,7 @@ async def walkthrough(
     interval_s: float = Query(DEFAULT_INTERVAL_S, gt=0.5, le=600),
     explain_n: int = Query(-1, ge=-1, le=360),
     redact: bool = Query(False),
+    camera: str = Query("", max_length=120),
 ) -> StreamingResponse:
     """Stream the analysis, with an evidence map for each explained frame.
 
@@ -135,9 +153,20 @@ async def walkthrough(
     def stream() -> Iterator[str]:
         try:
             yield from walk_records(path, interval_s=interval_s, explain_n=explain_n,
-                                    redact=redact)
-        except ValueError as exc:
-            yield json.dumps({"type": "error", "detail": str(exc)}) + "\n"
+                                    redact=redact, camera=camera)
+        except Exception as exc:  # noqa: BLE001 - a reporting boundary, not a swallow
+            # Broadened from `ValueError` for the reason written out in
+            # `image_walkthrough.stream`: the response is already committed as 200 by the
+            # time this generator runs, so an unexpected exception escaped as an unhandled
+            # ASGI error and the client got a truncated body with no `error` record - a page
+            # that spins forever while the console holds the only explanation. The model
+            # load is the likeliest failure here and raises nothing like `ValueError`.
+            LOG.exception("clip walkthrough failed")
+            yield json.dumps({
+                "type": "error",
+                "detail": f"{type(exc).__name__}: {exc}",
+                "fatal": isinstance(exc, ImportError),
+            }) + "\n"
         finally:
             path.unlink(missing_ok=True)
 
