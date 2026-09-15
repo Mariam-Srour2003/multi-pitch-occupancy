@@ -560,3 +560,55 @@ def test_development_rows_excludes_generated_frames_by_default() -> None:
     opted_in = development_rows(real + syn, final_venues=frozenset(),
                                 include_synthetic=True)
     assert len(opted_in) == 8
+
+
+def test_generated_frames_reach_the_train_side_when_opted_in() -> None:
+    """A13's opt-in was inert, and silently so.
+
+    `development_rows(include_synthetic=True)` returned the generated rows, and then every
+    split function called `development_rows(rows)` again with the default and stripped them
+    back out. The flag was documented as the way to use generated frames in an ablation, and
+    no split protocol could deliver one to a training set.
+    """
+    real = [row(f"r{i}.jpg", venue="v1", slot=f"s{i}") for i in range(8)]
+    syn = [row(f"g{i}.jpg", venue="v1", slot="gen", source=SYNTHETIC_SOURCE)
+           for i in range(4)]
+
+    without = grouped_split(real + syn, seed=42)
+    assert not [r for r in without.train if r.source == SYNTHETIC_SOURCE]
+
+    with_gen = grouped_split(real + syn, seed=42, include_synthetic=True)
+    assert len({r.file for r in with_gen.train if r.source == SYNTHETIC_SOURCE}) == 4
+
+
+def test_generated_frames_never_reach_a_test_side_even_when_opted_in() -> None:
+    """"Training only" implemented literally.
+
+    Routing them *through* the partition was the first attempt and it is not a near miss:
+    on the real manifest 171 of 189 landed on the test side, where `check_split` rejects the
+    split outright. They are appended to train instead, never partitioned.
+    """
+    real = [row(f"r{i}.jpg", venue="v1", slot=f"s{i}") for i in range(8)]
+    syn = [row(f"g{i}.jpg", venue="v1", slot="gen", source=SYNTHETIC_SOURCE)
+           for i in range(4)]
+
+    split = grouped_split(real + syn, seed=42, include_synthetic=True)
+    assert not [r for r in split.test if r.source == SYNTHETIC_SOURCE]
+    assert not [p for p in check_split(split) if "generated" in p]
+
+
+def test_opting_generated_frames_in_does_not_move_the_test_side() -> None:
+    """The property that makes the two scores an ablation rather than two numbers.
+
+    Because the generated rows never enter the partition, the test side is identical with
+    and without them - so a difference in score is attributable to the training data and to
+    nothing else. The first implementation grew the real test set from 907 frames to 961 and
+    the comparison quietly stopped meaning anything.
+    """
+    real = [row(f"r{i}.jpg", venue="v1", slot=f"s{i}") for i in range(12)]
+    syn = [row(f"g{i}.jpg", venue="v1", slot="gen", source=SYNTHETIC_SOURCE)
+           for i in range(6)]
+
+    without = grouped_split(real + syn, seed=42)
+    with_gen = grouped_split(real + syn, seed=42, include_synthetic=True)
+    assert [r.file for r in with_gen.test] == [r.file for r in without.test]

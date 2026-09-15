@@ -36,12 +36,26 @@ OUT_OF_SCOPE = {
     "error_taxonomy.csv": "WP4-T6: one row per misclassification, too granular for the export",
     "error_taxonomy_summary.csv": "WP4-T6: the per-protocol summary and its derived findings",
     "class_balancing.csv": "method: why class weighting stays on",
+    "a13_false_play_repair.csv": (
+        "A13 condition 3: whether the generated EMPTY frames repair the false-play "
+        "collapse. One camera at one venue, and the answer differs by backbone, so a "
+        "row on the export would read as a headline it cannot carry."
+    ),
+    "a13_false_play_repair_convnextv2.json": "A13 condition 3, per-backbone detail",
+    "a13_false_play_repair_vit.json": "A13 condition 3, per-backbone detail",
+    "a13_false_play_repair.json": "A13 condition 3, per-backbone detail",
     "a13_real_vs_generated.json": (
         "A13 gate: whether generated frames are separable from recorded ones. A "
         "pass licenses the augmentation and says nothing about the results, so a "
         "row on the export would read as a finding about the pitch."
     ),
     "coverage.md": "method: the class x lighting x venue matrix",
+    "roi_pooling_leak.csv": (
+        "WP3-T1 audit: what a pitch boundary keeps out of the model, and what survives it. "
+        "The row that matters is a 1.0 meaning 'the neighbouring pitch cannot reach this' - "
+        "a table of cosines would read as a result about occupancy rather than a check that "
+        "a masking feature does what its docstring says. The argument is in the log."
+    ),
     # Hypothesis reports whose value is the argument, not the row. They are written up in
     # EXPERIMENT_LOG.md, which the served site renders in full.
     "h4_model_equivalence.csv": "H4: refuted; the reasoning is the result",

@@ -1,0 +1,35 @@
+{
+  "backbone": "dinov2",
+  "n_test_empty_real": 243,
+  "test_set": "venue_01 camera B, EMPTY, recorded only",
+  "arms": {
+    "camera_A": {
+      "n_train": 775,
+      "play_fraction": 0.6683870967741935,
+      "false_play": 0.30864197530864196,
+      "play_recall": 1.0,
+      "balanced": 0.691358024691358
+    },
+    "camera_A + clip": {
+      "n_train": 1171,
+      "play_fraction": 0.7805294619982921,
+      "false_play": 0.9958847736625515,
+      "play_recall": 1.0,
+      "balanced": 0.004115226337448541
+    },
+    "camera_A + clip + generated EMPTY": {
+      "n_train": 1202,
+      "play_fraction": 0.7603993344425957,
+      "false_play": 0.0,
+      "play_recall": 0.9244604316546763,
+      "balanced": 0.9244604316546763
+    },
+    "camera_A + clip + all generated": {
+      "n_train": 1250,
+      "play_fraction": 0.7312,
+      "false_play": 0.0,
+      "play_recall": 0.8525179856115108,
+      "balanced": 0.8525179856115108
+    }
+  }
+}

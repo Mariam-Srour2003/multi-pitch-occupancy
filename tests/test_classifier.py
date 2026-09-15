@@ -68,8 +68,21 @@ def test_it_satisfies_the_classifier_protocol(monkeypatch) -> None:
     # isinstance only sees that a __call__ exists, so pin the shape of it too
     declared = inspect.signature(Classifier.__call__)
     actual = inspect.signature(type(clf).__call__)
-    assert list(actual.parameters)[1:] == list(declared.parameters)[1:]
+    required = list(declared.parameters)[1:]
+    assert list(actual.parameters)[1:][:len(required)] == required
     assert actual.return_annotation == declared.return_annotation
+
+    # An implementation may accept *more* than the protocol asks for - `polygon` confines the
+    # pooling to a pitch boundary - but every extra has to be optional, or `run_slot`'s
+    # one-argument call breaks and the protocol stops meaning what it says. Widening is
+    # allowed; narrowing is the bug this guards against, and exact equality could not tell
+    # the two apart.
+    for name in list(actual.parameters)[1 + len(required):]:
+        extra = actual.parameters[name]
+        assert extra.default is not inspect.Parameter.empty, (
+            f"{name} has no default, so a plain Classifier call no longer works"
+        )
+    clf(np.zeros((8, 8, 3), np.uint8))  # the protocol's own call, exercised
 
 
 def test_one_frame_in_one_class_and_confidence_out(monkeypatch) -> None:

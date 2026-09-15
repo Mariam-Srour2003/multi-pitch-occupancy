@@ -1,16 +1,21 @@
 {
   "backbone": "dinov2",
   "n_recorded": 1692,
-  "n_generated": 125,
+  "n_generated": 189,
   "protocol": "leave-one-venue-out over venues holding generated frames",
   "per_venue_macro_f1": {
-    "clipvenue_a_blue_barrier": 0.7106060606060607,
-    "venue_01": 0.5168314094145297
+    "clipvenue_a_blue_barrier": 0.9414720843292272,
+    "clipvenue_d_indoor_dome": 0.6352941176470588,
+    "clipvenue_e_pink_boards": 0.9671957671957672,
+    "clipvenue_f_outdoor_bldg": 0.717948717948718,
+    "clipvenue_g_netting": 0.6419437340153453,
+    "clipvenue_h_teal_pitch": 1.0,
+    "venue_01": 0.46541435839102063
   },
-  "pooled_macro_f1": 0.5331692939673317,
+  "pooled_macro_f1": 0.5399865204740848,
   "ci95": [
-    0.505509526244339,
-    0.5612216172274405
+    0.5159487001513485,
+    0.5635814826372709
   ],
   "threshold": 0.9,
   "verdict": "RETAIN"

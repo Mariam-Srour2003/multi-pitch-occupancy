@@ -347,3 +347,114 @@ class _StubForClip:
 
     def __call__(self, image_bgr):
         return "C2_ACTIVE_PLAY", 0.9
+
+
+# --- The boundary reaching the model, not only the picture -------------------------------
+#
+# The complaint these cover: with a boundary saved and applied, the evidence map still lit up
+# outside the outline, so the model looked like it was reading the neighbouring pitch. It was
+# not reading the neighbour - `apply` had already replaced it - but it *was* reading the fill,
+# because pooling averaged over every position including the filled ones. These assert the
+# fill is pooled out rather than merely painted on.
+
+
+def test_a_full_frame_boundary_weights_every_cell():
+    """The degenerate boundary is the one that has to be exactly a no-op.
+
+    If an all-inside polygon did not produce all-ones, every weighted pool would differ from
+    the plain mean by a little, everywhere, and the difference would be invisible against a
+    real boundary's expected difference.
+    """
+    weights = roi.grid_weights([[0, 0], [1, 0], [1, 1], [0, 1]], (640, 360), (7, 7))
+    assert weights.shape == (7, 7)
+    assert np.allclose(weights, 1.0)
+
+
+def test_cells_outside_the_boundary_weigh_exactly_zero():
+    """Not nearly zero. A cell outside the outline must drop out of the average entirely."""
+    weights = roi.grid_weights(MIDDLE, (640, 360), (16, 16))
+    assert weights.min() == 0.0
+    assert weights.max() > 0.9
+    # The corners of a centred box boundary are the clearest case of "outside".
+    assert weights[0, 0] == 0.0 and weights[-1, -1] == 0.0
+
+
+def test_a_straddling_cell_is_fractional_rather_than_rounded():
+    """A patch half on the touchline is half pitch. Rounding it would move the boundary by up
+    to half a patch, which at ViT's grid is a player's width at that distance."""
+    weights = roi.grid_weights([[0.0, 0.0], [0.5, 0.0], [0.5, 1.0], [0.0, 1.0]],
+                               (640, 360), (1, 2))
+    assert weights[0, 0] > 0.95
+    assert weights[0, 1] < 0.05
+
+    halved = roi.grid_weights([[0.0, 0.0], [0.25, 0.0], [0.25, 1.0], [0.0, 1.0]],
+                              (640, 360), (1, 2))
+    assert 0.4 < halved[0, 0] < 0.6  # the cell is half inside
+
+
+def test_no_boundary_means_pool_normally():
+    """None rather than ones, so a caller can pass its polygon through without branching and
+    `embed_batch` can tell "no boundary" from "a boundary that happens to cover everything"."""
+    assert roi.grid_weights(None, (640, 360), (7, 7)) is None
+    assert roi.grid_weights([], (640, 360), (7, 7)) is None
+
+
+def test_the_evidence_map_is_exactly_zero_outside_the_boundary():
+    """The picture the operator was complaining about, asserted rather than described.
+
+    `class_evidence_map` is the decomposition the walkthrough draws. Given the same cell
+    weights the pooling used, every position outside the outline contributes exactly nothing -
+    so the map cannot show the model reading a pitch it was told to ignore.
+    """
+    from pitch_occupancy.vision.explain import class_evidence_map, evidence_outside
+
+    rng = np.random.default_rng(0)
+    features = rng.normal(size=(49, 8))
+    probe_weights = rng.normal(size=8)
+    cells = roi.grid_weights(MIDDLE, (640, 360), (7, 7))
+
+    evidence, _ = class_evidence_map(features, probe_weights, 0.5, (7, 7),
+                                     drop_first=False, cell_weights=cells)
+    assert np.all(evidence[cells == 0.0] == 0.0)
+    assert evidence_outside(evidence, cells) == 0.0
+
+
+def test_a_full_boundary_reproduces_the_unweighted_decomposition():
+    """Element for element, not approximately - the weighted path has to be a generalisation
+    of the unweighted one rather than a second implementation beside it."""
+    from pitch_occupancy.vision.explain import class_evidence_map
+
+    rng = np.random.default_rng(1)
+    features = rng.normal(size=(50, 8))
+    probe_weights = rng.normal(size=8)
+
+    plain, plain_score = class_evidence_map(features, probe_weights, 0.5, (7, 7),
+                                            drop_first=True)
+    weighted, weighted_score = class_evidence_map(features, probe_weights, 0.5, (7, 7),
+                                                  drop_first=True,
+                                                  cell_weights=np.ones((7, 7)))
+    assert np.allclose(plain, weighted)
+    assert plain_score == pytest.approx(weighted_score)
+
+
+def test_a_boundary_mapped_onto_the_wrong_grid_raises():
+    """Silently broadcasting would explain a model nobody ran. This project has been bitten
+    once by a feature path that differed between two callers; this one says so out loud."""
+    from pitch_occupancy.vision.explain import class_evidence_map
+
+    rng = np.random.default_rng(2)
+    with pytest.raises(ValueError, match="different grid"):
+        class_evidence_map(rng.normal(size=(49, 8)), rng.normal(size=8), 0.0, (7, 7),
+                           drop_first=False, cell_weights=np.ones((4, 4)))
+
+
+def test_the_outline_is_drawn_without_touching_what_is_inside():
+    """The boundary is drawn for the reader, on the frame the reader sees. It must not become
+    part of the evidence it delimits, so it is drawn after the backbone has had the frame."""
+    frame = np.zeros((360, 640, 3), np.uint8)
+    drawn = roi.outline(frame, MIDDLE)
+    assert drawn is not frame  # a copy, so the caller's frame is untouched
+    assert frame.max() == 0
+    assert drawn.max() > 0
+
+    assert roi.outline(frame, None) is frame

@@ -4548,3 +4548,102 @@ break the tie, and that was measured rather than assumed.
 - 2026-09-13 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
 
 - 2026-09-14 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
+
+- 2026-09-15 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
+
+---
+
+## 2026-09-15 — the boundary reached the picture but not the pooling
+
+An operator drew a pitch boundary, ran the image walkthrough, and reported that the evidence
+map still lit up outside the outline — so the model looked like it was still reading the
+neighbouring pitch. The conclusion was wrong and the observation was right, which is the
+combination worth recording.
+
+`roi.apply` had replaced everything outside the outline before the frame reached the backbone,
+so the neighbour was genuinely gone. But `embed_batch` pooled with a plain mean over **every**
+patch position, filled ones included. So the *fill* was what reached the probe: a large uniform
+region, of a kind no pretraining set contains, averaged into the scored vector and decomposed
+onto the map being read. The boundary had removed one distraction and introduced another, and
+the evidence map was showing that honestly.
+
+`grid_weights` now maps the polygon onto the backbone's patch grid — through the processor's
+own resize and centre crop, by pushing a rasterised mask through the same processor call, so
+ConvNeXtV2's `crop_pct` and DINOv2's crop are applied to the boundary exactly as they are to
+the frame rather than re-derived. Those weights drive both the pooling and the decomposition,
+so positions outside the outline contribute exactly zero to the score and exactly zero to the
+map. A full-frame polygon reproduces the plain mean bit for bit on all three backbones.
+
+**The measurement says three things, and the third was a surprise.**
+
+*The neighbouring pitch could already not reach the model* — with `black` or `mean` fill, two
+frames identical inside the outline and completely different outside it embed to cosine 1.0,
+before and after this change. **Except under `blur`**, which blurs the outside rather than
+replacing it: a busy neighbouring pitch arrives as a blurred busy pitch, at cosine 0.896 (vit)
+to 0.988 (dinov2). `blur` is the one fill that does not do the job the boundary exists for.
+
+*The fill did reach the model*, and now does not — which is what the zero-outside evidence map
+shows directly.
+
+*And confining the pool moved the vector back toward the cache convention rather than away
+from it.* This was the stated risk of the change: the feature cache pools over the whole frame,
+so an ROI-pooled vector is a distribution the probe was not fitted on. Measured against the
+unbounded embedding of the same frame, pooling the fill out **narrows** the gap on every
+backbone and every fill — black fill goes 0.786→0.817 (vit), 0.923→0.946 (convnextv2),
+0.935→0.967 (dinov2). Removing a large black region from the average is a smaller departure
+from "what this frame looks like to the backbone" than leaving it in. The divergence is real
+and still wants a development-split check, but it points the other way from the worry.
+
+`mean` fill is the better default on this evidence — it blocks outside content as completely
+as `black` and sits closer to the cache convention on all three backbones (0.961/0.835/0.971
+against black's 0.946/0.817/0.967). `DEFAULT_FILL` is left at `black` pending that decision,
+which `roi.py` has always said is empirical rather than settled.
+
+- 2026-09-15 | ROI reached the picture but not the pooling | `roi_pooling_leak.csv` | `python -m experiments.roi_pooling_leak` | boundary positions are now pooled out rather than only filled in, so evidence outside the outline is exactly 0.0; `blur` is the only fill that leaks outside content (0.896–0.988 where black and mean are 1.0); confining the pool moves the vector *closer* to the unbounded cache convention on all 3 backbones
+
+## A13 condition 3 — do the generated EMPTY frames repair the false-play collapse?
+
+`uv run python experiments/a13_false_play_repair.py --backbone {dinov2,convnextv2,vit}`
+-> `results/a13_false_play_repair.csv`
+
+The collapse recorded above — adding the clip venues takes false-play on held-out EMPTY
+frames from 0.231 to 1.000 — is the defect the generated EMPTY frames were made for: 31 of
+them across six clip venues that had none. Test set is **243 recorded EMPTY frames** from
+venue_01 camera B, plus **278 recorded PLAY frames** from the same camera. No generated frame
+is ever on a test side.
+
+| backbone | training set | false-play | play-recall | balanced |
+|---|---|---|---|---|
+| dinov2 | camera_A | 0.3086 | 1.0000 | +0.6914 |
+| dinov2 | camera_A + clip | 0.9959 | 1.0000 | +0.0041 |
+| dinov2 | **+ 31 generated EMPTY** | **0.0000** | 0.9245 | **+0.9245** |
+| dinov2 | + all 79 generated | 0.0000 | 0.8525 | +0.8525 |
+| convnextv2 | camera_A + clip | 1.0000 | 1.0000 | +0.0000 |
+| convnextv2 | + 31 generated EMPTY | 0.9877 | 1.0000 | +0.0123 |
+| vit | camera_A + clip | 1.0000 | 1.0000 | +0.0000 |
+| vit | + 31 generated EMPTY | 0.9835 | 0.9892 | +0.0057 |
+
+**On DINOv2 the repair is complete and it is not a shifted prior.** False-play goes to zero
+while play-recall holds at 0.92, so `balanced` rises from +0.0041 to +0.9245 — past even the
+camera_A-only baseline of +0.6914. Thirty-one generated frames undo a failure that 396 real
+clip frames caused.
+
+**On ConvNeXtV2 and ViT it does not happen, and the reason is not the augmentation.** Both
+were already at 0.99 and 0.84 false-play *before* the clip venues were added. They never
+distinguished an empty pitch at an unseen camera, so there was no working behaviour for the
+clip venues to destroy and none for 31 frames to restore.
+
+**Both halves had to be measured.** False-play alone is a single-class test, and a probe that
+answers EMPTY to everything scores a perfect 0.0000 on it while being useless — H3's flaw
+with the classes swapped. The play-recall column is what separates a repair from a moved
+decision boundary, and it is why the DINOv2 row can be believed.
+
+**More generated data is worse than the right generated data.** Adding all 79 instead of the
+31 EMPTY ones costs DINOv2 seven points of `balanced` (+0.9245 -> +0.8525) and turns ViT
+negative. The maintenance and people frames buy nothing here and cost play-recall.
+
+**What this is not.** One camera, one venue, one held-out split: evidence that the frames
+address the known failure, not that the model generalises. RQ1 still needs real empty pitches
+at an unseen venue, because the test set has to be real. And the result is backbone-specific,
+which strengthens RQ2's recommendation of DINOv2 rather than any claim about synthetic data
+in general.

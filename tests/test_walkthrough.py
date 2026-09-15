@@ -25,6 +25,7 @@ from fastapi.testclient import TestClient
 
 from pitch_occupancy.api.app import app
 from pitch_occupancy.data.taxonomy import Class3
+from pitch_occupancy.vision import roi
 from pitch_occupancy.vision.walkthrough import EXPLAIN_ALL, Step, walk_clip
 
 E, P = Class3.EMPTY, Class3.ACTIVE_PLAY
@@ -143,6 +144,63 @@ def test_the_evidence_map_sums_to_the_score(tmp_path) -> None:
             f"step {step.index} reconstructs to {step.score_from_map} against a direct "
             f"score of {step.score_direct}; the decomposition is no longer exact"
         )
+
+
+@pytest.mark.slow
+def test_a_boundary_confines_the_deployed_model_and_the_explanation_together(tmp_path) -> None:
+    """The two halves have to move as one.
+
+    `explain_frame` pools the features it already has; `classify_batch` pools inside
+    `embed_batch`. Those are two implementations of the same weighted average, and if they
+    disagree the page explains one model while the system deploys another - with nothing on
+    screen to say so. Under a boundary there is more to get wrong than before, because the
+    weights, the CLS term and the grid all have to line up.
+    """
+    from pitch_occupancy.vision.classifier import load_classifier
+
+    polygon = [[0.1, 0.1], [0.9, 0.15], [0.85, 0.9], [0.15, 0.85]]
+    classifier = load_classifier()
+    video = _video(tmp_path / "c.mp4", seconds=4)
+
+    steps = list(walk_clip(video, classifier, interval_s=2.0, explain_n=EXPLAIN_ALL,
+                           polygon=polygon))
+    assert steps
+
+    capture = cv2.VideoCapture(str(video))
+    for step in steps:
+        capture.set(cv2.CAP_PROP_POS_MSEC, step.t_s * 1000.0)
+        ok, frame = capture.read()
+        assert ok
+        state, confidence = classifier(roi.apply(frame, polygon), polygon=polygon)
+        assert step.predicted == str(state)
+        assert step.confidence == pytest.approx(confidence, abs=1e-6)
+        # And the decomposition stays exact under the weighting, which is the property that
+        # lets the page keep calling the map a decomposition rather than a heatmap.
+        assert step.reconstruction_error < 1e-9
+        # The whole point, as a number: nothing outside the outline argued for the class.
+        assert step.evidence_outside == 0.0
+    capture.release()
+
+
+@pytest.mark.slow
+def test_a_boundary_covering_everything_changes_nothing() -> None:
+    """The safety rail on the weighted pool. An all-inside polygon has to reproduce the plain
+    mean *exactly*, or every ROI-pooled vector differs from the cache's convention by a little
+    everywhere - a bias that no test on a real boundary could distinguish from the boundary."""
+    import numpy as np
+    from PIL import Image
+
+    from pitch_occupancy.vision.backbones import BACKBONES, embed_batch, load_backbone
+
+    frame = np.random.default_rng(0).integers(0, 255, (360, 640, 3), dtype=np.uint8)
+    pil = [Image.fromarray(frame[:, :, ::-1])]
+    whole = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]
+
+    for key in BACKBONES:
+        model, processor, spec = load_backbone(key)
+        plain = embed_batch(model, processor, spec, pil)
+        bounded = embed_batch(model, processor, spec, pil, roi_polygon=whole)
+        assert np.array_equal(plain, bounded), f"{key} drifts under a full-frame boundary"
 
 
 # --- the streaming route -----------------------------------------------------------------------

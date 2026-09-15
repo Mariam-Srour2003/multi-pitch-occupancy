@@ -676,3 +676,139 @@ def test_the_claims_summary_carries_every_ledger_claim() -> None:
     declared = len(tomllib.loads(LEDGER.read_text(encoding="utf-8"))["claim"])
     shown = sum(len(g["claims"]) for g in claim_groups())
     assert shown == declared
+
+
+# --- the slides -------------------------------------------------------------
+
+
+def _tab_bodies(html: str) -> dict[str, str]:
+    """Each tab's rendered body.
+
+    Split on the view boundaries rather than matched lazily to the next `</section>`: the
+    findings summary nests `<section class="fgroup">` inside its tab, so a lazy match stops
+    at the first inner close and silently measures a prefix. That is how a first attempt at
+    this reported the findings tab as "0% collapsed" while it was 91%.
+    """
+    import re
+
+    parts = re.split(
+        r'<section class="view" data-view="([a-z]+)" hidden><div class="doc">', html
+    )
+    return dict(zip(parts[1::2], parts[2::2], strict=True))
+
+
+def test_every_tab_opens_with_a_slide(client) -> None:
+    """A tab used to open with its source Markdown rendered in full - the right evidence and
+    a poor page. Each now leads with counts and figures, and this asserts that on the served
+    HTML rather than on the builder, because the wall is what a reader got."""
+    bodies = _tab_bodies(client.get("/").text)
+    for tab in ("models", "findings", "prereg", "questions", "dataset", "database",
+                "code", "ideas", "ethics", "augmentation", "searches"):
+        assert tab in bodies, f"{tab} tab is missing entirely"
+        assert '<div class="slide">' in bodies[tab], f"{tab} has no slide"
+
+
+def test_the_document_is_collapsed_rather_than_dropped(client) -> None:
+    """Summarising must not mean omitting.
+
+    The whole argument for leading with a slide is that the evidence stays one click below
+    it. `<details>`, not a CSS toggle - find-in-page and a saved copy still reach it.
+    """
+    bodies = _tab_bodies(client.get("/").text)
+    for tab in ("prereg", "questions", "code", "ideas", "ethics", "dataset", "database"):
+        assert "<details" in bodies[tab], f"{tab} dropped its document instead of collapsing"
+
+
+def test_the_long_documents_are_mostly_collapsed(client) -> None:
+    """The page is judged on what it shows before anything is expanded.
+
+    `docs/CODEBASE.md` is 40 KB and `preregistration.md` 33 KB; if either arrives visible,
+    the slide has been added in front of the wall rather than in place of it.
+    """
+    import re
+
+    bodies = _tab_bodies(client.get("/").text)
+    for tab in ("code", "prereg"):
+        body = bodies[tab]
+        visible = re.sub(r'<div class="sl-detail-body">.*?</details>', "", body, flags=re.S)
+        assert len(visible) < len(body) * 0.2, (
+            f"{tab} shows {len(visible)} of {len(body)} bytes before expanding"
+        )
+
+
+def test_the_augmentation_tab_is_deliberately_image_heavy(client) -> None:
+    """The one tab that is more, not less.
+
+    Augmentation and preprocessing code fails silently - a preset that does nothing, a crop
+    that removes the goalmouth - and every one of those passes a shape and dtype check. The
+    only reliable check is a person looking, so this tab has to carry the pictures.
+    """
+    body = _tab_bodies(client.get("/").text)["augmentation"]
+    assert body.count("<img") >= 10, "the augmentation tab lost its sheets"
+    assert "/figs/preproc/" in body, "the before/after pairs are not on the page"
+
+
+def test_every_preprocessing_pair_reaches_the_augmentation_tab(client) -> None:
+    """Checked against the CSV that records what was generated, not a list typed here -
+    which would be a second inventory, and the one that goes stale."""
+    import csv
+
+    from pitch_occupancy.api.slides import RESULTS
+
+    pairs = RESULTS / "preprocess_pairs.csv"
+    if not pairs.exists():
+        pytest.skip("no preprocessing pairs generated")
+    with pairs.open(newline="", encoding="utf-8") as fh:
+        labels = [r["label"] for r in csv.DictReader(fh)]
+
+    body = _tab_bodies(client.get("/").text)["augmentation"]
+    missing = [lab for lab in labels if f"<code>{lab}</code>" not in body]
+    assert not missing, f"switches with no before/after card: {missing}"
+
+
+def test_the_rq_statuses_are_parsed_from_the_matrix_not_restated() -> None:
+    """The statuses move as the work moves, so a copy in the page would be right the day it
+    was written and wrong afterwards with nothing to catch it."""
+    from pitch_occupancy.api.slides import rq_status
+
+    rows = rq_status()
+    assert len(rows) >= 6, f"only parsed {len(rows)} research questions"
+    assert all(rid.startswith("RQ") for rid, _, _ in rows)
+    # The matrix records more than one outcome; a parser that collapsed them all to one
+    # value would render a board of identical chips and look fine.
+    assert len({status for _, _, status in rows}) > 1
+
+
+def test_a_slide_reports_a_missing_artefact_rather_than_rendering_a_hole(tmp_path) -> None:
+    """A page that silently shows nothing where its argument should be is the failure
+    `augmentation_grid.py` was written to prevent, and it applies to the page too."""
+    from pitch_occupancy.api import slides
+
+    assert "missing" in slides.figure("no_such_figure.png", script="uv run something")
+
+
+def test_the_figure_route_serves_the_pairs_but_still_refuses_venue_check(client) -> None:
+    """`results/figs/venue_check/` holds cropped pitch frames - operator footage that must
+    never be published. Opening `figs/preproc/` for the before/after pairs must not have
+    opened that with it."""
+    assert client.get("/figs/preproc/gamma_0p7.jpg").status_code == 200
+    for blocked in ("venue_check/x.jpg", "preproc/../venue_check/x.jpg",
+                    "preproc/sub/x.jpg", "../../.gitignore", ".env"):
+        assert client.get(f"/figs/{blocked}").status_code in (404, 405), blocked
+
+
+def test_the_dataset_slide_counts_venues_not_lighting_columns() -> None:
+    """The corpus's whole problem is that exactly one venue has an empty pitch.
+
+    `coverage.md` opens with a class-by-*lighting* table whose EMPTY row is
+    `| EMPTY | 485 | 9 | 494 |`, so a pattern matching "the EMPTY row" finds that one first
+    and counts day and night as venues - which reported "all from 2 venues" for the fact the
+    whole data request is about. Scoped to the class-by-venue section instead.
+    """
+    from pitch_occupancy.api.slides import RESULTS, coverage_counts
+
+    if not (RESULTS / "coverage.md").exists():
+        pytest.skip("no coverage report generated")
+    counts = coverage_counts()
+    assert counts["venues_with_empty"] == 1
+    assert counts["venues_counted"] > 2, "the lighting table was matched again"

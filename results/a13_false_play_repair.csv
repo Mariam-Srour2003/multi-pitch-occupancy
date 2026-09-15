@@ -1,0 +1,13 @@
+backbone,training_set,n_train,play_fraction,false_play,play_recall,balanced
+dinov2,camera_A,775,0.6684,0.3086,1.0,0.6914
+dinov2,camera_A + clip,1171,0.7805,0.9959,1.0,0.0041
+dinov2,camera_A + clip + generated EMPTY,1202,0.7604,0.0,0.9245,0.9245
+dinov2,camera_A + clip + all generated,1250,0.7312,0.0,0.8525,0.8525
+convnextv2,camera_A,775,0.6684,0.9918,1.0,0.0082
+convnextv2,camera_A + clip,1171,0.7805,1.0,1.0,0.0
+convnextv2,camera_A + clip + generated EMPTY,1202,0.7604,0.9877,1.0,0.0123
+convnextv2,camera_A + clip + all generated,1250,0.7312,0.9218,1.0,0.0782
+vit,camera_A,775,0.6684,0.8354,1.0,0.1646
+vit,camera_A + clip,1171,0.7805,1.0,1.0,0.0
+vit,camera_A + clip + generated EMPTY,1202,0.7604,0.9835,0.9892,0.0057
+vit,camera_A + clip + all generated,1250,0.7312,0.9794,0.9784,-0.001
