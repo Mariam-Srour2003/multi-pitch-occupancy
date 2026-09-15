@@ -4647,3 +4647,41 @@ address the known failure, not that the model generalises. RQ1 still needs real 
 at an unseen venue, because the test set has to be real. And the result is backbone-specific,
 which strengthens RQ2's recommendation of DINOv2 rather than any claim about synthetic data
 in general.
+
+## H3's recall, with a false-play control beside it
+
+`uv run python experiments/h3_with_generated_empty.py` -> `results/h3_with_generated_empty.csv`
+
+H3 reports mean cross-venue ACTIVE_PLAY recall of 0.930 for DINOv2 and meets its 0.90 target.
+Its own docstring explains that every held-out venue fold is 100% ACTIVE_PLAY, so a model
+answering PLAY to everything scores 1.000. This runs H3's protocol with a control it could not
+carry: the false-play rate of each fitted model on **243 recorded EMPTY frames from venue_01
+camera B**, held out of every training set here. DINOv2 only.
+
+| arm | mean play-recall | mean false-play | balanced |
+|---|---|---|---|
+| H3 as pre-registered | 0.944 | **0.768** | +0.176 |
+| + 31 generated EMPTY | 0.959 | **0.024** | **+0.936** |
+
+**H3's recall was bought at a price the protocol could not see.** The model that scores 0.944
+across unseen venues calls **77% of unseen empty pitches a match**. Per fold the two move
+together: `clipvenue_a` scores a perfect 1.000 recall at 0.992 false-play, while
+`clipvenue_h` - the *worst* fold by recall at 0.778 - has the second-best false-play at 0.165.
+The fold that looks worst under H3 is close to the only one behaving sensibly.
+
+**Adding the generated EMPTY frames improves both axes at once.** Recall does not fall - it
+rises slightly, 0.944 to 0.959 - while false-play drops from 0.768 to 0.024 and `balanced`
+goes from +0.176 to +0.936. A recall cost was the expected shape of this result and it did not
+appear; the 31 frames are not trading one error for another.
+
+**Why 31 generated frames outweigh ~250 real ones already in training.** Every fold trains on
+venue_01, which holds hundreds of real EMPTY frames, and false-play was still 0.768. The 396
+clip-venue frames are all ACTIVE_PLAY and they push the boundary until it covers unseen empty
+pitches; the generated empties come from *those same venues* and are the only thing in the
+training set that opposes them there. It is not the count that matters, it is where in feature
+space they sit.
+
+**This does not amend H3.** H3 is pre-registered and its numbers stand as reported. What this
+adds is the reading: H3 measured whether the model finds play at a new venue, and it does -
+but it was never evidence that the model can tell a new venue's empty pitch from a match, and
+under the pre-registered training set it cannot.

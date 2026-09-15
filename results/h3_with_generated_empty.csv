@@ -1,0 +1,17 @@
+arm,held_out_venue,n_train,play_recall,false_play,balanced
+H3 as pre-registered,clipvenue_a_blue_barrier,1167,1.0,0.9918,0.0082
+H3 as pre-registered,clipvenue_d_indoor_dome,1317,1.0,0.9218,0.0782
+H3 as pre-registered,clipvenue_e_pink_boards,1317,1.0,0.9671,0.0329
+H3 as pre-registered,clipvenue_f_outdoor_bldg,1323,1.0,0.9753,0.0247
+H3 as pre-registered,clipvenue_g_netting,1305,1.0,0.5391,0.4609
+H3 as pre-registered,clipvenue_h_teal_pitch,1317,0.7778,0.1646,0.6132
+H3 as pre-registered,clipvenue_i_outdoor_trees,1317,0.8333,0.8189,0.0144
+H3 as pre-registered,MEAN_ACROSS_FOLDS,,0.9444,0.7684,0.1761
++ generated EMPTY,clipvenue_a_blue_barrier,1188,0.994,0.0206,0.9735
++ generated EMPTY,clipvenue_d_indoor_dome,1344,1.0,0.0206,0.9794
++ generated EMPTY,clipvenue_e_pink_boards,1343,1.0,0.0206,0.9794
++ generated EMPTY,clipvenue_f_outdoor_bldg,1350,1.0,0.0247,0.9753
++ generated EMPTY,clipvenue_g_netting,1332,1.0,0.037,0.963
++ generated EMPTY,clipvenue_h_teal_pitch,1344,0.8889,0.0206,0.8683
++ generated EMPTY,clipvenue_i_outdoor_trees,1348,0.8333,0.0206,0.8128
++ generated EMPTY,MEAN_ACROSS_FOLDS,,0.9595,0.0235,0.936
