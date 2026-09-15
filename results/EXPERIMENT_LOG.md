@@ -4685,3 +4685,45 @@ space they sit.
 adds is the reading: H3 measured whether the model finds play at a new venue, and it does -
 but it was never evidence that the model can tell a new venue's empty pitch from a match, and
 under the pre-registered training set it cannot.
+
+## Motion as a cue: does "nothing moved" separate not-play from play?
+
+`uv run python experiments/motion_cue_probe.py` -> `results/motion_cue_probe.csv`
+
+One number per frame: mean absolute difference against the nearest earlier frame of the same
+slot and camera, on a 160x90 greyscale downscale. No model, no training.
+
+| class | n | median cue |
+|---|---|---|
+| C1_EMPTY | 493 | 0.889 |
+| C2_ACTIVE_PLAY | 1118 | 1.794 |
+| C3_MAINTENANCE_NON_SPORTING | 6 | 1.077 |
+
+| pair | AUC |
+|---|---|
+| PLAY vs EMPTY | **0.945** |
+| PLAY vs C3 | 0.864 |
+| C3 vs EMPTY | 0.737 |
+
+**A single scalar separates play from empty at 0.945.** That is a strong cue for something
+that costs one subtraction and is orthogonal to everything the frozen backbone sees: the
+backbone is given one frame and cannot know what moved. It is also the only cue on offer for
+the boundary this corpus is worst at - four people standing with a ball and four people
+mid-rally are nearly the same picture, and differ almost entirely in motion.
+
+**The catch is the sampling rate, and it is serious.** Coverage here is 96% at a **median gap
+of 8 seconds** (p90 15s). The production sampler takes **one frame per camera per minute**
+(`thesis/data_requests.md` §7). At 60-second spacing two frames of the same live match are
+effectively independent scenes, and this cue measures scene change rather than activity. So
+the number above is not a deployment result - it is a result about 8-second spacing.
+
+**That is fixable in the sampler, not the model.** Grabbing two frames a few seconds apart
+once a minute preserves the cue at the same one-decision-per-minute cadence and roughly the
+same storage. It would need measuring at the real gap before being believed.
+
+**PLAY vs C3 rests on six frames.** The only recorded C3 frames in the corpus. The 0.864 is
+not a number to quote.
+
+**Not yet wired into anything.** Adding a motion feature changes the model's input from a
+single frame to a pair, which the pre-registration does not cover and which would need an
+amendment. This measures whether the signal exists first, which is the cheaper order.

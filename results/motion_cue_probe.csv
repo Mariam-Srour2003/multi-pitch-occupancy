@@ -1,0 +1,4 @@
+pair,auc,n_a,n_b
+PLAY vs EMPTY,0.9453,1118,493
+PLAY vs C3,0.8637,1118,6
+C3 vs EMPTY,0.737,6,493

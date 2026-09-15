@@ -36,6 +36,11 @@ OUT_OF_SCOPE = {
     "error_taxonomy.csv": "WP4-T6: one row per misclassification, too granular for the export",
     "error_taxonomy_summary.csv": "WP4-T6: the per-protocol summary and its derived findings",
     "class_balancing.csv": "method: why class weighting stays on",
+    "motion_cue_probe.csv": (
+        "Diagnostic: whether frame-to-frame motion separates the classes. Measured at "
+        "8-second spacing where deployment samples once a minute, so the AUC is not a "
+        "deployment number and a row would be read as one."
+    ),
     "h3_with_generated_empty.csv": (
         "H3 re-run with a false-play control beside the recall. It qualifies H3 rather "
         "than replacing it, and the pair of columns is the result - a single row would "
