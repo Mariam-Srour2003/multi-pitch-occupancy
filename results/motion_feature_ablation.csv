@@ -1,0 +1,4 @@
+gap_s,backbone,arm,n_train,n_test,macro_f1,play_recall,false_play,balanced
+15,dinov2,without motion (768),842,518,0.3484,1.0,1.0,0.0
+15,dinov2,with motion (769),842,518,0.3484,1.0,1.0,0.0
+15,dinov2,motion override,842,518,0.3585,0.9675,0.9834,-0.0159

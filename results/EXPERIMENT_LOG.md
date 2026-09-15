@@ -4725,3 +4725,58 @@ the player-count decision.
 
 **Adding it needs an amendment.** The model's input goes from a frame to a pair, which the
 pre-registration does not cover.
+
+## Motion as a model input (A14): separates on its own, contributes nothing
+
+`uv run python experiments/motion_feature_ablation.py --gap {15,60} --train-set {camera_A,camera_A+clip}`
+-> `results/motion_feature_ablation.csv`
+
+The cue works (AUC 0.864 at deployment spacing). Whether it *adds* anything to 768 backbone
+dimensions is a separate question, and the answer here is no - three ways.
+
+**1 · As a 769th feature on the split that works.** Train venue_01 camera A, test camera B,
+1,268 frames with a motion value at ~60s (98%; frames without one are dropped, not imputed).
+
+| arm | macro-F1 | play-recall | false-play | balanced |
+|---|---|---|---|---|
+| without motion (768) | **0.9882** | 0.9964 | 0.0211 | +0.9753 |
+| with motion (769) | 0.9823 | 1.0000 | 0.0380 | +0.9620 |
+
+Slightly worse, and the reason is visible in the baseline: 0.9882 leaves no headroom. This
+split is saturated and cannot show a gain in anything.
+
+**2 · As a 769th feature on the split that fails.** Adding the clip venues reproduces the
+collapse - macro-F1 0.3484, false-play 1.0000 - and motion changes it by **exactly 0.0000**.
+One standardised scalar among 768 already-predictive dimensions is shrunk to nothing by the
+regulariser. A cue that separates on its own is not a cue that contributes.
+
+**3 · As an override rule, which is what was actually proposed.** "Nothing moved, so not a
+match" is a rule, not a feature, and a rule sits outside the probe where it cannot be shrunk.
+Threshold chosen on the training frames only, as the value maximising recall - false-play
+there. Result: false-play 0.9834, balanced **-0.0159**. It fails too.
+
+**Why the rule fails, and it is the same gap as everything else.** The motion value is not
+calibrated across venues:
+
+| | median motion (15s) |
+|---|---|
+| venue_01 EMPTY | 0.890 |
+| venue_01 ACTIVE_PLAY | 1.575 |
+| **clip venues ACTIVE_PLAY** | **2.930** |
+| clip venues EMPTY | *(none exist)* |
+
+A threshold is a single number on a scale that means different things per venue - different
+cameras, compression, and genuinely busier footage. Worse, the optimiser sees clip frames
+only as PLAY with high motion, so it pushes the threshold up until it starts calling venue_01
+play empty. **There are no clip-venue EMPTY frames to calibrate against**, which is item 1 of
+`thesis/data_requests.md` for the third time in this log.
+
+**And the corpus cannot test the deployment case at all.** The clip venues are 66 clips of six
+frames spanning ~10 seconds. A 60-second motion difference does not exist in them and cannot
+be computed - at `--gap 60` the clip venues contribute **zero** frames. Motion at deployment
+spacing is measurable only at venue_01.
+
+**Conclusion.** The idea is sound and the signal is real; this corpus cannot show it helping,
+and the specific reason is the missing EMPTY frames at other venues plus clips too short to
+hold a one-minute pair. Recorded as a negative result rather than tuned until it turns
+positive. No amendment is filed, because nothing is being adopted.
