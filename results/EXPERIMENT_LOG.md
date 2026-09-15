@@ -4858,3 +4858,38 @@ the worst and best bounds coincide at every coverage above and the band is a lin
 here*, not what review buys. A threshold fitted on venue_01 has not been shown to transfer,
 and RQ1's blocker is untouched - the test frames are real, but they are venue_01's. RQ6 moves
 from "blocked by data" to "answered at one venue, transfer unmeasured".
+
+
+## ROI pooling: the gain was the inconsistency, not the boundary
+
+`uv run python experiments/probe_regularisation.py --backbone dinov2 [--roi-pooled]`
+-> `results/probe_regularisation.csv`
+
+`build_cache` gained `roi_for` so training features could be pooled inside a boundary the way
+`classifier.classify_batch` already pools them at serve time. Boundaries for all 99 cameras
+come from `scripts/derive_roi.py`. Train venue_01 camera A + clip venues + 31 generated EMPTY,
+test venue_01 camera B on recorded frames, C=1.0.
+
+| features | macro-F1 | play-recall | false-play | balanced |
+|---|---|---|---|---|
+| whole frame | **0.9386** | 0.8849 | 0.0000 | +0.8849 |
+| ROI-pooled, generated frames **unbounded** | 0.9750 | 0.9568 | 0.0041 | +0.9527 |
+| ROI-pooled, **every frame bounded** | 0.9367 | 0.8813 | 0.0000 | +0.8813 |
+
+**The middle row is wrong and it is the one that looked like a result.** In that cache the
+189 generated frames had no boundary - their `camera` is `synthetic_<batch>`, which
+`derive_roi` had skipped - so they alone were pooled over the whole image while every recorded
+frame was pooled inside one. The +0.0364 macro-F1 was that inconsistency, not the masking. Two
+pooling conventions inside one training set produced a **better-looking number than the
+correct configuration**, which is the trap worth recording: a skew does not announce itself as
+a defect, it announces itself as an improvement.
+
+**Applied consistently, ROI pooling changes nothing here: -0.0019 macro-F1, inside noise.**
+
+RQ6's operating point moves the same way and slightly for the worse: 99% accuracy costs 54%
+review on ROI features against 27% on whole-frame ones. The whole-frame configuration stays.
+
+**What this does not settle.** One venue, one split, DINOv2. And the boundaries are convex
+hulls, so a dugout inside the outline's span is still inside the pooling - `roi.py` has always
+said the hull is a floor rather than a ceiling. A boundary that excluded the dugout might do
+something these do not; that is a different experiment, not a different reading of this one.

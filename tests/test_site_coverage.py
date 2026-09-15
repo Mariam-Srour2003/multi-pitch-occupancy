@@ -36,6 +36,14 @@ OUT_OF_SCOPE = {
     "error_taxonomy.csv": "WP4-T6: one row per misclassification, too granular for the export",
     "error_taxonomy_summary.csv": "WP4-T6: the per-protocol summary and its derived findings",
     "class_balancing.csv": "method: why class weighting stays on",
+    "probe_regularisation.csv": (
+        "Sweep of the probe penalty and of ROI pooling. Both negative, and the second "
+        "only after a confound was removed - the argument is the result."
+    ),
+    "rq6_real_class_mix.csv": (
+        "RQ6 risk-coverage on venue_01 camera B. Real answer, one venue - a row beside "
+        "the headline figures would read as a transferable operating point."
+    ),
     "motion_feature_ablation.csv": (
         "A14 probe: motion as a feature and as an override rule. Negative on both, and "
         "the reason is the dataset gap rather than the idea - the argument is the result."
