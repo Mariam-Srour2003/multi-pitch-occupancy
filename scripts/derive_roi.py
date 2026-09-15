@@ -60,7 +60,32 @@ def _median(paths: list[Path]) -> np.ndarray | None:
     return np.median(np.stack(imgs), axis=0).astype(np.uint8)
 
 
+def _largest(m: np.ndarray) -> np.ndarray:
+    n, lab, stats, _ = cv2.connectedComponentsWithStats(m, 8)
+    if n <= 1:
+        return m
+    biggest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+    return np.where(lab == biggest, 255, 0).astype(np.uint8)
+
+
 def turf_mask(bgr: np.ndarray) -> np.ndarray:
+    """The pitch as the largest connected excess-green region.
+
+    Excess-green rather than a hue mask, because floodlit artificial turf at night is closer
+    to grey than to green and a hue threshold loses it - the *relative* channel order
+    survives when saturation does not.
+
+    A luminance fallback was written here for scenes too dark for excess-green, on the
+    strength of two boundaries that looked wrong in a rendered check. Measured afterwards, it
+    fired for **none of the 70 cameras**, and the boundaries in question turned out to be
+    correct - the dome's pitch really does occupy only the lower band of its frame. The
+    branch is gone rather than kept as an untested path that never runs, which is the defect
+    this project keeps finding in its own guards.
+
+    `normalize` stays: it changed four cameras by an IoU of 0.97-0.98, which is small but is
+    a real effect on contrast-poor medians rather than a hypothetical one.
+    """
+    bgr = cv2.normalize(bgr, None, 0, 255, cv2.NORM_MINMAX)
     b, g, r = (bgr[:, :, i].astype(np.int16) for i in range(3))
     exg = np.clip(2 * g - r - b, 0, 255).astype(np.uint8)
     exg = cv2.GaussianBlur(exg, (5, 5), 0)
@@ -68,11 +93,7 @@ def turf_mask(bgr: np.ndarray) -> np.ndarray:
     k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
     m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, k, iterations=2)
     m = cv2.morphologyEx(m, cv2.MORPH_OPEN, k, iterations=1)
-    n, lab, stats, _ = cv2.connectedComponentsWithStats(m, 8)
-    if n <= 1:
-        return m
-    biggest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
-    return np.where(lab == biggest, 255, 0).astype(np.uint8)
+    return _largest(m)
 
 
 def polygon_from_mask(mask: np.ndarray, max_points: int = 8) -> list[list[float]] | None:
@@ -115,7 +136,14 @@ def main() -> int:
                     help="match the stored cam/cam2 outlines to real cameras and stop")
     args = ap.parse_args()
 
-    rows = [r for r in read_manifest(DATASET / "manifest.csv") if r.source != "synthetic"]
+    # Generated frames included. Their `camera` is `synthetic_<batch>`, so they have no
+    # outline of their own, and without one they would be the only frames in a cache pooled
+    # over the whole image while every recorded frame was pooled inside a boundary. Mixing
+    # two pooling conventions inside one training set is the skew this work exists to remove,
+    # arriving from the other side. The boundary is measured from the generated frames
+    # themselves rather than borrowed from the camera that conditioned them, because the
+    # generator does not hold the framing exactly.
+    rows = read_manifest(DATASET / "manifest.csv")
     by_cam: dict[str, list[Path]] = defaultdict(list)
     for r in rows:
         by_cam[r.camera].append(DATASET / r.file)

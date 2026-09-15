@@ -4815,3 +4815,46 @@ leakage work reached for evaluation, arriving now for selection.
 
 The sweep's own best is C=3.0 at 0.9539, but that value is read off the test set and is not
 quotable. It is recorded only to show the curve has real structure that inner CV cannot see.
+
+## RQ6 answered on a test set with a real class mix
+
+`uv run python experiments/rq6_on_a_real_class_mix.py --backbone dinov2`
+-> `results/rq6_real_class_mix.csv`
+
+`rq_matrix.md` recorded RQ6 as blocked: "machinery built and tested ... with a test set that
+is 99% one class, a 99% precision target is met before confidence is consulted, so the
+risk-coverage curve has nothing to trade against. `evaluation/calibration.py` is ready. It
+needs a test set with a real class mix."
+
+**One existed the whole time.** Holding out venue_01's physical **camera B** leaves 243
+recorded EMPTY and 278 recorded PLAY frames - a 47/53 mix. No experiment used it because the
+project's splits are grouped by slot or by venue, and venue_01 has only two slots, so neither
+protocol produces this split. `class_balancing._false_play_control` had already reached for
+the same camera hold-out for the same reason.
+
+Training is camera A + clip venues + the 31 generated EMPTY frames. Without them the probe
+calls ~100% of unseen empty pitches a match (`a13_false_play_repair`), and a risk-coverage
+curve over that model would describe nothing worth an operating point.
+
+| coverage | accuracy | threshold | review |
+|---|---|---|---|
+| 50% | 1.0000 | 0.9949 | 50% |
+| 70% | 0.9918 | 0.9846 | 30% |
+| 80% | 0.9856 | 0.9693 | 20% |
+| 90% | 0.9701 | 0.9141 | 10% |
+| 100% | 0.9386 | - | 0% |
+
+**The operating points a manager can act on:**
+
+- **95% accuracy on automated verdicts -> review 3%** (confidence >= 0.7447)
+- **99% accuracy on automated verdicts -> review 27%** (confidence >= 0.9824)
+
+**The tie problem that forced the band does not arise here.** Under the old degenerate split
+DINOv2's temperature pinned to the grid floor and 890 of 907 confidences were exactly 1.0,
+which is why risk-coverage is reported as a band at all. On this split **15 of 521** are, so
+the worst and best bounds coincide at every coverage above and the band is a line.
+
+**Scope, and it is narrow.** One venue, two cameras, two days. This answers *what review buys
+here*, not what review buys. A threshold fitted on venue_01 has not been shown to transfer,
+and RQ1's blocker is untouched - the test frames are real, but they are venue_01's. RQ6 moves
+from "blocked by data" to "answered at one venue, transfer unmeasured".

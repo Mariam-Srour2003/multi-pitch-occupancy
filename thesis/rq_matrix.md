@@ -17,7 +17,7 @@ Updated 2026-09-06.
 | RQ3 | How does leakage-free, multi-venue evaluation change apparent performance? | **answered** |
 | RQ4 | Can slot aggregation + booking reconciliation detect record discrepancies? | not started |
 | RQ5 | Do purpose-built lightweight architectures beat single-backbone probes? | **baseline established; the fusion answer looks like *no*** |
-| RQ6 | Precision / REVIEW-rate trade-off and its operating point? | **blocked by data** |
+| RQ6 | Precision / REVIEW-rate trade-off and its operating point? | **answered at venue_01; transfer unmeasured** |
 | RQ7 | Do deep backbones earn their cost over trivial baselines? | **answered** |
 
 ---
@@ -256,6 +256,18 @@ worse, and DINOv2's temperature pinned to the grid floor - caught by the boundar
 rather than reported as a fitted parameter.
 
 `evaluation/calibration.py` is ready. It needs a test set with a real class mix.
+
+> **Updated 2026-09-16.** That test set existed and no experiment had used it. Holding out
+> venue_01's *physical camera B* leaves 243 recorded EMPTY and 278 recorded PLAY frames, a
+> 47/53 mix - the project's splits are grouped by slot or by venue, and venue_01 has only two
+> slots, so neither protocol produces it. Trained on camera A + clip venues + the 31 generated
+> EMPTY frames, the curve trades properly: **95% accuracy on automated verdicts costs 3%
+> review, 99% costs 27%** (`results/rq6_real_class_mix.csv`). Ties are no longer a problem
+> either - 15 of 521 confidences are exactly 1.0, against 890 of 907 before.
+>
+> **This is one venue, two cameras, two days.** It answers what review buys *here*. A
+> threshold fitted on venue_01 has not been shown to transfer, so RQ1's blocker stands and
+> this row reads "answered at venue_01" rather than "answered".
 
 ## RQ7 - do deep backbones earn their cost?
 

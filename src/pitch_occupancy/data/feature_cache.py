@@ -162,9 +162,8 @@ def build_cache(
                 )
             )
             ordered.extend(batch)
-        if progress:
-            done = min(start + batch_size, len(files))
-            print(f"  {backbone}: {done}/{len(files)}", end="\r", flush=True)
+            if progress:
+                print(f"  {backbone}: {len(ordered)}/{total}", end="\r", flush=True)
     if progress:
         print()
 

@@ -232,3 +232,23 @@ def test_roi_pooling_is_in_the_preprocessing_fingerprint():
     assert preprocessing_hash(backbone="x", roi_pooled=False) != preprocessing_hash(
         backbone="x", roi_pooled=True
     )
+
+
+def test_build_cache_progress_does_not_reference_a_name_it_no_longer_defines():
+    """A guard on the bug that killed two ROI cache builds.
+
+    Grouping frames by polygon replaced the flat `files` list built before the loop, but the
+    progress line still read `len(files)` - so `build_cache` raised `UnboundLocalError` after
+    embedding the first batch, and only when `progress=True`. Every unit test passes
+    `progress=False`, which is exactly why nothing caught it.
+    """
+    import inspect
+
+    from pitch_occupancy.data import feature_cache
+
+    src = inspect.getsource(feature_cache.build_cache)
+    body = src[src.index("by_poly"):src.index("files = ordered")]
+    assert "len(files)" not in body, (
+        "the embedding loop refers to `files` before it is assigned; it is assigned from "
+        "`ordered` only after the loop finishes"
+    )
