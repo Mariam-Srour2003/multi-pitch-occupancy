@@ -157,7 +157,11 @@ async def analyse(
             inner = classify
 
             def classify(frame):  # noqa: F811 - deliberately shadows, one frame at a time
-                return inner(roi.apply(frame, polygon))
+                # Both halves, and both are needed. `apply` fills the outside so the pixels
+                # are not the neighbouring pitch; `polygon=` drops those positions from the
+                # pooling so the fill is not scored either. Masking alone left the model
+                # reading a large black region and calling it evidence.
+                return inner(roi.apply(frame, polygon), polygon=polygon)
 
         try:
             result = analyse_clip(

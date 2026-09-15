@@ -32,6 +32,8 @@ from pitch_occupancy.api.markdown import render
 from pitch_occupancy.api.models_view import STYLES as MODEL_STYLES
 from pitch_occupancy.api.models_view import render as render_models
 from pitch_occupancy.api.search_panel import PANEL_HTML, PANEL_SCRIPT, PANEL_STYLES
+from pitch_occupancy.api.slides import SLIDES, detail
+from pitch_occupancy.api.slides import STYLES as SLIDE_STYLES
 
 ROOT = Path(__file__).resolve().parents[3]
 RESULTS = ROOT / "results"
@@ -76,12 +78,29 @@ SUMMARIES = {"findings": render_findings}
 
 
 def _doc(path: Path, key: str = "") -> str:
+    """One tab: its slide, then its diagram, then the source document collapsed.
+
+    The order is the argument. A tab used to open with a Markdown file rendered in full,
+    which is the right *evidence* and a poor *page* - a reader arriving at "Dataset" wants
+    the frame count and the gap, and got six thousand words containing both somewhere. The
+    slide leads with the claim, and the document is one click below it rather than gone:
+    a page that only prints the evidence is checked by nobody, and one that removed it
+    could not be checked at all.
+    """
+    slide = SLIDES[key]() if key in SLIDES else ""
     lead = LEADS[key]() if key in LEADS else ""
+
     if key in SUMMARIES:
-        return lead + SUMMARIES[key]()
+        return slide + lead + SUMMARIES[key]()
     if not path.exists():
-        return lead + f"<p class='missing'>Not generated yet: <code>{path.name}</code></p>"
-    return lead + render(path.read_text(encoding="utf-8"))
+        return slide + lead + (
+            f"<p class='missing'>Not generated yet: <code>{path.name}</code></p>"
+        )
+
+    body = render(path.read_text(encoding="utf-8"))
+    if not slide:
+        return lead + body
+    return slide + lead + detail(body, f"The full document &mdash; {path.name}")
 
 
 def _csv(name: str) -> list[dict]:
@@ -312,19 +331,28 @@ def page() -> str:
     )
     models = (
         '<section class="view" data-view="models" hidden><div class="doc">'
-        + render_models() + "</div></section>"
+        + SLIDES["models"]()
+        + detail(render_models(), "The full model comparison")
+        + "</div></section>"
     )
     augmentation = (
         '<section class="view" data-view="augmentation" hidden><div class="doc">'
-        + _augmentation() + "</div></section>"
+        # The one tab that is deliberately *more*, not less: augmentation code fails
+        # silently, so the sheets and the before/after pairs are the argument rather than
+        # an illustration of it.
+        + SLIDES["augmentation"]()
+        + detail(_augmentation(), "The augmentation argument in full")
+        + "</div></section>"
     )
     searches = (
         '<section class="view" data-view="searches" hidden><div class="doc">'
         "<h1>Configuration searches</h1>"
+        + SLIDES["searches"]() +
         "<p>Both are scored on cross-venue transfer and guarded by a false-play control: "
         "every cross-venue test set is entirely active play, so recall can be bought by "
         "saying &ldquo;playing&rdquo; more often.</p>"
-        "<h2>Zero-shot prompt search</h2>" + _prompt_summary() +
+        "<h2>Zero-shot prompt search</h2>"
+        + detail(_prompt_summary(), "Every prompt set scored, ranked") +
         "<h2>Preprocessing search</h2>"
         # Server-rendered first, then the live panel. `_search_summary` holds the rule that
         # an entry predating the false-play repair is shown as "not re-scored" rather than
@@ -332,7 +360,10 @@ def page() -> str:
         # test certified a safeguard no reader ever saw while the rendered panel served
         # those same entries as clean top results. It is wired in now, and it is also what
         # a reader with JavaScript off, or an examiner opening a saved copy, gets.
-        + _search_summary() +
+        # Collapsed: this renders one row per evaluation, and a full search is 88 of them.
+        # The slide above carries the finding; the table is the evidence for it, and a
+        # reader who wants to check a particular configuration is the one who opens it.
+        + detail(_search_summary(), "Every preprocessing evaluation, ranked") +
         "<p>Run it here. Each candidate needs a fresh embedding pass, so a full-size run "
         "takes a few hours - it keeps going if you close the tab.</p>"
         + PANEL_HTML +
@@ -343,7 +374,8 @@ def page() -> str:
                      + '<button data-view="augmentation">Augmentation</button>')
             .replace("__VIEWS__", models + views + augmentation + searches)
             .replace("__MODEL_STYLES__",
-                     MODEL_STYLES + PANEL_STYLES + DIAGRAM_STYLES + FINDINGS_STYLES)
+                     MODEL_STYLES + PANEL_STYLES + DIAGRAM_STYLES + FINDINGS_STYLES
+                     + SLIDE_STYLES)
             .replace("__PANEL_SCRIPT__", PANEL_SCRIPT))
 
 

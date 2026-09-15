@@ -197,3 +197,38 @@ def test_asking_for_a_convention_that_was_never_built_raises(tmp_path: Path) -> 
     load_cache("vit", tmp_path)  # the default one exists
     with pytest.raises(FileNotFoundError):
         load_cache("vit", tmp_path, processor_geometry=False)
+
+
+# --- ROI-pooled caches live in their own file and carry their own fingerprint ----------
+
+
+def test_roi_pooled_cache_has_its_own_path_and_does_not_shadow_the_plain_one():
+    """Two different numbers for the same frame must not share one filename.
+
+    Features pooled inside a boundary and features pooled over the whole frame differ - the
+    measured cosine between them is 0.967 for DINOv2 (`results/roi_pooling_leak.csv`). Before
+    `roi_pooled` existed there was no way to cache the bounded convention at all, so the
+    probe was necessarily fitted on unbounded features while `classifier.classify_batch`
+    served bounded ones whenever a camera had a polygon.
+    """
+    from pathlib import Path
+
+    from pitch_occupancy.data.feature_cache import cache_path
+
+    cd = Path("cache")
+    assert cache_path("dinov2", cd) != cache_path("dinov2", cd, roi_pooled=True)
+    assert cache_path("dinov2", cd, roi_pooled=True).name == "dinov2_roi.npz"
+    # and it composes with the geometry convention rather than replacing it
+    assert (
+        cache_path("dinov2", cd, processor_geometry=False, roi_pooled=True).name
+        == "dinov2_nogeom_roi.npz"
+    )
+
+
+def test_roi_pooling_is_in_the_preprocessing_fingerprint():
+    """A flag that changes the numbers and not the hash is how two conventions collide."""
+    from pitch_occupancy.data.feature_cache import preprocessing_hash
+
+    assert preprocessing_hash(backbone="x", roi_pooled=False) != preprocessing_hash(
+        backbone="x", roi_pooled=True
+    )

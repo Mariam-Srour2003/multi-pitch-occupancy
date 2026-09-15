@@ -41,6 +41,7 @@ __all__ = [
     "detect_people",
     "evidence_on_people",
     "class_evidence_map",
+    "evidence_outside",
     "probe_weights",
     "spatial_features",
     "attention_rollout",
@@ -156,7 +157,7 @@ def spatial_features(model, processor, spec, image_bgr: np.ndarray, *,
 
 def class_evidence_map(
     features: np.ndarray, weights: np.ndarray, constant: float, grid: tuple[int, int],
-    *, drop_first: bool
+    *, drop_first: bool, cell_weights: np.ndarray | None = None
 ) -> tuple[np.ndarray, float]:
     """The exact per-position contribution map, and the score it reconstructs.
 
@@ -166,11 +167,56 @@ def class_evidence_map(
     ``drop_first`` removes the CLS token from the returned picture. It stays in the score,
     because the model pooled it; dropping it from the arithmetic too would make the
     reconstruction check pass on a different quantity than the one the probe used.
+
+    ``cell_weights`` is a ``grid``-shaped 0-1 array from `roi.grid_weights`, and it must be
+    the *same* array `backbones.embed_batch` pooled with or this decomposes a model nobody
+    ran. Positions outside the boundary get weight zero, so they contribute exactly zero to
+    the score and appear as exactly zero on the map - which is the point: the picture can no
+    longer show the model reading a pitch it was told to ignore, because it no longer is.
+
+    The rescaling by ``size / total`` keeps the map in the units the unweighted path uses,
+    where the *mean* over positions plus ``constant`` is the score. An all-inside boundary
+    therefore reproduces the unweighted map element for element rather than approximately.
     """
     contributions = features @ weights
-    score = float(contributions.mean()) + constant
-    spatial = contributions[1:] if drop_first else contributions
+    if cell_weights is None:
+        score = float(contributions.mean()) + constant
+        spatial = contributions[1:] if drop_first else contributions
+        return spatial.reshape(grid), score
+
+    flat = np.asarray(cell_weights, dtype=np.float64).reshape(-1)
+    if drop_first:  # CLS is not a position on the pitch and keeps full weight, as in pooling
+        flat = np.concatenate([[1.0], flat])
+    if flat.shape[0] != contributions.shape[0]:
+        raise ValueError(
+            f"{flat.shape[0]} cell weights for {contributions.shape[0]} positions - the "
+            f"boundary was mapped onto a different grid than the features came from"
+        )
+    total = float(flat.sum())
+    if total <= 1e-12:  # pragma: no cover - `roi.validate` refuses a boundary this small
+        raise ValueError("this boundary covers no patch position at all")
+    adjusted = contributions * flat * (flat.shape[0] / total)
+    score = float(adjusted.mean()) + constant
+    spatial = adjusted[1:] if drop_first else adjusted
     return spatial.reshape(grid), score
+
+
+def evidence_outside(evidence: np.ndarray, cell_weights: np.ndarray | None) -> float | None:
+    """Share of the positive evidence that fell outside the boundary. ``None`` without one.
+
+    Reported rather than asserted. Under ROI pooling this is zero by construction, and a
+    number on the page that a reader watches stay at 0.0% is worth more than a docstring
+    promising it - especially here, where the complaint being answered is precisely that the
+    evidence map appeared to show the model reading the neighbouring pitch.
+    """
+    if cell_weights is None:
+        return None
+    positive = np.clip(np.asarray(evidence, dtype=np.float64), 0.0, None)
+    total = float(positive.sum())
+    if total <= 0.0:
+        return 0.0
+    outside = np.asarray(cell_weights, dtype=np.float64).reshape(positive.shape) <= 0.0
+    return float(positive[outside].sum()) / total
 
 
 def load_for_attention(key: str):
@@ -342,14 +388,27 @@ def _pixelate(patch: np.ndarray, blocks: int) -> np.ndarray:
     return cv2.resize(small, (w, h), interpolation=cv2.INTER_NEAREST)
 
 
-def overlay_heatmap(image_bgr: np.ndarray, heat: np.ndarray, *, alpha: float = 0.45
-                    ) -> np.ndarray:
+def overlay_heatmap(image_bgr: np.ndarray, heat: np.ndarray, *, alpha: float = 0.45,
+                    polygon: Sequence[Sequence[float]] | None = None) -> np.ndarray:
     """Draw a heatmap over a frame, normalised to its own range.
 
     Normalisation is per-map and deliberately so: these maps are in score units and their
     absolute scale differs between backbones, so a shared colour scale would compare
     magnitudes that are not comparable. The consequence is that colour shows *where*, never
     *how much*, and the figure caption has to say so.
+
+    ``polygon`` confines the colour to the pitch boundary and draws the outline on top.
+
+    **The clip is not cosmetic and it is not hiding anything.** A boundary that is pooled
+    with, rather than merely filled, gives every outside position a contribution of exactly
+    zero - but the colour map sends *zero* to whatever colour sits between the frame's
+    minimum and maximum, so a frame with negative evidence anywhere inside paints the
+    excluded region mid-scale, and the excluded region then reads as "somewhere the model
+    looked". It is the unclipped picture that misleads. Normalisation is still taken over the
+    whole map, so the colours inside are the same colours they would have been.
+
+    The outline is drawn last, over the colour, because the one thing a reader has to be able
+    to locate is where the model's attention was allowed to fall.
     """
     import cv2
 
@@ -359,4 +418,17 @@ def overlay_heatmap(image_bgr: np.ndarray, heat: np.ndarray, *, alpha: float = 0
                          (image_bgr.shape[1], image_bgr.shape[0]),
                          interpolation=cv2.INTER_CUBIC)
     coloured = cv2.applyColorMap((resized * 255).astype(np.uint8), cv2.COLORMAP_JET)
-    return cv2.addWeighted(coloured, alpha, image_bgr, 1 - alpha, 0)
+    blended = cv2.addWeighted(coloured, alpha, image_bgr, 1 - alpha, 0)
+
+    if polygon is None:
+        return blended
+
+    from pitch_occupancy.vision import roi
+
+    height, width = image_bgr.shape[:2]
+    points = np.array([[int(round(x * width)), int(round(y * height))] for x, y in polygon],
+                      dtype=np.int32)
+    inside = np.zeros((height, width), np.uint8)
+    cv2.fillPoly(inside, [points], 255)
+    blended = np.where(inside[:, :, None].astype(bool), blended, image_bgr)
+    return roi.outline(blended, [list(pt) for pt in polygon])

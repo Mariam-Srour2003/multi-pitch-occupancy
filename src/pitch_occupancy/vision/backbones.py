@@ -102,7 +102,8 @@ GEOMETRY_IS_A_NO_OP = ("vit",)
 
 @torch.inference_mode()
 def embed_batch(
-    model, processor, spec: Backbone, images: list, *, processor_geometry: bool = True
+    model, processor, spec: Backbone, images: list, *, processor_geometry: bool = True,
+    roi_polygon: list[list[float]] | None = None,
 ) -> np.ndarray:
     """Embed a batch of PIL images into pooled feature vectors.
 
@@ -119,6 +120,20 @@ def embed_batch(
     decision that needs measuring, not a bug fix to be applied quietly. And flipping it
     silently would invalidate every cached DINOv2 feature and every result built on one. The
     flag is part of the cache fingerprint, so the two conventions can never mix.
+
+    ``roi_polygon`` pools **only over the positions inside a pitch boundary** (WP3-T1). Without
+    it, `roi.apply` blacks out the neighbouring pitch and the mean above averages the black in
+    anyway - the fill reaches the probe and lights up the evidence map, which is the complaint
+    a boundary was drawn to answer. With it, those positions leave the average, so what is
+    outside the outline stops contributing rather than contributing a dark rectangle. Read
+    :func:`_roi_weights` for what this does and does not achieve.
+
+    **This is an inference-time choice and it is not what the cache was built with.** The
+    feature cache pools over the whole frame, so a probe fitted on it and then fed an
+    ROI-pooled vector is being asked about a slightly different distribution. That is the price
+    of confining the model without re-extracting every feature, it is why :data:`POOLING_STAMP`
+    is unchanged - no cached file is produced this way - and it is a difference that has to be
+    measured on the development split rather than assumed small.
     """
     kwargs: dict[str, object] = {}
     if not processor_geometry:
@@ -127,8 +142,71 @@ def embed_batch(
             kwargs["do_center_crop"] = False
     inputs = processor(images=images, return_tensors="pt", **kwargs)
     hidden = model(**inputs).last_hidden_state
+    grid = _grid_of(spec, hidden)
+    weights = _roi_weights(roi_polygon, images, grid, processor, processor_geometry)
+
     if spec.kind == "convnet":
-        pooled = hidden.mean(dim=(2, 3))  # N,C,H,W -> N,C
-    else:
+        if weights is None:
+            pooled = hidden.mean(dim=(2, 3))  # N,C,H,W -> N,C
+        else:
+            w = weights.reshape(weights.shape[0], 1, *grid)  # N,1,H,W
+            pooled = (hidden * w).sum(dim=(2, 3)) / w.sum(dim=(2, 3)).clamp_min(_EPS)
+    elif weights is None:
         pooled = hidden.mean(dim=1)  # N,T,D -> N,D
+    else:
+        # CLS keeps weight 1, so an all-inside boundary reproduces the plain mean exactly.
+        # It is not a position on the pitch and cannot be masked out of the picture; see
+        # the caveat in :func:`_roi_weights`.
+        w = torch.cat([torch.ones(weights.shape[0], 1), weights], dim=1).unsqueeze(-1)
+        pooled = (hidden * w).sum(dim=1) / w.sum(dim=1).clamp_min(_EPS)
     return pooled.cpu().numpy().astype(np.float32)
+
+
+#: Guards the degenerate boundary that rounds to no cells at all. `roi.validate` refuses a
+#: polygon under 2% of the frame, which on ConvNeXtV2's 7x7 grid is still about one cell, so
+#: this should be unreachable - it is here because dividing by it would produce confident
+#: nonsense rather than an error.
+_EPS = 1e-6
+
+
+def _grid_of(spec: Backbone, hidden) -> tuple[int, int]:
+    """The spatial grid the backbone's last hidden state is laid out on."""
+    if spec.kind == "convnet":
+        return int(hidden.shape[2]), int(hidden.shape[3])
+    side = int(round((hidden.shape[1] - 1) ** 0.5))
+    if side * side != hidden.shape[1] - 1:  # pragma: no cover - non-square patch grid
+        raise ValueError(f"{hidden.shape[1] - 1} patch tokens is not a square grid")
+    return side, side
+
+
+def _roi_weights(polygon, images, grid, processor, processor_geometry):
+    """Per-image, per-position pooling weights for a boundary, as ``(N, H*W)``. None if none.
+
+    **This is what makes the fill stop mattering.** Without it a boundary changes the pixels
+    outside the pitch and nothing else: the backbone still emits a token for every position
+    and the mean above still averages them in, so black fill is not absence - it is a large,
+    uniform, out-of-distribution region that the probe scores and the evidence map lights up.
+    Weighting the pool by coverage removes those positions from the average, which is the
+    difference between hiding the neighbouring pitch and not looking at it.
+
+    **The honest caveat: this confines pooling, not attention.** A transformer's patch tokens
+    attend to each other, so an inside token has already seen the fill by the time it is
+    pooled, and a convnet's receptive field bleeds across the outline the same way. Excluding
+    the outside positions removes their *direct* contribution - the dominant one, and the one
+    the evidence map draws - and cannot remove the indirect one. CLS is the clearest case:
+    it is a global summary of the whole frame and it keeps full weight, because dropping it
+    would change the pooling for reasons that have nothing to do with the boundary. Filling
+    with ``blur`` or ``mean`` rather than ``black`` is what limits the indirect path, which is
+    the empirical question `roi.FILLS` exists to let someone answer.
+    """
+    if not polygon:
+        return None
+    from pitch_occupancy.vision import roi
+
+    rows = []
+    for image in images:
+        size = getattr(image, "size", None) or (image.shape[1], image.shape[0])
+        cells = roi.grid_weights(polygon, size, grid, processor,
+                                 processor_geometry=processor_geometry)
+        rows.append(cells.reshape(-1))
+    return torch.from_numpy(np.stack(rows).astype(np.float32))

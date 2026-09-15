@@ -101,6 +101,13 @@ class Step(_Explained):
     n_people: int | None = None
     evidence_on_people: float | None = None
     people_area: float | None = None
+    #: Share of positive evidence outside the pitch boundary. None when there is no boundary;
+    #: zero by construction when there is one, because those positions are pooled out rather
+    #: than filled in. It is reported instead of assumed - see `explain.evidence_outside`.
+    evidence_outside: float | None = None
+    #: The boundary this frame was analysed under, in frame fractions, for the caller that
+    #: wants to draw it on something other than ``frame_bgr``.
+    polygon: list[list[float]] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,9 +136,32 @@ class Shot(_Explained):
     n_people: int | None = None
     evidence_on_people: float | None = None
     people_area: float | None = None
+    #: Share of positive evidence outside the pitch boundary. None when there is no boundary;
+    #: zero by construction when there is one, because those positions are pooled out rather
+    #: than filled in. It is reported instead of assumed - see `explain.evidence_outside`.
+    evidence_outside: float | None = None
+    #: The boundary this frame was analysed under, in frame fractions, for the caller that
+    #: wants to draw it on something other than ``frame_bgr``.
+    polygon: list[list[float]] | None = None
 
 
-def explain_frame(frame, classifier, *, redact: bool = False) -> dict:
+def _classify(classifier, frame, polygon):
+    """Classify one frame, confining the pooling to ``polygon`` if the classifier can.
+
+    `worker.Classifier` is "callable with a frame, returns a class and a confidence", and
+    several callers - every test stub, and anything wrapping a model this project does not
+    own - satisfy exactly that and nothing more. Passing ``polygon=`` unconditionally would
+    make the boundary a breaking change to a published seam, so it is passed only when there
+    is one to pass, and a classifier that cannot take it still sees a frame that `roi.apply`
+    has already masked. That degrades to the old behaviour rather than to an exception.
+    """
+    if polygon is None:
+        return classifier(frame)
+    return classifier(frame, polygon=polygon)
+
+
+def explain_frame(frame, classifier, *, redact: bool = False,
+                  polygon: list[list[float]] | None = None) -> dict:
     """Predict one BGR frame and decompose the score over the backbone's patch grid.
 
     Returns the fields :class:`Step` and :class:`Shot` share, so the clip walkthrough and
@@ -143,22 +173,42 @@ def explain_frame(frame, classifier, *, redact: bool = False) -> dict:
 
     One forward pass, not two. The probe is a logistic regression on mean-pooled features,
     so the vector the classifier would have used is ``features.mean(axis=0)``.
+
+    ``polygon`` does here what it does in `classifier.classify_batch`, and it has to be the
+    same arithmetic or this function explains a different model from the deployed one - the
+    weighted pool below is written against `backbones.embed_batch`, CLS weight included, and
+    `test_walkthrough.py` asserts the two agree on a real frame rather than by inspection.
+
+    With a boundary, the positions outside it carry weight zero through **both** the pooling
+    and the decomposition, so they contribute nothing to the score and exactly zero to the
+    map. ``evidence_outside`` reports that as a number the reader can watch.
     """
     import numpy as np
 
     from pitch_occupancy.vision import explain as X
+    from pitch_occupancy.vision import roi
 
     classes = list(classifier.probe.classes_)
     feats, grid = X.spatial_features(
         classifier.model, classifier.processor, classifier.spec, frame
     )
-    pooled = feats.mean(axis=0, keepdims=True)
+    drop_first = classifier.spec.kind != "convnet"
+    cells = roi.grid_weights(polygon, (frame.shape[1], frame.shape[0]), grid,
+                             classifier.processor)
+
+    if cells is None:
+        pooled = feats.mean(axis=0, keepdims=True)
+    else:
+        flat = cells.reshape(-1).astype(np.float64)
+        if drop_first:
+            flat = np.concatenate([[1.0], flat])
+        pooled = (feats * flat[:, None]).sum(axis=0, keepdims=True) / flat.sum()
     proba = classifier.probe.predict_proba(pooled)[0]
     predicted = classes[int(proba.argmax())]
 
     weights, constant = X.probe_weights(classifier.probe, predicted)
     evidence, score_from_map = X.class_evidence_map(
-        feats, weights, constant, grid, drop_first=classifier.spec.kind != "convnet"
+        feats, weights, constant, grid, drop_first=drop_first, cell_weights=cells
     )
     direct = classifier.probe._model.decision_function(pooled)[0]  # noqa: SLF001
     score_direct = float(direct[classes.index(predicted)] if np.ndim(direct) else direct)
@@ -168,10 +218,14 @@ def explain_frame(frame, classifier, *, redact: bool = False) -> dict:
     if boxes:
         on_people, area = X.evidence_on_people(evidence, boxes, frame.shape[:2])
 
+    shown = X.pixelate_boxes(frame.copy(), boxes) if redact else frame
     return {
         "predicted": str(predicted),
         "confidence": float(proba.max()),
-        "frame_bgr": X.pixelate_boxes(frame.copy(), boxes) if redact else frame,
+        # The outline is drawn on the frame the reader sees, not on the frame the model saw:
+        # a yellow line is pixels, and putting it in before the backbone would make the
+        # boundary itself part of the evidence it is supposed to delimit.
+        "frame_bgr": roi.outline(shown, polygon),
         "evidence": evidence,
         "grid": grid,
         "score_from_map": score_from_map,
@@ -179,6 +233,8 @@ def explain_frame(frame, classifier, *, redact: bool = False) -> dict:
         "n_people": len(boxes),
         "evidence_on_people": on_people,
         "people_area": area,
+        "evidence_outside": X.evidence_outside(evidence, cells),
+        "polygon": polygon,
     }
 
 
@@ -208,6 +264,12 @@ def walk_clip(
     pitch does not move between frame 0 and frame 3,000, so one outline drawn once is
     correct for the entire recording. It is applied to the full frame before the backbone's
     own resize, because the outline is expressed in fractions of the original frame.
+
+    It does two things, and it needed both. `roi.apply` fills the outside so the neighbouring
+    pitch is not in the pixels; passing the polygon on to the classifier and to
+    :func:`explain_frame` drops those positions from the pooling so the *fill* is not scored
+    either. With only the first, a boundary replaced one distraction with another - a large
+    uniform region the probe still averaged in and the evidence map still coloured.
     """
     import time
 
@@ -243,9 +305,10 @@ def walk_clip(
             explaining = explain_n == EXPLAIN_ALL or index < explain_n
 
             if not explaining:
-                state, confidence = classifier(frame)
+                state, confidence = _classify(classifier, frame, polygon)
                 yield Step(index=index, t_s=t, predicted=str(state), confidence=confidence,
-                           elapsed_ms=(time.perf_counter() - began) * 1000)
+                           elapsed_ms=(time.perf_counter() - began) * 1000,
+                           polygon=polygon)
                 index += 1
                 t += interval_s
                 continue
@@ -253,7 +316,7 @@ def walk_clip(
             yield Step(
                 index=index, t_s=t,
                 elapsed_ms=(time.perf_counter() - began) * 1000,
-                **explain_frame(frame, classifier, redact=redact),
+                **explain_frame(frame, classifier, redact=redact, polygon=polygon),
             )
             index += 1
             t += interval_s
@@ -295,6 +358,11 @@ def walk_images(
     of the backbone's own resize, because the outline is expressed in fractions of the
     original frame - masking after a crop would mask the wrong region. ``width`` and
     ``height`` still report the image as it arrived, since that is what the operator chose.
+
+    As in :func:`walk_clip`, the polygon is both *filled* and *pooled out*: the fill removes
+    the neighbouring pitch from the pixels, and the pooling removes the filled positions from
+    the average, so what is outside the outline stops reaching the probe rather than reaching
+    it as a black rectangle.
     """
     import time
 
@@ -313,16 +381,16 @@ def walk_images(
         frame = apply_roi(frame, polygon, fill=roi_fill)
         explaining = explain_n == EXPLAIN_ALL or index < explain_n
         if not explaining:
-            state, confidence = classifier(frame)
+            state, confidence = _classify(classifier, frame, polygon)
             yield Shot(
                 index=index, name=source.name, predicted=str(state),
                 confidence=confidence, width=width, height=height,
-                elapsed_ms=(time.perf_counter() - began) * 1000,
+                elapsed_ms=(time.perf_counter() - began) * 1000, polygon=polygon,
             )
             continue
 
         yield Shot(
             index=index, name=source.name, width=width, height=height,
             elapsed_ms=(time.perf_counter() - began) * 1000,
-            **explain_frame(frame, classifier, redact=redact),
+            **explain_frame(frame, classifier, redact=redact, polygon=polygon),
         )

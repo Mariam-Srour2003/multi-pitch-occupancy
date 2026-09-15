@@ -57,15 +57,21 @@ def preprocessing_hash(**settings: object) -> str:
 
 
 def cache_path(
-    backbone: str, cache_dir: Path, *, processor_geometry: bool = True
+    backbone: str, cache_dir: Path, *, processor_geometry: bool = True,
+    roi_pooled: bool = False,
 ) -> Path:
-    """Where a cache lives. The non-default geometry convention gets its own file.
+    """Where a cache lives. Each convention gets its own file.
 
     Both conventions have to be able to exist at once, because settling which one to use
     (WP3-T3) means comparing them - and one filename for two conventions would have meant
-    the second build silently overwriting the first.
+    the second build silently overwriting the first. The same argument applies to
+    ``roi_pooled``, and more sharply: features pooled inside a boundary and features pooled
+    over the whole frame are *different numbers for the same frame*, and a probe fitted on
+    one and handed the other is the train/serve skew this flag exists to remove.
     """
     suffix = "" if processor_geometry else "_nogeom"
+    if roi_pooled:
+        suffix += "_roi"
     return cache_dir / f"{backbone}{suffix}.npz"
 
 
@@ -80,6 +86,7 @@ def build_cache(
     progress: bool = True,
     processor_geometry: bool = True,
     preprocess_fn: Callable[[np.ndarray], np.ndarray] | None = None,
+    roi_for: Callable[[ManifestRow], list[list[float]] | None] | None = None,
 ) -> CachedFeatures:
     """Embed every frame in ``rows`` and write the cache to disk.
 
@@ -126,27 +133,45 @@ def build_cache(
     preproc = preproc or {"roi": False, "resize": "processor_default"}
     model, processor, spec = load_backbone(backbone)
 
-    files = [r.file for r in rows]
+    # A boundary belongs to a camera, so frames are embedded one polygon at a time. Batching
+    # across cameras would mean pooling one camera's outline over another's frames, which is
+    # the mistake `classifier.classify_batch` refuses by taking a single polygon per batch.
+    by_poly: dict[tuple | None, list[str]] = {}
+    for r in rows:
+        poly = roi_for(r) if roi_for is not None else None
+        key = tuple(map(tuple, poly)) if poly else None
+        by_poly.setdefault(key, []).append(r.file)
+
     chunks: list[np.ndarray] = []
-    for start in range(0, len(files), batch_size):
-        batch = files[start : start + batch_size]
-        images = [Image.open(dataset_dir / f).convert("RGB") for f in batch]
-        if preprocess_fn is not None:
-            images = [
-                Image.fromarray(preprocess_fn(np.asarray(im)[:, :, ::-1])[:, :, ::-1])
-                for im in images
-            ]
-        chunks.append(
-            embed_batch(
-                model, processor, spec, images, processor_geometry=processor_geometry
+    ordered: list[str] = []
+    for key, group in by_poly.items():
+        poly = [list(pt) for pt in key] if key else None
+        for start in range(0, len(group), batch_size):
+            batch = group[start : start + batch_size]
+            images = [Image.open(dataset_dir / f).convert("RGB") for f in batch]
+            if preprocess_fn is not None:
+                images = [
+                    Image.fromarray(preprocess_fn(np.asarray(im)[:, :, ::-1])[:, :, ::-1])
+                    for im in images
+                ]
+            chunks.append(
+                embed_batch(
+                    model, processor, spec, images,
+                    processor_geometry=processor_geometry, roi_polygon=poly,
+                )
             )
-        )
+            ordered.extend(batch)
         if progress:
             done = min(start + batch_size, len(files))
             print(f"  {backbone}: {done}/{len(files)}", end="\r", flush=True)
     if progress:
         print()
 
+    # `ordered`, not the manifest order: grouping by polygon reorders the frames, and the
+    # file list has to be the order the rows of `feats` are actually in. A cache whose names
+    # and vectors disagree is worse than no cache - every lookup would return another
+    # frame's features and nothing would raise.
+    files = ordered
     feats = np.concatenate(chunks) if chunks else np.zeros((0, 0), np.float32)
     cached = CachedFeatures(
         backbone=backbone,
@@ -154,6 +179,7 @@ def build_cache(
         preproc_hash=preprocessing_hash(
             backbone=BACKBONES[backbone].hf_id,
             processor_geometry=processor_geometry,
+            roi_pooled=roi_for is not None,
             **preproc,
         ),
         files=np.array(files, dtype=object),
@@ -161,7 +187,8 @@ def build_cache(
     )
     cache_dir.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
-        cache_path(backbone, cache_dir, processor_geometry=processor_geometry),
+        cache_path(backbone, cache_dir, processor_geometry=processor_geometry,
+                   roi_pooled=roi_for is not None),
         files=cached.files,
         features=cached.features,
         backbone=cached.backbone,
@@ -177,9 +204,11 @@ def load_cache(
     *,
     expect_preproc_hash: str | None = None,
     processor_geometry: bool = True,
+    roi_pooled: bool = False,
 ) -> CachedFeatures:
     """Load a cache, refusing anything built under a different convention."""
-    path = cache_path(backbone, cache_dir, processor_geometry=processor_geometry)
+    path = cache_path(backbone, cache_dir, processor_geometry=processor_geometry,
+                      roi_pooled=roi_pooled)
     if not path.exists():
         raise FileNotFoundError(f"no feature cache for {backbone!r} at {path}")
     z = np.load(path, allow_pickle=True)

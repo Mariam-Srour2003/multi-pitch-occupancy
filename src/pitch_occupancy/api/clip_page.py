@@ -241,6 +241,8 @@ editor</a>.</p>
       <div class="v sm" id="x-ppl">&mdash;</div></div>
     <div class="tile" id="x-focus-tile"><div class="k">Evidence focus</div>
       <div class="v sm" id="x-focus">&mdash;</div></div>
+    <div class="tile" id="x-out-tile"><div class="k">Evidence outside boundary</div>
+      <div class="v sm" id="x-out">&mdash;</div></div>
   </div>
   <p class="sub2" id="focusnote" style="margin-top:10px"></p>
 
@@ -386,6 +388,11 @@ function paint(s){
     $('x-dir').textContent=s.score_direct.toFixed(3);
     $('x-err').textContent=s.reconstruction_error.toExponential(1);
     $('x-ppl').textContent=s.n_people;
+    // Zero, or there is no boundary. Anything else means the outline reached the picture
+    // but not the pooling, which is the exact failure this tile exists to make visible.
+    const o=s.evidence_outside;
+    $('x-out').textContent=o==null?'no boundary':(o*100).toFixed(1)+'%';
+    $('x-out-tile').className='tile'+(o!=null&&o>0.001?' flagged':'');
     const f=s.focus_ratio;
     $('x-focus').textContent=f==null?'—':f.toFixed(2)+'x';
     $('x-focus-tile').className='tile'+(f!=null&&f<1?' flagged':'');
@@ -398,7 +405,8 @@ function paint(s){
   } else {
     $('x-map').textContent='—';$('x-dir').textContent='—';$('x-err').textContent='—';
     $('x-ppl').textContent='—';$('x-focus').textContent='—';
-    $('x-focus-tile').className='tile';
+    $('x-out').textContent='—';
+    $('x-focus-tile').className='tile';$('x-out-tile').className='tile';
     $('focusnote').textContent='This frame was predicted without an evidence map — '+
       '"explain in detail" bounds how many get one, because explaining costs about twice a '+
       'bare prediction.';

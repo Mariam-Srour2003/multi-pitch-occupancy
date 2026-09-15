@@ -121,7 +121,8 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
         if shot.explained:
             record.update({
                 "frame": _jpeg(shot.frame_bgr),
-                "heat": _jpeg(overlay_heatmap(shot.frame_bgr, shot.evidence)),
+                "heat": _jpeg(overlay_heatmap(shot.frame_bgr, shot.evidence,
+                                             polygon=shot.polygon)),
                 "grid": list(shot.grid or ()),
                 "score_from_map": shot.score_from_map,
                 "score_direct": shot.score_direct,
@@ -130,6 +131,10 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
                 "evidence_on_people": shot.evidence_on_people,
                 "people_area": shot.people_area,
                 "focus_ratio": shot.focus_ratio,
+                # Zero whenever a boundary is in force, and on the page for exactly
+                # that reason: the doubt this answers is that the evidence map showed
+                # the model reading past the outline.
+                "evidence_outside": shot.evidence_outside,
             })
         yield json.dumps(record) + "\n"
 

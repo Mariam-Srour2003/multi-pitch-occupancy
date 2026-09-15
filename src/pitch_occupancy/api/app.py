@@ -126,18 +126,42 @@ def dashboard() -> HTMLResponse:
 FIGURE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml"}
 
 
-@app.get("/figs/{name}", include_in_schema=False)
-def figure(name: str) -> FileResponse:
-    """Serve one generated figure from `results/figs`, by filename only.
+#: Subdirectories of `results/figs` that may also be served, named one at a time.
+#:
+#: The no-subpath rule exists for `results/figs/venue_check/`, which holds cropped **pitch
+#: frames** - operator footage that must never be published (`thesis/ethics.md`). That rule
+#: stays. This is an allowlist of directories known to contain only publishable output, not
+#: a relaxation of it: adding one is a decision about a specific directory's contents.
+#:
+#: `preproc` holds the before/after pair per preprocessing switch. Every frame in it was
+#: redacted by `redact_people` before it was written, and they are committed to git under
+#: their own `.gitignore` exception for that reason - so they are already published, and
+#: serving them adds no exposure.
+PUBLISHABLE_FIG_DIRS = {"preproc"}
 
-    No subpaths: `name` must be a bare filename, so a traversal like `../../data/...`
-    cannot escape the directory even before the resolved path is re-checked against it.
+
+@app.get("/figs/{name:path}", include_in_schema=False)
+def figure(name: str) -> FileResponse:
+    """Serve one generated figure from `results/figs`, by filename.
+
+    A bare filename, or `<dir>/<filename>` for a directory on
+    :data:`PUBLISHABLE_FIG_DIRS`. The resolved path is re-checked against the allowed
+    parent afterwards, so a traversal cannot escape even if the prefix check is fooled.
     """
-    if "/" in name or "\\" in name or name.startswith("."):
+    if "\\" in name or name.startswith(".") or ".." in name:
         raise HTTPException(404)
+
     figs = (settings.results_dir / "figs").resolve()
+    allowed = {figs}
+    if "/" in name:
+        folder, _, leaf = name.partition("/")
+        if folder not in PUBLISHABLE_FIG_DIRS or "/" in leaf or leaf.startswith("."):
+            raise HTTPException(404)
+        allowed = {(figs / folder).resolve()}
+
     path = (figs / name).resolve()
-    if path.parent != figs or path.suffix.lower() not in FIGURE_TYPES or not path.is_file():
+    if path.parent not in allowed or path.suffix.lower() not in FIGURE_TYPES \
+            or not path.is_file():
         raise HTTPException(404)
     return FileResponse(path, media_type=FIGURE_TYPES[path.suffix.lower()])
 

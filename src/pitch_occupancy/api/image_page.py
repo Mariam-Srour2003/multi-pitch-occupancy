@@ -242,6 +242,8 @@ reading are deleted as soon as the batch finishes.</p>
       <div class="v sm" id="x-ppl">&mdash;</div></div>
     <div class="tile" id="x-focus-tile"><div class="k">Focus ratio</div>
       <div class="v sm" id="x-focus">&mdash;</div></div>
+    <div class="tile" id="x-out-tile"><div class="k">Evidence outside boundary</div>
+      <div class="v sm" id="x-out">&mdash;</div></div>
   </div>
   <div class="note" id="focusnote">The evidence map is exact rather than a saliency
   heuristic: the per-position contributions plus a constant <b>sum to the score</b>. The
@@ -353,6 +355,11 @@ function paint(s){
     $('x-dir').textContent=s.score_direct.toFixed(3);
     $('x-err').textContent=s.reconstruction_error.toExponential(1);
     $('x-ppl').textContent=s.n_people;
+    // Zero, or there is no boundary. Anything else means the outline reached the picture
+    // but not the pooling, which is the exact failure this tile exists to make visible.
+    const o=s.evidence_outside;
+    $('x-out').textContent=o==null?'no boundary':(o*100).toFixed(1)+'%';
+    $('x-out-tile').className='tile'+(o!=null&&o>0.001?' flagged':'');
     const f=s.focus_ratio;
     $('x-focus').textContent=f==null?'\\u2014':f.toFixed(2)+'x';
     $('x-focus-tile').className='tile'+(f!=null&&f<1?' flagged':'');
@@ -363,7 +370,7 @@ function paint(s){
          'concentrates on <b>people</b>; near or below 1 means it is spread as though they '+
          'were not there \\u2014 which for an ACTIVE_PLAY prediction is worth a look.');
   } else {
-    ['x-map','x-dir','x-err','x-ppl','x-focus'].forEach(k=>$(k).textContent='\\u2014');
+    ['x-map','x-dir','x-err','x-ppl','x-focus','x-out'].forEach(k=>$(k).textContent='\\u2014');
     $('x-focus-tile').className='tile';
     $('focusnote').textContent='This image was predicted without an evidence map \\u2014 '+
       '"explain in detail" bounds how many get one, because explaining costs about twice a '+

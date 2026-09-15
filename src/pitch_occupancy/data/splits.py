@@ -95,6 +95,29 @@ LEGACY_GROUP_KEY = "<from file - not recorded>"
 SYNTHETIC_SOURCE = "synthetic"
 
 
+def _training_only(rows: list[ManifestRow], include_synthetic: bool) -> list[ManifestRow]:
+    """The generated rows to append to a train side, or none.
+
+    A13 says generated frames are "for training only", and the only way to implement that
+    literally is to keep them out of the partition entirely and add them to train afterwards.
+    Passing them *through* a split does not work and is not a near miss: handed to
+    `grouped_split`, 171 of 189 landed on the **test** side, where `check_split` rejects
+    them outright and every number from that split is unreportable.
+
+    Doing it this way has a second property worth more than the first. The partition runs on
+    exactly the rows it ran on before, so the test side of a with-generated split is
+    *identical* to the test side without them - which is what makes the two scores an
+    ablation rather than two numbers measured on different data. The first attempt grew the
+    test set from 907 frames to 961 and the comparison silently stopped meaning anything.
+    """
+    if not include_synthetic:
+        return []
+    return [
+        r for r in development_rows(rows, include_synthetic=True)
+        if getattr(r, "source", "") == SYNTHETIC_SOURCE
+    ]
+
+
 @dataclass(frozen=True, slots=True)
 class Split:
     """One materialised train/test partition."""
@@ -206,12 +229,21 @@ def grouped_split(
     test_frac: float = 0.25,
     seed: int = 42,
     name: str | None = None,
+    include_synthetic: bool = False,
 ) -> Split:
     """Partition whole groups, so no scene appears on both sides.
 
     Groups are shuffled and assigned to the test side until ``test_frac`` of rows is
     reached. Because whole groups move together the realised fraction is approximate.
+
+    ``include_synthetic`` is forwarded to :func:`development_rows`, and it has to be: this
+    function re-filters its input, so a caller that opted generated frames in and handed
+    the result here got them **silently stripped again**. A13 admitted generated frames
+    "for training only" and documented `include_synthetic=True` as the way to use them -
+    and no split protocol could deliver one to a training set, so the opt-in did nothing
+    at all. `check_split` still refuses to let one reach a test side.
     """
+    generated = _training_only(rows, include_synthetic)
     rows = development_rows(rows)
     groups = _group(rows, group_key)
     names = sorted(groups)
@@ -237,7 +269,7 @@ def grouped_split(
     # did not, because `bootstrap_metric_ci` resamples positions and a reordered vector is a
     # different resample. A seeded function that is not reproducible across processes
     # defeats the claim the reproduction pipeline exists to back.
-    train = [r for g, rs in groups.items() if g not in test_names for r in rs]
+    train = [r for g, rs in groups.items() if g not in test_names for r in rs] + generated
     test = [r for g, rs in groups.items() if g in test_names for r in rs]
     return Split(
         name=name or f"grouped_{group_key}_seed{seed}",
@@ -249,17 +281,18 @@ def grouped_split(
 
 
 def leave_one_group_out(
-    rows: list[ManifestRow], *, group_key: str = "venue"
+    rows: list[ManifestRow], *, group_key: str = "venue", include_synthetic: bool = False
 ) -> Iterator[Split]:
     """One fold per group: train on every other group, test on this one.
 
     With ``group_key="venue"`` this is the leave-one-venue-out protocol. Report the
     distribution across folds, not only the mean — a single venue can dominate it.
     """
+    generated = _training_only(rows, include_synthetic)
     rows = development_rows(rows)
     groups = _group(rows, group_key)
     for held in sorted(groups):
-        train = [r for g, rs in groups.items() if g != held for r in rs]
+        train = [r for g, rs in groups.items() if g != held for r in rs] + generated
         yield Split(
             name=f"lo_{group_key}_out__{held}",
             train=tuple(train),
@@ -269,7 +302,8 @@ def leave_one_group_out(
 
 
 def random_split(
-    rows: list[ManifestRow], *, test_frac: float = 0.25, seed: int = 42
+    rows: list[ManifestRow], *, test_frac: float = 0.25, seed: int = 42,
+    include_synthetic: bool = False,
 ) -> Split:
     """Stratified-by-nothing random split — **deliberately leaky**.
 
@@ -277,13 +311,14 @@ def random_split(
     exists only as the control arm of H1 (quantifying how much same-scene evaluation
     inflates accuracy). Never report a headline number from it.
     """
+    generated = _training_only(rows, include_synthetic)
     rows = development_rows(rows)
     shuffled = list(rows)
     random.Random(seed).shuffle(shuffled)
     cut = int(len(shuffled) * test_frac)
     return Split(
         name=f"random_seed{seed}",
-        train=tuple(shuffled[cut:]),
+        train=tuple(list(shuffled[cut:]) + generated),
         test=tuple(shuffled[:cut]),
         group_key="<none - leaky>",
         seed=seed,
@@ -291,7 +326,8 @@ def random_split(
 
 
 def temporal_split(
-    rows: list[ManifestRow], *, cutoff_date: str, undated: str = "exclude"
+    rows: list[ManifestRow], *, cutoff_date: str, undated: str = "exclude",
+    include_synthetic: bool = False,
 ) -> Split:
     """Train on everything before ``cutoff_date`` (ISO), test on and after it.
 
@@ -311,6 +347,7 @@ def temporal_split(
     """
     if undated not in {"exclude", "train", "error"}:
         raise ValueError(f"undated must be exclude/train/error, not {undated!r}")
+    generated = _training_only(rows, include_synthetic)
     rows = development_rows(rows)
 
     missing = [r for r in rows if not r.slot_date]
@@ -321,7 +358,7 @@ def temporal_split(
         )
     dated = rows if undated == "train" else [r for r in rows if r.slot_date]
 
-    train = [r for r in dated if r.slot_date < cutoff_date]
+    train = [r for r in dated if r.slot_date < cutoff_date] + generated
     test = [r for r in dated if r.slot_date >= cutoff_date]
     return Split(
         name=f"temporal_{cutoff_date}",

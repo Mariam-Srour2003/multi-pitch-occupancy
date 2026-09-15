@@ -46,6 +46,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 __all__ = [
     "Polygon", "STORE", "FILLS", "DEFAULT_FILL",
     "load_all", "get", "save", "remove", "validate", "coverage", "apply",
+    "grid_weights", "outline",
 ]
 
 #: A polygon is a list of ``[x, y]`` pairs, each a fraction of the frame in 0-1.
@@ -220,3 +221,95 @@ def apply(image_bgr: np.ndarray, polygon: Polygon | None, *,
         outside = np.full_like(image_bgr, np.array(inside_mean, dtype=np.uint8))
 
     return np.where(mask[:, :, None].astype(bool), image_bgr, outside)
+
+
+def grid_weights(
+    polygon: Polygon | None,
+    size_wh: tuple[int, int],
+    grid: tuple[int, int],
+    processor=None,
+    *,
+    processor_geometry: bool = True,
+) -> np.ndarray | None:
+    """How much of each patch cell lies inside the boundary, as a ``grid``-shaped 0-1 array.
+
+    This is the piece that makes a boundary mean something to the *model* rather than only to
+    the picture. :func:`apply` fills the outside with black, which changes what those pixels
+    contain but not whether the backbone looks at them: a masked frame still produces a patch
+    token per position, and `backbones.embed_batch` pools with a plain mean over **all** of
+    them. So the fill lands in the pooled vector, the probe scores it, and the evidence map
+    shows it - which is exactly the "the model is still reading outside the pitch" that a
+    boundary was drawn to stop. Weighting the pool by this array removes those positions from
+    the average instead of merely darkening them.
+
+    **The geometry is taken from the processor, not re-derived.** Two of the three backbones
+    upscale to 256 and centre-crop back to 224, discarding 23.4% of the frame - and they say
+    so differently, ConvNeXtV2 hiding it behind ``crop_pct`` (see `backbones.PROCESSOR_GEOMETRY`).
+    Reimplementing that here would be a second preprocessing path that can drift from the
+    first, which is this project's most expensive bug repeated on purpose. Instead the polygon
+    is rasterised at the frame's own size and pushed through **the same processor call**, with
+    rescaling and normalisation switched off so what comes back is still a mask. Whatever the
+    processor does to a frame, it has now done to the boundary, including a crop that cuts part
+    of the outline away.
+
+    **Cells are fractional, not in-or-out.** A patch straddling the touchline is half pitch,
+    and `INTER_AREA` gives it 0.5 rather than forcing a choice that would move the boundary by
+    up to half a patch - 16 pixels at ViT's grid, which is a player's width at that distance.
+
+    ``None`` polygon returns ``None``, meaning *pool normally*, so every caller can pass its
+    polygon straight through without branching.
+    """
+    import cv2
+    import numpy as np
+
+    if not polygon:
+        return None
+
+    width, height = size_wh
+    points = np.array([[int(round(x * width)), int(round(y * height))] for x, y in polygon],
+                      dtype=np.int32)
+    mask = np.zeros((height, width, 3), np.uint8)
+    cv2.fillPoly(mask, [points], (255, 255, 255))
+
+    if processor is not None:
+        from PIL import Image
+
+        kwargs: dict[str, object] = {"do_rescale": False, "do_normalize": False}
+        if not processor_geometry:
+            kwargs["do_resize"] = False
+            if getattr(processor, "do_center_crop", False):
+                kwargs["do_center_crop"] = False
+        seen = processor(images=[Image.fromarray(mask)], return_tensors="np", **kwargs)
+        mask = np.asarray(seen["pixel_values"])[0, 0]
+    else:
+        mask = mask[:, :, 0]
+
+    cells = cv2.resize(mask.astype(np.float32), (grid[1], grid[0]),
+                       interpolation=cv2.INTER_AREA)
+    return np.clip(cells / 255.0, 0.0, 1.0)
+
+
+def outline(image_bgr: np.ndarray, polygon: Polygon | None, *,
+            colour: tuple[int, int, int] = (0, 255, 255), thickness: int = 0) -> np.ndarray:
+    """Draw the boundary onto a copy of the frame, so a reader can see where it runs.
+
+    A masked frame shows *that* something was suppressed but not what the outline was, and on
+    a dark pitch at night the filled region and the real shadows are hard to tell apart. With
+    the outline drawn, "the evidence is inside the pitch" becomes something the reader checks
+    rather than something the caption asserts.
+
+    Thickness scales with the frame by default so the line survives the JPEG that carries it
+    to the browser at whatever size the camera happens to produce.
+    """
+    import cv2
+    import numpy as np
+
+    if not polygon:
+        return image_bgr
+    h, w = image_bgr.shape[:2]
+    points = np.array([[int(round(x * w)), int(round(y * h))] for x, y in polygon],
+                      dtype=np.int32)
+    out = image_bgr.copy()
+    cv2.polylines(out, [points], isClosed=True, color=colour,
+                  thickness=thickness or max(2, min(h, w) // 300), lineType=cv2.LINE_AA)
+    return out

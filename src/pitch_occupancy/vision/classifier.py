@@ -77,16 +77,30 @@ class ProbeClassifier:
     probe: object
     n_train: int
 
-    def __call__(self, image_bgr: np.ndarray) -> tuple[Class3, float]:
-        (state, confidence), = self.classify_batch([image_bgr])
+    def __call__(self, image_bgr: np.ndarray, *,
+                 polygon: list[list[float]] | None = None) -> tuple[Class3, float]:
+        (state, confidence), = self.classify_batch([image_bgr], polygon=polygon)
         return state, confidence
 
-    def classify_batch(self, images_bgr: list[np.ndarray]) -> list[tuple[Class3, float]]:
+    def classify_batch(self, images_bgr: list[np.ndarray], *,
+                       polygon: list[list[float]] | None = None
+                       ) -> list[tuple[Class3, float]]:
         """Classify several frames in one forward pass.
 
         Empty input returns an empty list rather than calling the model with nothing: a
         zero-length batch is a legitimate minute in which every camera was down, and the
         processor raises on it.
+
+        ``polygon`` is a pitch boundary in frame fractions, and it does something stronger
+        than `roi.apply` alone: the positions outside it are dropped from the pooling, so the
+        region the boundary excludes stops reaching the probe instead of reaching it as fill.
+        One polygon for the whole batch, because a batch here is one camera's frames and a
+        boundary belongs to a camera.
+
+        It stays an argument rather than a field on the classifier. `worker.run_slot` wants a
+        one-argument callable and gets one; the caller that knows which camera a frame came
+        from is the caller that supplies the outline, and a classifier carrying a polygon
+        would silently apply one camera's boundary to another's frames.
         """
         if not images_bgr:
             return []
@@ -95,7 +109,8 @@ class ProbeClassifier:
         from pitch_occupancy.vision.backbones import embed_batch
 
         pil = [Image.fromarray(np.asarray(im)[:, :, ::-1]) for im in images_bgr]
-        features = embed_batch(self.model, self.processor, self.spec, pil)
+        features = embed_batch(self.model, self.processor, self.spec, pil,
+                               roi_polygon=polygon)
         proba = self.probe.predict_proba(features)
         classes = list(self.probe.classes_)
         return [
