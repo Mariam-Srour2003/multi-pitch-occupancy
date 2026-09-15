@@ -136,6 +136,7 @@ def build_cache(
     # A boundary belongs to a camera, so frames are embedded one polygon at a time. Batching
     # across cameras would mean pooling one camera's outline over another's frames, which is
     # the mistake `classifier.classify_batch` refuses by taking a single polygon per batch.
+    total = len(rows)
     by_poly: dict[tuple | None, list[str]] = {}
     for r in rows:
         poly = roi_for(r) if roi_for is not None else None

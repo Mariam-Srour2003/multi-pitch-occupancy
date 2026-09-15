@@ -4780,3 +4780,38 @@ spacing is measurable only at venue_01.
 and the specific reason is the missing EMPTY frames at other venues plus clips too short to
 hold a one-minute pair. Recorded as a negative result rather than tuned until it turns
 positive. No amendment is filed, because nothing is being adopted.
+
+## Probe regularisation: the default is fine, and inner CV cannot tell you otherwise
+
+`uv run python experiments/probe_regularisation.py --backbone dinov2`
+-> `results/probe_regularisation.csv`
+
+`LinearProbe` has always used scikit-learn's default `C=1.0` and nothing had varied it. Swept
+over five orders of magnitude, training on venue_01 camera A + clip venues + 31 generated
+EMPTY, testing on venue_01 camera B (real EMPTY and real PLAY).
+
+| C | macro-F1 | play-recall | false-play | inner CV |
+|---|---|---|---|---|
+| 0.001 | 0.9290 | 0.8705 | 0.0041 | 0.9839 |
+| 0.1 | 0.9290 | 0.8705 | 0.0041 | **0.9884** |
+| **1.0 (default)** | **0.9386** | 0.8849 | 0.0000 | 0.9873 |
+| 3.0 | 0.9539 | 0.9137 | 0.0000 | 0.9873 |
+| 10.0 | 0.8532 | 0.7266 | 0.0000 | 0.9872 |
+
+**Nested selection picks C=0.1 and makes things worse** - macro-F1 0.9290 against the
+default's 0.9386. Tuning C is worth **-0.0096**, so the default stays.
+
+**The interesting part is why the selection fails.** Inner 5-fold CV on the training set
+scores between 0.9838 and 0.9884 across the *entire* grid - a spread of 0.005 over a
+10,000-fold change in the penalty. The curve it is choosing from is flat, so its argmax is
+noise.
+
+That is the near-duplicate problem showing up in hyperparameter selection. Random CV folds
+put frames from the same 15-second window on both sides, so every model looks near-perfect
+inside the training set regardless of regularisation, and the one measurement that could
+choose C honestly cannot distinguish the candidates. **Cross-validation on this corpus is not
+a usable model-selection tool** unless the folds are grouped, which is the same finding the
+leakage work reached for evaluation, arriving now for selection.
+
+The sweep's own best is C=3.0 at 0.9539, but that value is read off the test set and is not
+quotable. It is recorded only to show the curve has real structure that inner CV cannot see.
