@@ -5163,3 +5163,57 @@ dozen thumbnails**, and that is cheap enough to be the procedure rather than an 
 Also fixed on the way: the first version built medians from `clipvenue_b_floodlit_track`,
 which is **locked final test set**. `derive_roi.py` refuses locked venues by name and this did
 not, until it had already produced two frames from one. It refuses them now.
+
+## Counting people inside the boundary beats the probe
+
+`uv run python experiments/person_count_rule.py --imgsz 1280 --conf 0.25`
+-> `results/person_count_rule.csv`
+
+yolov8n, counted **inside the camera's boundary** using each box's foot point rather than its
+centre, on 521 recorded frames from venue_01 camera B.
+
+| class | n | median | zero | 1-4 | >=5 |
+|---|---|---|---|---|---|
+| EMPTY | 243 | 0 | **89%** | 11% | 0% |
+| ACTIVE_PLAY | 278 | 6 | **0.4%** | 32% | 68% |
+
+**On the split the probe was tuned on, the rule wins:**
+
+| | recall | false-play | balanced |
+|---|---|---|---|
+| **person count, PLAY if >= 2** | **0.9604** | 0.0453 | **+0.9152** |
+| probe, full training set | 0.8849 | 0.0000 | +0.8849 |
+| probe, pruned to distinct scenes | 0.7302 | 0.0288 | +0.7014 |
+
+No training, no venue memorisation, nothing fitted on venue_01 - a pretrained detector and a
+threshold. On the unseen clip the same detector reported **zero people inside the boundary on
+all thirteen empty minutes** at every resolution tried.
+
+**Two things make it work that the earlier attempt did not do.** Counting inside the boundary,
+so spectators behind a fence are not people on the pitch; and taking the **foot** of each box
+rather than its centre, since a person standing at the touchline has their centre over the
+pitch and their feet outside it.
+
+**Why `synthetic_data_protocol.md` §3a concluded the opposite.** That measurement was on
+venue_01 frames where the people are in the *dugout* - small, partly occluded, behind a
+barrier - and it is still right about those. A person standing on the pitch is a different
+detection problem, and the same detector finds them.
+
+**The three-class version does not hold, and the numbers say exactly where.**
+
+| truth | -> EMPTY (0) | -> not playing (1-4) | -> PLAY (>=5) |
+|---|---|---|---|
+| EMPTY | **89%** | 11% | 0% |
+| ACTIVE_PLAY | 0.4% | **32%** | 68% |
+
+Zero-versus-nonzero is a strong signal. **1-4 is not**: a third of genuine ACTIVE_PLAY frames
+show four or fewer people inside the boundary, because the camera sees part of a pitch and a
+detector misses distant players. A rule that called those "not playing" would be wrong on 88
+real matches out of 278.
+
+So the defensible rule from this measurement is **two-class on the count** - nobody inside the
+boundary means empty - and the count is *evidence toward* C3 rather than a decision. The class
+that needs a lone walker distinguished from a match still needs recorded footage of one.
+
+**Cost.** About one second per frame on CPU at imgsz=1280. The system samples one frame per
+camera per minute, so this is affordable where a per-frame model would not be.
