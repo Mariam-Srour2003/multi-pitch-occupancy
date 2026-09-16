@@ -609,3 +609,61 @@ this for evaluation; A15 is the same correction applied to the fit.
 **Scene ids are a sidecar**, `data/processed/scene_ids.csv`, not a manifest column:
 `build_manifest` regenerates the manifest from filenames on disk and would drop the 189
 generated rows that `ingest_synthetic.py` wrote into it.
+
+---
+
+### 2026-09-17 — A16: a person count inside the boundary enters the prediction path
+
+**What changes.** `vision/people.PersonGate` overrules ACTIVE_PLAY with EMPTY when a detector
+finds **nobody standing inside the camera's boundary**. One direction, like A14's motion gate.
+The frozen backbone and the linear probe are untouched, so every headline figure stands.
+
+**The evidence.** 521 recorded frames, venue_01 camera B, counted inside the boundary:
+
+| class | n | median count | zero |
+|---|---|---|---|
+| EMPTY | 243 | 0 | **89%** |
+| ACTIVE_PLAY | 278 | 6 | **0.4%** |
+
+A count threshold alone beats the fitted probe on the split the probe was tuned on:
+
+| | recall | false-play | balanced |
+|---|---|---|---|
+| person count, `PLAY if >= 2` | 0.9604 | 0.0453 | **+0.9152** |
+| probe, full training set | 0.8849 | 0.0000 | +0.8849 |
+| probe, pruned to distinct scenes | 0.7302 | 0.0288 | +0.7014 |
+
+**End to end on an unseen clip**, through `run_slot` with all three additions:
+
+| configuration | false-play on 13 empty minutes |
+|---|---|
+| no boundary, no gates | 0.74 |
+| boundary only | 0.38 |
+| boundary + motion gate | 0.15 |
+| **boundary + motion + person gate** | **0.00** |
+
+The person gate fixes precisely the two the motion gate cannot: the first frame of a camera,
+which has no predecessor and so no motion cue, and a frame where something outside the pitch
+moved enough to clear the motion threshold.
+
+**Why it is a gate and not the classifier.** It is measured at one venue. A rule that beats a
+trained probe on one split is a promising rule, not a replacement for the thing the thesis is
+about - and the project's own history says a number measured on venue_01 camera B may not mean
+what it appears to.
+
+**What was measured and deliberately not adopted.** The three-class version of the rule fails:
+32% of genuine ACTIVE_PLAY frames show four or fewer people inside the boundary, because a
+camera sees part of a pitch and a detector misses distant players. "One to four people means
+not playing" would be wrong on 88 real matches out of 278. The count is evidence toward C3 and
+never a verdict of it.
+
+**`detect_people` was running at 640 pixels.** The parameter was not exposed, so every caller
+got the default, which downscales a 1080p frame until a distant player is a few pixels across.
+That is most of why `synthetic_data_protocol.md` §3a recorded the detector as finding nobody on
+frames with people in them. At 1280 the counts separate the classes. §3a's measurement stands
+for what it examined - people in a dugout, small, occluded, behind a barrier - which remains a
+harder problem than a person standing on a pitch.
+
+**Cost.** About a second per frame on CPU, and the detector runs only when the verdict is
+ACTIVE_PLAY, since that is the only verdict this gate can change. At one frame per camera per
+minute that is affordable.

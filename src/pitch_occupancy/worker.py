@@ -34,6 +34,7 @@ from pitch_occupancy.data.taxonomy import Class3
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from pitch_occupancy.vision.motion import MotionGate
+    from pitch_occupancy.vision.people import PersonGate
 from pitch_occupancy.db.store import Sample
 from pitch_occupancy.frame_source import FrameSource
 from pitch_occupancy.retention import has_room
@@ -106,6 +107,7 @@ def run_slot(
     evidence_dir: Path | None = None,
     polygon_for: Callable[[str], list[list[float]] | None] | None = None,
     motion_gate: "MotionGate | None" = None,
+    person_gate: "PersonGate | None" = None,
 ) -> SlotRun:
     """Sample, classify, fuse and aggregate one slot.
 
@@ -163,6 +165,7 @@ def run_slot(
     # it, so the memory cost is one frame per camera rather than one per minute.
     previous: dict[str, object] = {}
     motion_seen: list[float] = []
+    people_seen: list[int] = []
 
     for minute in range(source.n_minutes):
         observations: dict[str, tuple[Class3, float]] = {}
@@ -190,6 +193,18 @@ def run_slot(
                 )
                 if cue is not None:
                     motion_seen.append(cue)
+            # The person gate (A16). After the motion gate, because it is the more expensive
+            # of the two - it runs a detector - and the cheaper one may already have settled
+            # the answer. Both only ever turn ACTIVE_PLAY into EMPTY, so the order changes
+            # cost and not the verdict.
+            if person_gate is not None:
+                state, count = person_gate.apply(
+                    state, frame.image_bgr,
+                    polygon_for(camera) if polygon_for is not None else None,
+                )
+                if count is not None:
+                    people_seen.append(count)
+
             previous[camera] = frame.image_bgr
 
             observations[camera] = (state, confidence)

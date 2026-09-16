@@ -529,3 +529,77 @@ def test_the_motion_gate_never_turns_empty_into_play():
     state, cue = MotionGate().apply(Class3.EMPTY, a, b)
     assert state is Class3.EMPTY
     assert cue is not None and cue > 0
+
+
+# --- the person gate (A16) ---------------------------------------------------------------
+
+
+def test_the_person_gate_overrules_play_when_nobody_is_on_the_pitch(monkeypatch):
+    """Measured: 0.4% of recorded ACTIVE_PLAY frames show nobody inside the boundary, against
+    89% of EMPTY frames. Finding nobody is strong evidence against a match."""
+    from pitch_occupancy.data.taxonomy import Class3
+    from pitch_occupancy.vision import people
+
+    monkeypatch.setattr(people, "count_inside", lambda *_a, **_k: 0)
+    state, count = people.PersonGate().apply(Class3.ACTIVE_PLAY, _blank())
+    assert state is Class3.EMPTY
+    assert count == 0
+
+
+def test_the_person_gate_never_turns_empty_into_play(monkeypatch):
+    """Finding somebody is not evidence of a match - a groundskeeper counts as somebody."""
+    from pitch_occupancy.data.taxonomy import Class3
+    from pitch_occupancy.vision import people
+
+    monkeypatch.setattr(people, "count_inside", lambda *_a, **_k: 7)
+    state, count = people.PersonGate().apply(Class3.EMPTY, _blank())
+    assert state is Class3.EMPTY
+    # The detector is not even run for a verdict the gate cannot change.
+    assert count is None
+
+
+def test_an_unavailable_detector_leaves_the_verdict_alone(monkeypatch):
+    """`None` is "not checked" and must not be read as "found nobody" - that would turn a
+    broken install into a system reporting every pitch empty."""
+    from pitch_occupancy.data.taxonomy import Class3
+    from pitch_occupancy.vision import people
+
+    monkeypatch.setattr(people, "count_inside", lambda *_a, **_k: None)
+    state, count = people.PersonGate().apply(Class3.ACTIVE_PLAY, _blank())
+    assert state is Class3.ACTIVE_PLAY
+    assert count is None
+
+
+def test_count_inside_uses_the_foot_of_the_box_not_its_centre(monkeypatch):
+    """A person at the touchline has their centre over the pitch and their feet outside it."""
+    import numpy as np
+
+    from pitch_occupancy.vision import explain, people
+
+    # Boundary is the bottom half of the frame.
+    bottom_half = [[0.0, 0.5], [1.0, 0.5], [1.0, 1.0], [0.0, 1.0]]
+    frame = np.zeros((100, 100, 3), np.uint8)
+    # A box whose centre is at y=50 (inside) but whose feet are at y=40 (outside).
+    monkeypatch.setattr(explain, "detect_people", lambda *_a, **_k: [(10, 20, 30, 40)])
+    assert people.count_inside(frame, bottom_half) == 0
+    # Feet at y=80, inside.
+    monkeypatch.setattr(explain, "detect_people", lambda *_a, **_k: [(10, 60, 30, 80)])
+    assert people.count_inside(frame, bottom_half) == 1
+
+
+def test_run_slot_applies_the_person_gate():
+    from pitch_occupancy.data.taxonomy import Class3
+    from pitch_occupancy.vision import people
+    from pitch_occupancy.worker import run_slot
+
+    class AlwaysEmpty:
+        def apply(self, state, image_bgr, polygon=None):
+            return Class3.EMPTY, 0
+
+    def classify(image, *, polygon=None):
+        return Class3.ACTIVE_PLAY, 0.99
+
+    run = run_slot("s", FakeSource({"camA": [object()] * 3}), classify,
+                   person_gate=AlwaysEmpty())
+    assert all(s.predicted == Class3.EMPTY.value for s in run.samples), \
+        [s.predicted for s in run.samples]

@@ -20,6 +20,7 @@ import numpy as np
 from pitch_occupancy.data.taxonomy import Class3
 from pitch_occupancy.vision import roi
 from pitch_occupancy.vision.motion import MotionGate
+from pitch_occupancy.vision.people import PersonGate
 from pitch_occupancy.frame_source import Frame, FrameSource
 from pitch_occupancy.worker import run_slot
 
@@ -52,6 +53,7 @@ def main() -> int:
     ap.add_argument("--every", type=float, default=15.0)
     ap.add_argument("--truth", default="")
     ap.add_argument("--no-gate", action="store_true")
+    ap.add_argument("--no-person", action="store_true")
     ap.add_argument("--no-boundary", action="store_true")
     args = ap.parse_args()
 
@@ -94,7 +96,9 @@ def main() -> int:
 
     clf = load_classifier()
     gate = None if args.no_gate else MotionGate()
+    pgate = None if args.no_person else PersonGate()
     print(f"motion gate: {'off' if gate is None else f'threshold {gate.threshold}'}")
+    print(f"person gate: {'off' if pgate is None else 'on'}")
     print(f"{len(frames)} minutes at {args.every:g}s spacing\n")
 
     seen: list[tuple[int, Class3]] = []
@@ -103,6 +107,7 @@ def main() -> int:
         clf,
         polygon_for=(lambda _c: polygon),
         motion_gate=gate,
+        person_gate=pgate,
         on_minute=lambda m, s: seen.append((m, s)),
     )
 

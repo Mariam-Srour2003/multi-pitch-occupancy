@@ -286,12 +286,19 @@ def attention_rollout(model, processor, image_bgr: np.ndarray, *,
 
 
 def detect_people(image_bgr: np.ndarray, *, confidence: float = 0.25,
-                  model_name: str = "yolov8n.pt") -> list[tuple[int, int, int, int]] | None:
+                  model_name: str = "yolov8n.pt",
+                  imgsz: int | None = None) -> list[tuple[int, int, int, int]] | None:
     """Person boxes as ``(x1, y1, x2, y2)``, or ``None`` if the detector is unavailable.
 
     ``None`` and ``[]`` mean different things and callers must treat them differently: the
     first is "not checked", the second is "checked, found none". Collapsing them is how a
     redaction step comes to report success on a frame it never examined.
+
+    ``imgsz`` is the long edge the detector runs at. It was not exposed, so every caller got
+    the default 640 - which downscales a 1080p CCTV frame until a player at the far end is a
+    few pixels across, and is most of why this function was recorded as finding nobody on
+    frames with people in them. `vision/people.py` passes 1280 and the counts there separate
+    the classes.
     """
     try:
         from ultralytics import YOLO
@@ -300,7 +307,10 @@ def detect_people(image_bgr: np.ndarray, *, confidence: float = 0.25,
 
     try:
         detector = YOLO(model_name)
-        results = detector.predict(image_bgr, verbose=False, conf=confidence, classes=[0])
+        kwargs = {"verbose": False, "conf": confidence, "classes": [0]}
+        if imgsz is not None:
+            kwargs["imgsz"] = imgsz
+        results = detector.predict(image_bgr, **kwargs)
     except Exception:  # noqa: BLE001 - any failure here must fail closed, not open
         return None
 
