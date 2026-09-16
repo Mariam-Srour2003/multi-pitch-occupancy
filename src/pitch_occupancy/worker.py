@@ -24,13 +24,16 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, time
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 from urllib.parse import urlparse
 
 import numpy as np
 
 from pitch_occupancy.config import CONFIGS_DIR, settings
 from pitch_occupancy.data.taxonomy import Class3
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from pitch_occupancy.vision.motion import MotionGate
 from pitch_occupancy.db.store import Sample
 from pitch_occupancy.frame_source import FrameSource
 from pitch_occupancy.retention import has_room
@@ -101,6 +104,8 @@ def run_slot(
     thresholds: Thresholds | None = None,
     on_minute: Callable[[int, Class3], None] | None = None,
     evidence_dir: Path | None = None,
+    polygon_for: Callable[[str], list[list[float]] | None] | None = None,
+    motion_gate: "MotionGate | None" = None,
 ) -> SlotRun:
     """Sample, classify, fuse and aggregate one slot.
 
@@ -154,6 +159,11 @@ def run_slot(
             slot_dir.mkdir(parents=True, exist_ok=True)
 
 
+    # One frame per camera, the previous minute's. Held only until the next frame replaces
+    # it, so the memory cost is one frame per camera rather than one per minute.
+    previous: dict[str, object] = {}
+    motion_seen: list[float] = []
+
     for minute in range(source.n_minutes):
         observations: dict[str, tuple[Class3, float]] = {}
         images: dict[str, object] = {}
@@ -161,7 +171,25 @@ def run_slot(
             frame = source.read(camera, minute)
             if frame is None:
                 continue  # a gap; never a fabricated observation
-            state, confidence = classify(frame.image_bgr)
+            # The pitch boundary (WP3-T1). Passed per camera because a boundary belongs to
+            # one, and applying another camera's outline is measurably worse than none at
+            # all: on an unseen clip the wrong outline bought 0.06 of false-play where the
+            # right one bought 0.42.
+            if polygon_for is not None:
+                state, confidence = classify(frame.image_bgr,
+                                             polygon=polygon_for(camera))
+            else:
+                state, confidence = classify(frame.image_bgr)
+
+            # The motion gate (A14). This loop is the only place in the system that sees one
+            # camera's frames in order, so it is the only place the rule can live.
+            if motion_gate is not None:
+                state, cue = motion_gate.apply(state, previous.get(camera),
+                                               frame.image_bgr)
+                if cue is not None:
+                    motion_seen.append(cue)
+            previous[camera] = frame.image_bgr
+
             observations[camera] = (state, confidence)
             if slot_dir is not None:
                 images[camera] = frame.image_bgr

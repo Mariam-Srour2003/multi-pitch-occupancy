@@ -36,9 +36,15 @@ MIDDLE = [[0.25, 0.25], [0.75, 0.25], [0.75, 0.75], [0.25, 0.75]]
 
 @pytest.fixture(autouse=True)
 def _store(tmp_path, monkeypatch):
-    """Every test gets its own store. The real one is a committed config file, and a test
-    that wrote to it would leave the repository dirty and the next run non-deterministic."""
+    """Every test gets its own stores. The real ones are committed config files, and a test
+    that wrote to them would leave the repository dirty and the next run non-deterministic.
+
+    **Both** stores, since `load_all` began reading derived boundaries underneath the
+    hand-drawn ones: isolating only `STORE` leaves 99 real cameras leaking into every
+    assertion about what a store contains.
+    """
     monkeypatch.setattr(roi, "STORE", tmp_path / "roi.json")
+    monkeypatch.setattr(roi, "DERIVED_STORE", tmp_path / "roi_derived.json")
 
 
 # --- geometry -------------------------------------------------------------------------
@@ -458,3 +464,49 @@ def test_the_outline_is_drawn_without_touching_what_is_inside():
     assert drawn.max() > 0
 
     assert roi.outline(frame, None) is frame
+
+
+# --- derived boundaries are reachable, hand-drawn ones still win ------------------------
+
+
+def test_derived_boundaries_cover_the_cameras_the_store_never_did(monkeypatch):
+    """`configs/roi.json` holds outlines named `cam` and `cam2`; the corpus has 99 cameras.
+
+    Before `DERIVED_STORE` was read, `roi.get` returned None for every frame in the dataset -
+    the boundary machinery was complete, tested, and applied to nothing.
+    """
+    from pathlib import Path
+
+    from pitch_occupancy.vision import roi
+
+    real = Path(__file__).resolve().parents[1] / "configs" / "roi_derived.json"
+    monkeypatch.setattr(roi, "DERIVED_STORE", real)
+    assert roi.get("slot_20260711_1000_camA") is not None
+    assert roi.get("ca_1788518168281") is not None
+
+
+def test_a_hand_drawn_boundary_overrides_a_derived_one(tmp_path, monkeypatch):
+    """Drawing one in the editor is how a person corrects a derivation they disagree with."""
+    import json
+
+    from pitch_occupancy.vision import roi
+
+    square = [[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]]
+    triangle = [[0.0, 0.0], [1.0, 0.0], [0.5, 1.0]]
+    derived = tmp_path / "derived.json"
+    store = tmp_path / "store.json"
+    derived.write_text(json.dumps({"camX": square}), encoding="utf-8")
+    store.write_text(json.dumps({"camX": triangle}), encoding="utf-8")
+    monkeypatch.setattr(roi, "DERIVED_STORE", derived)
+    monkeypatch.setattr(roi, "STORE", store)
+
+    assert roi.get("camX") == roi.validate(triangle)
+
+
+def test_a_missing_derived_store_is_not_an_error(tmp_path, monkeypatch):
+    """Same reasoning as the main store: this is read on the live path."""
+    from pitch_occupancy.vision import roi
+
+    monkeypatch.setattr(roi, "DERIVED_STORE", tmp_path / "absent.json")
+    monkeypatch.setattr(roi, "STORE", tmp_path / "absent2.json")
+    assert roi.load_all() == {}

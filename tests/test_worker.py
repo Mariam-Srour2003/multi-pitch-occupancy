@@ -455,3 +455,77 @@ def test_live_says_whether_evidence_images_will_be_written(capsys, monkeypatch) 
     with pytest.raises(SystemExit):
         worker._confirm_live({"v": {"c": "rtsp://h/1"}}, Schedule(()), Path("/tmp/ev"))
     assert "identifiable people" in capsys.readouterr().out
+
+
+# --- the boundary and the motion gate, in the serving path (A14) ------------------------
+
+
+def _blank(v: int = 30):
+    import numpy as np
+
+    return np.full((90, 160, 3), v, np.uint8)
+
+
+def test_run_slot_passes_each_camera_its_own_boundary():
+    """A boundary belongs to a camera, and the wrong one is measurably worse than none.
+
+    On an unseen clip another camera's outline bought 0.06 of false-play where the camera's
+    own bought 0.42. So the lookup is per camera and this asserts it reaches the classifier.
+    """
+    from pitch_occupancy.data.taxonomy import Class3
+    from pitch_occupancy.worker import run_slot
+
+    seen: list[object] = []
+
+    def classify(image, *, polygon=None):
+        seen.append(polygon)
+        return Class3.ACTIVE_PLAY, 0.9
+
+    source = FakeSource({"camA": [object()] * 2, "camB": [object()] * 2})
+    run_slot("s", source, classify,
+             polygon_for={"camA": [[0.0, 0.0], [1.0, 0.0], [0.5, 1.0]]}.get)
+    assert seen, "classify was never called"
+    assert any(p is not None for p in seen), "no boundary reached the classifier"
+    assert any(p is None for p in seen), "a camera without a boundary should get None"
+
+
+def test_the_motion_gate_overrules_play_when_nothing_moved():
+    """Identical frames minute after minute are not a match in progress."""
+    from pitch_occupancy.data.taxonomy import Class3
+    from pitch_occupancy.vision.motion import MotionGate
+    from pitch_occupancy.worker import run_slot
+
+    def classify(image, *, polygon=None):
+        return Class3.ACTIVE_PLAY, 0.99
+
+    source = FakeSource({"camA": [object()] * 4})
+    run = run_slot("s", source, classify, motion_gate=MotionGate())
+    # The first minute has no predecessor and keeps its verdict; later ones are overruled,
+    # so the per-minute samples must contain both answers even though `classify` gave one.
+    predicted = [s.predicted for s in run.samples]
+    assert Class3.EMPTY.value in predicted, predicted
+    assert Class3.ACTIVE_PLAY.value in predicted, predicted
+
+
+def test_the_motion_gate_is_silent_without_a_previous_frame():
+    """The first frame of a camera has no cue, and a guessed one is the gate deciding on
+    evidence it does not have."""
+    from pitch_occupancy.data.taxonomy import Class3
+    from pitch_occupancy.vision.motion import MotionGate
+
+    gate = MotionGate()
+    state, cue = gate.apply(Class3.ACTIVE_PLAY, None, _blank())
+    assert state is Class3.ACTIVE_PLAY
+    assert cue is None
+
+
+def test_the_motion_gate_never_turns_empty_into_play():
+    """Stillness is evidence against a match; movement is not evidence for one - a
+    groundskeeper with a broom moves, and so does a person crossing the pitch."""
+    from pitch_occupancy.data.taxonomy import Class3
+    from pitch_occupancy.vision.motion import MotionGate
+
+    a, b = _blank(0), _blank(255)
+    state, cue = MotionGate().apply(Class3.EMPTY, a, b)
+    assert state is Class3.EMPTY
+    assert cue is not None and cue > 0

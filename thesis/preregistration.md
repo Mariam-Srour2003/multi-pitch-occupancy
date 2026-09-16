@@ -521,3 +521,49 @@ It does not make it *evaluable*, and RQ1 and RQ6 remain blocked on real footage.
 the two sets at macro-F1 > 0.90, the generated frames are a distinguishable distribution
 rather than an augmentation of this one, and the augmentation is withdrawn. Declared before
 the frames exist so the threshold cannot be chosen after seeing them.
+
+---
+
+### 2026-09-16 — A14: the pitch boundary and a motion gate enter the prediction path
+
+**What changes.** Two things are added to the deployed path, both outside the frozen backbone
+and the linear probe, so the model this project studies is unchanged:
+
+1. **The pitch boundary is applied.** `embed_batch` has always been able to pool only over
+   positions inside an outline, and `classify_batch` has always accepted one. It was never
+   applied to anything: `configs/roi.json` holds outlines named `cam` and `cam2` and the
+   corpus has 99 cameras, none called that, so `roi.get` returned None for every frame.
+   `scripts/derive_roi.py` measures an outline per camera from the footage and `roi.load_all`
+   now reads them underneath the hand-drawn store. `run_slot` passes each camera its own.
+2. **A motion gate.** If a frame is called ACTIVE_PLAY but differs from the previous frame of
+   the same camera by less than **1.098** mean absolute greyscale difference at 160x90, the
+   verdict becomes EMPTY. One direction only - stillness is evidence against a match,
+   movement is not evidence for one.
+
+**Why, and the evidence is not from the corpus.** On a 234-second clip from a venue with no
+labelled frames in the dataset, hand-labelled at 15-second samples:
+
+| | false-play on 13 empty frames |
+|---|---|
+| whole frame, no boundary | 0.74 |
+| boundary only | 0.38 |
+| boundary + motion gate | **0.15** |
+
+The threshold was fitted on venue_01's recorded frames and applied to that clip unchanged, so
+this is transfer rather than a fit.
+
+**Both were measured as useless first, and that is the finding worth recording.** On venue_01
+camera B - the only split in the corpus with a real class mix - ROI pooling scored -0.0019 and
+the motion rule -0.0159, and both were written up as negative results. That split cannot show
+either effect: the model scores 0.9386 on it, so there is no failure for either to repair.
+**The corpus contains no test set on which an intervention aimed at cross-venue failure can be
+seen to work**, which is item 1 of `thesis/data_requests.md` arriving from a fourth direction.
+
+**What this does not fix.** A person walking across an empty pitch moves, so the gate says
+PLAY, and they are inside the boundary. That is `3_people_not_playing`, six recorded frames in
+the whole corpus, and no cue computed from two frames supplies it.
+
+**Reported as an operational change, not a result.** Every headline figure in this thesis is
+the probe on frozen features and is unaffected. The boundary and the gate change what the
+deployed system answers, and their evidence is one clip at one venue - enough to adopt them in
+the product, not enough to claim a measured improvement to the model.

@@ -44,7 +44,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     import numpy as np
 
 __all__ = [
-    "Polygon", "STORE", "FILLS", "DEFAULT_FILL",
+    "Polygon", "STORE", "DERIVED_STORE", "FILLS", "DEFAULT_FILL",
     "load_all", "get", "save", "remove", "validate", "coverage", "apply",
     "grid_weights", "outline",
 ]
@@ -53,6 +53,18 @@ __all__ = [
 Polygon = list[list[float]]
 
 STORE = Path(__file__).resolve().parents[3] / "configs" / "roi.json"
+
+#: Boundaries measured from the footage by `scripts/derive_roi.py`, one per camera.
+#:
+#: Read **underneath** `STORE`, so a human-drawn outline always wins where one exists. They
+#: are kept in a separate file rather than merged into it because their provenance differs and
+#: should stay visible: one is somebody's judgement about where the pitch is, the other is a
+#: convex hull of the largest green region in a median frame.
+#:
+#: Without these, `get` returned None for every camera in the corpus - `STORE` holds outlines
+#: named `cam` and `cam2`, and the manifest has 99 cameras, none of them called that. The
+#: boundary machinery was complete and applied to nothing.
+DERIVED_STORE = Path(__file__).resolve().parents[3] / "configs" / "roi_derived.json"
 
 #: How the outside of the boundary is filled. See the module docstring for why the default
 #: is the least defensible of the three and is the default anyway.
@@ -109,18 +121,12 @@ def coverage(polygon: Polygon) -> float:
     return abs(total) / 2.0
 
 
-def load_all() -> dict[str, Polygon]:
-    """Every saved boundary, keyed by camera. A missing or malformed store yields none.
-
-    Malformed rather than raising, and deliberately: this is read on the live path, and a
-    boundary file someone broke while editing should degrade to "no boundary" - which is the
-    behaviour the system had before boundaries existed - rather than stop a night's capture.
-    The editor validates on save, which is where a person is present to be told.
-    """
-    if not STORE.exists():
+def _read(path: Path) -> dict[str, Polygon]:
+    """One store, or nothing. Never raises - see `load_all` for why."""
+    if not path.exists():
         return {}
     try:
-        raw = json.loads(STORE.read_text(encoding="utf-8"))
+        raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
     if not isinstance(raw, dict):
@@ -134,6 +140,20 @@ def load_all() -> dict[str, Polygon]:
         except (ValueError, TypeError):
             continue
     return out
+
+
+def load_all() -> dict[str, Polygon]:
+    """Every boundary, keyed by camera: derived ones, overlaid by hand-drawn ones.
+
+    Malformed rather than raising, and deliberately: this is read on the live path, and a
+    boundary file someone broke while editing should degrade to "no boundary" - which is the
+    behaviour the system had before boundaries existed - rather than stop a night's capture.
+    The editor validates on save, which is where a person is present to be told.
+
+    A hand-drawn outline overrides a derived one for the same camera. The editor writes to
+    `STORE`, so drawing one is how a person corrects a derivation they disagree with.
+    """
+    return {**_read(DERIVED_STORE), **_read(STORE)}
 
 
 def get(camera: str) -> Polygon | None:
