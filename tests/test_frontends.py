@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from pitch_occupancy.api.app import app
 from pitch_occupancy.api.markdown import render
-from pitch_occupancy.api.thesis_site import DOCUMENTS
+from pitch_occupancy.api.thesis_site import DOCUMENTS, HIDDEN
 
 
 @pytest.fixture
@@ -53,6 +53,8 @@ def test_api_still_works_alongside_them(client) -> None:
 def test_every_declared_document_gets_a_tab_and_a_view(client) -> None:
     html = client.get("/").text
     for key, (label, _) in DOCUMENTS.items():
+        if key in HIDDEN:  # built, not placed - covered by the hidden-renderer test
+            continue
         assert f'data-view="{key}"' in html, f"{key} has no view"
         assert label in html, f"{label} is missing from the nav"
 
@@ -66,6 +68,8 @@ def test_documents_actually_render_rather_than_appearing_empty(client) -> None:
     """A view that silently renders nothing looks the same as one that is not there."""
     html = client.get("/").text
     for key in DOCUMENTS:
+        if key in HIDDEN:
+            continue
         body = re.search(
             rf'data-view="{key}"[^>]*><div class="doc">(.*?)</div></section>', html, re.S
         )
@@ -590,20 +594,44 @@ def test_a_missing_interval_renders_nothing_rather_than_a_dash() -> None:
 # --- the findings summary ---------------------------------------------------
 
 
-def test_the_findings_tab_summarises_instead_of_serving_the_whole_log(client) -> None:
-    """The tab used to render all 76 entries open - a quarter of a megabyte of prose.
+def test_the_findings_tab_is_counts_not_an_archive(client) -> None:
+    """The tab is four counts. It was the whole log open, then three collapsed layers.
 
-    The log is the right archive and the wrong page: it is append-only history, so a reader
-    looking for what the project found had to read that *and* everything later withdrawn,
-    in the order it happened. Asserted on the served page rather than on the builder,
-    because the wall is what a reader got.
+    Both earlier versions put the archive on the page - 86 entries rendered open, then 34
+    claims and 86 collapsed rows. Collapsed or not, that is an archive wearing a page's
+    clothes, and this tab is where the project is presented. Asserted on the served page
+    rather than on the builder, because the page is what a reader got.
+
+    The cost is real and this test pins it too: the log is no longer reachable from the
+    site. If a later change puts it back, that should be a decision someone makes on
+    purpose, not a regression that slips in - so the absences are asserted, not assumed.
     """
     html = client.get("/").text
-    assert "What the project found" in html
-    # Entries are collapsed, and collapsed means `<details>` rather than a class that only
-    # looks closed - a CSS-hidden wall is still a wall to find-in-page and to a saved copy.
-    assert '<details class="fentry"' in html
-    assert html.count('<details class="fentry"') > 20
+    assert '<div class="ftiles">' in html, "the counts are the tab now"
+    for gone in ("What the project found", "What was withdrawn", "The full log",
+                 '<details class="fentry"', '<details class="fmonth"'):
+        assert gone not in html, f"the archive is back on the page: {gone!r}"
+
+
+def test_the_hidden_renderers_still_build() -> None:
+    """`ideas`, and the three findings layers, are off the page and still implemented.
+
+    Taking them off the page was a presentation decision, not a decision to lose them - so
+    each is called here. Without this they are code nothing runs, which is exactly the
+    untested-branch defect this project has twice removed from its own guards.
+    """
+    from pitch_occupancy.api import findings_summary as fs
+    from pitch_occupancy.api.slides import SLIDES
+    from pitch_occupancy.api.thesis_site import _doc
+
+    assert fs.render_claims().count('class="fclaim"') > 20
+    assert "<h2>What was withdrawn</h2>" in fs.render_retractions()
+    assert fs.render_log().count('<details class="fentry"') > 20
+
+    for tab in HIDDEN:
+        assert tab in DOCUMENTS, f"{tab} is hidden by deletion, not by HIDDEN"
+        assert '<div class="slide">' in SLIDES[tab](), f"{tab}'s slide stopped building"
+        assert "<details" in _doc(DOCUMENTS[tab][1], tab), f"{tab}'s document stopped building"
 
 
 def test_no_log_entry_is_dropped_by_the_summary() -> None:
@@ -643,7 +671,7 @@ def test_entry_dates_are_found_wherever_the_heading_puts_them() -> None:
             pytest.fail(f"date left in the title: {entry['title']!r}")
 
 
-def test_every_retraction_link_points_at_an_entry_that_exists(client) -> None:
+def test_every_retraction_link_points_at_an_entry_that_exists() -> None:
     """The retraction strip is the reason to keep the log reachable at all.
 
     A number that was published and then withdrawn is part of the method, so those entries
@@ -653,7 +681,12 @@ def test_every_retraction_link_points_at_an_entry_that_exists(client) -> None:
     """
     import re
 
-    html = client.get("/").text
+    from pitch_occupancy.api.findings_summary import render_log, render_retractions
+
+    # Against the renderers, not the page: both are off the tab now, and pointed at the
+    # served HTML this found no links and skipped itself - a test that can no longer fail
+    # is worse than no test, because it still reports as coverage.
+    html = render_retractions() + render_log()
     targets = set(re.findall(r'href="#(entry-\d+)"', html))
     if not targets:
         pytest.skip("no retractions detected in this log")
@@ -703,7 +736,7 @@ def test_every_tab_opens_with_a_slide(client) -> None:
     HTML rather than on the builder, because the wall is what a reader got."""
     bodies = _tab_bodies(client.get("/").text)
     for tab in ("overview", "models", "findings", "prereg", "questions", "dataset",
-                "database", "code", "ideas", "ethics", "augmentation", "searches"):
+                "database", "code", "ethics", "augmentation", "searches"):
         assert tab in bodies, f"{tab} tab is missing entirely"
         assert '<div class="slide">' in bodies[tab], f"{tab} has no slide"
 
@@ -715,7 +748,7 @@ def test_the_document_is_collapsed_rather_than_dropped(client) -> None:
     it. `<details>`, not a CSS toggle - find-in-page and a saved copy still reach it.
     """
     bodies = _tab_bodies(client.get("/").text)
-    for tab in ("prereg", "questions", "code", "ideas", "ethics", "dataset", "database"):
+    for tab in ("prereg", "questions", "code", "ethics", "dataset", "database"):
         assert "<details" in bodies[tab], f"{tab} dropped its document instead of collapsing"
 
 
