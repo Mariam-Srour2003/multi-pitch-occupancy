@@ -100,7 +100,7 @@ def main() -> int:
     seen: list[tuple[int, Class3]] = []
     run = run_slot(
         "video", VideoSource(frames),
-        lambda img, *, polygon=None: clf.classify(img, polygon=polygon),
+        clf,
         polygon_for=(lambda _c: polygon),
         motion_gate=gate,
         on_minute=lambda m, s: seen.append((m, s)),

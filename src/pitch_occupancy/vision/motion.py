@@ -65,19 +65,35 @@ MOTION_THRESHOLD = 1.098
 FITTED_GAP_S = 15
 
 
-def motion_cue(prev_bgr, cur_bgr) -> float:
+def motion_cue(prev_bgr, cur_bgr, polygon=None) -> float:
     """Mean absolute greyscale difference between two frames of one camera.
 
-    Whole frame, deliberately, and not restricted to the pitch boundary: the question is
-    whether *anything in the scene* changed, and a ball leaving the pitch or a player at the
-    touchline is still evidence that a game is running. The boundary is applied to the
-    classifier, not to this.
+    **Inside the boundary when one is given.** The first version measured the whole frame,
+    argued for on the grounds that a ball leaving the pitch is still evidence of a game. On
+    the clip this gate was built from that reasoning cost it a verdict: between minutes 12 and
+    13 the only thing that moved was a person walking *behind the goal*, outside the outline,
+    and the whole-frame cue rose to 1.610 - over the threshold, so the gate stayed silent and
+    an empty pitch was reported as a match.
+
+    Movement outside the pitch is movement at the venue, not play on the pitch, and a gate
+    that answers "is this pitch in use" must not be driven by it. Same reason the classifier
+    pools inside the outline.
     """
     import cv2
 
     a = cv2.resize(cv2.cvtColor(np.asarray(prev_bgr), cv2.COLOR_BGR2GRAY), WORK_SIZE)
     b = cv2.resize(cv2.cvtColor(np.asarray(cur_bgr), cv2.COLOR_BGR2GRAY), WORK_SIZE)
-    return float(np.abs(b.astype(np.float32) - a.astype(np.float32)).mean())
+    diff = np.abs(b.astype(np.float32) - a.astype(np.float32))
+    if polygon is None:
+        return float(diff.mean())
+    w, h = WORK_SIZE
+    mask = np.zeros((h, w), np.uint8)
+    pts = np.array([[int(round(x * w)), int(round(y * h))] for x, y in polygon], np.int32)
+    cv2.fillPoly(mask, [pts], 1)
+    inside = mask.astype(bool)
+    # A boundary that rounds away to nothing at this size would make the mean undefined;
+    # falling back to the whole frame keeps the gate conservative rather than erratic.
+    return float(diff[inside].mean()) if inside.any() else float(diff.mean())
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,7 +108,8 @@ class MotionGate:
     threshold: float = MOTION_THRESHOLD
     fitted_gap_s: int = FITTED_GAP_S
 
-    def apply(self, state: Class3, prev_bgr, cur_bgr) -> tuple[Class3, float | None]:
+    def apply(self, state: Class3, prev_bgr, cur_bgr,
+              polygon=None) -> tuple[Class3, float | None]:
         """Return the possibly-overruled state and the cue, or ``(state, None)``.
 
         ``prev_bgr`` of ``None`` means the first frame of a camera, which has no predecessor
@@ -102,7 +119,7 @@ class MotionGate:
         """
         if prev_bgr is None:
             return state, None
-        cue = motion_cue(prev_bgr, cur_bgr)
+        cue = motion_cue(prev_bgr, cur_bgr, polygon)
         if state is Class3.ACTIVE_PLAY and cue < self.threshold:
             return Class3.EMPTY, cue
         return state, cue

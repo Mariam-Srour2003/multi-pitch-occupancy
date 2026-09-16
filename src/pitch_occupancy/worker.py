@@ -184,8 +184,10 @@ def run_slot(
             # The motion gate (A14). This loop is the only place in the system that sees one
             # camera's frames in order, so it is the only place the rule can live.
             if motion_gate is not None:
-                state, cue = motion_gate.apply(state, previous.get(camera),
-                                               frame.image_bgr)
+                state, cue = motion_gate.apply(
+                    state, previous.get(camera), frame.image_bgr,
+                    polygon_for(camera) if polygon_for is not None else None,
+                )
                 if cue is not None:
                     motion_seen.append(cue)
             previous[camera] = frame.image_bgr
