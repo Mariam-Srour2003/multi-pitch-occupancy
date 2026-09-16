@@ -4893,3 +4893,48 @@ review on ROI features against 27% on whole-frame ones. The whole-frame configur
 hulls, so a dugout inside the outline's span is still inside the pooling - `roi.py` has always
 said the hull is a floor rather than a ceiling. A boundary that excluded the dugout might do
 something these do not; that is a different experiment, not a different reading of this one.
+
+## The boundary on unseen footage: false-play 0.74 -> 0.32
+
+`uv run python scripts/classify_video.py VIDEO --polygon {none,cam2,derive} --every 10`
+-> `results/video_verdicts_{none,cam2,derived}.csv`
+
+A 234-second clip of a pitch at a **venue the model has never seen**, sampled every 10s. Of
+24 samples, 19 show an empty pitch and 5 show a single person walking, with no ball and no
+game. Ground truth read off the rendered strip by hand.
+
+| boundary | false-play on the 19 empty frames | the 5 person frames called PLAY |
+|---|---|---|
+| none - whole frame | **14/19 = 0.74** | 4/5 |
+| `cam2`, a different camera's outline | 13/19 = 0.68 | 4/5 |
+| **derived from this video** | **6/19 = 0.32** | 3/5 |
+
+**A correct boundary halves the false-play rate on footage the model has never seen.** The
+whole frame, and another camera's outline, are indistinguishable from each other - which is
+the point: `cam2` is not a boundary for this camera, it is an arbitrary polygon that happens
+to be the right shape somewhere else. It cuts across this pitch unrelated to its edges and
+buys 0.06.
+
+**This does not contradict `probe_regularisation`, where ROI pooling was worth -0.0019.** That
+measurement is venue_01 camera B, where the model already scores 0.9386 and there is nothing
+for a boundary to repair. Here the model is at 0.26 accuracy on empty frames before the
+boundary and 0.68 after. **The boundary matters where the model is failing, not where it is
+already right**, and the corpus has no test set of the first kind - which is why the effect
+was invisible until a video from an unseen venue was run through it.
+
+**The remaining third is not a boundary problem.** Six empty frames still read ACTIVE_PLAY,
+and the five person-frames are a class the model cannot express: `3_people_not_playing` holds
+six recorded frames in the whole corpus, so in practice the deployed probe is two-class and a
+lone walker has nowhere to go but PLAY.
+
+**Motion would have caught most of it and is not wired in.** These frames carry motion 0.88 to
+2.02 against the previous sample, against a corpus median of 0.89 for EMPTY - consistent with
+an empty pitch. `motion_feature_ablation` found the cue adds nothing *as a feature on
+venue_01*; it has never been tried on footage like this, for the same reason the boundary
+effect was invisible.
+
+**And "people detected 0" is the detector, not the scene.** `explain.redact_people` returns
+zero on frames with four visible people (`synthetic_data_protocol.md` §3a). The people count
+on the viewer is that detector, so it says nothing about whether anyone is there.
+
+- 2026-09-16 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
