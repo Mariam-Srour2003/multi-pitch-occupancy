@@ -42,6 +42,13 @@ results/sheets/
 # and the audit becomes an unsupported claim.
 !results/figs/venue_check/
 !results/figs/venue_check/*.jpg
+# Before/after pairs, one per preprocessing switch. Same reasoning as the venue sheets: the
+# Preprocessing page argues from them - that centre_crop=0.5 discards three quarters of the
+# frame while looking like a zoom, that denoise=25.0 barely alters it - and a reader who
+# cloned the repo could not check either claim without them. Redacted before they were
+# written, so they are publishable (see thesis/ethics.md).
+!results/figs/preproc/
+!results/figs/preproc/*.jpg
 # the search viewer is generated output, like the figures
 !results/*.html
 
