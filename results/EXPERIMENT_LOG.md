@@ -4979,3 +4979,50 @@ about a working model, and the operational question is about a failing one.
 in the dataset. That is item 1 of `thesis/data_requests.md` from a fourth direction: without
 empty pitches at an unseen venue there is no split on which an intervention aimed at
 cross-venue failure can be seen to work.
+
+## The corpus is 179 scenes, and training on all 1,692 frames is what breaks it
+
+`uv run python experiments/dedup_training_set.py --video CLIP --truth 9,12,15`
+
+Distinct scenes by perceptual hash, within (venue, class):
+
+| | frames | distinct | ratio |
+|---|---|---|---|
+| **venue_01 / EMPTY** | **494** | **5** | **0.01** |
+| venue_01 / ACTIVE_PLAY | 796 | 94 | 0.12 |
+| venue_01 / C3 | 6 | 3 | 0.50 |
+| the nine clip venues, all ACTIVE_PLAY | 396 | 77 | 0.19 |
+| **recorded total** | **1,692** | **179** | **0.11** |
+| generated total | 189 | 112 | **0.59** |
+
+**The entire EMPTY class of this corpus is five pictures.** One venue, two cameras, two days,
+each scene repeated about a hundred times. That is the whole explanation for a model that
+cannot recognise an empty pitch anywhere else: it has seen five of them.
+
+**Pruning to distinct scenes and refitting:**
+
+| training set | venue_01 cam B macro-F1 | unseen clip: false-play | says PLAY |
+|---|---|---|---|
+| full, 1,196 frames | **0.9386** | 4/13 = 0.31 | 6/16, 2 on person minutes |
+| **pruned, 183 frames (15%)** | 0.8420 | **0/13 = 0.00** | **2/16, both on person minutes** |
+
+**Zero false-play on unseen footage, from 15% of the data.** And not by collapsing to EMPTY:
+the pruned probe says ACTIVE_PLAY exactly twice in sixteen minutes and both times a person is
+on the pitch. It is not conservative, it is correct.
+
+**The trade is in-domain accuracy for cross-venue generalisation**, and the in-domain loss is
+on a test set drawn from the same five scenes the duplicates come from. 0.9386 measures how
+well the probe reproduces backgrounds it has memorised; 0.00 measures whether it can tell an
+empty pitch it has never seen. The second is what the system is for.
+
+**Why repetition hurts rather than being neutral.** Class weighting balances EMPTY against
+PLAY by count, not by scene. Five backgrounds at a hundred frames each tell the fit that those
+five *are* what EMPTY looks like, with the confidence a hundred observations would justify and
+five do not - so the decision boundary tightens around them and anything else falls outside.
+
+**The generated frames are five times more scene-diverse than the recorded ones** (0.59 against
+0.11), which is why 31 of them repaired a failure 396 recorded frames caused.
+
+**Caveat on the absolute numbers.** Both arms train on whole-frame features and are evaluated
+on ROI-pooled ones, which is the train/serve skew recorded above. It applies identically to
+both, so the comparison holds; the absolute false-play figures carry it.

@@ -76,6 +76,16 @@ LEADS = {
 #: would hide the reasoning that is their whole content.
 SUMMARIES = {"findings": render_findings}
 
+#: Tabs that are **built but not placed**. Everything about `ideas` still works - its entry
+#: in `DOCUMENTS`, `slides.ideas()`, `docs/IDEAS.md` and their tests - and `page()` simply
+#: does not lay it out. Serving it is deleting one string.
+#:
+#: Removed from the page on 2026-09-16, with the findings archive, on one judgement: the
+#: site is where the project is presented, and a backlog is neither a finding nor an
+#: argument. It is the register of what was *considered*, which matters to whoever picks
+#: the work up and not to a reader being shown what the work found.
+HIDDEN = {"ideas"}
+
 
 def _doc(path: Path, key: str = "") -> str:
     """One tab: its slide, then its diagram, then the source document collapsed.
@@ -322,12 +332,13 @@ def _shell() -> str:
 
 
 def page() -> str:
+    shown = {k: v for k, v in DOCUMENTS.items() if k not in HIDDEN}
     tabs = "".join(
-        f'<button data-view="{k}">{label}</button>' for k, (label, _) in DOCUMENTS.items()
+        f'<button data-view="{k}">{label}</button>' for k, (label, _) in shown.items()
     )
     views = "".join(
         f'<section class="view" data-view="{k}" hidden><div class="doc">{_doc(path, k)}</div></section>'
-        for k, (_, path) in DOCUMENTS.items()
+        for k, (_, path) in shown.items()
     )
     # The landing tab: the first five pages of the progress-review deck, transcribed.
     # It is the one tab with no collapsed source document below it, because it has no

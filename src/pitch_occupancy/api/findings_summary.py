@@ -37,7 +37,8 @@ from pathlib import Path
 
 from pitch_occupancy.api.markdown import render
 
-__all__ = ["STYLES", "claim_groups", "log_entries", "render_summary"]
+__all__ = ["STYLES", "claim_groups", "log_entries", "render_claims",
+           "render_log", "render_retractions", "render_summary", "render_tiles"]
 
 ROOT = Path(__file__).resolve().parents[3]
 LEDGER = ROOT / "thesis" / "claims.toml"
@@ -215,78 +216,79 @@ def _fmt(value) -> str:
     return str(value)
 
 
-def render_summary() -> str:
-    """The summary layers plus the collapsed log, as one HTML block."""
+def render_tiles() -> str:
+    """The four counts: claims, unsupported claims, logged runs, retractions."""
     groups = claim_groups()
     entries = log_entries()
     dated = [e for e in entries if e["date"]]
     retractions = [e for e in dated if e["retraction"]]
     n_claims = sum(len(g["claims"]) for g in groups)
     unsupported = sum(1 for g in groups for c in g["claims"] if c["unsupported"])
-
-    out = ['<div class="fsum">']
-
-    out.append(
+    return (
         '<div class="ftiles">'
         f'<div class="ftile lead"><b>{n_claims}</b><span>verified claims, each re-derived '
-        'from the artefact that produced it</span></div>'
-        f'<div class="ftile"><b>{unsupported}</b><span>claims with no source, and they say '
-        'so</span></div>'
-        f'<div class="ftile"><b>{len(dated)}</b><span>logged runs, oldest first</span></div>'
-        f'<div class="ftile"><b>{len(retractions)}</b><span>entries that withdraw or '
-        'supersede an earlier number</span></div>'
+        'from its artefact</span></div>'
+        f'<div class="ftile"><b>{unsupported}</b><span>with no source, and say so</span></div>'
+        f'<div class="ftile"><b>{len(dated)}</b><span>logged runs</span></div>'
+        f'<div class="ftile"><b>{len(retractions)}</b><span>withdraw an earlier '
+        'number</span></div>'
         '</div>'
     )
 
-    if groups:
-        out.append('<h2>What the project found</h2>')
-        out.append(
-            '<p class="fnote">Grouped by hypothesis, in ledger order. Every value is '
-            'recomputed from its source by <code>verify_claims.py</code>; a claim whose '
-            'source stops producing it fails the check rather than sitting here looking '
-            'settled.</p>'
-        )
-        for g in groups:
-            rows = "".join(
-                '<li class="fclaim">'
-                f'<span class="fval{" none" if c["unsupported"] else ""}">'
-                f'{_fmt(c["value"])}</span>'
-                f'<span class="fstate">{c["statement"]}'
-                f'<em>{c["source"] or "no source — unsupported, and recorded as such"}</em>'
-                '</span></li>'
-                for c in g["claims"]
-            )
-            out.append(f'<section class="fgroup"><h3>{g["title"]}</h3>'
-                       f'<ul class="fclaims">{rows}</ul></section>')
 
-    if retractions:
-        out.append('<h2>What was withdrawn</h2>')
-        out.append(
-            '<p class="fnote">The entries a reader most needs and could least easily find. '
-            'A number that was published and then retracted is part of the method, so these '
-            'stay in the log as written &mdash; this strip only makes them reachable.</p>'
+def render_claims() -> str:
+    """Every ledger claim, grouped by hypothesis. Not on the page - see `render_summary`."""
+    groups = claim_groups()
+    if not groups:
+        return ""
+    out = ['<h2>What the project found</h2>',
+           '<p class="fnote">Grouped by hypothesis. Every value is recomputed from its '
+           'source by <code>verify_claims.py</code>.</p>']
+    for g in groups:
+        rows = "".join(
+            '<li class="fclaim">'
+            f'<span class="fval{" none" if c["unsupported"] else ""}">'
+            f'{_fmt(c["value"])}</span>'
+            f'<span class="fstate">{c["statement"]}'
+            f'<em>{c["source"] or "no source — unsupported, and recorded as such"}</em>'
+            '</span></li>'
+            for c in g["claims"]
         )
-        out.append('<div class="fretract">' + "".join(
+        out.append(f'<section class="fgroup"><h3>{g["title"]}</h3>'
+                   f'<ul class="fclaims">{rows}</ul></section>')
+    return "".join(out)
+
+
+def render_retractions() -> str:
+    """The entries that withdraw an earlier number. Not on the page - see `render_summary`.
+
+    Each link targets `#entry-N`, which only resolves alongside `render_log()`.
+    """
+    entries = log_entries()
+    if not any(e["retraction"] for e in entries if e["date"]):
+        return ""
+    return (
+        '<h2>What was withdrawn</h2>'
+        '<p class="fnote">A number published and then withdrawn is part of the method. '
+        'These stay in the log as written; the strip makes them reachable.</p>'
+        '<div class="fretract">' + "".join(
             f'<a href="#entry-{i}"><b>{e["date"]}</b>{e["title"]}</a>'
             for i, e in enumerate(entries) if e["retraction"]
-        ) + '</div>')
-
-    out.append('<h2>The full log</h2>')
-    out.append(
-        f'<p class="fnote">{len(entries)} entries, grouped by month and collapsed &mdash; '
-        'one per run: date, hypothesis, command, result file, and the finding in a '
-        'sentence. Appended automatically by the experiment scripts; the findings written '
-        'by hand. Nothing here is omitted, and the newest month is open.</p>'
+        ) + '</div>'
     )
+
+
+def render_log() -> str:
+    """The whole log, one collapsed entry per run. Not on the page - see `render_summary`."""
+    entries = log_entries()
+    out = ['<h2>The full log</h2>',
+           f'<p class="fnote">{len(entries)} entries by day, newest last. Nothing omitted '
+           '&mdash; the archive, one click deep.</p>']
 
     # Grouped by **day**, not month. Month was the first attempt and it grouped 74 of the
     # 76 entries into one section - this project ran inside a single September, so a month
     # heading is a heading over the whole log and the page was a wall again the moment it
     # opened. By day it is seven rows, which is a summary.
-    #
-    # Only the last group opens, by position rather than by label: the log has an undated
-    # correction in the middle of it, so matching on a label opened two separate sections
-    # that happened to share one.
     days: list[tuple[str, list[tuple[int, dict]]]] = []
     for i, e in enumerate(entries):
         key = e["date"] or "Undated"
@@ -294,7 +296,7 @@ def render_summary() -> str:
             days.append((key, []))
         days[-1][1].append((i, e))
 
-    for group_index, (day, items) in enumerate(days):
+    for day, items in days:
         rows = []
         for i, e in items:
             flag = '<i class="fflag">retraction</i>' if e["retraction"] else ""
@@ -307,18 +309,16 @@ def render_summary() -> str:
         meta = f'{len(items)} entr{"y" if len(items) == 1 else "ies"}'
         if n_retract:
             meta += f' &middot; {n_retract} retraction{"s" if n_retract > 1 else ""}'
-        is_last = group_index == len(days) - 1
         out.append(
-            f'<details class="fmonth"{" open" if is_last else ""}>'
+            '<details class="fmonth">'
             f'<summary><b>{_day_label(day)}</b><i>{meta}</i></summary>'
             f'<div class="fmbody">{"".join(rows)}</div></details>'
         )
 
-    out.append('</div>')
     # A link into a collapsed entry scrolls to a shut box otherwise. Anchor navigation does
     # not open an element's `<details>` ancestors in every browser, so the retraction strip
-    # above would look broken in the ones where it does not - the entry is in the DOM, just
-    # not visible. Opens the target and every ancestor, on load and on hash change.
+    # would look broken in the ones where it does not - the entry is in the DOM, just not
+    # visible. Opens the target and every ancestor, on load and on hash change.
     out.append(
         "<script>(function(){function open(){var t=location.hash&&"
         "document.querySelector(location.hash);if(!t)return;"
@@ -327,6 +327,22 @@ def render_summary() -> str:
         "addEventListener('hashchange',open);open();})();</script>"
     )
     return "".join(out)
+
+
+def render_summary() -> str:
+    """What the Findings tab serves: the four counts, and nothing below them.
+
+    `render_claims`, `render_retractions` and `render_log` are **built, tested and not
+    called here**. They rendered on the page until 2026-09-16; collapsed or not, 34 claims
+    and 86 log rows are an archive wearing a page's clothes, and this tab is where the
+    project is presented rather than filed. Composing them back in is one line, which is
+    why they stay whole rather than being deleted and rewritten later from the git history.
+
+    The counts are still computed from `claim_groups()` and `log_entries()`, so the ledger
+    and the log are parsed on every page build and a ledger that stops parsing still fails
+    here rather than going quiet.
+    """
+    return '<div class="fsum">' + render_tiles() + '</div>'
 
 
 #: Scoped to `.fsum` so nothing here can reach the rendered Markdown of the other tabs.
