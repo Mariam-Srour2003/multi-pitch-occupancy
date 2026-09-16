@@ -208,6 +208,14 @@ STYLES = """
 .sl-card h4 { margin: 0 0 5px; font-size: 13.5px; font-weight: 600; }
 .sl-card p { margin: 0; font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
 
+/* A claim the page is making, as opposed to `blockquote`, which the shell tints with
+   --warn-soft and which therefore reads as a caution. The distinction matters on the
+   Overview tab, where the thesis statement and the retraction are both set off from the
+   prose and must not look like the same kind of remark. */
+.sl-quote { margin: 18px 0; padding: 14px 18px; background: var(--accent-soft);
+  border-left: 4px solid var(--accent); border-radius: 0 10px 10px 0;
+  font-size: 16px; line-height: 1.5; color: var(--ink); max-width: 74ch; }
+
 .sl-rows { display: grid; gap: 7px; margin: 16px 0; }
 .sl-row { display: grid; grid-template-columns: 54px 1fr auto; gap: 13px;
   align-items: center; background: var(--surface); border: 1px solid var(--line);
@@ -668,8 +676,149 @@ def searches() -> str:
     )
 
 
+def overview() -> str:
+    """The first five pages of the progress-review deck, as the page a reader lands on.
+
+    Every other slide here reads its numbers out of an artefact, because a slide that
+    restates them becomes a second copy of the thesis and the copy that goes stale. This
+    one is the deliberate exception, and for the opposite reason: it is a **transcription
+    of a dated document** - the progress review presented on the state of the project - so
+    its numbers are supposed to be frozen at what was claimed on the day. Wiring them to
+    today's result files would quietly rewrite the history the review records, which is the
+    one thing a progress review must not do.
+
+    That is also why the pilot's figures are safe to hard-code: they were measured on branch
+    `pilot/model-selection` against a split this repository has since retired, and no
+    artefact in `results/` can or should reproduce them. Page five is the retraction, and it
+    ships in the same tab as the claim it retracts.
+    """
+    bakeoff = [
+        ("ViT-Base/16", "frozen + head", "0.9923", "0.6623", "203.0"),
+        ("DINOv2-Base", "frozen + head", "0.9846", "0.6568", "253.9"),
+        ("ConvNeXtV2-Tiny", "frozen + head", "0.9808", "0.6540", "102.4"),
+        ("OpenCLIP ViT-B/32 (LAION-2B)", "zero-shot", "0.7577", "0.3866", "246.8"),
+        ("CLIP ViT-B/32", "zero-shot", "0.6538", "0.4269", "212.0"),
+        ("CLIP ViT-L/14", "zero-shot", "0.3538", "0.2500", "1403.8"),
+        ("SigLIP 2 base", "zero-shot", "0.3192", "0.3011", "1035.0"),
+    ]
+    rows = "".join(
+        f"<tr><td><strong>{model}</strong></td><td>{family}</td>"
+        f"<td class='num'>{acc}</td><td class='num'>{f1}</td>"
+        f"<td class='num'>{ms}</td></tr>"
+        for model, family, acc, f1, ms in bakeoff
+    )
+
+    return (
+        "<h1>Low-Bandwidth, CPU-Only Occupancy Verification for Multi-Pitch Football "
+        "Facilities</h1>"
+        '<div class="slide">'
+        '<p class="lede"><strong>Master&rsquo;s thesis progress review.</strong> From a '
+        "seven-model pilot bake-off to a leakage-free multi-venue benchmark &mdash; this "
+        "review documents the full arc of the project, including the measurements that "
+        "invalidated the pilot&rsquo;s own results.</p>"
+        '<p class="sl-quote"><strong>The evaluation protocol, not the architecture, '
+        "turned out to be the result.</strong></p>"
+
+        "<h2>The Problem, the System, and the Constraints</h2>"
+        + cards([
+            ("The verification gap",
+             "A facility rents pitches by the hour and staff record which slots were used. "
+             "Those records are unverified, and three failure modes cost money or trust: "
+             "<b>no-shows</b>, <b>unbooked usage</b>, and plain <b>data-entry error</b>."),
+            ("Four stages",
+             "One frame per fixed CCTV camera per minute &mdash; sparse sampling, not a "
+             "video stream. Each frame classified EMPTY / ACTIVE_PLAY / "
+             "MAINTENANCE-or-NON-SPORTING. Roughly 60 predictions per hour collapsed to "
+             "USED / NOTUSED / REVIEW. The verdict reconciled against the booking and "
+             "staff-entry record, with disagreements flagged with evidence."),
+        ], wide=True)
+        + "<h3>Four hard constraints</h3>"
+        + cards([
+            ("No GPU", "One Intel Mini-PC only."),
+            ("60-second cycle",
+             "20&ndash;30 cameras; the budget is round-trip time, not single-image "
+             "latency."),
+            ("Data sovereignty",
+             "Only the verdict leaves the site &mdash; never the footage."),
+            ("Adverse optics",
+             "Night floodlighting, low contrast and glare throughout."),
+        ])
+        + '<p class="sl-quote">One design rule carried everywhere: <strong>the vision '
+          "path must never consume the booking record as an input feature.</strong> A "
+          "model that has seen the booking flag cannot provide evidence independent of "
+          "the record it audits.</p>"
+
+        "<h2>Step One: The Pilot Bake-Off</h2>"
+        "<p>Branch <code>pilot/model-selection</code>, 1&ndash;2 September 2026. One "
+        "question: which models are worth building on? 1,296 hand-labelled frames, one "
+        "venue, single random stratified 80/20 split. Seven candidates through one shared "
+        "harness.</p>"
+        '<div class="scroll"><table><thead><tr><th>Model</th><th>Family</th>'
+        '<th class="num">Accuracy</th><th class="num">Macro-F1</th>'
+        '<th class="num">ms/frame</th></tr></thead>'
+        f"<tbody>{rows}</tbody></table></div>"
+        + cards([
+            ("Also considered, not run",
+             "Florence-2, Moondream2, SmolVLM2, DINOv3 (licence-gated), ConvNeXt-Tiny v1, "
+             "EfficientNet-B0, MobileNetV3-Large, YOLO-World, Grounding DINO."),
+            ("What the headline hid",
+             "Accuracy 0.9923 but macro-F1 0.6623 &mdash; two of four classes had almost no "
+             "support and scored 0.0 precision and recall. A separate ViT run scored "
+             "0.3808, traced to the harness reading a randomly initialised "
+             "<code>pooler_output</code> instead of mean-pooled features: a pipeline bug, "
+             "not a model result."),
+        ], wide=True)
+
+        + "<h2>Literature Review Versus Pilot: Four Confirmations</h2>"
+        "<p>The Related Work chapter makes predictions the pilot could test directly. Four "
+        "held, one of them textbook.</p>"
+        + cards([
+            ("1 &middot; Frozen probes beat zero-shot decisively",
+             "Best probe 0.9923 against best zero-shot 0.7577 &mdash; a 23-point gap, which "
+             "is exactly the cost of a no-label deployment the literature describes."),
+            ("2 &middot; Pretraining data beat architecture, at identical size",
+             "OpenCLIP ViT-B/32 trained on LAION-2B scored 0.7577; OpenAI CLIP ViT-B/32 "
+             "&mdash; the same architecture &mdash; scored 0.6538. Eleven points "
+             "attributable to training data alone, matching the controlled scaling-law "
+             "literature."),
+            ("3 &middot; Bigger zero-shot was worse, not better",
+             "CLIP ViT-L/14 scored 0.3538 and SigLIP 2 base 0.3192, both far below the "
+             "B/32 models and 5&ndash;7&times; slower per frame. The benchmark-table "
+             "intuition that the larger variant wins is wrong on this task, as the "
+             "fine-grained and occlusion-robustness studies predict."),
+            ("4 &middot; Ranking did not follow benchmark position",
+             "ViT-Base led the pilot and finishes third under honest evaluation."),
+        ], wide=True)
+
+        + "<h2>The Flaw Was the Protocol, Not the Models</h2>"
+        "<p>Three measurements, taken later, invalidate the pilot&rsquo;s numbers.</p>"
+        + tiles([
+            ("98.4%", "scored by a clock rule that reads no pixels", "lead"),
+            ("98.5%", "of frames have a near-duplicate", "lead"),
+            ("62", "distinct scenes behind 394 test frames", "lead"),
+        ])
+        + cards([
+            ("A clock rule scores 98.4%",
+             "&ldquo;If night then ACTIVE_PLAY, else EMPTY&rdquo; &mdash; using no pixels "
+             "at all. In the labelled data EMPTY is 98% daytime and ACTIVE_PLAY 99% night. "
+             "Class and illumination are the same variable."),
+            ("98.5% of frames have a near-duplicate",
+             "Frames taken seconds apart from a fixed camera are near-identical, so a "
+             "random split places near-copies of test images into training."),
+            ("394 test frames, 62 distinct scenes",
+             "Once effective sample size replaces frame count, a colour histogram becomes "
+             "statistically indistinguishable from DINOv2 on the leaky split (p = 1.000)."),
+        ], wide=True)
+        + "<blockquote>The pilot&rsquo;s 99% is consistent with having learned "
+          "day-versus-night rather than occupancy. <strong>No change of backbone removes a "
+          "shortcut that the data affords.</strong></blockquote>"
+        "</div>"
+    )
+
+
 #: tab id -> the slide that opens it. A tab absent from this map renders as it always did.
 SLIDES = {
+    "overview": overview,
     "models": models,
     "findings": findings,
     "prereg": prereg,

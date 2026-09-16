@@ -702,8 +702,8 @@ def test_every_tab_opens_with_a_slide(client) -> None:
     a poor page. Each now leads with counts and figures, and this asserts that on the served
     HTML rather than on the builder, because the wall is what a reader got."""
     bodies = _tab_bodies(client.get("/").text)
-    for tab in ("models", "findings", "prereg", "questions", "dataset", "database",
-                "code", "ideas", "ethics", "augmentation", "searches"):
+    for tab in ("overview", "models", "findings", "prereg", "questions", "dataset",
+                "database", "code", "ideas", "ethics", "augmentation", "searches"):
         assert tab in bodies, f"{tab} tab is missing entirely"
         assert '<div class="slide">' in bodies[tab], f"{tab} has no slide"
 

@@ -329,6 +329,15 @@ def page() -> str:
         f'<section class="view" data-view="{k}" hidden><div class="doc">{_doc(path, k)}</div></section>'
         for k, (_, path) in DOCUMENTS.items()
     )
+    # The landing tab: the first five pages of the progress-review deck, transcribed.
+    # It is the one tab with no collapsed source document below it, because it has no
+    # source document - the deck *is* the argument, and a `detail()` here would either
+    # link a PDF the page cannot render or repeat what is already above it.
+    overview = (
+        '<section class="view" data-view="overview" hidden><div class="doc">'
+        + SLIDES["overview"]()
+        + "</div></section>"
+    )
     models = (
         '<section class="view" data-view="models" hidden><div class="doc">'
         + SLIDES["models"]()
@@ -370,9 +379,13 @@ def page() -> str:
         "</div></section>"
     )
     return (_shell()
-            .replace("__TABS__", '<button data-view="models">Models</button>' + tabs
+            .replace("__TABS__", '<button data-view="overview">Overview</button>'
+                     '<button data-view="models">Models</button>' + tabs
                      + '<button data-view="augmentation">Augmentation</button>')
-            .replace("__VIEWS__", models + views + augmentation + searches)
+            # Overview leads, and the shell opens whichever view is first in the DOM - so
+            # a reader who arrives with no hash gets the review rather than a parameter
+            # count. Every deep link still resolves, because the hash names the tab.
+            .replace("__VIEWS__", overview + models + views + augmentation + searches)
             .replace("__MODEL_STYLES__",
                      MODEL_STYLES + PANEL_STYLES + DIAGRAM_STYLES + FINDINGS_STYLES
                      + SLIDE_STYLES)
