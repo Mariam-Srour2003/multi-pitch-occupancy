@@ -36,6 +36,10 @@ OUT_OF_SCOPE = {
     "error_taxonomy.csv": "WP4-T6: one row per misclassification, too granular for the export",
     "error_taxonomy_summary.csv": "WP4-T6: the per-protocol summary and its derived findings",
     "class_balancing.csv": "method: why class weighting stays on",
+    "three_class_on_video.csv": (
+        "C3 on three real person-minutes. Three positives and a unanimous negative - "
+        "the argument is the result, and a row would read as a measured class score."
+    ),
     "distinct_scenes_rerun.csv": (
         "A15: every fit-dependent number, full against pruned. The pair is the result - "
         "one row would hide that the in-domain figure falls while the rest improve."

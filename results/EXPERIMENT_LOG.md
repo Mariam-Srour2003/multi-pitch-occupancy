@@ -5070,3 +5070,49 @@ and choosing between them on this evidence would be choosing a test set.
 **What would settle it** is a recorded EMPTY frame at a venue that is not venue_01 - then
 false-play could be measured where memorisation is impossible *and* on recorded data. That is
 item 1 of `thesis/data_requests.md`, for the fifth time in this log.
+
+## Generated C3 frames are learnable and do not transfer: subtraction works, addition does not
+
+`uv run python experiments/three_class_on_video.py --video CLIP --truth 9,12,15`
+-> `results/three_class_on_video.csv`
+
+The corpus holds **six recorded C3 frames**, three scenes, one venue, one moment - so the class
+cannot be trained and the deployed probe is three-class in name and two-class in behaviour. 158
+generated C3 frames now exist, 103 scenes across seven venues. Two questions, opposite answers.
+
+**They are learnable.** Leave-one-venue-out over the venues holding generated C3, mean recall
+of C3 at an unseen venue **0.742**, four of seven venues at 1.000.
+
+**They do not fire on a real person.** On the unseen clip - three minutes with one person on
+the pitch, no ball, hand-labelled - the three-class probe says C3 **0 times out of 3**, and the
+verdicts are identical to the two-class probe's:
+
+| C3 trained on | C3 scenes | C3 on the 3 person minutes | C3 on the 13 empty minutes |
+|---|---|---|---|
+| people-not-playing only | 20 | **0/3** | 0/13 |
+| maintenance only | 83 | **0/3** | 0/13 |
+| both | 91 | **0/3** | 0/13 |
+
+**It is not a composition problem.** The class is 75% maintenance-with-tools, so the obvious
+explanation was that a lone walker is under-represented. Training C3 on the people-only subset
+changes nothing: 0/3. Nine predictions across three arms, none of them C3.
+
+**The mechanism, and it explains why the EMPTY frames worked and these did not.**
+
+- The generated EMPTY frames were made by **subtraction** - people removed from a real frame.
+  What remains is real pixels of a real pitch, and they repaired the false-play collapse.
+- The generated C3 frames were made by **addition** - a person drawn onto a real pitch. What
+  the probe learns is what a *drawn* person looks like, and a real one is not that.
+
+A13's separability gate passed at 0.5332 because it asked whether generated frames as a whole
+are distinguishable from recorded ones. It did not ask, and could not have asked, whether a
+generated *person* stands in for a real one. On the only real test available the answer is no.
+
+**Three positives.** A class that fails on three frames has been shown to fail on three frames.
+But the failure is unanimous across three training compositions, and the two-class and
+three-class probes are indistinguishable on this footage, which is the operational statement:
+**the deployed system still cannot say "someone is here and not playing"**, and generating more
+C3 frames is not the route to making it.
+
+**What is:** real footage of a person walking across a pitch, which is item 4 of
+`thesis/data_requests.md` and ten minutes of someone's time.

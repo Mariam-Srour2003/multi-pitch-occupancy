@@ -1,0 +1,4 @@
+arm,n_train,false_play,n_empty,c3_on_person,n_person,c3_on_empty,person_verdicts
+2-class,183,0,13,0,3,0,C2_ACTIVE_PLAY|C1_EMPTY|C2_ACTIVE_PLAY
+"3-class, recorded C3",186,0,13,0,3,0,C2_ACTIVE_PLAY|C1_EMPTY|C2_ACTIVE_PLAY
+"3-class, + generated C3",274,0,13,0,3,0,C2_ACTIVE_PLAY|C1_EMPTY|C2_ACTIVE_PLAY
