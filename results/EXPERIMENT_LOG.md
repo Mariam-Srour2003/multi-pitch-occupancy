@@ -5116,3 +5116,50 @@ C3 frames is not the route to making it.
 
 **What is:** real footage of a person walking across a pitch, which is item 4 of
 `thesis/data_requests.md` and ten minutes of someone's time.
+
+## EMPTY frames by temporal median: sound method, cannot reach the venues that need it
+
+`uv run python scripts/make_median_empties.py`
+
+Following the subtraction/addition finding: a temporal median is subtraction without a
+generative model. Players move, the pitch does not, so the per-pixel median over several
+frames of one camera is that camera's own pitch with the people gone - real pixels, real
+exposure, no drawn person.
+
+**It works where the footage is long enough, and the corpus is mostly not.**
+
+| venue | median EMPTY frames produced |
+|---|---|
+| clipvenue_a_blue_barrier | 8 |
+| venue_01 | 2 |
+| clipvenue_e_pink_boards | 1, rejected by eye - two people still standing in it |
+| **clipvenue_d, _f, _g, _h, _i** | **0** |
+
+The nine clip venues are 66 clips of six frames spanning about ten seconds. Six frames is
+enough for a median only if people move across them, and over ten seconds at a five-a-side
+match many do not. So the technique produced frames for the venue that already has ten
+generated empties and for the venue that already has 494 recorded ones, and nothing for the
+five that have neither.
+
+**Measured anyway, and it changes nothing:**
+
+| training set | venue_01 cam B macro-F1 | unseen clip false-play |
+|---|---|---|
+| pruned, 183 frames | 0.8420 | 0/13 |
+| + 10 median empties | 0.8394 | 0/13 |
+
+**Two guards failed on the same frame, which is the part worth keeping.** The first check asked
+whether the median resembles its closest member - a smear test. It passed a
+`clipvenue_e_pink_boards` frame with two people plainly standing in it, because when nobody
+moves the median reproduces the crowd and matches every member closely. The second check asked
+whether anything moved at all, and that frame cleared it at 3.509 against a 3.5 floor. Raising
+the floor to exclude it would be tuning a guard to the example it failed on.
+
+So the frame was rejected by looking at it, which is what `synthetic_data_protocol.md` §3a
+already concluded about `redact_people`: on this footage, a detector's approval is not a gate.
+**The honest procedure for this script is automatic checks followed by a human pass over a
+dozen thumbnails**, and that is cheap enough to be the procedure rather than an apology for one.
+
+Also fixed on the way: the first version built medians from `clipvenue_b_floodlit_track`,
+which is **locked final test set**. `derive_roi.py` refuses locked venues by name and this did
+not, until it had already produced two frames from one. It refuses them now.
