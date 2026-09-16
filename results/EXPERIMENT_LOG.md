@@ -5026,3 +5026,47 @@ five do not - so the decision boundary tightens around them and anything else fa
 **Caveat on the absolute numbers.** Both arms train on whole-frame features and are evaluated
 on ROI-pooled ones, which is the train/serve skew recorded above. It applies identically to
 both, so the comparison holds; the absolute false-play figures carry it.
+
+## Matching training features to serving: the tests disagree
+
+`uv run python experiments/rerun_on_distinct_scenes.py [--roi-pooled] --video CLIP`
+
+The boundary is now in the serving path (A14), so `classify_batch` pools inside it while every
+cached training feature is whole-frame. That skew is permanent in production unless the
+training cache is rebuilt ROI-pooled. Both, on three tests:
+
+| test | metric | whole-frame train | ROI-pooled train |
+|---|---|---|---|
+| H3 cross-venue, pruned | false-play on 243 recorded EMPTY | **0.6173** | 0.9994 |
+| H3 cross-venue, full | false-play | **0.7684** | 0.9759 |
+| venue_01 cam B, pruned | macro-F1 | 0.8420 | **0.9155** |
+| venue_01 cam B, full | macro-F1 | **0.9386** | 0.9367 |
+| unseen clip, pruned | false-play | **0.00** | **0.00** |
+| unseen clip, full | false-play | 0.31 | **0.23** |
+
+**In-domain and on the clip, matching helps or ties. On the cross-venue false-play control it
+is catastrophic** - 0.62 to 0.9994, a probe that calls essentially every unseen empty pitch a
+match.
+
+**The mechanism is worth stating because it is not obvious.** ROI pooling removes the
+surroundings, and the surroundings are how the probe recognised *venue_01's* empty pitch - the
+barrier, the dugout, the buildings. That recognition is memorisation, and masking it away is
+supposed to be the point. But the clip venues are all ACTIVE_PLAY and their turf looks like
+venue_01's turf, so once the backgrounds are gone the only thing left is a pitch, and a pitch
+in this training set is overwhelmingly a pitch in use. The boundary removes a shortcut the
+probe was relying on and the corpus has nothing to replace it with.
+
+**So the two measurements are not in conflict about the boundary; they disagree about what
+they are measuring.** The clip is unseen footage where memorisation cannot help, and there the
+boundary helps or ties. The H3 control is venue_01's second camera, where memorisation is
+exactly what was carrying the number, and there removing it hurts.
+
+**Left as it is, and recorded rather than resolved.** Production keeps whole-frame training and
+boundary-pooled serving - a real skew, now measured, costing 0.08 on the clip's `full` arm and
+nothing on its `pruned` arm. Rebuilding the cache would trade that for a cross-venue false-play
+of 0.9994 on the only recorded control that exists. Neither is defensible as an improvement,
+and choosing between them on this evidence would be choosing a test set.
+
+**What would settle it** is a recorded EMPTY frame at a venue that is not venue_01 - then
+false-play could be measured where memorisation is impossible *and* on recorded data. That is
+item 1 of `thesis/data_requests.md`, for the fifth time in this log.

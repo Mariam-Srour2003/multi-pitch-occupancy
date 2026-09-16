@@ -41,10 +41,14 @@ def main() -> int:
     ap.add_argument("--backbone", default="dinov2")
     ap.add_argument("--video", type=Path, default=None)
     ap.add_argument("--truth", default="")
+    ap.add_argument("--roi-pooled", action="store_true",
+                    help="fit on the ROI-pooled cache, matching what serving computes")
     args = ap.parse_args()
 
     every = read_manifest(DATASET / "manifest.csv")
-    cached = load_cache(args.backbone, CACHE)
+    print(f"training features: {'ROI-pooled' if args.roi_pooled else 'whole frame'}"
+          f"   (serving always pools inside the boundary)")
+    cached = load_cache(args.backbone, CACHE, roi_pooled=args.roi_pooled)
     feats = {f: v for f, v in zip(cached.files, cached.features)}
 
     def cam(r):

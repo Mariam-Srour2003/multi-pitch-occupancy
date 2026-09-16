@@ -1,7 +1,7 @@
 arm,balanced,false_play,macro_f1,n_train,of_those_on_person,play_recall,says_play,test
-full,0.1761,0.7684,,,,0.9444,,H3 cross-venue (7 folds)
-pruned,0.3827,0.6173,,,,1.0,,H3 cross-venue (7 folds)
-full,,0.0,0.9386,1196,,0.8849,,venue_01 camera B
-pruned,,0.0288,0.842,183,,0.7302,,venue_01 camera B
-full,,0.3077,,,2,,6,unseen clip
+full,0.0162,0.9759,,,,0.9921,,H3 cross-venue (7 folds)
+pruned,0.0006,0.9994,,,,1.0,,H3 cross-venue (7 folds)
+full,,0.0,0.9367,1196,,0.8813,,venue_01 camera B
+pruned,,0.0041,0.9155,183,,0.8453,,venue_01 camera B
+full,,0.2308,,,2,,5,unseen clip
 pruned,,0.0,,,2,,2,unseen clip
