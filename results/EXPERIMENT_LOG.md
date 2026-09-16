@@ -4938,3 +4938,44 @@ zero on frames with four visible people (`synthetic_data_protocol.md` §3a). The
 on the viewer is that detector, so it says nothing about whether anyone is there.
 
 - 2026-09-16 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
+
+## The motion rule on unseen footage: false-play 0.38 -> 0.15
+
+`uv run python experiments/motion_override_on_video.py VIDEO --truth 9,12,15`
+-> `results/motion_override_on_video.csv`
+
+`motion_feature_ablation` found the cue worthless, as a feature and as a rule, and measured
+that on venue_01 - where the model already scores 0.9386 and there is nothing to repair. The
+boundary looked equally worthless on that split and then halved false-play on unseen footage,
+so the motion result earned the same retest.
+
+**A transfer test, not a fit.** The threshold is chosen on venue_01's recorded EMPTY and PLAY
+frames at a 15-second gap, as the value maximising (recall - false-play) there, and applied to
+the video unchanged: **1.098**. Nothing about the video informs it. The video is sampled every
+15 seconds to match the gap the threshold was fitted at, because a cue compared against a
+threshold learned at another spacing is a different quantity.
+
+16 samples, boundary derived from the video, three with a person on the pitch (#9, #12, #15)
+by hand. The figures at #0, #13 and #14 are behind the goal, outside the boundary, and are not
+people on the pitch.
+
+| | false-play on the 13 empty frames |
+|---|---|
+| whole frame, no boundary | 0.74 (from the 10s run) |
+| boundary only | **5/13 = 0.38** |
+| **boundary + motion rule** | **2/13 = 0.15** |
+
+**The rule fixes three of the five remaining errors** - #2, #11 and #14, all of which sit just
+under the threshold at 1.02-1.07. The two it does not fix, #13 at 1.610 and #15 at 1.269, are
+genuinely moving frames: #15 has a person on the pitch and is arguably not an error at all.
+
+**So both cues work, and both were measured as useless.** Each was tested on venue_01 camera
+B, the only split the corpus offers with a real class mix, and that split cannot show either
+effect because the model does not fail on it. Two negative results in this log - ROI pooling
+at -0.0019 and the motion rule at -0.0159 - are not wrong, but they are answers to a question
+about a working model, and the operational question is about a failing one.
+
+**The corpus cannot produce this test.** It took a video from a venue with no labelled frames
+in the dataset. That is item 1 of `thesis/data_requests.md` from a fourth direction: without
+empty pitches at an unseen venue there is no split on which an intervention aimed at
+cross-venue failure can be seen to work.
