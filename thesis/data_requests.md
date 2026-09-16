@@ -26,6 +26,26 @@ active play only. That single fact is what most of this request is about.
 
 ## 1 · Empty pitches at any venue other than venue_01 ★
 
+> **Sharper as of 2026-09-17, and the reason changed.** This was originally about what the
+> model cannot *learn*. It is now also about what nothing can be *checked* against. Six
+> separate measurements this week ended at the same wall:
+>
+> | what was being measured | why it stalled |
+> |---|---|
+> | the false-play collapse when clip venues enter training | no empty pitch to measure it on but venue_01's |
+> | H3's cross-venue recall | its folds are 100% play, so false-play is unmeasurable |
+> | the motion gate's threshold | not calibrated across venues, and nothing to calibrate it on |
+> | ROI pooling, train against serve | the two tests disagree and only venue_01 can arbitrate |
+> | scene deduplication | its cost shows on venue_01 and its benefit only on borrowed footage |
+> | **the person count** | **100% recall at nine venues; false-play checkable at one** |
+>
+> The last is the sharpest. A pretrained detector counting people inside the boundary misses
+> **no frame of real play at any of nine venues**, which makes it the strongest component in
+> the system - and its error rate can be measured at exactly one site, because that is the
+> only site with an empty pitch on record.
+>
+> Twenty minutes of an unoccupied pitch at two other venues would settle all six.
+
 **The highest-value frames in this request, and the cheapest to produce.** An empty pitch
 needs no scheduling and no event — just a camera pointed at one for a few minutes, at two or
 three sites, in daylight and under floodlights.

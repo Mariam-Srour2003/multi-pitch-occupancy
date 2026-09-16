@@ -283,6 +283,24 @@ protocol cannot tell a colour histogram from a deep probe at all: on the 62 dist
 of that test set both score 1.0000. *Across* venues, emphatically yes - the trivial baselines
 collapse while the frozen features transfer.
 
+> **Qualified 2026-09-17 (A16), and the qualification is large.** "The trivial baselines
+> collapse" was measured against a clock rule and a colour histogram - baselines that look at
+> no image and at colour respectively. A third baseline was never tried: **counting people
+> inside the pitch boundary with a pretrained detector.** It does not collapse. It reaches
+> **100% play-recall across all nine clip venues, 396 frames, not one missed**, where the
+> backbone probe needs 62% false-play to reach the same recall; and at venue_01 it scores
+> balanced +0.9152 against the probe's +0.8849.
+>
+> So RQ7's answer splits in two. Against baselines that ignore the image content, deep
+> features earn their cost across venues. Against a **pretrained detector applied to the
+> right region**, they do not - on the evidence available, the detector is better at the part
+> of the task it covers, with no training and no venue memorisation.
+>
+> What the backbone still provides, and the detector does not: a verdict when the detector
+> fails or is unavailable, and a continuous confidence for the REVIEW band (RQ6). The system
+> keeps both, with the count as a gate rather than the classifier - see `A16` for why one
+> venue's empty pitches are not enough to promote it.
+
 > **Corrected 2026-09-08 (A12).** This row previously read *"colour histogram 0.686 vs
 > ConvNeXtV2 0.657"* and concluded the histogram *beat* the probe. Both numbers were
 > superseded by A8's estimand fix and the comparison reverses: ConvNeXtV2 leads by 0.026 at

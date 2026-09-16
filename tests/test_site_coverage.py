@@ -36,6 +36,11 @@ OUT_OF_SCOPE = {
     "error_taxonomy.csv": "WP4-T6: one row per misclassification, too granular for the export",
     "error_taxonomy_summary.csv": "WP4-T6: the per-protocol summary and its derived findings",
     "class_balancing.csv": "method: why class weighting stays on",
+    "person_count_clip_venues.csv": (
+        "Person counts at all nine clip venues, every frame ACTIVE_PLAY. Confirms the "
+        "rule does not miss play; cannot confirm it does not invent it, since no clip "
+        "venue has a recorded empty pitch."
+    ),
     "person_count_rule.csv": (
         "Per-frame person counts inside the boundary. The distribution is the result - "
         "a single row would hide that 1-4 people does not mean not-playing."

@@ -5217,3 +5217,52 @@ that needs a lone walker distinguished from a match still needs recorded footage
 
 **Cost.** About one second per frame on CPU at imgsz=1280. The system samples one frame per
 camera per minute, so this is affordable where a per-frame model would not be.
+
+## The person count transfers across every venue; the probe does not
+
+`results/person_count_clip_venues.csv`
+
+The count rule was measured at venue_01 and beat the probe there. The question that matters
+for this project is whether it holds anywhere else, since the probe's cross-venue false-play
+is 0.6173 even pruned. All 396 recorded clip-venue frames, every one ACTIVE_PLAY, counted
+inside each camera's derived boundary:
+
+| venue | n | median count | zero | >= 2 |
+|---|---|---|---|---|
+| clipvenue_a_blue_barrier | 168 | 9.5 | 0% | 99% |
+| clipvenue_b_floodlit_track | 78 | 9.0 | 0% | 100% |
+| clipvenue_c_teal_boards | 36 | 14.0 | 0% | 100% |
+| clipvenue_d_indoor_dome | 18 | 8.0 | 0% | 100% |
+| clipvenue_e_pink_boards | 18 | 14.0 | 0% | 100% |
+| clipvenue_f_outdoor_bldg | 12 | 8.0 | 0% | 100% |
+| clipvenue_g_netting | 30 | 9.0 | 0% | 100% |
+| clipvenue_h_teal_pitch | 18 | 11.0 | 0% | 100% |
+| clipvenue_i_outdoor_trees | 18 | 9.0 | 0% | 100% |
+| **all nine** | **396** | **10.0** | **0%** | **100%** |
+
+**Not one frame of real play at any venue was missed.** Indoor domes, floodlit night, teal
+boards, netting in front of the lens - the count holds through all of it, because a pretrained
+person detector has seen far more people in far more conditions than 290 scenes can teach a
+linear probe.
+
+**The comparison that matters:**
+
+| | cross-venue play-recall | false-play |
+|---|---|---|
+| probe, pruned to distinct scenes | 1.0000 (H3 folds) | **0.6173** |
+| probe, full training set | 0.9444 | 0.7684 |
+| **person count, `PLAY if >= 2`** | **1.0000** (9 venues) | **0.0453** at venue_01 |
+
+The probe reaches perfect cross-venue recall by calling 62% of unseen empty pitches a match.
+The count reaches the same recall while, on the only frames where false-play is measurable,
+being wrong 4.5% of the time.
+
+**What is still not measured, and it is the same gap.** False-play for the count rule can only
+be checked where recorded EMPTY frames exist, which is venue_01 and the one unseen clip. Nine
+venues confirm the rule does not *miss* play; none of them can confirm it does not *invent*
+it, because none of them has an empty pitch on record.
+
+**So the count is the strongest component in the system and the weakest evidenced.** It is
+wired in as a gate that can only turn ACTIVE_PLAY into EMPTY, which is the direction 396
+frames say is safe, and it is not promoted to the classifier on the strength of one venue's
+empty pitches.
