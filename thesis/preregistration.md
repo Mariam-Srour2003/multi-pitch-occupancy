@@ -567,3 +567,45 @@ the whole corpus, and no cue computed from two frames supplies it.
 the probe on frozen features and is unaffected. The boundary and the gate change what the
 deployed system answers, and their evidence is one clip at one venue - enough to adopt them in
 the product, not enough to claim a measured improvement to the model.
+
+---
+
+### 2026-09-16 — A15: the training side is pruned to one frame per scene
+
+**What changes.** `splits.distinct_rows` keeps one frame per distinct scene, and the training
+side of every experiment that fits a probe may use it. **Test sides are never pruned**, because
+deduplicating a test set changes what its number means.
+
+**Why.** Measured with a perceptual hash within (venue, class): the corpus is **1,881 frames
+and 290 scenes**. The EMPTY class is **525 frames and 28 scenes**, and the five recorded ones
+are one venue, two cameras, two days. Fitting on all of them tells the probe that those five
+backgrounds *are* what an empty pitch looks like, with the confidence a hundred observations
+would justify and five do not. Class weighting does not help: it balances EMPTY against PLAY by
+**count**, not by scene.
+
+**Every number that depends on the fit, full against pruned:**
+
+| test | metric | full | pruned |
+|---|---|---|---|
+| H3 cross-venue, 7 folds | play-recall | 0.9444 | **1.0000** |
+| H3 cross-venue, 7 folds | false-play on 243 recorded EMPTY | 0.7684 | **0.6173** |
+| H3 cross-venue, 7 folds | balanced | 0.1761 | **0.3827** |
+| venue_01 camera B | macro-F1 | **0.9386** | 0.8420 |
+| venue_01 camera B | false-play | **0.0000** | 0.0288 |
+| unseen clip, boundary + gate | false-play | 0.31 | **0.00** |
+
+**The one number that gets worse is the one measured on the repeated scenes.** venue_01 camera
+B is drawn from the same five EMPTY backgrounds the duplicates come from, so 0.9386 says how
+well the probe reproduces what it memorised. Cross-venue recall goes to 1.0000, cross-venue
+false-play falls by 0.15, and on unseen footage false-play reaches zero - while the pruned
+probe still says ACTIVE_PLAY twice in sixteen minutes, both times with a person on the pitch.
+It is not conservative, it is correct.
+
+**What this costs the thesis, said plainly.** Every figure quoted as "1,692 frames" is a
+sampling rate, not a sample. The honest description of this dataset is **290 scenes**, and the
+EMPTY class is **28**, of which 23 are generated. `effective_sample_audit` already reported
+this for evaluation; A15 is the same correction applied to the fit.
+
+**Scene ids are a sidecar**, `data/processed/scene_ids.csv`, not a manifest column:
+`build_manifest` regenerates the manifest from filenames on disk and would drop the 189
+generated rows that `ingest_synthetic.py` wrote into it.

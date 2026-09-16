@@ -67,6 +67,9 @@ __all__ = [
     "check_split", "split_identity",
     "LEGACY_GROUP_KEY",
     "SYNTHETIC_SOURCE",
+    "SCENE_IDS",
+    "scene_ids",
+    "distinct_rows",
     "DEFAULT_SPLIT_DIR",
     "write_split",
     "read_split",
@@ -93,6 +96,60 @@ LEGACY_GROUP_KEY = "<from file - not recorded>"
 #: :func:`check_split` enforces this, because a convention that is only written down is the
 #: defect class this repository keeps finding - a guard that exists and does not operate.
 SYNTHETIC_SOURCE = "synthetic"
+
+#: Written by `scripts/assign_scene_ids.py`. One row per frame: which scene it belongs to.
+SCENE_IDS = RESULTS_DIR.parent / "data" / "processed" / "scene_ids.csv"
+
+
+def scene_ids(path: Path | None = None) -> dict[str, str]:
+    """``{file: scene_id}``, or empty if the sidecar has not been written.
+
+    Empty rather than raising, because every caller treats a missing mapping as "no scenes
+    known" and falls back to using every frame - which is the behaviour the project had
+    before scenes existed. A caller that needs it to exist should say so; `distinct_rows`
+    does.
+    """
+    path = path or SCENE_IDS
+    if not path.exists():
+        return {}
+    with path.open(newline="", encoding="utf-8") as fh:
+        return {r["file"]: r["scene_id"] for r in csv.DictReader(fh)}
+
+
+def distinct_rows(rows: list[ManifestRow], *, path: Path | None = None) -> list[ManifestRow]:
+    """One frame per scene, in the order given.
+
+    **This is a training-side tool and belongs nowhere near a test set.** Pruning a test set
+    to distinct scenes would change what a reported number means - `effective_sample_audit`
+    already reports the distinct count *beside* the full one for that reason, rather than
+    replacing it.
+
+    The corpus is 1,881 frames and 290 scenes. On the EMPTY class it is 525 and 28, and the
+    five recorded ones are one venue over two days. Fitting on all of them tells the probe
+    that those backgrounds are what an empty pitch looks like with a confidence the evidence
+    does not carry: refitting on one frame per scene took false-play on unseen footage from
+    0.31 to 0.00, against a cost of 0.10 macro-F1 on a test set drawn from the same repeated
+    scenes.
+
+    Raises if the sidecar is missing, because silently returning every frame would mean an
+    experiment reporting itself as deduplicated while training on 1,881 near-copies.
+    """
+    mapping = scene_ids(path)
+    if not mapping:
+        raise FileNotFoundError(
+            f"no scene ids at {path or SCENE_IDS}; run scripts/assign_scene_ids.py"
+        )
+    seen: set[str] = set()
+    out: list[ManifestRow] = []
+    for r in rows:
+        scene = mapping.get(r.file)
+        if scene is None:  # a frame the sidecar does not know; keep it rather than drop it
+            out.append(r)
+            continue
+        if scene not in seen:
+            seen.add(scene)
+            out.append(r)
+    return out
 
 
 def _training_only(rows: list[ManifestRow], include_synthetic: bool) -> list[ManifestRow]:

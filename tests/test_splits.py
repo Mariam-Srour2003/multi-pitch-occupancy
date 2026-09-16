@@ -612,3 +612,53 @@ def test_opting_generated_frames_in_does_not_move_the_test_side() -> None:
     without = grouped_split(real + syn, seed=42)
     with_gen = grouped_split(real + syn, seed=42, include_synthetic=True)
     assert [r.file for r in with_gen.test] == [r.file for r in without.test]
+
+
+# --- scenes: one frame per distinct scene on the training side (A15) --------------------
+
+
+def test_distinct_rows_keeps_one_frame_per_scene(tmp_path):
+    """The corpus is 1,881 frames and 290 scenes; the EMPTY class is 525 and 28."""
+    import csv as _csv
+
+    from pitch_occupancy.data.splits import distinct_rows
+
+    rows = [row(f"f{i}.jpg") for i in range(6)]
+    p = tmp_path / "scene_ids.csv"
+    with p.open("w", newline="", encoding="utf-8") as fh:
+        w = _csv.DictWriter(fh, fieldnames=["file", "scene_id"])
+        w.writeheader()
+        # three scenes: two frames, three frames, one frame
+        for f, s in zip([r.file for r in rows],
+                        ["s1", "s1", "s2", "s2", "s2", "s3"]):
+            w.writerow({"file": f, "scene_id": s})
+
+    kept = distinct_rows(rows, path=p)
+    assert [r.file for r in kept] == ["f0.jpg", "f2.jpg", "f5.jpg"]
+
+
+def test_distinct_rows_refuses_to_run_without_the_sidecar(tmp_path):
+    """Silently returning every frame would mean an experiment reporting itself as
+    deduplicated while fitting on 1,881 near-copies - the failure this exists to prevent."""
+    import pytest as _pytest
+
+    from pitch_occupancy.data.splits import distinct_rows
+
+    with _pytest.raises(FileNotFoundError):
+        distinct_rows([row("f0.jpg")], path=tmp_path / "absent.csv")
+
+
+def test_a_frame_the_sidecar_does_not_know_is_kept_not_dropped(tmp_path):
+    """A new frame ingested before the ids were regenerated must not vanish from training."""
+    import csv as _csv
+
+    from pitch_occupancy.data.splits import distinct_rows
+
+    rows = [row("known.jpg"), row("brand_new.jpg")]
+    p = tmp_path / "scene_ids.csv"
+    with p.open("w", newline="", encoding="utf-8") as fh:
+        w = _csv.DictWriter(fh, fieldnames=["file", "scene_id"])
+        w.writeheader()
+        w.writerow({"file": "known.jpg", "scene_id": "s1"})
+
+    assert [r.file for r in distinct_rows(rows, path=p)] == ["known.jpg", "brand_new.jpg"]
