@@ -41,6 +41,11 @@ OUT_OF_SCOPE = {
         "rule does not miss play; cannot confirm it does not invent it, since no clip "
         "venue has a recorded empty pitch."
     ),
+    "ball_detection_rule.csv": (
+        "A17: per-frame ball detections inside the boundary. The venue_01 row alone would "
+        "read as the best signal in the project (+0.967); the cross-venue row, where a ball "
+        "is found in 40% of genuine play frames, is what says it cannot be a rule."
+    ),
     "person_count_rule.csv": (
         "Per-frame person counts inside the boundary. The distribution is the result - "
         "a single row would hide that 1-4 people does not mean not-playing."

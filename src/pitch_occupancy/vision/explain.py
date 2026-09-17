@@ -38,6 +38,7 @@ import numpy as np
 
 __all__ = [
     "ExplainedFrame",
+    "detect_objects",
     "detect_people",
     "evidence_on_people",
     "class_evidence_map",
@@ -285,6 +286,46 @@ def attention_rollout(model, processor, image_bgr: np.ndarray, *,
     return mass.reshape(side, side)
 
 
+def detect_objects(image_bgr: np.ndarray, *, confidence: float = 0.25,
+                   model_name: str = "yolov8n.pt", imgsz: int | None = None,
+                   classes: Sequence[int] = (0,),
+                   ) -> list[tuple[int, tuple[int, int, int, int], float]] | None:
+    """``(class_id, box, confidence)`` per detection, or ``None`` if unavailable.
+
+    The general form of :func:`detect_people`, added so a caller that wants people *and* the
+    ball gets both from one forward pass. Two calls would double the second-per-frame the
+    detector costs, and the ball measurement (A17) is only affordable because it is free -
+    the detector was already running for the person count.
+    """
+    try:
+        from ultralytics import YOLO
+    except ImportError:  # pragma: no cover - dependency is pinned
+        return None
+
+    try:
+        detector = YOLO(model_name)
+        kwargs = {"verbose": False, "conf": confidence, "classes": list(classes)}
+        if imgsz is not None:
+            kwargs["imgsz"] = imgsz
+        results = detector.predict(image_bgr, **kwargs)
+    except Exception:  # noqa: BLE001 - any failure here must fail closed, not open
+        return None
+
+    height, width = image_bgr.shape[:2]
+    out = []
+    for result in results:
+        boxes = result.boxes
+        raw = boxes.xyxy.cpu().numpy().astype(int)
+        cls = boxes.cls.cpu().numpy().astype(int)
+        conf = boxes.conf.cpu().numpy()
+        for (x1, y1, x2, y2), c, p in zip(raw, cls, conf, strict=True):
+            x1, y1 = max(int(x1), 0), max(int(y1), 0)
+            x2, y2 = min(int(x2), width), min(int(y2), height)
+            if x2 > x1 and y2 > y1:
+                out.append((int(c), (x1, y1, x2, y2), float(p)))
+    return out
+
+
 def detect_people(image_bgr: np.ndarray, *, confidence: float = 0.25,
                   model_name: str = "yolov8n.pt",
                   imgsz: int | None = None) -> list[tuple[int, int, int, int]] | None:
@@ -300,30 +341,11 @@ def detect_people(image_bgr: np.ndarray, *, confidence: float = 0.25,
     frames with people in them. `vision/people.py` passes 1280 and the counts there separate
     the classes.
     """
-    try:
-        from ultralytics import YOLO
-    except ImportError:  # pragma: no cover - dependency is pinned
+    found = detect_objects(image_bgr, confidence=confidence, model_name=model_name,
+                           imgsz=imgsz, classes=(0,))
+    if found is None:
         return None
-
-    try:
-        detector = YOLO(model_name)
-        kwargs = {"verbose": False, "conf": confidence, "classes": [0]}
-        if imgsz is not None:
-            kwargs["imgsz"] = imgsz
-        results = detector.predict(image_bgr, **kwargs)
-    except Exception:  # noqa: BLE001 - any failure here must fail closed, not open
-        return None
-
-    height, width = image_bgr.shape[:2]
-    boxes = []
-    for result in results:
-        for raw in result.boxes.xyxy.cpu().numpy().astype(int):
-            x1, y1, x2, y2 = raw
-            x1, y1 = max(int(x1), 0), max(int(y1), 0)
-            x2, y2 = min(int(x2), width), min(int(y2), height)
-            if x2 > x1 and y2 > y1:
-                boxes.append((x1, y1, x2, y2))
-    return boxes
+    return [box for _cls, box, _conf in found]
 
 
 def redact_people(image_bgr: np.ndarray, *, blocks: int = 16, confidence: float = 0.25,

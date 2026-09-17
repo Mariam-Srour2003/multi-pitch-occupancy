@@ -5306,3 +5306,85 @@ as twelve indistinguishable rows, and a results file you cannot attribute to a r
 nothing.
 
 - 2026-09-17 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
+
+## The ball is the strongest signal at venue_01 and the weakest anywhere else (A17)
+
+`experiments/ball_detection_rule.py`, `results/ball_detection_rule.csv`
+
+The third part of the requested rule - "detect if there is a ball, it may help to know" - and
+the only part not yet measured. It matters because it is exactly the evidence the second part
+lacked: the person count cannot carry C3, since a third of genuine ACTIVE_PLAY frames show
+four or fewer people inside the boundary, and *four people with a ball* is a kickabout where
+*four people without one* is not.
+
+COCO's `sports ball`, yolov8n at imgsz=1280, confidence 0.10, counted inside each camera's
+derived boundary by the box centre rather than the foot point - a ball spends much of its time
+in the air and has no feet to stand on.
+
+**At venue_01 camera B it is the best number this project has produced:**
+
+| class | n | a ball was found |
+|---|---|---|
+| C1_EMPTY | 243 | **3%** |
+| C2_ACTIVE_PLAY | 278 | **100%** |
+
+Recall 1.000 against false-play 0.033, balanced **+0.967** - above the person count's +0.9152
+and the probe's +0.8849. On the frames the count cannot separate, the 1-4 people band, it is
+100% against 11%.
+
+**It does not survive leaving the venue.** All 396 recorded clip-venue frames, every one
+genuine ACTIVE_PLAY:
+
+| venue | n | ball found |
+|---|---|---|
+| clipvenue_a_blue_barrier | 168 | 35% |
+| clipvenue_b_floodlit_track | 78 | 46% |
+| clipvenue_c_teal_boards | 36 | 86% |
+| clipvenue_d_indoor_dome | 18 | 22% |
+| clipvenue_e_pink_boards | 18 | 89% |
+| clipvenue_f_outdoor_bldg | 12 | 17% |
+| clipvenue_g_netting | 30 | 30% |
+| clipvenue_h_teal_pitch | 18 | 17% |
+| clipvenue_i_outdoor_trees | 18 | 6% |
+| **all nine** | **396** | **40%** |
+
+The person count found people in **100%** of those same frames. So on 60% of real play at an
+unseen venue there is no ball to find, and **the absence of a ball is not evidence of the
+absence of play** - which is precisely the direction the C3 rule would have needed.
+
+**Why the venue_01 figure is not the answer.** 278 frames, **13 distinct scenes**, and a
+sample of 70 of them landed 69 times in one. The 243 EMPTY frames are 3 scenes. A perfect
+score over 13 scenes at one site is what this corpus produces for almost everything; the nine
+venues are the only measurement in the pair that is not about venue_01.
+
+**Two checks before believing the detections at all**, because a +0.967 in this project has
+been a confound before:
+
+- **It moves.** Within the dominant scene the detected ball's centre has a standard deviation
+  of 0.10 of frame width and 0.06 of frame height, ranging across most of the pitch. A light
+  fitting or a bin would sit still.
+- **It is the right size.** Median box area 404 px on play frames, p10-p90 of 347-536, and 435
+  px at the clip venues - about 20x20 pixels, which is what a football is on a 1080p frame at
+  that distance. Nothing head-sized or bag-sized is being counted.
+
+**Lowering the threshold is what buys the recall, and it is spent entirely on venue_01.**
+Sweeping the ball confidence at venue_01: 1.000/0.033 at 0.10, 0.878/0.016 at 0.20, 0.788/0.004
+at 0.25, 0.392/0.000 at 0.40. There is no setting that makes the cross-venue 40% respectable.
+
+**What was wired in, and what was not.** `vision/people.py` now takes people and ball from a
+single detector pass - `detect_objects` in `explain.py` generalises `detect_people`, so the
+ball costs nothing, the detector was already running. `PersonGate.inspect` returns both, and
+`SlotRun` carries `people_counts` and `ball_minutes` out to the caller. The ball **decides
+nothing**: a frame with nobody and a ball inside the boundary is still overruled to EMPTY, and
+a test asserts that `inspect` never reads the ball when deciding. A detection at 0.10
+confidence is entitled to be recorded and not to be obeyed.
+
+**On the unseen clip the system is unchanged** - 0/13 false-play, ACTIVE_PLAY only on person
+minutes - and no ball was found on any minute, including the two minutes with a person walking
+across the pitch. That is the correct answer on that footage and it is also the one the
+cross-venue table says not to rely on.
+
+**What would change this.** Not a lower threshold: a detector trained on footballs at CCTV
+scale, or a tracker that accumulates a ball across the ten frames of a minute instead of
+deciding from one. Both are outside a frozen-backbone CPU system, and both are the honest
+recommendation for the class this corpus cannot separate.

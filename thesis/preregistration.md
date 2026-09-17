@@ -667,3 +667,54 @@ harder problem than a person standing on a pitch.
 **Cost.** About a second per frame on CPU, and the detector runs only when the verdict is
 ACTIVE_PLAY, since that is the only verdict this gate can change. At one frame per camera per
 minute that is affordable.
+
+---
+
+### 2026-09-17 — A17: the ball is detected and recorded, and is not allowed to decide
+
+**What changes.** `vision/people.detect_inside` returns people *and* ball from a single
+detector pass; `PersonGate.inspect` returns both; `SlotRun` carries `people_counts` and
+`ball_minutes` to the caller. `explain.detect_objects` generalises `detect_people` so the two
+classes come out of one forward pass, which is why the ball costs nothing. **No verdict
+changes.** The gate's rule is unchanged - nobody inside the boundary overrules ACTIVE_PLAY -
+and a frame with a ball and no people is still overruled.
+
+**Why it was measured.** It is the third part of the rule the supervisor asked for, and the
+missing half of the second: the person count cannot carry C3 because 32% of genuine
+ACTIVE_PLAY frames show four or fewer people (A16), and *four people with a ball* is a
+kickabout where *four without* is not.
+
+**The venue_01 evidence, which is the best in the project and is not the answer.** 521
+recorded frames, camera B, COCO `sports ball` at confidence 0.10 inside the boundary:
+
+| | recall | false-play | balanced |
+|---|---|---|---|
+| **ball found inside the boundary** | **1.000** | **0.033** | **+0.967** |
+| person count, `PLAY if >= 2` | 0.9604 | 0.0453 | +0.9152 |
+| probe, full training set | 0.8849 | 0.0000 | +0.8849 |
+
+**The cross-venue evidence, which is.** All 396 recorded clip-venue frames, every one genuine
+ACTIVE_PLAY: a ball is found in **40%**, by venue from 6% to 89%. The person count finds people
+in **100%** of the same frames. On 60% of real play at an unseen site there is no ball to find,
+so **the absence of a ball is not evidence of the absence of play** - exactly the direction a
+C3 rule would have to lean on.
+
+**Why the 1.000 is not believed.** 278 frames carrying **13 distinct scenes**, against 3 for
+the EMPTY side; a sample of 70 landed 69 times in one scene. Perfect separation over 13 scenes
+at one site is what this corpus produces for almost everything it is asked.
+
+**The detections themselves were checked, not assumed.** Within the dominant scene the ball's
+centre has sd 0.10 of frame width and 0.06 of frame height and ranges across most of the
+pitch, so it is not a fixture; median box area is 404 px (p10-p90 347-536) at venue_01 and 435
+px at the clip venues, which is a football at that distance and not a head or a bag.
+
+**Threshold.** `BALL_CONFIDENCE = 0.10`, below the person threshold of 0.25 and deliberately
+so: a football is ~400 px and the detector is unsure of it. That is affordable *only because
+the ball decides nothing* - a false ball is a wrong note in the record where a false person
+would be a wrong verdict. A test asserts `inspect` never reads the ball when deciding, so if
+the ball is ever promoted, the promotion has to argue with the threshold first.
+
+**Risk this amendment accepts.** A recorded signal that looks decisive at one venue invites a
+later reader - or a later me - to promote it. The log, this entry and the test each say the
+same thing in a different place, which is the only protection available against a number that
+reads as +0.967.

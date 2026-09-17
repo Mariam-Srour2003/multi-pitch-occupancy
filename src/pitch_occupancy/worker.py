@@ -73,6 +73,16 @@ class SlotRun:
     minutes_missed: int
     conditions: SlotConditions | None = None
     transitions: tuple[Transition, ...] = ()
+    #: What the gates saw, per minute they ran. These were accumulated inside the loop and
+    #: then dropped on the floor, which made "the count is recorded" a claim about a local
+    #: variable. They are cheap - one float and one int per minute - and they are the only
+    #: trace of *why* a verdict was overruled, which is the first thing an operator disputing
+    #: one will ask.
+    motion_cues: tuple[float, ...] = ()
+    people_counts: tuple[int, ...] = ()
+    #: Minutes where a ball was seen inside the boundary. Evidence, not a rule: a ball is
+    #: found in 40% of genuine play frames at unseen venues, so its absence means nothing.
+    ball_minutes: tuple[int, ...] = ()
 
     @property
     def capture_rate(self) -> float:
@@ -166,6 +176,11 @@ def run_slot(
     previous: dict[str, object] = {}
     motion_seen: list[float] = []
     people_seen: list[int] = []
+    # Minutes where a ball was seen inside the boundary. Recorded, never consulted: across
+    # nine unseen venues a ball is found in 40% of genuine play frames against the person
+    # count's 100%, so its absence carries no information and a rule using it would be a rule
+    # about venue_01. See `vision/people.py` (A17).
+    ball_minutes: list[int] = []
 
     for minute in range(source.n_minutes):
         observations: dict[str, tuple[Class3, float]] = {}
@@ -198,12 +213,14 @@ def run_slot(
             # the answer. Both only ever turn ACTIVE_PLAY into EMPTY, so the order changes
             # cost and not the verdict.
             if person_gate is not None:
-                state, count = person_gate.apply(
+                state, counted = person_gate.inspect(
                     state, frame.image_bgr,
                     polygon_for(camera) if polygon_for is not None else None,
                 )
-                if count is not None:
-                    people_seen.append(count)
+                if counted is not None:
+                    people_seen.append(counted.people)
+                    if counted.ball:
+                        ball_minutes.append(minute)
 
             previous[camera] = frame.image_bgr
 
@@ -286,6 +303,9 @@ def run_slot(
         transitions=tuple(
             find_transitions(fused_states, minutes=[r[0] for r in evidence_rows])
         ),
+        motion_cues=tuple(motion_seen),
+        people_counts=tuple(people_seen),
+        ball_minutes=tuple(ball_minutes),
     )
 
 

@@ -540,7 +540,8 @@ def test_the_person_gate_overrules_play_when_nobody_is_on_the_pitch(monkeypatch)
     from pitch_occupancy.data.taxonomy import Class3
     from pitch_occupancy.vision import people
 
-    monkeypatch.setattr(people, "count_inside", lambda *_a, **_k: 0)
+    monkeypatch.setattr(people, "detect_inside",
+                        lambda *_a, **_k: people.Counted(people=0, ball=False))
     state, count = people.PersonGate().apply(Class3.ACTIVE_PLAY, _blank())
     assert state is Class3.EMPTY
     assert count == 0
@@ -551,7 +552,8 @@ def test_the_person_gate_never_turns_empty_into_play(monkeypatch):
     from pitch_occupancy.data.taxonomy import Class3
     from pitch_occupancy.vision import people
 
-    monkeypatch.setattr(people, "count_inside", lambda *_a, **_k: 7)
+    monkeypatch.setattr(people, "detect_inside",
+                        lambda *_a, **_k: people.Counted(people=7, ball=True))
     state, count = people.PersonGate().apply(Class3.EMPTY, _blank())
     assert state is Class3.EMPTY
     # The detector is not even run for a verdict the gate cannot change.
@@ -564,7 +566,7 @@ def test_an_unavailable_detector_leaves_the_verdict_alone(monkeypatch):
     from pitch_occupancy.data.taxonomy import Class3
     from pitch_occupancy.vision import people
 
-    monkeypatch.setattr(people, "count_inside", lambda *_a, **_k: None)
+    monkeypatch.setattr(people, "detect_inside", lambda *_a, **_k: None)
     state, count = people.PersonGate().apply(Class3.ACTIVE_PLAY, _blank())
     assert state is Class3.ACTIVE_PLAY
     assert count is None
@@ -580,11 +582,68 @@ def test_count_inside_uses_the_foot_of_the_box_not_its_centre(monkeypatch):
     bottom_half = [[0.0, 0.5], [1.0, 0.5], [1.0, 1.0], [0.0, 1.0]]
     frame = np.zeros((100, 100, 3), np.uint8)
     # A box whose centre is at y=50 (inside) but whose feet are at y=40 (outside).
-    monkeypatch.setattr(explain, "detect_people", lambda *_a, **_k: [(10, 20, 30, 40)])
+    monkeypatch.setattr(explain, "detect_objects",
+                        lambda *_a, **_k: [(0, (10, 20, 30, 40), 0.9)])
     assert people.count_inside(frame, bottom_half) == 0
     # Feet at y=80, inside.
-    monkeypatch.setattr(explain, "detect_people", lambda *_a, **_k: [(10, 60, 30, 80)])
+    monkeypatch.setattr(explain, "detect_objects",
+                        lambda *_a, **_k: [(0, (10, 60, 30, 80), 0.9)])
     assert people.count_inside(frame, bottom_half) == 1
+
+
+def test_a_ball_is_placed_by_its_centre_and_a_person_by_their_feet(monkeypatch):
+    """The two objects are located differently on purpose (A17).
+
+    A player at the touchline stands outside the pitch while their box straddles the line, so
+    the foot point decides. A ball crossing the same line is genuinely over it while it is in
+    the air, and has no feet; its centre decides. Using the foot of a ball box would put every
+    airborne ball a diameter further down the pitch than it is.
+    """
+    import numpy as np
+
+    from pitch_occupancy.vision import explain, people
+
+    bottom_half = [[0.0, 0.5], [1.0, 0.5], [1.0, 1.0], [0.0, 1.0]]
+    frame = np.zeros((100, 100, 3), np.uint8)
+    # One box, y from 20 to 60: centre at y=40 (outside), foot at y=60 (inside).
+    monkeypatch.setattr(explain, "detect_objects",
+                        lambda *_a, **_k: [(32, (10, 20, 30, 60), 0.5)])
+    assert people.detect_inside(frame, bottom_half).ball is False
+    # y from 60 to 90: centre at y=75, inside.
+    monkeypatch.setattr(explain, "detect_objects",
+                        lambda *_a, **_k: [(32, (10, 60, 30, 90), 0.5)])
+    assert people.detect_inside(frame, bottom_half).ball is True
+
+
+def test_a_ball_never_stops_the_gate_overruling_an_empty_pitch(monkeypatch):
+    """8 of venue_01's 243 recorded EMPTY frames have a ball inside the boundary. A ball lying
+    on an empty pitch is a ball lying on an empty pitch, so it must not veto the overrule."""
+    from pitch_occupancy.data.taxonomy import Class3
+    from pitch_occupancy.vision import people
+
+    monkeypatch.setattr(people, "detect_inside",
+                        lambda *_a, **_k: people.Counted(people=0, ball=True,
+                                                         ball_confidence=0.9))
+    state, counted = people.PersonGate().inspect(Class3.ACTIVE_PLAY, _blank())
+    assert state is Class3.EMPTY
+    assert counted.ball is True
+
+
+def test_the_ball_is_below_the_person_threshold_and_that_is_deliberate():
+    """A football is about 400 square pixels on these frames and the detector is unsure of it.
+    The lower threshold is affordable only because the ball decides nothing: a false ball is a
+    wrong note in the record where a false person would be a wrong verdict. If the ball ever
+    gains a say in the verdict, this test should be the thing that objects."""
+    import pathlib
+
+    from pitch_occupancy.vision import people
+
+    assert people.BALL_CONFIDENCE < people.DETECT_CONFIDENCE
+    src = pathlib.Path(people.__file__).read_text(encoding="utf-8")
+    body = src[src.index("def inspect"):]
+    assert "counted.ball" not in body.split("def apply")[0], (
+        "inspect() reads the ball when deciding; at 0.10 confidence it is not entitled to"
+    )
 
 
 def test_run_slot_applies_the_person_gate():
@@ -593,8 +652,8 @@ def test_run_slot_applies_the_person_gate():
     from pitch_occupancy.worker import run_slot
 
     class AlwaysEmpty:
-        def apply(self, state, image_bgr, polygon=None):
-            return Class3.EMPTY, 0
+        def inspect(self, state, image_bgr, polygon=None):
+            return Class3.EMPTY, people.Counted(people=0, ball=True, ball_confidence=0.4)
 
     def classify(image, *, polygon=None):
         return Class3.ACTIVE_PLAY, 0.99
@@ -603,3 +662,9 @@ def test_run_slot_applies_the_person_gate():
                    person_gate=AlwaysEmpty())
     assert all(s.predicted == Class3.EMPTY.value for s in run.samples), \
         [s.predicted for s in run.samples]
+    # What the gate saw reaches the caller. It used to be appended to a local list
+    # and then discarded, so nothing downstream could say why a minute was
+    # overruled.
+    assert run.people_counts == (0, 0, 0)
+    assert run.ball_minutes == (0, 1, 2)
+

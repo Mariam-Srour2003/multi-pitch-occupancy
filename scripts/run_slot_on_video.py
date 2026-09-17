@@ -123,6 +123,16 @@ def main() -> int:
 
     empt = [m for m, _ in enumerate(seen) if m not in person]
     fp = [m for m, t in wrong if t == "empty"]
+    # What the gates saw, not just what they decided. A minute overruled to EMPTY and a
+    # minute that was EMPTY all along look identical in the column above, and the count
+    # is the difference between them.
+    if run.people_counts:
+        print(f"\npeople inside the boundary, per minute the detector ran: "
+              f"{list(run.people_counts)}")
+    if run.ball_minutes:
+        print(f"a ball was seen inside the boundary on minutes {list(run.ball_minutes)}"
+              f" - recorded as evidence; it decides nothing, see vision/people.py")
+
     print(f"\nverdict: {run.verdict.state.name if hasattr(run.verdict, 'state') else run.verdict}")
     print(f"false-play on the {len(empt)} empty minutes: {len(fp)}/{len(empt)} "
           f"= {len(fp) / len(empt):.2f}   minutes {fp}")
