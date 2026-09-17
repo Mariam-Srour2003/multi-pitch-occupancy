@@ -940,3 +940,32 @@ empty pitch* from *recognises daylight*.
 **Risk this amendment accepts.** A reader may take "the clock rule beats the backbones" as a
 result about backbones. It is a result about this dataset, and every place the figure appears
 now carries that sentence.
+
+---
+
+### 2026-09-17 — A27: what the locked final test set can and cannot answer, disclosed before it is opened
+
+**What changes.** Nothing in code or data. A disclosure, made while the set is still sealed,
+because the alternative is making it after a number exists.
+
+**Composition**, readable from the manifest without opening the set: **114 frames, two venues,
+19 clips, and one class** - C2_ACTIVE_PLAY throughout, night lighting throughout, no EMPTY, no
+C3, no daylight.
+
+**It can measure play-recall at two unseen venues, and nothing else.** Not false-play, not
+precision, not macro-F1, not the EMPTY or C3 classes, not any lighting comparison, not RQ6's
+operating point. **A model answering ACTIVE_PLAY unconditionally scores 1.000 on it**, and A25
+showed that is not hypothetical - the clock rule does exactly that.
+
+**The commitment this amendment makes.** When the set is opened, its result is reported as a
+held-out confirmation of play-recall at two venues and never as an accuracy or a headline. A
+single-class test set flatters every model, and the disclaimer is registered here, before the
+figure exists, so it cannot be read as a response to whatever the figure turns out to be.
+
+**What would make it a real test.** Recorded EMPTY frames from
+`clipvenue_b_floodlit_track` or `clipvenue_c_teal_boards` specifically. Any other venue is
+development data and cannot join a locked set afterwards.
+
+**Risk this amendment accepts.** Spending the set as described buys little. The alternative -
+unlocking it to rebalance - would destroy the only untouched evaluation this project has, and
+is worse.

@@ -6062,3 +6062,46 @@ its name was the mistake in miniature: the brightness *was* measured, and the co
 from it was assumed. It is now `test_extraction_does_not_guess_the_lighting`, and it still
 checks that the bright fixture reads brighter than the dark one - measuring was never what went
 wrong.
+
+## The locked final test set cannot answer the question it was locked for (A27)
+
+`results/splits/FINAL_TESTSET_venues.csv`, `data/splits.final_test_rows`
+
+The final test set has never been opened - `final_test_rows` still refuses without
+`i_have_finished_all_development=True`, and no experiment has passed it. That guard has worked
+all project. This entry is about what is *inside* it, which is readable from the manifest
+without spending it, and which should be known before anyone does.
+
+**Two venues, 114 frames, 19 clips - and one class.**
+
+| | |
+|---|---|
+| frames | 114 |
+| classes | **C2_ACTIVE_PLAY: 114.** No EMPTY. No C3. |
+| lighting | **night: 114.** No daylight. |
+| venues | clipvenue_b_floodlit_track (78), clipvenue_c_teal_boards (36) |
+
+**What it can measure.** Play-recall at two unseen venues. That is the whole list.
+
+**What it cannot measure, and what the thesis asks.** False-play, precision, macro-F1, accuracy,
+the EMPTY class, the C3 class, any day-versus-night comparison, and the operating point RQ6
+reports. **A model that answers ACTIVE_PLAY unconditionally scores 1.000 on it** - and A25
+established that this is not hypothetical, since the clock rule does exactly that and would
+score a perfect 1.000 here too.
+
+**So spending it buys a confirmation, not an answer**, and the confirmation is of the one thing
+already least in doubt: cross-venue play-recall is 0.93 for DINOv2 over seven development
+venues, and the count rule finds people in 100% of 396 clip-venue frames. Nothing in this
+project suggests two more venues would disagree.
+
+**The recommendation, and it is a supervisor's decision.** Spend it once, at the end, reported
+as what it is - a held-out confirmation of play-recall at two venues - and never as a headline
+accuracy. The pre-registration should say so *before* the number exists, because a single-class
+test set produces a flattering figure for any model and the time to disclaim it is now.
+
+**What would make it a real test** is the same two cells A25 named: **an empty pitch at night**
+and **play in daylight**. Two hours of a locked venue's footage with nobody on the pitch would
+turn 114 single-class frames into a final test set that could refute something. It is the same
+request as always, now with a specific address - it must be footage from
+`clipvenue_b_floodlit_track` or `clipvenue_c_teal_boards`, because any other venue is
+development data and cannot be added to a locked set after the fact.
