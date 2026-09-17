@@ -6469,3 +6469,70 @@ next one is how it recurs.
 `reproduce_all` by path under the bare name; `import experiments.reproduce_all` gives a second
 module object that the fixture has not patched. The test passed alone and failed in the suite,
 which is the signature of exactly that.
+
+## The review page was running the probe alone, and had been since A14 (A35)
+
+`src/pitch_occupancy/clip_analysis.py`, `src/pitch_occupancy/api/clip_review.py`
+
+Reported from use: the clip review page returned **24 of 24 ACTIVE_PLAY at confidence 1.000**
+on the 234-second clip of a floodlit pitch with nobody playing - the same footage
+`scripts/run_slot_on_video.py` had been getting right all week. Two paths, one model, opposite
+answers.
+
+**Both halves of the cause, and the second is the one that mattered.**
+
+`api/clip_review.py` applied a boundary only when the request named a camera *and* the store
+held an outline for it. An uploaded clip names no camera, so `polygon` was `None` and the
+branch was skipped - the probe scored the neighbouring pitch, the walkway and the car park as
+if they were this pitch. And `analyse_clip` never had the gates at all: it takes a
+`classify(frame)` callable and applies majority smoothing, which is all it has done since it
+was written. `worker.run_slot` gained the boundary and both gates in A14-A22 and this path
+gained none of them, so the page has been showing the probe alone for four amendments.
+
+**The diagnosis was settled by a report from use, not by the code.** The observation that a
+*still* from the empty part classifies EMPTY while the video says ACTIVE_PLAY ruled out the
+model and the preprocessing at once, and pointed at whatever the two paths do differently.
+Sequential reads and timestamp seeks were checked against each other first, because
+`analyse_clip` seeks by `CAP_PROP_POS_MSEC` where every experiment here reads sequentially, and
+a seek that returns the wrong frame would look exactly like this. It does not:
+
+| t | whole frame | inside the boundary |
+|---|---|---|
+| 60 s | **ACTIVE_PLAY 0.99** | EMPTY 0.97 |
+| 120 s | EMPTY 0.72 | EMPTY 0.92 |
+| 200 s | **ACTIVE_PLAY 0.96** | EMPTY 1.00 |
+
+Sequential and seek agree to three decimals at every timestamp. The boundary is the whole
+difference - and the 120-second row is why a still can look right while the clip looks wrong:
+some frames survive without an outline and most do not.
+
+**What changed.** `analyse_clip` takes `polygon`, `motion_gate` and `person_gate`; passing none
+reproduces its old behaviour exactly. The gates could not be applied by wrapping `classify` the
+way the boundary was, because `MotionGate` compares a frame to the previous sample and only
+that loop sees the samples in order. `clip_review` now derives a boundary from the footage when
+the store has none - the same routine `run_slot_on_video.py` uses, and the reason its numbers
+were right - and constructs both gates through a `_gates()` factory, so a test about neighbour
+smoothing can turn them off rather than watching the person gate empty a synthetic video.
+
+**The same clip, through the page's own code path:**
+
+| | before | after |
+|---|---|---|
+| ACTIVE_PLAY samples | **24 / 24** | **0 / 24** |
+| EMPTY | 0 | 23 |
+| MAINTENANCE_NON_SPORTING | 0 | 1 - the sample with one person inside the outline |
+
+**And the page now says which boundary it had.** "No outline", "the stored outline for this
+camera" and "one measured from this clip" are three different claims and it made none of them;
+a silent fallback to the whole frame is how this went unnoticed. The samples table gained a
+*People inside* column and strikes through the probe's verdict where a gate overruled it, kept
+separate from the strike-through the neighbour smoothing already used - two mechanisms, and a
+reviewer chasing one should not be handed the other.
+
+**What this says about the rest of the system.** The gates were added to `worker.run_slot` and
+nothing checked that every path a user can reach classifies the same way. The worker, this
+page, and the `/images` and `/roi` walkthrough endpoints each build their own classifier call;
+only the worker and now this one have the boundary and the gates. `/images` and `/roi` still
+score whole frames, which is correct for what they are - a boundary editor has to show what no
+boundary looks like - but nothing states that, and the next report of this kind will come from
+there.

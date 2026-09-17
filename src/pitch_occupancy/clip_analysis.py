@@ -70,11 +70,26 @@ class ClipSample:
     raw: Class3
     confidence: float
     smoothed: Class3
+    #: What the probe said before the gates, when a gate changed it. `raw` is the verdict
+    #: after them, because `raw` is what the smoothing and the segments are built from and a
+    #: reviewer needs those to be the answer the system gives. This is the audit trail: a
+    #: reviewer asking "why does 1:20 say empty when the probe was sure" gets an answer.
+    probed: Class3 | None = None
+    #: People inside the boundary, and whether a ball was seen there. ``None`` when the
+    #: detector did not run - the gate skips a verdict it cannot change - which is why the
+    #: dashboard shows a dash rather than a zero. They are different facts.
+    people: int | None = None
+    ball: bool | None = None
 
     @property
     def corrected(self) -> bool:
         """True when its neighbours overruled it. The flag the reviewer is looking for."""
         return self.raw is not self.smoothed
+
+    @property
+    def gated(self) -> bool:
+        """True when a gate overruled the probe, which is a different event from `corrected`."""
+        return self.probed is not None and self.probed is not self.raw
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,8 +195,24 @@ def analyse_clip(
     interval_s: float = DEFAULT_INTERVAL_S,
     window: int = DEFAULT_WINDOW,
     max_samples: int = MAX_SAMPLES,
+    polygon: list[list[float]] | None = None,
+    motion_gate: object | None = None,
+    person_gate: object | None = None,
 ) -> ClipAnalysis:
     """Sample ``path`` every ``interval_s`` seconds, classify each frame, and segment it.
+
+    **The gates run here and not in the caller's `classify`, and that is a departure.** A
+    boundary can be applied by wrapping the classifier - a masked frame is still a frame - so
+    `api/clip_review.py` does exactly that and this function stayed unaware of ROI. The gates
+    cannot be wrapped the same way: `MotionGate` compares a frame to the *previous* sample,
+    and only this loop sees the samples in order. A per-frame wrapper would have to keep that
+    state behind the caller's back.
+
+    So they are parameters, and passing neither reproduces the old behaviour exactly. What it
+    cost to leave them out: a 234-second clip of a floodlit pitch with nobody on it came back
+    **24 of 24 ACTIVE_PLAY at confidence 1.000** through this path, while the same footage
+    through `worker.run_slot` - which has had the gates since A14 - returned 13 of 13 empty
+    minutes correct. The two paths disagreed because one of them was still the probe alone.
 
     A frame that cannot be decoded is recorded in ``unreadable`` and skipped rather than
     filled in, for the same reason `worker.run_slot` counts a missed minute instead of
@@ -216,7 +247,12 @@ def analyse_clip(
             widened = True
 
         raw: list[tuple[float, Class3, float]] = []
+        # Per sample, parallel to `raw`: what the probe said before the gates, and what the
+        # detector found. `None` throughout when no gate ran.
+        probed: list[Class3 | None] = []
+        counted: list[tuple[int | None, bool | None]] = []
         unreadable: list[float] = []
+        previous = None
         t = 0.0
         while duration_s <= 0 or t < duration_s:
             capture.set(cv2.CAP_PROP_POS_MSEC, t * 1000.0)
@@ -227,7 +263,24 @@ def analyse_clip(
                 unreadable.append(t)
             else:
                 state, confidence = classify(frame)
-                raw.append((t, Class3(state), float(confidence)))
+                state = Class3(state)
+                before = state
+                n_people: int | None = None
+                saw_ball: bool | None = None
+                # Motion first, then people: the cheaper gate may already have settled it,
+                # and both only ever weaken a verdict, so the order changes cost not outcome.
+                # This mirrors `worker.run_slot` deliberately - two orders would be two
+                # systems.
+                if motion_gate is not None and previous is not None:
+                    state, _cue = motion_gate.apply(state, previous, frame, polygon)
+                if person_gate is not None:
+                    state, found = person_gate.inspect(state, frame, polygon)
+                    if found is not None:
+                        n_people, saw_ball = found.people, found.ball
+                previous = frame
+                raw.append((t, state, float(confidence)))
+                probed.append(before if before is not state else None)
+                counted.append((n_people, saw_ball))
             t += interval_s
             if len(raw) + len(unreadable) >= max_samples and duration_s <= 0:
                 break
@@ -245,8 +298,10 @@ def analyse_clip(
 
     smoothed = majority_smooth([state for _, state, _ in raw], window)
     samples = [
-        ClipSample(index=i, t_s=t, raw=state, confidence=conf, smoothed=smooth)
-        for i, ((t, state, conf), smooth) in enumerate(zip(raw, smoothed, strict=True))
+        ClipSample(index=i, t_s=t, raw=state, confidence=conf, smoothed=smooth,
+                   probed=was, people=n, ball=b)
+        for i, ((t, state, conf), smooth, was, (n, b))
+        in enumerate(zip(raw, smoothed, probed, counted, strict=True))
     ]
     return ClipAnalysis(
         duration_s=duration_s,

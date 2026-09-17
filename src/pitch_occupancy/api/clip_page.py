@@ -271,6 +271,10 @@ editor</a>.</p>
     <div class="tile"><div class="k">Segments</div><div class="v" id="m-seg"></div></div>
   </div>
 
+  <div id="bnote"></div>
+  <div id="gnote"></div>
+  <div id="bnote"></div>
+  <div id="gnote"></div>
   <div id="corrnote"></div>
 
   <h2>Segments</h2>
@@ -289,6 +293,8 @@ editor</a>.</p>
   </div>
   <div class="scroll"><table><thead><tr>
     <th class="num">#</th><th>Time</th><th>Prediction</th><th class="num">Confidence</th>
+    <th class="num">People inside</th>
+    <th class="num">People inside</th>
   </tr></thead><tbody id="rows"></tbody></table></div>
 </div>
 </main>
@@ -489,6 +495,32 @@ function render(d){
     tl.appendChild(i);
   }
 
+  const bnote=$('bnote');
+  if(d.boundary_derived){
+    bnote.className='note';
+    bnote.innerHTML='<b>No stored outline for this camera, so one was measured from the '+
+      'footage.</b> The median of the first frames is thresholded for turf and its outline '+
+      'used as the pitch \u2014 the same routine the corpus uses. A hand-drawn outline is '+
+      'better; what this replaces is no outline at all, which scores the neighbouring pitch, '+
+      'the walkway and the car park as if they were this pitch.';
+  } else if(d.boundary){
+    bnote.className='note';
+    bnote.innerHTML='Using the stored outline for <b>'+d.camera+'</b>.';
+  } else {
+    bnote.className='note warn';
+    bnote.innerHTML='<b>No pitch outline.</b> Every pixel counts, including the next pitch '+
+      'over and anyone walking past. Expect active play to be over-reported.';
+  }
+
+  const gnote=$('gnote');
+  if(d.n_gated){
+    gnote.className='note';
+    gnote.innerHTML='<b>'+d.n_gated+' verdict'+(d.n_gated>1?'s were':' was')+' weakened by '+
+      'the gates.</b> A play verdict with nobody inside the outline becomes empty, and a '+
+      'small group with no ball becomes not-playing. The gates only ever weaken a claim, '+
+      'never strengthen one \u2014 the table shows what the model said before each.';
+  } else { gnote.className='';gnote.innerHTML=''; }
+
   const note=$('corrnote');
   if(d.n_corrected&&!rawOnly){
     note.className='note warn';
@@ -518,10 +550,16 @@ function render(d){
   for(const s of d.samples){
     const shown=rawOnly?s.raw:s.smoothed;
     const was=(s.corrected&&!rawOnly)?'<del>'+s.raw+'</del>':'';
+    // Two different overrules, kept apart on purpose: `probed` is what the probe said before
+    // a gate, `corrected` is what the neighbours did afterwards. A reviewer chasing one
+    // should never be handed the other.
+    const gate=s.gated?'<del>'+s.probed+'</del> ':'';
+    const ppl=(s.people===null||s.people===undefined)?'\u2014'
+      :(s.people+(s.ball?' + ball':''));
     rows.insertAdjacentHTML('beforeend','<tr'+((s.corrected&&!rawOnly)?' class="corr"':'')+
       '><td class="num">'+s.index+'</td><td class="mono">'+s.clock+'</td><td class="mono">'+
-      was+'<span class="pill '+shown+'">'+shown+'</span></td><td class="num">'+
-      s.confidence.toFixed(3)+'</td></tr>');
+      gate+was+'<span class="pill '+shown+'">'+shown+'</span></td><td class="num">'+
+      s.confidence.toFixed(3)+'</td><td class="num">'+ppl+'</td></tr>');
   }
 }
 </script></body></html>

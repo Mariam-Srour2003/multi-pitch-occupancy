@@ -78,7 +78,7 @@ def test_the_corrected_sample_is_flagged_not_hidden(tmp_path) -> None:
     whether the change was right, and only they can: the samples alone cannot separate a
     misread frame from a genuinely brief event."""
     cycle = iter([P, P, E, P, P, P, P, P, P, P, P, P])
-    result = analyse_clip(_video(tmp_path / "c.mp4"), lambda img: (next(cycle), 0.9),
+    result = analyse_clip(_video(tmp_path / "c.mp4"), lambda img, **_kw: (next(cycle), 0.9),
                           interval_s=1.0, window=3)
     corrected = [s for s in result.samples if s.corrected]
     assert len(corrected) == 1
@@ -89,7 +89,7 @@ def test_the_corrected_sample_is_flagged_not_hidden(tmp_path) -> None:
 
 def test_the_raw_prediction_is_kept_beside_the_smoothed_one(tmp_path) -> None:
     cycle = iter([P, P, E, P, P, P, P, P, P, P, P, P])
-    result = analyse_clip(_video(tmp_path / "c.mp4"), lambda img: (next(cycle), 0.9),
+    result = analyse_clip(_video(tmp_path / "c.mp4"), lambda img, **_kw: (next(cycle), 0.9),
                           interval_s=1.0, window=3)
     assert _raw(result).startswith("PP.P")
     assert _states(result).startswith("PPPP")
@@ -99,7 +99,7 @@ def test_window_one_disables_smoothing_entirely(tmp_path) -> None:
     """The escape hatch. A reviewer who decides the flickers are real turns it off rather
     than arguing with the tool."""
     cycle = iter([P, P, E, P, P, P, P, P, P, P, P, P])
-    result = analyse_clip(_video(tmp_path / "c.mp4"), lambda img: (next(cycle), 0.9),
+    result = analyse_clip(_video(tmp_path / "c.mp4"), lambda img, **_kw: (next(cycle), 0.9),
                           interval_s=1.0, window=1)
     assert result.n_corrected == 0
     assert _raw(result) == _states(result)
@@ -109,7 +109,7 @@ def test_an_even_window_is_refused(tmp_path) -> None:
     """An even window has no centre, so "the neighbours overruled it" stops being symmetric
     and the correction silently leans earlier."""
     with pytest.raises(ValueError, match="odd"):
-        analyse_clip(_video(tmp_path / "c.mp4"), lambda img: (P, 0.9), window=4)
+        analyse_clip(_video(tmp_path / "c.mp4"), lambda img, **_kw: (P, 0.9), window=4)
 
 
 # --- segments and their boundaries ---------------------------------------------------------
@@ -117,7 +117,7 @@ def test_an_even_window_is_refused(tmp_path) -> None:
 
 def test_segments_collapse_the_smoothed_sequence(tmp_path) -> None:
     cycle = iter([E, E, E, P, P, P, P, P, P, E, E, E])
-    result = analyse_clip(_video(tmp_path / "c.mp4"), lambda img: (next(cycle), 0.9),
+    result = analyse_clip(_video(tmp_path / "c.mp4"), lambda img, **_kw: (next(cycle), 0.9),
                           interval_s=1.0, window=3)
     assert [s.state for s in result.segments] == [E, P, E]
 
@@ -126,7 +126,7 @@ def test_a_boundary_is_reported_as_the_interval_it_falls_in(tmp_path) -> None:
     """Sampling every second locates a change to within a second and no better. Naming a
     timestamp would claim more than was observed, so the segment brackets it."""
     cycle = iter([E, E, E, P, P, P, P, P, P, P, P, P])
-    result = analyse_clip(_video(tmp_path / "c.mp4"), lambda img: (next(cycle), 0.9),
+    result = analyse_clip(_video(tmp_path / "c.mp4"), lambda img, **_kw: (next(cycle), 0.9),
                           interval_s=1.0, window=3)
     play = next(s for s in result.segments if s.state is P)
     assert play.starts_after == 2.0 and play.starts_by == 3.0
@@ -136,7 +136,7 @@ def test_a_boundary_is_reported_as_the_interval_it_falls_in(tmp_path) -> None:
 def test_the_opening_segment_has_no_bracket(tmp_path) -> None:
     """Nothing precedes it, so there is no interval to bracket - the clip began in that
     state and saying "between 0:00 and 0:00" would be noise."""
-    result = analyse_clip(_video(tmp_path / "c.mp4"), lambda img: (P, 0.9), interval_s=1.0)
+    result = analyse_clip(_video(tmp_path / "c.mp4"), lambda img, **_kw: (P, 0.9), interval_s=1.0)
     first = result.segments[0]
     assert first.starts_after == first.starts_by == 0.0
     assert "between" not in first.describe()
@@ -149,13 +149,13 @@ def test_a_file_that_is_not_video_is_refused(tmp_path) -> None:
     bad = tmp_path / "not.mp4"
     bad.write_bytes(b"this is not a video")
     with pytest.raises(ValueError, match="could not open|no frame"):
-        analyse_clip(bad, lambda img: (P, 0.9))
+        analyse_clip(bad, lambda img, **_kw: (P, 0.9))
 
 
 def test_a_long_clip_is_sampled_coarser_rather_than_truncated(tmp_path) -> None:
     """A partial answer that looks complete is the worse failure. Covering the whole clip at
     a wider interval is honest; analysing its first two minutes and stopping is not."""
-    result = analyse_clip(_video(tmp_path / "c.mp4", seconds=12), lambda img: (P, 0.9),
+    result = analyse_clip(_video(tmp_path / "c.mp4", seconds=12), lambda img, **_kw: (P, 0.9),
                           interval_s=0.6, window=1, max_samples=5)
     assert result.interval_widened
     assert len(result.samples) <= 5
@@ -180,7 +180,7 @@ def test_the_clip_route_keeps_nothing(tmp_path, monkeypatch) -> None:
     video = _video(tmp_path / "src.mp4").read_bytes()
 
     monkeypatch.setattr("pitch_occupancy.api.clip_review._classifier",
-                        lambda: (lambda img: (P, 0.9)))
+                        lambda: (lambda img, **_kw: (P, 0.9)))
     client = TestClient(app)
     response = client.post("/api/v1/clip/analyse?interval_s=2&window=1", content=video,
                            headers={"Content-Type": "application/octet-stream"})
@@ -237,7 +237,11 @@ def test_the_route_reports_the_segments_and_the_corrections(tmp_path, monkeypatc
     video = _video(tmp_path / "src.mp4", seconds=12).read_bytes()
     cycle = itertools.chain([P, P, E, P], itertools.repeat(P))
     monkeypatch.setattr("pitch_occupancy.api.clip_review._classifier",
-                        lambda: (lambda img: (next(cycle), 0.9)))
+                        lambda: (lambda img, **_kw: (next(cycle), 0.9)))
+    # This test is about the neighbour smoothing, so the gates are off. Left on, the person
+    # gate turns every frame of a generated video EMPTY - correctly, there is nobody in it -
+    # and there is no isolated sample left for the smoothing to correct.
+    monkeypatch.setattr("pitch_occupancy.api.clip_review._gates", lambda: (None, None))
 
     client = TestClient(app)
     body = client.post("/api/v1/clip/analyse?interval_s=1&window=3", content=video,
