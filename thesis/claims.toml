@@ -391,3 +391,54 @@ source = "results/augmentation_transfer.csv"
 select = { preset = "full", seed = 42 }
 column = "macro_f1"
 note = "One draw of `full` against one draw of `light`, so the \"match the augmentation to the shift\" reading it was written for no longer follows - `light`'s own number moved 0.5 across draws. What the 0.3479 does say is `augmentation-collapse-is-one-class`: this configuration produced the trivial predictor."
+
+# --- the gates, and what the corpus cannot see (A20-A30, 2026-09-17) --------------------
+
+[[claim]]
+id = "gated-cross-venue-false-play"
+statement = "With the gates in the prediction path, cross-venue false-play falls from 0.6173 to 0.0123."
+value = 0.0123
+where = ["thesis/rq_matrix.md"]
+source = "results/h3_with_gates.csv"
+select = { arm = "pruned, gated" }
+column = "false_play"
+note = "A floor, not an estimate: every constant the gate uses was read off the same 243 control frames. Quote it beside `gated-cross-venue-total-error`, never alone - false-play does not count the C3 verdicts the gate also produces on empty pitches."
+
+[[claim]]
+id = "gated-cross-venue-total-error"
+statement = "Counting every wrong verdict on an empty pitch, not just play-shaped ones, the gates take cross-venue error from 1.0000 to 0.1111."
+value = 0.1111
+where = ["thesis/rq_matrix.md"]
+source = "results/h3_with_gates.csv"
+select = { arm = "pruned, gated" }
+column = "any_wrong_on_empty"
+note = "The probe answers EMPTY on none of the 243 control frames in any of the seven folds - 0.6173 measured which kind of wrong it was, not whether. A22 extended the empty-pitch rule to C3 verdicts, which is what took this from 0.4844 to 0.1111."
+
+[[claim]]
+id = "clock-rule-wrong-on-every-minute"
+statement = "On 234 seconds of floodlit night football with nobody playing, the clock rule calls all 16 minutes ACTIVE_PLAY - false-play 1.00."
+value = 1.0
+where = ["README.md", "thesis/defence_deck.md"]
+source = "results/clock_rule_on_video.csv"
+select = { system = "clock rule" }
+column = "false_play"
+note = "The pair to `h3-cross-venue-clock-rule`. The same rule that beats all three backbones on 1,692 corpus frames is wrong on every minute of the one clip containing the cell the corpus lacks. Given the charitable setting - told the truth, that the footage is night."
+
+[[claim]]
+id = "deployed-path-on-the-unseen-clip"
+statement = "The deployed path - probe, boundary, motion gate, person gate - has false-play 0.00 on the same clip, against the probe alone at 0.38."
+value = 0.0
+where = ["README.md", "thesis/defence_deck.md"]
+source = "results/clock_rule_on_video.csv"
+select = { system = "deployed path (probe + boundary + gates)" }
+column = "false_play"
+
+[[claim]]
+id = "generated-empties-repair-under-h3"
+statement = "31 generated EMPTY frames take cross-venue false-play from 0.7684 to 0.0235 while raising play-recall."
+value = 0.0235
+where = []
+source = "results/median_empties_as_training.csv"
+select = { arm = "full + generated empties (31)" }
+column = "false_play"
+note = "A30: H3's folds never contained the generated frames, so A13's repair had not been checked under this protocol. It reproduces more strongly than it was reported. The 26 real-pixel median empties take the same figure to 0.9618, and A31 eliminated three explanations for why."

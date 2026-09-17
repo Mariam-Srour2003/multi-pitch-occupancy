@@ -99,6 +99,13 @@ def _value(source: Path, claim: dict, select_key: str, column_key: str) -> float
     raise ValueError(f"unknown aggregate {aggregate!r}")
 
 
+#: Below this, a bare integer rendering is dropped: "1" and "0" match any prose by accident.
+#: Ten is chosen because every claim in this ledger that is legitimately an integer - counts of
+#: frames, of scenes, of tied confidences - is far above it, and every claim that is a rate is
+#: at or below 1.
+BARE_INTEGER_FLOOR = 10
+
+
 def renderings(value: float) -> list[str]:
     """How a number might legitimately be written in prose.
 
@@ -113,7 +120,18 @@ def renderings(value: float) -> list[str]:
             out.add(f"{v * 100:.{places - 2}f}%")
         out.add(f"{v:g}")
         out.add(f"{v * 100:.1f}%")
-    return sorted(x for x in out if x)
+    # A *small* bare integer is not a rendering, it is a coincidence. `%g` turns 1.0 into "1"
+    # and 0.0 into "0", and the boundary check then passes on any document containing a
+    # standalone 1 or 0 - "1 person", "0 of 13", a section number. Two claims added on
+    # 2026-09-17 passed that way against a README that never states their value.
+    #
+    # Large integers are the opposite: `rq6-tied-confidences` is a count of 890 and "890" is
+    # exactly how prose states it. So the bare form survives above a threshold, below which a
+    # rate has to be written as 1.00, 0.00, 100% or 0% - which is how prose states a rate
+    # anyway.
+    keep_bare = abs(value) >= BARE_INTEGER_FLOOR
+    return sorted(x for x in out
+                  if x and ("." in x or "%" in x or keep_bare))
 
 
 def states(text: str, value: float) -> bool:

@@ -11,7 +11,7 @@ any draft goes out:
 uv run python -m experiments.verify_claims --check
 ```
 
-**34 claims are checked against an artefact. 0 are not, and say why.**
+**39 claims are checked against an artefact. 0 are not, and say why.**
 
 ## Checked
 
@@ -51,6 +51,11 @@ uv run python -m experiments.verify_claims --check
 | Across five augmentation draws that differ in nothing but the random draw, `light` has a standard deviation of 0.2206 macro-F1 - and four of the five score below the 0.4406 the probe reaches with no augmentation at all. | `0.2206` | `results/augmentation_transfer_spread.csv` | — | ✔ |
 | A preset scoring 0.3479 predicts EMPTY for none of the unseen camera's 521 frames: that score is the macro-F1 of answering ACTIVE_PLAY to everything, not a measurement of the augmentation. | `0.0` | `results/augmentation_transfer.csv` | — | ✔ |
 | Turning every augmentation on scored 0.3479 in the published draw, the same as colour jitter alone and below no augmentation at all, though it contains every effect `light` has. | `0.3479` | `results/augmentation_transfer.csv` | — | ✔ |
+| With the gates in the prediction path, cross-venue false-play falls from 0.6173 to 0.0123. | `0.0123` | `results/h3_with_gates.csv` | `thesis/rq_matrix.md` | ✔ |
+| Counting every wrong verdict on an empty pitch, not just play-shaped ones, the gates take cross-venue error from 1.0000 to 0.1111. | `0.1111` | `results/h3_with_gates.csv` | `thesis/rq_matrix.md` | ✔ |
+| On 234 seconds of floodlit night football with nobody playing, the clock rule calls all 16 minutes ACTIVE_PLAY - false-play 1.00. | `1.0` | `results/clock_rule_on_video.csv` | `README.md`, `thesis/defence_deck.md` | ✔ |
+| The deployed path - probe, boundary, motion gate, person gate - has false-play 0.00 on the same clip, against the probe alone at 0.38. | `0.0` | `results/clock_rule_on_video.csv` | `README.md`, `thesis/defence_deck.md` | ✔ |
+| 31 generated EMPTY frames take cross-venue false-play from 0.7684 to 0.0235 while raising play-recall. | `0.0235` | `results/median_empties_as_training.csv` | — | ✔ |
 
 ## Notes on individual claims
 
@@ -76,3 +81,7 @@ uv run python -m experiments.verify_claims --check
 - **augmentation-light-is-draw-dependent** — The retraction, as a number. Range 0.3479-0.8550, median 0.3510, mean 0.4635 - so the published 0.8550 is the maximum of five. On a metric bounded in [0, 1] this is the finding, and it is why the mean is not quotable either.
 - **augmentation-collapse-is-one-class** — The `pred_empty` column was added because 0.3479 kept recurring across presets and draws that share nothing else - `colour`, `full`, and three of the five `light` draws. It is the trivial predictor each time. Rows written before the column existed leave it blank rather than claiming zero.
 - **augmentation-full-erases-the-gain** — One draw of `full` against one draw of `light`, so the "match the augmentation to the shift" reading it was written for no longer follows - `light`'s own number moved 0.5 across draws. What the 0.3479 does say is `augmentation-collapse-is-one-class`: this configuration produced the trivial predictor.
+- **gated-cross-venue-false-play** — A floor, not an estimate: every constant the gate uses was read off the same 243 control frames. Quote it beside `gated-cross-venue-total-error`, never alone - false-play does not count the C3 verdicts the gate also produces on empty pitches.
+- **gated-cross-venue-total-error** — The probe answers EMPTY on none of the 243 control frames in any of the seven folds - 0.6173 measured which kind of wrong it was, not whether. A22 extended the empty-pitch rule to C3 verdicts, which is what took this from 0.4844 to 0.1111.
+- **clock-rule-wrong-on-every-minute** — The pair to `h3-cross-venue-clock-rule`. The same rule that beats all three backbones on 1,692 corpus frames is wrong on every minute of the one clip containing the cell the corpus lacks. Given the charitable setting - told the truth, that the footage is night.
+- **generated-empties-repair-under-h3** — A30: H3's folds never contained the generated frames, so A13's repair had not been checked under this protocol. It reproduces more strongly than it was reported. The 26 real-pixel median empties take the same figure to 0.9618, and A31 eliminated three explanations for why.

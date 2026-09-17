@@ -31,6 +31,17 @@ ROOT = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / "results"
 DATA = ROOT / "data"
 
+#: Footage that is not in the repository, because it is hours of identifiable people.
+#:
+#: Two stages need it and neither can run without it being supplied: the whole-clip medians are
+#: built from the raw highlight clips, and A26's comparison needs the 234-second clip of an
+#: empty floodlit pitch - the only footage this project has that contains the class-lighting
+#: combination the corpus lacks. `--only` past them, or point these at your own copies.
+CLIPS = Path(r"C:/Users/maria/Downloads/wetransfer_data-football_2026-09-04_1059")
+UNSEEN_CLIP = Path(
+    r"C:/Users/maria/Downloads/WhatsApp Video 2026-09-15 at 10.09.19 PM.mp4"
+)
+
 
 @lru_cache(maxsize=None)
 def _last_content_change(path: Path) -> int | None:
@@ -551,6 +562,50 @@ STAGES: list[Stage] = [
         note="WP8-T6: the stage graph the Reproduce page is drawn from - levels, runtimes "
              "and status, derived from STAGES so it cannot disagree with the runner",
         minutes=1,
+    ),
+    # --- the gates, and the frames the corpus does not have (A20-A30) --------------------
+    Stage(
+        name="ball-detection",
+        command=[*PY, "-m", "experiments.ball_detection_rule", "--clip-venues"],
+        produces=[RESULTS / "ball_detection_rule.csv"],
+        requires=[DATA / "processed" / "manifest.csv"],
+        note="A17: a ball inside the boundary, per frame, at every venue",
+        minutes=20,
+    ),
+    Stage(
+        name="h3-with-gates",
+        command=[*PY, "-m", "experiments.h3_with_gates"],
+        produces=[RESULTS / "h3_with_gates.csv"],
+        requires=[DATA / "cache" / "dinov2.npz", RESULTS / "ball_detection_rule.csv"],
+        note="A20: H3 with the person gate in the loop, and every wrong verdict counted",
+        minutes=3,
+    ),
+    Stage(
+        name="median-empties",
+        command=[*PY, "scripts/median_empties_from_clips.py", "--clips", str(CLIPS)],
+        produces=[DATA / "interim" / "median_empties_full" / "index.csv"],
+        # The source clips, which are not in the repository - see the note.
+        requires=[DATA / "processed" / "manifest.csv"],
+        note="A29: empty night pitches by whole-clip median; needs the raw clips at --clips",
+        minutes=8,
+    ),
+    Stage(
+        name="median-empties-as-training",
+        command=[*PY, "-m", "experiments.median_empties_as_training"],
+        produces=[RESULTS / "median_empties_as_training.csv"],
+        requires=[DATA / "cache" / "dinov2.npz",
+                  DATA / "interim" / "median_empties_full" / "index.csv"],
+        note="A30/A31: generated against manufactured EMPTY frames on the H3 folds",
+        minutes=6,
+    ),
+    Stage(
+        name="clock-rule-on-video",
+        command=[*PY, "-m", "experiments.clock_rule_on_video", str(UNSEEN_CLIP)],
+        produces=[RESULTS / "clock_rule_on_video.csv"],
+        requires=[DATA / "cache" / "dinov2.npz"],
+        note="A26: clock rule, probe and deployed path on the one clip holding the "
+             "missing cell; needs the clip at UNSEEN_CLIP",
+        minutes=4,
     ),
     Stage(
         name="claims-ledger",

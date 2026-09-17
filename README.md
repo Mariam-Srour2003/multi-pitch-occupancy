@@ -32,11 +32,25 @@ aggregation, reconciliation, the API and the dashboard all run; every experiment
 the manifest and the cached features through one reproduction pipeline. All six pre-registered
 hypotheses have been reported.
 
-**What is not done is the data.** Every EMPTY frame in the corpus comes from one venue, two
-cameras, two days — so the questions that matter operationally (can it recognise an empty pitch
-somewhere new? what does a REVIEW threshold cost?) are blocked on footage, not on method. The
-honest headline of this project is a set of results about *how to evaluate this problem*, several
-of which are negative and most of which were found by checking whether a guard actually guarded.
+**What is not done is the data, and the shape of the gap is now precise.** Across the 1,692
+recorded frames, daylight is 98% empty pitches and night is 99% football — so
+*"night means play, day means not-play"* is correct on **99.1%** of the corpus, and on 98.8%
+within the one venue that has both classes. Every daylight frame comes from that venue. Nothing
+measured on this data can separate *recognises an empty pitch* from *recognises the time of day*,
+and the two cells that would break the tie hold **9 frames** (empty at night) and **6** (play in
+daylight).
+
+**The sharpest result is what that does to a benchmark.** A rule that reads the clock and never
+looks at the image beats all three frozen backbones on the project's own cross-venue protocol —
+perfect play-recall, and a false-play rate fifteen times lower than the best of them. On a
+234-second clip of a floodlit pitch with nobody playing, the same rule is wrong on **every one of
+16 minutes** — false-play **1.00** — while the deployed system's false-play is **0.00** and the
+probe alone sits at 0.38. A 1,692-frame benchmark ranked them one way; one clip containing the
+missing cell reversed it completely.
+
+So the honest headline is a set of results about *how to evaluate this problem*, several of them
+negative, most found by checking whether a guard actually guarded — and the most useful single
+sentence in the thesis is that no protocol compensates for a cell the data never fills.
 
 <!-- status:start -->
 **75 source modules · 68 experiment scripts · 69 test files

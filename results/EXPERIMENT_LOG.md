@@ -6331,3 +6331,48 @@ stay, on evidence stronger than when they were adopted. The median frames do not
 under any subsetting tried. And the principle written in `synthetic_data_protocol.md` -
 "subtraction works, addition does not" - is a description of 31 frames and not a mechanism; four
 entries lean on it and should be read that way until something replaces it.
+
+- 2026-09-17 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 39 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-17 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 37 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-17 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 38 claims verified against their artefacts, 0 recorded as unsupported
+
+## A consolidation pass, and a guard that was not guarding (A32)
+
+`thesis/claims.toml`, `experiments/verify_claims.py`, `experiments/reproduce_all.py`, `README.md`
+
+Today's entries changed what the project's headline claims are, and the documents a supervisor
+opens first still described the previous ones. Three things were brought into line, and the
+second found a defect.
+
+**The README's status section**, which is hand-written and was last true this morning. It now
+states the confound in its sharpest form - *"night means play, day means not-play" is correct on
+99.1% of the corpus* - and the pair that follows from it: a rule that never looks at the image
+beats all three backbones on the cross-venue protocol and is wrong on every minute of the one
+clip that contains the missing cell.
+
+**Five claims added to the ledger**, so today's figures are re-derived from their artefacts
+rather than retyped: the gated cross-venue false-play (0.0123) and total error (0.1111), the
+clock rule's 1.00 false-play on the clip, the deployed path's 0.00 on the same clip, and the
+generated frames' 0.0235 under the H3 folds. The ledger re-derives 39 of 39.
+
+**And two of those five passed for the wrong reason.** `verify_claims.states` checks that a
+document actually *states* a claimed value, and its list of legitimate renderings included the
+bare `%g` form - which turns 1.0 into `"1"` and 0.0 into `"0"`. The boundary check then matches
+any document containing a standalone 1 or 0: "1 person", "0 of 13", a section number. Both new
+claims verified against a README that never stated their value.
+
+The fix keeps the bare form only above `BARE_INTEGER_FLOOR = 10`, because a bare integer *is*
+how prose states a count - `rq6-tied-confidences` is 890 and "890" is correct for it - while
+every rate in this ledger is at or below 1. Tightening it immediately failed the two new claims
+and nothing else, which is the behaviour wanted: the README now writes "false-play **1.00**"
+and "**0.00**" rather than leaving the reader to infer them.
+
+**The reproduction pipeline objected too, and was right.** `reproduce_all.py` takes the
+claims-ledger stage's requirements from the ledger itself, so adding a claim sourced from
+`clock_rule_on_video.csv` made the pipeline require a file no stage produced. Five stages were
+added - ball detection, H3 with gates, the whole-clip medians, the medians as training data, and
+the clock-rule-on-video comparison - with the two that need footage not in the repository
+naming the paths they need at the top of the file. A claim whose artefact nothing reproduces is
+a claim that cannot be checked by anyone but its author.
