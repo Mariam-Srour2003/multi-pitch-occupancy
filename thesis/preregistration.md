@@ -770,3 +770,39 @@ rule limit, and three of the six recorded C3 frames fail the same way.
 evidence behind its precision. The class was previously unreachable, which was a different and
 quieter error - the system reported no maintenance because it could not, not because there was
 none.
+
+---
+
+### 2026-09-17 — A20: the cross-venue numbers are re-reported for the system, not the probe
+
+**What changes.** No code. An evaluation that was missing: every cross-venue figure in this
+project describes the probe, and the deployed path has not been the probe alone since A14.
+`experiments/h3_with_gates.py` re-runs H3's seven leave-one-venue-out folds with the person
+gate and its A18 extension applied to the verdicts, which is the order `run_slot` uses.
+
+| arm | play-recall | false-play | balanced |
+|---|---|---|---|
+| pruned, probe | 1.0000 | 0.6173 | 0.3827 |
+| pruned, **gated** | 0.9991 | **0.0123** | **0.9868** |
+
+**Why the result is arithmetic rather than luck.** Of the 243 control frames, 216 have nobody
+inside the boundary and become EMPTY, 24 have one to four people and no ball and become C3, and
+3 survive - the frames with a bystander *and* a ball, where the ball clause vetoes C3 by design.
+
+**The half of this that is not a transfer result.** Recall is measured at held-out venues and
+transfers. False-play is measured on the same 243 frames that every gate constant was read
+from - detector size 1280, person confidence 0.25, ball confidence 0.10, `small_group_max = 4`.
+The gate is out of sample with respect to the probe's training and in sample with respect to
+its own thresholds, so **0.0123 is a floor**. The only out-of-sample check is the unseen clip:
+0 false-play on 13 empty minutes, no wrong C3 calls, thresholds not derived from it. Thirteen
+minutes is not a rate.
+
+**What this obliges the write-up to say.** Not "the cross-venue failure is fixed". The probe's
+cross-venue precision is unchanged and remains unusable; what changed is that the reported
+system is no longer the probe. The thesis should report the gated figure as the system's and the
+0.6173 as the probe's, together, because dropping either one misrepresents which component is
+doing the work.
+
+**Risk this amendment accepts.** A reader who takes 0.0123 as a measured cross-venue rate will
+overestimate the system at a new site. The floor-not-estimate wording is load-bearing and must
+survive into the thesis text.

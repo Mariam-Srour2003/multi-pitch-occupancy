@@ -5536,3 +5536,60 @@ piece of work and it is the honest recommendation, not a tuned `GROW_FRACTION`.
 limit". More precisely: the detector finds the person, the boundary excludes them, and
 widening the boundary enough to include them costs more than it returns. The limit is the
 boundary's shape, and it is not repairable by loosening it.
+
+## The headline cross-venue failure, measured on the system instead of the probe (A20)
+
+`experiments/h3_with_gates.py`, `results/h3_with_gates.csv`
+
+Every cross-venue number this project reports describes **the probe**. The deployed path has
+not been the probe alone since A14 - `run_slot` classifies, then two gates may overrule the
+verdict, and it is the overruled verdict that reaches a user. So the failure the whole thesis
+turns on, **false-play 0.6173 at held-out venues even after pruning to distinct scenes**, has
+never been measured on the thing that actually runs.
+
+It is worth measuring here and nowhere else. The gates were built for this error and every
+other protocol is too clean to show it: venue_01 camera B has false-play 0.0000, which is why
+RQ6 and the A16 recheck both came back "0 of 521 verdicts overruled". H3 is the one protocol
+where a gate has anything to do.
+
+Seven leave-one-venue-out folds, the same 243-frame false-play control, person gate and its
+A18 extension applied to the probe's verdicts:
+
+| arm | play-recall | false-play | balanced |
+|---|---|---|---|
+| full, probe | 0.9444 | 0.7684 | 0.1761 |
+| full, **gated** | 0.9436 | **0.0123** | **0.9312** |
+| pruned, probe | 1.0000 | 0.6173 | 0.3827 |
+| pruned, **gated** | 0.9991 | **0.0123** | **0.9868** |
+
+**0.6173 to 0.0123, for 0.0009 of recall.** The arithmetic is not mysterious and is worth
+writing out, because it shows the number is not a fluke of one fold: of the 243 control frames,
+216 (88.9%) have nobody inside the boundary and become EMPTY, 24 (9.9%) have one to four people
+and no ball and become C3, and **3** survive as PLAY. Those three are the frames with a
+bystander *and a ball* - the ball clause vetoing the C3 call, doing exactly what it is for.
+
+**The caveat is not small and it is not the usual one.** The recall half of this table is a
+transfer result: those are clip-venue frames at venues held out of training. The false-play
+half is **not**. Every constant the gate uses - the 1280-pixel detector size, the 0.25 person
+confidence, the 0.10 ball confidence, `small_group_max = 4` - was read off distributions
+measured on these same 243 frames. The gate is out of sample with respect to the *probe's*
+training, and in sample with respect to its own thresholds. **0.0123 is a floor, not an
+estimate.**
+
+**The one out-of-sample check that exists agrees, and it is thin.** On the unseen clip - a
+venue never in any split, thresholds not derived from it - the same gates give **0 false-play
+on 13 empty minutes and no wrong C3 calls**. Thirteen minutes is not a false-play rate. It is
+the only recorded empty pitch outside venue_01 that this project has, which is the wall every
+measurement here has hit for six weeks.
+
+**What this changes in how the thesis reads.** The cross-venue result is no longer "the probe
+transfers its recall and not its precision". It is: *the probe transfers its recall; its
+precision is supplied by a detector that never saw this dataset, and the combination is
+reportable while the probe alone is not.* That is a weaker claim about the linear probe and a
+stronger one about the system, and it should be written that way rather than as a repaired
+probe number.
+
+**What would make it an estimate rather than a floor** is unchanged and is the same sentence
+as always: recorded empty pitches at a venue that is not venue_01. Two hours of footage of one
+unused pitch at one new site would convert the strongest claim in this project from a floor
+into a measurement.

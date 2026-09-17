@@ -27,6 +27,7 @@ Updated 2026-09-06.
 | evidence | file | finding |
 |---|---|---|
 | H3 cross-venue recall | `h3_cross_venue_recall.csv` | DINOv2 0.930, ConvNeXtV2 0.910 play-recall on unseen venues |
+| H3 with the gates (A20) | `h3_with_gates.csv` | recall 1.0000 → 0.9991, **false-play 0.6173 → 0.0123** — but the gate's thresholds were read off the control frames, so this is a floor |
 | Label efficiency | `label_efficiency.csv` | 10-25 labels already beat the zero-label rule |
 | Efficiency | `efficiency_latency.csv` | 20 cameras in 2.5-5.7 s against a 60 s cycle |
 | H6 zero-shot (cold start) | `h6_zero_shot_gap.csv` | **prompt choice moves macro-F1 by 0.726; the three backbones span 0.082** |
@@ -37,6 +38,15 @@ reliably across nine venues in both lighting conditions. Whether an *empty* pitc
 recognised at an unseen venue is **unanswerable** - no empty pitch exists outside venue_01
 (`preregistration.md`, "not answerable"). Any RQ1 claim in the thesis must be scoped to
 active-play detection.
+
+**A20 changes what the claim is about, and does not remove that scope.** With the gates in the
+prediction path the cross-venue false-play falls from 0.6173 to 0.0123 at a recall cost of
+0.0009, which turns a system that calls 62% of unseen empty pitches a match into one that calls
+1.2% of them a match. The precision, though, comes from a pretrained person detector and a
+count threshold, not from the probe - and the 0.0123 is measured on the same 243 frames the
+threshold was read from. The honest RQ1 sentence is now: *active play transfers; the ability to
+recognise an empty pitch is supplied by a component that never saw this dataset, and its rate
+at an unseen venue rests on 13 hand-labelled minutes.*
 
 > ### The cold-start cost is a distribution, not a number (2026-09-08, A10)
 >
