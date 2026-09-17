@@ -883,3 +883,60 @@ detector noise can never manufacture a busier pitch than the probe reported.
 **Risk this amendment accepts.** C3 recall is now bounded by the boundary's accuracy, on a
 class with six recorded frames. If the labelling question is settled the other way - present
 means present anywhere in view - this amendment should be withdrawn rather than adjusted.
+
+---
+
+### 2026-09-17 — A25: the lighting labels were wrong, and a headline claim reverses (WP3-T5)
+
+**What changes.** The `lighting` column for **216 of 396** recorded clip frames, from `day` to
+`night`. No code in the prediction path, no model, no split definition.
+
+**The bug.** `data/extract.py` assigns clip lighting by mean greyscale brightness, below 80 is
+night, "calibrated against the known day/night recordings in raw/venue_01". A floodlit
+five-a-side pitch fills its frame with intensely lit turf and reads *brighter* than an overcast
+afternoon at venue_01 - 120 against 69 - so the rule files night football as daylight. It
+measures how bright the picture is, not whether it is daytime.
+
+**The audit.** One rendered frame per venue, evidence recorded per venue in
+`scripts/relabel_clip_lighting.py`: black skies, lit floodlight fixtures, a burned-in timestamp
+reading 21:02, indoor halls with no sky in frame. **Not one of the nine clip venues shows
+daylight.** Every daylight frame in this corpus is now venue_01's.
+
+**What reverses.**
+
+| model | cross-venue play-recall | false-play | recall was |
+|---|---|---|---|
+| **clock_rule** | **1.0000** | **0.0206** | 0.219 |
+| dinov2 | 0.9297 | 0.3086 | 0.930 |
+| convnextv2 | 0.9105 | 0.9918 | 0.910 |
+| vit | 0.8690 | 0.8354 | 0.869 |
+
+A rule that never looks at the image beats all three frozen backbones on recall *and* on
+false-play. `rq_matrix.md`'s "a lighting-only rule collapses across venues while the backbones
+hold above 0.86" is **refuted**, and `defence_deck.md` slide 7 - which called the collapse "the
+strongest single piece of evidence that the backbones learn something transferable" - is
+rewritten to say the opposite and to say that it used to say the opposite.
+
+H2 moves with it: on the grouped split the clock rule goes from 0.4907 to **0.4975**, which is
+*exactly* ConvNeXtV2's and ViT's score, and DINOv2's lead over it goes from p_holm 0.0037
+("differs") to **p_holm 0.375 ("indistinguishable")**.
+
+**Why the rule wins, which matters more than the table.** The confound is not a labelling
+mistake, it is how five-a-side pitches are used - people play in the evening:
+
+| | EMPTY | ACTIVE_PLAY | C3 |
+|---|---|---|---|
+| day | 485 | 6 | 6 |
+| night | 9 | 1186 | 0 |
+
+"Night means play, day means not-play" is right on **1,677 of 1,692** recorded frames, 99.1%,
+and on 98.8% within venue_01 alone. No experiment in this project can separate *recognises an
+empty pitch* from *recognises daylight*.
+
+**What this obliges.** The data request, stated precisely for the first time: the corpus needs
+**empty pitches at night** and **play in daylight**, the two cells holding 9 and 6 frames.
+"Empty pitches at another venue" was never the whole gap.
+
+**Risk this amendment accepts.** A reader may take "the clock rule beats the backbones" as a
+result about backbones. It is a result about this dataset, and every place the figure appears
+now carries that sentence.

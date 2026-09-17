@@ -19,9 +19,9 @@ uv run python -m experiments.verify_claims --check
 |---|---|---|---|---|
 | Moving from a same-scene random split to a grouped one costs ConvNeXtV2 0.4904 macro-F1 — the score roughly halves. | `-0.4904` | `results/h1_h2_baseline_floor.csv` | `thesis/rq_matrix.md` | ✔ |
 | Under the grouped split ConvNeXtV2 scores 0.4975 macro-F1 — the score of a model that never recognises an empty pitch. | `0.4975` | `results/h1_h2_baseline_floor.csv` | `thesis/rq_matrix.md` | ✔ |
-| A rule that reads only the clock scores 0.4907 macro-F1 on the grouped split, within 0.09 of the best backbone. | `0.4907` | `results/h1_h2_baseline_floor.csv` | — | ✔ |
+| A rule that reads only the clock scores 0.4975 macro-F1 on the grouped split, exactly equal to ConvNeXtV2 and ViT. | `0.4975` | `results/h1_h2_baseline_floor.csv` | — | ✔ |
 | DINOv2 holds 0.9297 ACTIVE_PLAY recall across unseen venues. | `0.9297` | `results/h3_cross_venue_recall.csv` | `thesis/rq_matrix.md` | ✔ |
-| The clock rule collapses to 0.219 across unseen venues, while the backbones hold above 0.86. | `0.219` | `results/h3_cross_venue_recall.csv` | `thesis/rq_matrix.md` | ✔ |
+| The clock rule scores 1.000 play-recall across unseen venues, above every backbone, at a false-play rate of 0.0206. | `1.0` | `results/h3_cross_venue_recall.csv` | `thesis/rq_matrix.md` | ✔ |
 | ConvNeXtV2 calls 99.2% of held-out empty pitches a match. | `0.9918` | `results/h3_with_false_play.csv` | `README.md`, `thesis/rq_matrix.md` | ✔ |
 | No model exceeds 0.165 accuracy on the 243 held-out empty frames; DINOv2, whose false-play rate is the lowest of the backbones at 0.309, gets none of them right. | `0.0` | `results/fusion_head_ablation.csv` | — | ✔ |
 | The clock rule, which never looks at the image, calls 2.1% of held-out empty pitches a match. | `0.0206` | `results/h3_with_false_play.csv` | `README.md` | ✔ |
@@ -39,7 +39,7 @@ uv run python -m experiments.verify_claims --check
 | On the leaky random split every error is a frame the model had seen a near-duplicate of: 12 of 12. | `12.0` | `results/error_taxonomy_summary.csv` | — | ✔ |
 | All 32 grouped-split errors across the three backbones come from a single slot - a single failure counted many times, not a taxonomy. | `32.0` | `results/error_taxonomy_summary.csv` | — | ✔ |
 | Under the day-to-night temporal shift DINOv2 makes 92 errors of 799, against ConvNeXtV2's 11. | `92.0` | `results/error_taxonomy_summary.csv` | — | ✔ |
-| On the grouped split a rule that reads only the clock scores 0.4907, within 0.0068 of ConvNeXtV2's 0.4975. | `0.4907` | `results/h1_h2_baseline_floor.csv` | `thesis/rq_matrix.md`, `thesis/preregistration.md`, `thesis/defence_redteam.md` | ✔ |
+| On the grouped split a rule that reads only the clock scores 0.4975, exactly ConvNeXtV2's score. | `0.4975` | `results/h1_h2_baseline_floor.csv` | `thesis/rq_matrix.md`, `thesis/preregistration.md`, `thesis/defence_redteam.md` | ✔ |
 | Under the leaky random split the colour histogram scores 0.9616 - below ConvNeXtV2's 0.9879, reversing the pre-A8 figures. | `0.9616` | `results/h1_h2_baseline_floor.csv` | `thesis/rq_matrix.md`, `thesis/defence_redteam.md` | ✔ |
 | The prompt search's winner leads a pre-declared prompt set by 0.4474 balanced score on the folds it was selected from - A6's 'optimistically biased' as a number. | `0.4474` | `results/h6_zero_shot_gap.csv` | `thesis/defence_redteam.md` | ✔ |
 | On the stated cost assumptions a flag must be right 94.7% of the time before reconciliation pays for itself. | `0.947` | `results/reconciliation_value.csv` | — | ✔ |
@@ -55,7 +55,8 @@ uv run python -m experiments.verify_claims --check
 ## Notes on individual claims
 
 - **h1-drop-convnextv2** — The README states this approximately on purpose ("falls from ~0.99 to ~0.50"); the precise delta lives in the RQ matrix, so only that document is checked for it.
-- **h3-cross-venue-clock-rule** — A lower bound: WP3-T5 found the lighting labels this rule reads are wrong for at least three clip venues, so quote the collapse rather than the number.
+- **h2-clock-rule-grouped** — A25 corrected the lighting labels this rule reads. It was 0.4907, 0.0068 behind ConvNeXtV2; it is now equal to ConvNeXtV2 and ViT to four decimals, because all three collapse to the same predictions.
+- **h3-cross-venue-clock-rule** — A25 (WP3-T5) did the relabelling this note used to wait on, and the collapse was the label error: 216 of 396 clip frames read `day` for floodlit night football. Corrected, the rule is perfect cross-venue and beats all three backbones on recall and on false-play. Quote it as the protocol failing, never as the rule working - the H3 folds are 100% ACTIVE_PLAY and 100% night.
 - **false-play-convnextv2** — A false-play *rate*, and its complement is not accuracy. WP5-T2 found every learned probe scores near zero EMPTY accuracy on this set - DINOv2's much lower 0.309 comes with 0 of 243 correct, the rest answered MAINTENANCE - so quote the rate as the rate, never as evidence that a model recognises an empty pitch. See `false-play-is-not-accuracy`.
 - **false-play-is-not-accuracy** — The guard on reading a low false-play rate as competence. The mechanism is the training mix - 518 ACTIVE_PLAY, 251 EMPTY, 6 MAINTENANCE, with class_weight=balanced giving the six-frame class a weight of 43 - so out-of-distribution frames land in MAINTENANCE. `where` is empty until this reaches the write-up; the ledger still re-derives the value.
 - **composition-drop-zero-shot** — Stored in that column because the summary rows reuse the schema; the header of the row names it composition_drop_from_zero_shot_control.
@@ -65,6 +66,7 @@ uv run python -m experiments.verify_claims --check
 - **search-interval-width** — Stored beside the floor; the column names are reused from the per-configuration schema.
 - **prompt-space-span** — The extremes were absent from the CSV until the ledger flagged this claim unsupported; `h6_zero_shot_gap.py` now stores worst, best and their span. The documents state the two endpoints rather than the span - they are exact where the difference rounds ambiguously - so those are the checked claims and this one records the derived quantity.
 - **leaky-errors-had-a-near-duplicate** — Reported as a share (100%) in the write-up; the count is what the artefact carries. The complement - zero on the grouped split - is asserted by tests/test_error_taxonomy.py, which checks the rows directly rather than a summary figure.
+- **floor-clock-rule-grouped** — A25: was 0.4907, 0.0068 behind. The lighting relabelling closed the gap to zero.
 - **floor-histogram-random** — A12: this claim previously read 0.686 against ConvNeXtV2's 0.657 and concluded the histogram won. Both numbers were superseded by A8's estimand fix.
 - **reconciliation-break-even** — A break-even under assumptions, not a measurement. Flag precision itself is unmeasurable on this corpus (WP6-T11), which is why the answer takes this form.
 - **camera-transfer-one-frame** — Read with its two caveats, both in the source table: the 243 held-out empty frames are 3 distinct scenes, which is *why* one frame suffices, and every k-shot row carries the count of near-duplicate pairs crossing the train/test boundary - 1,400 already at k=1. `where` is empty until this reaches the write-up.

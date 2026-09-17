@@ -286,7 +286,7 @@ rather than reported as a fitted parameter.
 |---|---|---|
 | Baseline floor | `h1_h2_baseline_floor.csv` | clock rule 0.4907 vs ConvNeXtV2 0.4975 on the grouped split |
 | Baseline floor | same | random split: ConvNeXtV2 0.9879 vs colour histogram 0.9616 — but on the 62 distinct scenes in that test set both score 1.0000 |
-| Cross-venue | `h3_cross_venue_recall.csv` | a lighting-only rule collapses across venues; backbones hold above 0.86 |
+| Cross-venue | `h3_cross_venue_recall.csv` | **A25: the opposite.** The lighting-only rule scores **1.000** play-recall across unseen venues at false-play **0.0206**, beating all three backbones on both axes. The old "it collapses to 0.219" was a label error |
 
 **Answered, and the answer is conditional.** *Within* a confounded venue, no - a clock rule
 that never looks at the image comes within **0.0068** of ConvNeXtV2 and ViT, and the leaky
@@ -318,13 +318,15 @@ collapse while the frozen features transfer.
 > frame level. The scene-level statement above is what survives, and it was already the
 > better one.
 
-> **Do not quote 0.219 as the clock rule's cross-venue recall.** It is a lower bound partly
-> produced by label error: the `lighting` column for the 396 clip frames is a brightness
-> proxy, and `f_outdoor_bldg` is night football filed as `day`. Correcting that one
-> twelve-frame fold moves the figure to 0.362. The defensible claim is the *direction* - a
-> lighting-only rule collapses across venues while the backbones hold above 0.86 - and the
-> exact value waits on the hand relabelling in TODO WP3-T5. See the correction entry in
-> `results/EXPERIMENT_LOG.md`.
+> **Resolved by A25 (2026-09-17): 0.219 was wrong and so was the conclusion drawn from it.**
+> The hand relabelling this note waited on is done. `f_outdoor_bldg` was not one venue with a
+> bad label - **216 of 396 clip frames** were night football filed as `day`, and not one of the
+> nine clip venues shows daylight. Corrected, the clock rule's cross-venue recall is **1.000**
+> at a false-play rate of **0.0206**: it beats DINOv2, ConvNeXtV2 and ViT on both axes at once.
+> The direction claimed here - "a lighting-only rule collapses across venues while the
+> backbones hold above 0.86" - is **refuted**. Quote it as the protocol failing, not as the
+> rule working: the H3 folds are 100% ACTIVE_PLAY and 100% night, and across the whole recorded
+> corpus "night means play, day means not-play" is right on **99.1%** of frames.
 
 H2 as pre-registered ("within 2 macro-F1 points of the best probe") is **refuted**: DINOv2
 clears the floor by 8.9 points. The narrower version stands and is the more useful finding:

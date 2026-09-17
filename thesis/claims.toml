@@ -50,8 +50,9 @@ column = "macro_f1"
 
 [[claim]]
 id = "h2-clock-rule-grouped"
-statement = "A rule that reads only the clock scores 0.4907 macro-F1 on the grouped split, within 0.09 of the best backbone."
-value = 0.4907
+statement = "A rule that reads only the clock scores 0.4975 macro-F1 on the grouped split, exactly equal to ConvNeXtV2 and ViT."
+value = 0.4975
+note = "A25 corrected the lighting labels this rule reads. It was 0.4907, 0.0068 behind ConvNeXtV2; it is now equal to ConvNeXtV2 and ViT to four decimals, because all three collapse to the same predictions."
 where = []
 source = "results/h1_h2_baseline_floor.csv"
 select = { split = "grouped_slot_id_seed42", model = "clock_rule" }
@@ -70,13 +71,13 @@ column = "play_recall"
 
 [[claim]]
 id = "h3-cross-venue-clock-rule"
-statement = "The clock rule collapses to 0.219 across unseen venues, while the backbones hold above 0.86."
-value = 0.219
+statement = "The clock rule scores 1.000 play-recall across unseen venues, above every backbone, at a false-play rate of 0.0206."
+value = 1.0
 where = ["thesis/rq_matrix.md"]
 source = "results/h3_cross_venue_recall.csv"
 select = { model = "clock_rule", held_out_venue = "MEAN_ACROSS_FOLDS" }
 column = "play_recall"
-note = "A lower bound: WP3-T5 found the lighting labels this rule reads are wrong for at least three clip venues, so quote the collapse rather than the number."
+note = "A25 (WP3-T5) did the relabelling this note used to wait on, and the collapse was the label error: 216 of 396 clip frames read `day` for floodlit night football. Corrected, the rule is perfect cross-venue and beats all three backbones on recall and on false-play. Quote it as the protocol failing, never as the rule working - the H3 folds are 100% ACTIVE_PLAY and 100% night."
 
 [[claim]]
 id = "false-play-convnextv2"
@@ -266,8 +267,9 @@ column = "n_errors"
 
 [[claim]]
 id = "floor-clock-rule-grouped"
-statement = "On the grouped split a rule that reads only the clock scores 0.4907, within 0.0068 of ConvNeXtV2's 0.4975."
-value = 0.4907
+statement = "On the grouped split a rule that reads only the clock scores 0.4975, exactly ConvNeXtV2's score."
+value = 0.4975
+note = "A25: was 0.4907, 0.0068 behind. The lighting relabelling closed the gap to zero."
 where = ["thesis/rq_matrix.md", "thesis/preregistration.md", "thesis/defence_redteam.md"]
 source = "results/h1_h2_baseline_floor.csv"
 select = { split = "grouped_slot_id_seed42", model = "clock_rule" }

@@ -36,7 +36,9 @@ Say so first; it makes the rest credible.
 Under a random split a 16-bin colour histogram scores **0.9616** macro-F1 against
 ConvNeXtV2's 0.9879, and on the **62 distinct scenes** in that test set the two are
 **indistinguishable — both 1.0000**. A rule that reads only the clock and never looks at the
-image scores **0.4907** on the honest grouped split, within **0.0068** of ConvNeXtV2.
+image scores **0.4975** on the honest grouped split, which is **exactly** ConvNeXtV2's score
+and exactly ViT's. (It read 0.4907, within 0.0068, until A25 corrected the lighting labels
+the rule reads; the correction closed the gap to zero.)
 
 Across venues the picture reverses completely: the trivial baselines collapse while the frozen
 features hold above 0.86.

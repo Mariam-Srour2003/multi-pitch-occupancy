@@ -90,12 +90,25 @@ theorising. Deliver them as a sequence — the pattern is the point.
 
 ### 7. A rule that never looks at the image
 
-The clock rule — majority class per lighting condition, no pixels — scores **0.4907** on the
-honest grouped split, within **0.0068** of ConvNeXtV2 (`floor-clock-rule-grouped`).
+The clock rule — majority class per lighting condition, no pixels — scores **0.4975** on the
+honest grouped split, which is **exactly** ConvNeXtV2's score and exactly ViT's
+(`floor-clock-rule-grouped`).
 
-*Say:* this is why four trivial baselines run in every protocol. The rule does collapse across
-venues, to **0.219** (`h3-cross-venue-clock-rule`) — which is the strongest single piece of
-evidence that the backbones learn something transferable.
+*Say:* this is why four trivial baselines run in every protocol. And the rule does **not**
+collapse across venues: **1.000** play-recall at a false-play rate of **0.0206**, beating all
+three backbones on both axes (`h3-cross-venue-clock-rule`).
+
+*This slide used to say the opposite*, and the change is worth telling rather than hiding. It
+read that the rule collapsed to 0.219, "the strongest single piece of evidence that the
+backbones learn something transferable". That 0.219 was produced by a label error — a
+brightness threshold filed 216 frames of floodlit night football as daylight (A25). Corrected,
+the confound is near total: night is 99% ACTIVE_PLAY and day is 98% EMPTY, so "night means
+play" is right on 99.1% of the recorded corpus.
+
+*Expect:* "so your backbones are worthless?" — No: they are indistinguishable from a light
+meter **on this dataset**, which is a statement about the dataset. The corpus contains 9 empty
+frames at night and 6 play frames in daylight. Until those two cells are filled, no experiment
+here can separate an occupancy model from a light meter, and saying so is the contribution.
 
 ### 8. A protocol a constant predictor wins
 

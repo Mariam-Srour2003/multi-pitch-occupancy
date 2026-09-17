@@ -301,7 +301,10 @@ def test_confound_diagram_reads_the_real_manifest() -> None:
     # per-cell counts, not class totals - the split across lighting is the whole finding
     assert ">485<" in svg  # empty, daylight
     assert ">9<" in svg  # empty, floodlit - the near-absent cell
-    assert ">970<" in svg  # active play, floodlit
+    # 970 until A25 relabelled 216 clip frames from `day` to `night`: a brightness threshold
+    # had filed floodlit night football as daylight. The correction makes the confound worse,
+    # which is the point of the diagram.
+    assert ">1186<" in svg  # active play, floodlit
 
 
 def test_confound_diagram_degrades_when_there_is_no_manifest(monkeypatch, tmp_path) -> None:

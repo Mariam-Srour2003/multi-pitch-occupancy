@@ -66,6 +66,11 @@ flagged as having <3 people contained a match in progress.
 | grouped | clock_rule | 0.9636 | 0.4907 [0.488, 0.494] |
 | grouped | majority | 0.0099 | 0.0098 |
 
+> **Superseded by A25 (2026-09-17).** The clock rule's numbers here were computed with the
+> `lighting` column that A25 found wrong for 216 of 396 clip frames. On the corrected labels it
+> equals ConvNeXtV2 and ViT exactly, and DINOv2's lead over it is no longer significant. See
+> *"the lighting labels were wrong"* at the end of this file.
+
 **H2 - refuted as pre-registered, but only just, and only by one model.** The registered
 form was "within 2 macro-F1 points of the best frozen-backbone probe". On the grouped
 split the clock rule sits 8.9 points behind DINOv2 (p_holm 0.0037, g 0.31), so H2 fails.
@@ -5863,3 +5868,119 @@ which most of these cameras do not have.
 **Nothing is wired in.** What changes is the status of the recommendation: it was an untested
 idea appearing in three entries and is now a tested one with a named failure mode, which is
 worth more even though the boundary is no better than it was this morning.
+
+- 2026-09-17 | H3 | `python experiments/h3_cross_venue_recall.py` | seed 42 | `h3_cross_venue_recall.csv` | 7 folds x 4 models
+
+- 2026-09-17 | H1/H2 | `python experiments/h1_h2_baseline_floor.py` | seed 42 | `h1_h2_baseline_floor.csv` | 14 rows over 2 splits
+
+## The lighting labels were wrong, and correcting them reverses a headline claim (A25, WP3-T5)
+
+`scripts/relabel_clip_lighting.py`, `results/h3_cross_venue_recall.csv`, `results/h3_with_false_play.csv`
+
+`rq_matrix.md` has carried this warning since A12: *"Do not quote 0.219 as the clock rule's
+cross-venue recall. It is a lower bound partly produced by label error ... the exact value
+waits on the hand relabelling in TODO WP3-T5."* This is that relabelling. The exact value is
+**1.000**, and it beats every backbone.
+
+**The bug.** `data/extract.py` assigns a clip frame's lighting by mean greyscale brightness,
+below 80 is night, "calibrated against the known day/night recordings in raw/venue_01". That
+calibration does not survive leaving venue_01. A floodlit five-a-side pitch fills most of its
+frame with intensely lit turf, so its mean brightness is **higher** than an overcast afternoon
+at venue_01 - `clipvenue_b_floodlit_track` reads 120 against venue_01's daytime 69. The rule
+measures how bright the picture is, not whether it is daytime, and files night football as
+daylight.
+
+**The audit.** One rendered frame per venue, judged by eye, evidence recorded per venue in the
+script so the judgement can be disagreed with:
+
+| venue | was | what the frame shows |
+|---|---|---|
+| a_blue_barrier | night | dark sky above the barrier; already correct |
+| b_floodlit_track | **day** | black sky, floodlight fixtures visibly lit |
+| c_teal_boards | **day** | burned-in timestamp reads `08-23-2026 Sun 21:02` |
+| d_indoor_dome | **day** | air-dome interior, ceiling lights on, no daylight |
+| e_pink_boards | **day** | indoor hall, ceiling lights, no sky in frame |
+| f_outdoor_bldg | **day** | black sky, floodlight flare; the instance A12 already knew |
+| g_netting | **mixed** | dark sky through the netting, floodlights above |
+| h_teal_pitch | **day** | dark sky beyond the cage, floodlights along the top |
+| i_outdoor_trees | **mixed** | night sky behind the trees |
+
+**Not one of the nine clip venues shows daylight.** 216 of 396 recorded clip frames were
+mislabelled. After correction, **every daylight frame in this corpus is venue_01's.**
+
+**The reversal.** Re-running H3 unchanged except for the labels:
+
+| model | cross-venue play-recall | false-play | was |
+|---|---|---|---|
+| **clock_rule** | **1.0000** | **0.0206** | 0.219 |
+| dinov2 | 0.9297 | 0.3086 | 0.930 |
+| convnextv2 | 0.9105 | 0.9918 | 0.910 |
+| vit | 0.8690 | 0.8354 | 0.869 |
+
+**A rule that never looks at the image beats all three frozen backbones on both axes at once** -
+perfect recall, and a false-play rate fifteen times lower than the best of them. The previous
+claim, in `rq_matrix.md` and twice in this log, was *"a lighting-only rule collapses across
+venues while the backbones hold above 0.86"*. That claim was an artefact of the label error and
+is **refuted**.
+
+**Why it wins, and this is the part that matters more than the table.** The confound is not a
+labelling mistake; it is how five-a-side pitches are used. People play in the evening and the
+pitch is empty during the day:
+
+| | C1_EMPTY | C2_ACTIVE_PLAY | C3 |
+|---|---|---|---|
+| day | **485** | 6 | 6 |
+| night | 9 | **1186** | 0 |
+
+**"Night means play, day means not-play" is correct on 1,677 of 1,692 recorded frames - 99.1%.**
+Within venue_01 alone, which is the only venue with both classes, it is 98.8%. The corpus
+cannot separate *recognises an empty pitch* from *recognises daylight*, and `confound_warnings`
+now says so for every class:
+
+> EMPTY: 98% of 494 frames come from a single lighting condition (day)
+> ACTIVE_PLAY: 99% of 1192 frames come from a single lighting condition (night)
+
+**What this does to the thesis, stated plainly.** It removes a claim about backbones and
+strengthens the methodological contribution, which was always the better half. H3's folds are
+100% ACTIVE_PLAY and now demonstrably 100% night, so H3 cannot distinguish a model from a
+constant - the false-play control was added precisely because recall alone could not, and it is
+the only reason the clock rule's 0.0206 is visible beside its 1.000. The protocol critique this
+project is really about now has its sharpest example: *the strongest trivial baseline beat three
+frozen backbones on the project's own cross-venue protocol, on both axes, and the only thing
+that made that visible was a control the pre-registration did not originally require.*
+
+**And it sharpens the data request, which has been vague for six weeks.** "Recorded empty
+pitches at another venue" is not the whole gap. The corpus needs **empty pitches at night** and
+**play in daylight** - the two cells that hold 9 and 6 frames. Without them no experiment here
+can tell an occupancy model from a light meter, at any venue, including venue_01.
+
+**Not corrected.** Generated frames keep `lighting = unknown`: the audit is of recorded footage,
+and what light a generated image depicts is the generator's business. The binary field also
+cannot distinguish floodlit-outdoor from indoor-artificial, which are two different conditions
+now both filed as `night`; that is a real limitation and is not repaired here.
+
+**H2 changes with it, and the direction is the same.** The grouped-split H1/H2 table was
+regenerated - `benchmark_v2.py` refused to extend it first, because its reproduction guard
+found four published numbers no longer matching, which is the guard working:
+
+| grouped split, seed 42 | macro-F1 before | after |
+|---|---|---|
+| clock_rule | 0.4907 | **0.4975** |
+| convnextv2 | 0.4975 | 0.4975 |
+| vit | 0.4975 | 0.4975 |
+| dinov2 | 0.5794 | 0.5794 |
+
+The clock rule no longer sits 0.007 behind ConvNeXtV2 and ViT - it is now **exactly equal to
+both**, to four decimals, because all three collapse to the same predictions. And across five
+seeds DINOv2's lead over it moves from **+0.089, p_holm 0.0037, "differs"** to **+0.0819,
+p_holm 0.375, "indistinguishable"**. The point estimate barely moved; the significance did.
+
+So the sentence *"only DINOv2 clears the trivial floor by a meaningful margin"* no longer has a
+significance test behind it. H2 as pre-registered - within 2 macro-F1 points - is still refuted
+on the point estimate, and the claim that the refutation is meaningful is not.
+
+- 2026-09-17 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 3 gate(s) met on artefacts, 2 waiting on a person
+
+- 2026-09-17 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 33 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-17 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 34 claims verified against their artefacts, 0 recorded as unsupported
