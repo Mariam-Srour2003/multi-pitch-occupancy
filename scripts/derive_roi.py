@@ -68,6 +68,105 @@ def _largest(m: np.ndarray) -> np.ndarray:
     return np.where(lab == biggest, 255, 0).astype(np.uint8)
 
 
+def _exg(bgr: np.ndarray) -> np.ndarray:
+    """Excess-green ``2G - R - B``, normalised and smoothed.
+
+    Excess-green rather than a hue mask, because floodlit artificial turf at night is closer
+    to grey than to green and a hue threshold loses it - the *relative* channel order survives
+    when saturation does not.
+    """
+    bgr = cv2.normalize(bgr, None, 0, 255, cv2.NORM_MINMAX)
+    b, g, r = (bgr[:, :, i].astype(np.int16) for i in range(3))
+    exg = np.clip(2 * g - r - b, 0, 255).astype(np.uint8)
+    return cv2.GaussianBlur(exg, (5, 5), 0)
+
+
+def _clean(m: np.ndarray) -> np.ndarray:
+    """Close a player-shaped gap, drop specks, keep the largest region."""
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
+    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, k, iterations=2)
+    m = cv2.morphologyEx(m, cv2.MORPH_OPEN, k, iterations=1)
+    return _largest(m)
+
+
+def flat_field(exg: np.ndarray) -> np.ndarray:
+    """Divide out the smooth illumination surface, leaving the sharp edges.
+
+    A floodlit pitch is brighter and greener near the camera than at the far end, and Otsu
+    applies **one** threshold to the whole frame - so it splits the pitch rather than
+    separating pitch from not-pitch. On the unseen clip that cost the far third, up to and
+    including the goal: coverage 56%, and a person standing there was not counted.
+
+    Dividing by a heavily blurred copy of the image is the standard correction for exactly
+    that. The blur (sigma = width/6) is far wider than any pitch feature and far narrower than
+    the frame, so it follows the lighting and not the turf. There is no threshold to tune here
+    and no constant fitted to a venue.
+    """
+    background = cv2.GaussianBlur(exg.astype(np.float32), (0, 0), sigmaX=exg.shape[1] / 6)
+    corrected = exg.astype(np.float32) / np.maximum(background, 1e-3) * float(background.mean())
+    return np.clip(corrected, 0, 255).astype(np.uint8)
+
+
+def turf_mask_flat(bgr: np.ndarray) -> np.ndarray:
+    """:func:`turf_mask` with the lighting gradient removed before thresholding.
+
+    **Measured and rejected (A19).** It does what it was meant to - it recovers the far third
+    of the unseen clip's pitch, 56% coverage to 86% - and it is unusable, because it destroys
+    the mask on frames that *have* no gradient. Dividing a fairly uniform image by a blurred
+    copy of itself leaves near-constant noise, and Otsu then splits the noise: venue_01
+    camera A, where the six recorded C3 frames live, collapses from 49% coverage to **3%**.
+    Kept as the measured alternative that `roi_flat_field.py` compares against, not as a path
+    anything calls.
+    """
+    _, m = cv2.threshold(flat_field(_exg(bgr)), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return _clean(m)
+
+
+#: How far below Otsu's threshold a pixel may sit and still join the pitch, as a fraction of
+#: the threshold. Hysteresis needs two levels and this is the second; 0.6 is the value the
+#: table in `roi_flat_field.py` was measured at. It is a floor, not a fit: the growth is
+#: bounded by connectivity, so a low value costs nothing where there is nothing adjacent to
+#: grow into.
+GROW_FRACTION = 0.6
+
+
+def turf_mask_grown(bgr: np.ndarray, fraction: float = GROW_FRACTION) -> np.ndarray:
+    """Otsu, then grow into whatever is connected to it and nearly as green (A19).
+
+    The defect this addresses is real: one global threshold on a floodlit pitch splits the
+    pitch, because the far end is dimmer than the near end. `turf_mask_flat` addressed it by
+    removing the gradient, and destroyed frames that had none.
+
+    Hysteresis is the version that degrades gracefully. Otsu's threshold still decides what is
+    *certainly* pitch; a second, lower threshold decides what may *join* it, and only regions
+    touching the certain ones are kept. Where the far end is dim but connected it comes back;
+    where there is nothing adjacent and nearly-green, the result is exactly
+    :func:`turf_mask`. That is the property `turf_mask_flat` lacked.
+
+    It is the same rule Canny uses on edges, applied to a region instead.
+
+    **Measured and rejected (A19), and not for the reason `turf_mask_flat` was.** It behaves:
+    no camera collapses, the minimum coverage across 69 cameras rises from 26% to 43%, and on
+    923 labelled frames it halves the number of cross-venue play frames sitting in the 1-4
+    person band. End to end on the unseen clip it is worse - the area it recovers reaches the
+    barrier where three people stand watching, which turns two empty minutes into C3 and
+    promotes the minute with one walker to a match. The boundary's value is in what it
+    excludes, and a looser threshold recovers pitch and touchline at the same rate.
+    """
+    exg = _exg(bgr)
+    high, strong = cv2.threshold(exg, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    weak = (exg >= high * fraction).astype(np.uint8) * 255
+
+    # Keep only the weak components that touch a strong one. `connectedComponents` on the
+    # weak mask, then the set of labels that overlap the strong mask.
+    n, lab = cv2.connectedComponents(weak, 8)
+    if n <= 1:
+        return _clean(strong)
+    keep = set(np.unique(lab[strong > 0])) - {0}
+    grown = np.isin(lab, list(keep)).astype(np.uint8) * 255
+    return _clean(grown)
+
+
 def turf_mask(bgr: np.ndarray) -> np.ndarray:
     """The pitch as the largest connected excess-green region.
 
@@ -85,15 +184,8 @@ def turf_mask(bgr: np.ndarray) -> np.ndarray:
     `normalize` stays: it changed four cameras by an IoU of 0.97-0.98, which is small but is
     a real effect on contrast-poor medians rather than a hypothetical one.
     """
-    bgr = cv2.normalize(bgr, None, 0, 255, cv2.NORM_MINMAX)
-    b, g, r = (bgr[:, :, i].astype(np.int16) for i in range(3))
-    exg = np.clip(2 * g - r - b, 0, 255).astype(np.uint8)
-    exg = cv2.GaussianBlur(exg, (5, 5), 0)
-    _, m = cv2.threshold(exg, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
-    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, k, iterations=2)
-    m = cv2.morphologyEx(m, cv2.MORPH_OPEN, k, iterations=1)
-    return _largest(m)
+    _, m = cv2.threshold(_exg(bgr), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return _clean(m)
 
 
 def polygon_from_mask(mask: np.ndarray, max_points: int = 8) -> list[list[float]] | None:

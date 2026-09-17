@@ -5459,3 +5459,80 @@ person gate still overrules 0 of 521 verdicts and every figure in the risk-cover
 identical. That follows from the table above - the combined rule fires on 0 of venue_01's 278
 ACTIVE_PLAY frames - but a gate that gained a new output class is exactly the sort of change
 that quietly moves a number nobody re-ran.
+
+## The boundary clips a third of the pitch, both fixes are worse, and the tightness is the point (A19)
+
+`experiments/roi_flat_field.py`, `results/roi_flat_field.csv`
+
+Rendering the unseen clip's derived boundary with the person boxes drawn on it shows an
+obvious defect: the outline keeps **56%** of the frame and stops a third of the way up the
+pitch, with the far third and the goal outside it. A person standing at the far end is not
+counted, and three of the six recorded C3 frames detect people in the frame and none inside
+the boundary. The cause is not subtle either - `turf_mask` applies **one** Otsu threshold to
+the whole frame, and a floodlit pitch is dimmer at the far end than at the near end, so the
+threshold splits the pitch instead of separating pitch from not-pitch.
+
+Two fixes were built and measured against the current mask on the same detections, so the
+arms differ only in the outline.
+
+**Flat-field correction** - divide the excess-green image by a heavily blurred copy of itself,
+removing the smooth illumination surface. It does exactly what it was meant to on the clip, 56%
+coverage to 86%. It is also unusable: a near-uniform image divided by a blur of itself is
+noise, and Otsu splits the noise. **venue_01 camera A - where the only six recorded C3 frames
+live - collapses from 49% coverage to 3%.**
+
+**Hysteresis growth** - Otsu still decides what is certainly pitch, a lower threshold decides
+what may join it, and only regions touching a certain one survive. It degrades gracefully by
+construction: with nothing adjacent to grow into it reduces to the current mask exactly.
+
+| arm | mean coverage | median | min | cameras under 20% |
+|---|---|---|---|---|
+| current | 60.1% | 64.0% | 26.1% | 0 |
+| flat-field | 65.2% | 71.2% | **2.6%** | 1 |
+| grown | 67.0% | 71.1% | 42.7% | 0 |
+
+**On the corpus, growth looks like a mild win.** 923 labelled frames:
+
+| | n | current | flat-field | grown |
+|---|---|---|---|---|
+| EMPTY frames still finding nobody | 243 | **88.9%** | 87.7% | 87.7% |
+| venue_01 play, mean count | 278 | 6.37 | 6.44 | 6.44 |
+| clip venues, mean count | 396 | 9.82 | 10.38 | 10.36 |
+| clip venues, frames in the 1-4 band | 396 | 9 | 5 | **4** |
+| recorded C3 frames with anybody inside | 6 | 3 | 0 | **4** |
+
+Halving the 1-4 band across nine unseen venues is a direct improvement to A18: that band is
+where the C3 rule's unsound clause is consulted, and it was the rule's stated weak point.
+Three EMPTY frames of venue_01 safety for five fewer cross-venue danger frames is the sort of
+trade this project has usually taken.
+
+**End to end on the clip it is plainly worse, and that is the measurement that decides it.**
+Through the boundary and all three gates:
+
+| | coverage | wrong verdicts on the 13 empty minutes | minute 15, one person, no ball |
+|---|---|---|---|
+| current | 56% | **0** | C3, correct |
+| grown | 85% | **2** (minutes 0 and 13 called C3) | **ACTIVE_PLAY, wrong** |
+
+The recovered area is not only pitch. It reaches up to the barrier at the top of the frame,
+where three people stand watching, and admitting them turns two empty minutes into C3 and
+promotes the minute with one walker to a match. Minute 12 - the failure that started this - is
+**not fixed by either arm**.
+
+**The finding is not "the boundary is fine".** It genuinely does clip a third of that pitch.
+The finding is that the clipped area is worth less than the off-pitch area that comes with it:
+the boundary's value is in what it excludes, and a rule that recovers real pitch by relaxing a
+threshold recovers the touchline and the barrier at the same rate. `turf_mask` is unchanged.
+Both alternatives stay in `derive_roi.py` as the measured comparison behind that decision,
+since a rejected path with a number attached is worth more than the same decision with nothing
+behind it.
+
+**What would actually fix it** is a boundary that is not a threshold on colour - the pitch's
+line markings are a stronger geometric cue than its greenness, and four touchlines define the
+surface exactly where a convex hull of green pixels only approximates it. That is a different
+piece of work and it is the honest recommendation, not a tuned `GROW_FRACTION`.
+
+**A correction to A18.** That entry attributed minute 12 to "a detector limit, not a rule
+limit". More precisely: the detector finds the person, the boundary excludes them, and
+widening the boundary enough to include them costs more than it returns. The limit is the
+boundary's shape, and it is not repairable by loosening it.

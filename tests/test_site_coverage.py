@@ -41,6 +41,11 @@ OUT_OF_SCOPE = {
         "rule does not miss play; cannot confirm it does not invent it, since no clip "
         "venue has a recorded empty pitch."
     ),
+    "roi_flat_field.csv": (
+        "A19: per-frame person counts under three candidate boundaries. Both alternatives "
+        "were rejected, and the corpus table favours the one the unseen clip rules out - "
+        "a row would carry the corpus half and lose the half that decided it."
+    ),
     "ball_detection_rule.csv": (
         "A17: per-frame ball detections inside the boundary. The venue_01 row alone would "
         "read as the best signal in the project (+0.967); the cross-venue row, where a ball "
