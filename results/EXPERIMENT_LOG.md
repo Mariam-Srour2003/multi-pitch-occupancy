@@ -6210,3 +6210,63 @@ real effect.
 **Still manufactured, still not a recorded empty pitch at night.** 26 averages of frames that
 had people in them, at three venues, filtered by a detector that therefore cannot be evaluated
 on them. The cell A25 named is still empty.
+
+## A13's repair reproduces; the median empties do the opposite, and "subtraction" does not explain it (A30)
+
+`experiments/median_empties_as_training.py`, `results/median_empties_as_training.csv`
+
+Two questions on the same seven H3 folds. `development_rows` excludes synthetic frames
+entirely, so H3's folds have never contained the generated EMPTY frames - A13's repair was
+measured in a different train assembly and had never been checked under this protocol.
+
+| arm | play-recall | false-play | balanced |
+|---|---|---|---|
+| full | 0.9444 | 0.7684 | 0.1761 |
+| **full + generated empties (31)** | **0.9595** | **0.0235** | **0.9360** |
+| full + generated, same 3 venues (19) | 0.9206 | 0.0553 | 0.8654 |
+| full + median empties (26) | 0.8651 | **0.9618** | **-0.0967** |
+| full + both | 0.8696 | 0.1070 | 0.7626 |
+| pruned | 1.0000 | 0.6173 | 0.3827 |
+| **pruned + generated empties (31)** | 0.9881 | **0.0770** | **0.9111** |
+| pruned + generated, same 3 venues (19) | 0.9966 | 0.1699 | 0.8267 |
+| pruned + median empties (26) | 0.9957 | 0.6537 | 0.3420 |
+
+**A13 reproduces, and more strongly than it was reported.** Thirty-one generated EMPTY frames
+take cross-venue false-play from 0.7684 to **0.0235** while *raising* play-recall, and from
+0.6173 to 0.0770 on the pruned side. It is the largest single training-set effect in this
+project and it now holds under the protocol the thesis reports cross-venue numbers from.
+
+**The median frames do the opposite.** Twenty-six real-pixel empty night pitches, built by
+exactly the subtraction A13 credited, push false-play from 0.7684 to **0.9618** - worse than
+using no extra empty frames at all - and cost 8 points of recall. Adding them alongside the
+generated frames drags 0.0235 to 0.1070. They are not neutral; they are harmful, and they are
+**not** going into any training set.
+
+**Two explanations tested and both wrong.**
+
+*Venue coverage.* The generated set spans six venues and the medians three, so the comparison
+might have been 31-from-6 against 26-from-3. Restricting the generated frames to the medians'
+own three venues leaves **19** frames - fewer than the medians - and they still give 0.0553
+against 0.9618. It is not how many venues the frames come from.
+
+*Smoothness.* A median of 300 frames ought to be blurrier than a photograph, and a probe
+learning "smooth means empty" would not transfer to venue_01's sharp recorded empties. Measured
+by variance of the Laplacian, the medians are the **sharpest** set of the four - 1978 against
+906 for recorded EMPTY - so the explanation is not merely unproven, it points the wrong way.
+That comparison is itself confounded: the medians are produced at 960x540 while recorded frames
+are downscaled to it from 1080p, and downscaling low-passes. It is reported as a failed
+explanation rather than a finding.
+
+**So the lesson this project has been repeating is too simple.** "Subtraction works, addition
+does not" was drawn from generated EMPTY frames repairing false-play while generated C3 frames
+did nothing. A whole-clip median is subtraction in its purest form - no model, real pixels, the
+camera's own exposure - and it fails at the same task that inpainted frames succeed at, at the
+same venues, in greater number. Whatever the generated EMPTY frames supply, it is not
+*subtraction*, and this project does not currently know what it is.
+
+**What that costs and what it does not.** It does not disturb the deployed system: the
+generated frames stay, on evidence that is now stronger than when they were adopted. It does
+disturb the explanation attached to them in `synthetic_data_protocol.md` and in three log
+entries, which should be read as *an observation about these 31 frames* rather than a principle
+about synthesis. A17's account of why ball detection fails, and A13's of why C3 frames failed,
+both lean on that principle and are weaker than they read.

@@ -1,0 +1,11 @@
+arm,pruned,extra_empties,play_recall,false_play,balanced
+full,False,none,0.9444,0.7684,0.1761
+full + generated empties (31),False,generated,0.9595,0.0235,0.936
+"full + generated, same 3 venues (19)",False,generated_3,0.9206,0.0553,0.8654
+full + median empties (26),False,median,0.8651,0.9618,-0.0967
+full + both,False,both,0.8696,0.107,0.7626
+pruned,True,none,1.0,0.6173,0.3827
+pruned + generated empties (31),True,generated,0.9881,0.077,0.9111
+"pruned + generated, same 3 venues (19)",True,generated_3,0.9966,0.1699,0.8267
+pruned + median empties (26),True,median,0.9957,0.6537,0.342
+pruned + both,True,both,0.9864,0.2022,0.7842

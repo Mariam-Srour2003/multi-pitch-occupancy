@@ -51,6 +51,10 @@ OUT_OF_SCOPE = {
         "false-play 0.6173 to 0.0123 - is only honest beside the note that the gate's "
         "thresholds were read off the same control frames, which a table row cannot carry."
     ),
+    "median_empties_as_training.csv": (
+        "A30: generated against manufactured EMPTY frames on the H3 folds. The rows are only "
+        "meaningful beside the two explanations that were tested and failed."
+    ),
     "median_empty_night.csv": (
         "A28: a probe and the clock rule on 5 manufactured empty-at-night frames. Two rows "
         "that mean nothing without the paragraph on what selected the frames and what they "
