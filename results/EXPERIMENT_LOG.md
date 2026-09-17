@@ -6376,3 +6376,53 @@ added - ball detection, H3 with gates, the whole-clip medians, the medians as tr
 the clock-rule-on-video comparison - with the two that need footage not in the repository
 naming the paths they need at the top of the file. A claim whose artefact nothing reproduces is
 a claim that cannot be checked by anyone but its author.
+
+- 2026-09-17 | H6 zero-shot vs trained probes | `python -m experiments.h6_zero_shot_gap` | `h6_zero_shot_gap.csv` | declared prompt set; realised family 3; H6 inconclusive; prompt choice spans 0.021-0.747 macro-F1
+
+- 2026-09-17 | H4 model equivalence | `python experiments/h4_model_equivalence.py` | `h4_model_equivalence.csv` | ConvNeXtV2 vs ViT: equivalent at margin 0.02
+
+- 2026-09-17 | WP5-T9 logit-average baseline | `python experiments/logit_average_baseline.py` | `logit_average_baseline.csv` | best single dinov2 0.9297, oracle 0.9603
+
+- 2026-09-17 | WP4-T13 what the false-play control measures | `python experiments/empty_recognition.py` | `empty_recognition.csv` | DINOv2 EMPTY accuracy 0.0000 -> 0.9793 with ONE labelled empty frame of the held-out camera; removing C3 changes nothing - the control is a camera-transfer test
+
+## The staleness check found six stale stages, and one moves a significance result (A33)
+
+`experiments/reproduce_all.py --check`, `results/effective_sample_audit.csv`
+
+A25 rewrote 216 rows of the manifest and four experiments were re-run by hand. That is not a
+method for finding out what else moved. `reproduce_all.py --check` compares each stage's output
+against the git content-timestamps of its inputs and named **six** stages built before an input
+they depend on last changed:
+
+> false-play-significance, effective-sample-audit, h6-zero-shot, h4-equivalence, logit-average,
+> empty-recognition
+
+All six were re-run. Five produced byte-identical output, which is the answer the check is
+designed to permit - "re-run to be sure" rather than "this is wrong". One did not.
+
+**The effective-sample audit is the project's most careful significance test** - it compares
+models on *distinct scenes* rather than frames, because 394 nominal test frames are 62 scenes and
+907 are 95. On the corrected labels:
+
+| split | comparison | p (frames) | p (distinct scenes) | was significant | now |
+|---|---|---|---|---|---|
+| random | DINOv2 vs **clock rule** | 1.000 | 1.000 | yes (8.2e-07, 6.1e-05) | **no** |
+| grouped | DINOv2 vs **clock rule** | 0.125 | 1.000 | yes (1.2e-03, 2.1e-02) | **no** |
+| grouped | colour histogram vs clock rule | 4.2e-172 | 7.0e-16 | yes | yes |
+
+**DINOv2 is no longer distinguishable from the clock rule on either split, at either grain.**
+Before the relabelling it beat the rule significantly on both, four tests out of four; it now
+loses all four. The colour histogram is still distinguishable from the rule, and in the opposite
+direction - the rule beats *it* decisively on the grouped split.
+
+**This is the third independent confirmation of the same reversal**, and they are not the same
+test: H2's five-seed comparison moved from p_holm 0.0037 to 0.375 (A25), H3's cross-venue table
+moved from the rule collapsing to the rule winning (A25), and this is the scene-level audit
+agreeing with both. Three different protocols, one cause - 216 frames of floodlit night football
+filed as daylight.
+
+**What the staleness check earned.** Five stages re-ran to no effect and one moved a reported
+significance result that nothing else would have caught. The check is advisory by design and
+reads content from git rather than modification times, which is why it could say *re-run to be
+sure* without crying wolf: six candidates, one real. That ratio is what makes it worth running
+after any change to the manifest, and it is now the thing to run after one.
