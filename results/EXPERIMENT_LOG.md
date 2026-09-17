@@ -6270,3 +6270,64 @@ disturb the explanation attached to them in `synthetic_data_protocol.md` and in 
 entries, which should be read as *an observation about these 31 frames* rather than a principle
 about synthesis. A17's account of why ball detection fails, and A13's of why C3 frames failed,
 both lean on that principle and are weaker than they read.
+
+## Three explanations for A30 tested and eliminated; the mechanism is open (A31)
+
+`experiments/median_empties_as_training.py`, `results/median_empties_as_training.csv`
+
+A30 left one question: 31 inpainted EMPTY frames take cross-venue false-play from 0.7684 to
+0.0235, and 26 median EMPTY frames - real pixels, same venues, the same subtraction the project
+credits - take it to 0.9618. Three candidate mechanisms, each testable, each tested.
+
+**1. The generated frames resemble the test set.** If the repair worked by putting training
+frames near the control rather than by teaching a class, it would be a leakage-shaped effect and
+A13 would need retracting. Cosine similarity in DINOv2 feature space to the 243 control frames:
+
+| set | mean | nearest |
+|---|---|---|
+| generated EMPTY (31) | +0.739 | +0.777 |
+| median EMPTY (26) | +0.725 | +0.742 |
+| **recorded clip PLAY (396)** | **+0.723** | +0.752 |
+| the control itself | +0.980 | +1.000 |
+
+The generated frames are 0.016 closer to the control than *play frames* are, against a control
+that is +0.980 similar to itself. They are not near it in any useful sense. **Rejected**, and
+A13 is not a leakage effect.
+
+**2. The medians are too smooth.** A median of 300 frames should be blurrier than a photograph,
+and a probe learning "smooth means empty" would not transfer. By variance of the Laplacian the
+medians are the **sharpest** of the four sets, 1978 against 906 for recorded EMPTY. The
+explanation points the wrong way. **Rejected**, with the caveat that the comparison is
+confounded by the medians being produced at 960x540 while recorded frames are downscaled to it.
+
+**3. A median has a near-identical twin in training labelled ACTIVE_PLAY.** This one looked
+decisive. A median is built *from* a clip's frames, so it lands beside them: the nearest
+development frame to every one of the 26 is an ACTIVE_PLAY frame at cosine **0.939**, and for
+**13 of 26** it is a frame of the *same clip*. For the generated frames the nearest neighbour is
+also ACTIVE_PLAY at the same 0.937, but the same clip for **0 of 31**. A direct label conflict
+between near-identical vectors is exactly the kind of thing a 2,307-parameter probe should
+break on.
+
+It makes a prediction, so it was tested: drop the 13 conflicted medians and the harm should go.
+
+| arm | play-recall | false-play |
+|---|---|---|
+| full + median empties (26) | 0.8651 | 0.9618 |
+| full + medians, no twin in train (13) | 0.8810 | **0.9306** |
+| pruned + median empties (26) | 0.9957 | 0.6537 |
+| pruned + medians, no twin in train (13) | 0.9983 | **0.6267** |
+
+**It does not.** 0.9618 to 0.9306 against the generated frames' 0.0235. The conflict is a real
+correlate - 13 of 26 against 0 of 31 - and removing it recovers almost nothing. **Rejected.**
+
+**So the question is open, and the elimination is the contribution.** Whatever the 31 generated
+frames supply, it is not proximity to the test set, not photographic texture, and not the
+absence of a duplicate-label conflict. The medians also cost play-recall in the full arm, 0.9444
+to 0.8651, which a pure addition to the EMPTY class has no obvious reason to do, and both median
+arms cost it equally - so the property is of median frames as a kind, not of the conflicted half.
+
+**What is settled, and it is the part that matters for the model.** The generated EMPTY frames
+stay, on evidence stronger than when they were adopted. The median frames do not enter training
+under any subsetting tried. And the principle written in `synthetic_data_protocol.md` -
+"subtraction works, addition does not" - is a description of 31 frames and not a mechanism; four
+entries lean on it and should be read that way until something replaces it.

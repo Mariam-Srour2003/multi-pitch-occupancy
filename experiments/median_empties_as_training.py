@@ -124,6 +124,8 @@ def main() -> int:
                 train = train + [r for r in med_rows if not fold.name.endswith(r.venue)]
             if extra in ("generated", "both"):
                 train = train + [r for r in generated if not fold.name.endswith(r.venue)]
+            if extra == "median_clean":
+                train = train + [r for r in med_clean if not fold.name.endswith(r.venue)]
             if extra == "generated_3":
                 # The generated set restricted to the three venues the medians cover, so the
                 # comparison is not "31 frames from 6 venues against 26 from 3". If venue
@@ -141,16 +143,38 @@ def main() -> int:
             fps.append(sum(p == PLAY for p in pc) / len(pc))
         return float(np.mean(recs)), float(np.mean(fps))
 
+    # Which medians have a near-identical twin in training labelled ACTIVE_PLAY (A31).
+    #
+    # A median is built *from* a clip's own frames, so it lands beside them in feature space:
+    # the nearest development frame to every one of the 26 is an ACTIVE_PLAY frame at cosine
+    # 0.939, and for 13 of them it is a frame of the **same clip**. The generated frames also
+    # sit nearest to ACTIVE_PLAY, at the same 0.937, but for 0 of 31 is it the same clip. That
+    # is the only systematic difference found between the two sets, and this arm tests whether
+    # it is the cause: drop the conflicted half and the harm should go with it.
+    def _norm(a):
+        return a / np.linalg.norm(a, axis=1, keepdims=True)
+
+    T = _norm(np.stack([feats[r.file] for r in dev]))
+    Xm = _norm(np.stack(med_feats))
+    nearest = (Xm @ T.T).argmax(1)
+    conflicted = {med_rows[i].file for i, k in enumerate(nearest)
+                  if dev[k].camera == med_rows[i].camera}
+    med_clean = [r for r in med_rows if r.file not in conflicted]
+    print(f"{len(conflicted)} of {len(med_rows)} medians have their nearest development "
+          f"neighbour in their own clip, labelled ACTIVE_PLAY")
+    print(f"{len(med_clean)} remain after dropping them\n")
+
     med_venues = {r.venue for r in med_rows}
     n_gen3 = sum(1 for r in generated if r.venue in med_venues)
     labels = {"none": "", "median": " + median empties (26)",
               "generated": " + generated empties (31)",
               "generated_3": f" + generated, same 3 venues ({n_gen3})",
+              "median_clean": f" + medians, no twin in train ({len(med_clean)})",
               "both": " + both"}
     records = []
     print(f"{'arm':<40}{'play-recall':>13}{'false-play':>13}{'balanced':>11}")
     for prune in (False, True):
-        for extra in ("none", "generated", "generated_3", "median", "both"):
+        for extra in ("none", "generated", "generated_3", "median", "median_clean", "both"):
             rec, fp = run(extra, prune)
             name = f"{'pruned' if prune else 'full'}{labels[extra]}"
             print(f"{name:<40}{rec:>13.4f}{fp:>13.4f}{rec - fp:>11.4f}")
