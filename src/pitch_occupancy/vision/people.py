@@ -24,11 +24,20 @@ nobody; it never turns EMPTY into ACTIVE_PLAY. Finding nobody is strong evidence
 match - 0.4% of real play frames - while finding somebody is not evidence for one, since a
 groundskeeper and a person crossing the pitch both count as somebody.
 
-**What it deliberately does not do.** The three-class version of this rule fails: a third of
-genuine ACTIVE_PLAY frames show four or fewer people inside the boundary, because a camera
-sees part of a pitch and a detector misses distant players. "One to four people means not
-playing" would be wrong on 88 real matches out of 278, so the count is *evidence toward* C3
-and never a verdict of it.
+**The C3 rule, and why the ball clause is what makes it possible (A18).** "One to four people
+means not playing" on its own is wrong on **88 of 278** real matches at venue_01, because a
+camera sees part of a pitch and a detector misses distant players. Adding the clause the rule
+was actually stated with - *and no ball* - takes that to **0 of 278**, and across the nine clip
+venues, 396 frames of genuine play at sites the model has never seen, the combined rule fires
+on **3**, or 0.8%. That is the best-evidenced cross-venue cost in this project.
+
+**What is not evidenced is the other half.** There are **6 recorded C3 frames in the entire
+corpus**, one slot at one camera, and the rule identifies **1** of them: three show nobody
+inside the boundary at all, and two show a ball. A cost measured on 396 frames and a benefit
+measured on 6 is not a balanced case, and the honest reading is that this rule is *safe* rather
+than *shown to work*. It is enabled because the alternative is a deployed path that cannot
+return C3 at all, and because on the unseen clip it is right - the minute with one person
+walking and no ball is the minute a person would call not-playing.
 
 **Failure is silence, not a guess.** A missing detector returns `None` from `detect_people`,
 and the gate leaves the verdict alone rather than treating "not checked" as "found nobody" -
@@ -143,7 +152,21 @@ def count_inside(image_bgr, polygon) -> int | None:
 
 @dataclass(frozen=True, slots=True)
 class PersonGate:
-    """Overrule ACTIVE_PLAY when nobody is standing inside the boundary."""
+    """Weaken an ACTIVE_PLAY verdict when the detector does not support it.
+
+    Two overrules, both in the same direction - a play verdict can be reduced and never
+    manufactured:
+
+    * **nobody inside the boundary** becomes EMPTY (A16)
+    * **a small group with no ball** becomes C3, present but not playing (A18)
+
+    `small_group_max` is the largest group the second rule will call not-playing. Four is the
+    number the rule was stated with and the number the tables in the module docstring were
+    measured at. Setting it to 0 disables the C3 overrule and leaves A16's behaviour exactly
+    as it was.
+    """
+
+    small_group_max: int = 4
 
     def inspect(self, state: Class3, image_bgr,
                 polygon=None) -> tuple[Class3, Counted | None]:
@@ -153,10 +176,17 @@ class PersonGate:
         verdict this gate can change. At one frame per camera per minute a second of CPU is
         affordable; spending it on frames the answer cannot alter is not.
 
-        **The ball does not veto the overrule.** A frame with nobody on the pitch and a ball
-        inside the boundary is still turned to EMPTY - a ball lying on an empty pitch is a
-        ball lying on an empty pitch, and 8 of venue_01's 243 recorded EMPTY frames have one.
-        The ball is returned so the caller can record it, not so it can argue.
+        **The ball does not veto the EMPTY overrule.** A frame with nobody on the pitch and a
+        ball inside the boundary is still turned to EMPTY - a ball lying on an empty pitch is
+        a ball lying on an empty pitch, and 8 of venue_01's 243 recorded EMPTY frames have one.
+
+        **It does gate the C3 overrule, and the two clauses do different jobs.** A *found*
+        ball vetoes C3 outright, which is the sound direction - a found ball is a found ball,
+        whatever the 40% cross-venue recall says. The rule does also require the ball to be
+        absent, which is the unsound direction, and the count is what bounds the damage: at
+        the nine unseen venues a real match almost never shows four or fewer people inside the
+        boundary, so the unsound clause is only ever consulted on 9 frames out of 396 and
+        fires wrongly on 3. It is protected by the count, not by the ball.
         """
         if state is not Class3.ACTIVE_PLAY:
             return state, None
@@ -165,6 +195,8 @@ class PersonGate:
             return state, None
         if counted.people == 0:
             return Class3.EMPTY, counted
+        if 0 < counted.people <= self.small_group_max and not counted.ball:
+            return Class3.MAINTENANCE_NON_SPORTING, counted
         return state, counted
 
     def apply(self, state: Class3, image_bgr, polygon=None) -> tuple[Class3, int | None]:

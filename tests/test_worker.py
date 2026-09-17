@@ -629,21 +629,83 @@ def test_a_ball_never_stops_the_gate_overruling_an_empty_pitch(monkeypatch):
     assert counted.ball is True
 
 
-def test_the_ball_is_below_the_person_threshold_and_that_is_deliberate():
-    """A football is about 400 square pixels on these frames and the detector is unsure of it.
-    The lower threshold is affordable only because the ball decides nothing: a false ball is a
-    wrong note in the record where a false person would be a wrong verdict. If the ball ever
-    gains a say in the verdict, this test should be the thing that objects."""
-    import pathlib
+def test_the_gate_can_only_ever_weaken_a_play_verdict(monkeypatch):
+    """The safety property the whole design rests on, checked over every combination rather
+    than argued in a comment.
 
+    `BALL_CONFIDENCE` sits below the person threshold because a football is about 400 square
+    pixels and the detector is unsure of it. A detection that cheap is allowed to *withhold* a
+    play verdict - it vetoes the C3 overrule - and never to assert one. So: whatever the count
+    and whatever the ball, ACTIVE_PLAY never comes out unless it went in.
+    """
+    from pitch_occupancy.data.taxonomy import Class3
     from pitch_occupancy.vision import people
 
     assert people.BALL_CONFIDENCE < people.DETECT_CONFIDENCE
-    src = pathlib.Path(people.__file__).read_text(encoding="utf-8")
-    body = src[src.index("def inspect"):]
-    assert "counted.ball" not in body.split("def apply")[0], (
-        "inspect() reads the ball when deciding; at 0.10 confidence it is not entitled to"
-    )
+    gate = people.PersonGate()
+    for count in (0, 1, 4, 5, 11):
+        for ball in (False, True):
+            monkeypatch.setattr(
+                people, "detect_inside",
+                lambda *_a, _c=count, _b=ball, **_k: people.Counted(people=_c, ball=_b))
+            for given in Class3:
+                out, _ = gate.inspect(given, _blank())
+                assert out is given or given is Class3.ACTIVE_PLAY, (given, out, count, ball)
+                if out is Class3.ACTIVE_PLAY:
+                    assert given is Class3.ACTIVE_PLAY
+
+
+def test_a_small_group_with_no_ball_is_not_playing(monkeypatch):
+    """A18. The clause the rule was stated with: 1-4 people *and no ball*. The count alone
+    would call 88 of 278 real matches not-playing; with the ball clause it calls none."""
+    from pitch_occupancy.data.taxonomy import Class3
+    from pitch_occupancy.vision import people
+
+    gate = people.PersonGate()
+    monkeypatch.setattr(people, "detect_inside",
+                        lambda *_a, **_k: people.Counted(people=3, ball=False))
+    state, _ = gate.inspect(Class3.ACTIVE_PLAY, _blank())
+    assert state is Class3.MAINTENANCE_NON_SPORTING
+
+
+def test_a_ball_vetoes_the_not_playing_call(monkeypatch):
+    """Three people with a ball is a kickabout, and a kickabout is play. This is the clause
+    that takes the rule from wrong on 88 of 278 real matches to wrong on none."""
+    from pitch_occupancy.data.taxonomy import Class3
+    from pitch_occupancy.vision import people
+
+    monkeypatch.setattr(people, "detect_inside",
+                        lambda *_a, **_k: people.Counted(people=3, ball=True))
+    state, _ = people.PersonGate().inspect(Class3.ACTIVE_PLAY, _blank())
+    assert state is Class3.ACTIVE_PLAY
+
+
+def test_a_full_pitch_is_never_called_not_playing(monkeypatch):
+    """The bound on the rule: above `small_group_max` it does not apply at all, whatever the
+    ball says. At the nine unseen venues the median count is 10, which is why the rule is only
+    ever consulted on 9 of 396 genuine play frames."""
+    from pitch_occupancy.data.taxonomy import Class3
+    from pitch_occupancy.vision import people
+
+    monkeypatch.setattr(people, "detect_inside",
+                        lambda *_a, **_k: people.Counted(people=9, ball=False))
+    state, _ = people.PersonGate().inspect(Class3.ACTIVE_PLAY, _blank())
+    assert state is Class3.ACTIVE_PLAY
+
+
+def test_the_c3_rule_can_be_switched_off_leaving_a16_intact(monkeypatch):
+    """`small_group_max=0` is the pre-A18 gate exactly, so a supervisor who does not accept
+    the C3 rule can decline it without losing the empty-pitch overrule."""
+    from pitch_occupancy.data.taxonomy import Class3
+    from pitch_occupancy.vision import people
+
+    off = people.PersonGate(small_group_max=0)
+    monkeypatch.setattr(people, "detect_inside",
+                        lambda *_a, **_k: people.Counted(people=3, ball=False))
+    assert off.inspect(Class3.ACTIVE_PLAY, _blank())[0] is Class3.ACTIVE_PLAY
+    monkeypatch.setattr(people, "detect_inside",
+                        lambda *_a, **_k: people.Counted(people=0, ball=False))
+    assert off.inspect(Class3.ACTIVE_PLAY, _blank())[0] is Class3.EMPTY
 
 
 def test_run_slot_applies_the_person_gate():

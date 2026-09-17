@@ -718,3 +718,55 @@ the ball is ever promoted, the promotion has to argue with the threshold first.
 later reader - or a later me - to promote it. The log, this entry and the test each say the
 same thing in a different place, which is the only protection available against a number that
 reads as +0.967.
+
+---
+
+### 2026-09-17 — A18: a small group with no ball is a C3 verdict
+
+**What changes.** `PersonGate` gains a second overrule: ACTIVE_PLAY becomes
+C3_MAINTENANCE_NON_SPORTING when the detector finds **1 to `small_group_max` people inside the
+boundary and no ball**. Still one direction - a play verdict can be weakened and never
+manufactured - and a test checks that property over every combination of count and ball. The
+frozen backbone and the linear probe are untouched, so every headline figure stands.
+`PersonGate(small_group_max=0)` restores A16 exactly.
+
+**Why this reverses A16's refusal.** A16 refused "1-4 people means not playing" on the strength
+of the 88 real matches out of 278 it would have mislabelled. That tested half the rule. The
+rule as stated had a second clause - and a ball - and with it:
+
+| frames | n | count alone | with the ball clause |
+|---|---|---|---|
+| venue_01 camera B, ACTIVE_PLAY | 278 | 88 (31.7%) | **0 (0.0%)** |
+| nine clip venues, all ACTIVE_PLAY | 396 | 9 (2.3%) | **3 (0.8%)** |
+
+Both rows are entirely genuine play, so both columns are errors introduced. **0.8% across 396
+frames at nine unseen venues is the best-evidenced cross-venue cost in this project.**
+
+**What protects the rule is the count, not the ball.** A found ball vetoing C3 is sound in any
+venue. The rule also requires the ball to be absent, which is *not* sound - 60% of real play at
+an unseen venue shows no detectable ball (A17) - and the count is what bounds it: median 10
+people inside the boundary at those venues, so the unsound clause is consulted on 9 frames out
+of 396. A camera framing less of its pitch would break this, and that is the condition under
+which the rule should be withdrawn.
+
+**What is not evidenced.** The corpus holds **6 recorded C3 frames**, one slot at one camera,
+and the rule identifies **1**. A cost measured on 396 frames against a benefit measured on 6 is
+not a balanced case, and this amendment claims only that the rule is safe.
+
+**Why it was adopted on that basis.** Before it, the deployed path could not return C3 at all:
+two gates both pointing at EMPTY, and a probe with 6 real frames of the class. An unmeasurable
+recall at a measured cost below one percent is preferable to a system structurally incapable of
+the answer - but the preference is a judgement, not a result, and it is the supervisor's to
+overturn with one argument.
+
+**End to end on the unseen clip**, through `run_slot` with boundary and all three gates:
+false-play stays 0/13, minutes 9 and 15 - one person walking, no ball - become C3, and the slot
+verdict moves from REVIEW to **NOTUSED**, "empty in 88% of samples with only 0% active play".
+Minute 12 remains wrong: a person is visible and the detector finds nobody inside the boundary,
+so A16 overrules it to EMPTY before this rule is consulted. That is a detector limit, not a
+rule limit, and three of the six recorded C3 frames fail the same way.
+
+**Risk this amendment accepts.** C3 is now reachable in production with essentially no recorded
+evidence behind its precision. The class was previously unreachable, which was a different and
+quieter error - the system reported no maintenance because it could not, not because there was
+none.

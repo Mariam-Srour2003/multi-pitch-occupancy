@@ -92,6 +92,8 @@ def main() -> int:
     ap.add_argument("--imgsz", type=int, default=1280)
     ap.add_argument("--person-conf", type=float, default=0.25)
     ap.add_argument("--ball-conf", type=float, default=0.10)
+    ap.add_argument("--small-group-max", type=int, default=4,
+                    help="largest group the not-playing rule applies to")
     ap.add_argument("--clip-venues", action="store_true",
                     help="also run every recorded clip-venue frame (all ACTIVE_PLAY)")
     args = ap.parse_args()
@@ -163,7 +165,37 @@ def main() -> int:
         print(f"  false-play on EMPTY     {rate(e):.3f}")
         print(f"  balanced                {rate(p) - rate(e):+.3f}")
 
+    # --- the rule as the supervisor actually stated it (A18) ---------------------------
+    #
+    # "if number of people 4 and below then not playing or maintenance, and detect if there
+    # is a ball, it may help to know". Both clauses together, which is the version that was
+    # never measured: the count alone was refused in A16 on the strength of the 88 real
+    # matches it would have mislabelled.
     clips = [d for d in records if d["venue"].startswith("clipvenue_")]
+
+    def fires(d) -> bool:
+        return 1 <= d["people"] <= args.small_group_max and d["balls"] == 0
+
+    def low(d) -> bool:
+        return 1 <= d["people"] <= args.small_group_max
+
+    print(f"\nthe rule '1-{args.small_group_max} people inside and no ball means not "
+          f"playing', against the count alone:")
+    print(f"{'frames':<34}{'n':>6}{'count alone':>14}{'with the ball clause':>22}")
+    arms = [("venue_01 camera B, ACTIVE_PLAY", [d for d in v01 if d["class3"] == PLAY]),
+            ("venue_01 camera B, EMPTY", [d for d in v01 if d["class3"] == EMPTY])]
+    if clips:
+        arms.append(("nine clip venues, all ACTIVE_PLAY", clips))
+    for label, sub in arms:
+        if not sub:
+            continue
+        a = sum(1 for d in sub if low(d))
+        b = sum(1 for d in sub if fires(d))
+        print(f"{label:<34}{len(sub):>6}{a:>8} ({a / len(sub):>4.1%}){b:>13} "
+              f"({b / len(sub):>4.1%})")
+    print("  every frame in the first and third rows is genuine play, so both columns there\n"
+          "  are errors the rule would introduce.")
+
     if clips:
         print("\ncross-venue, every frame ACTIVE_PLAY:")
         print(f"{'venue':<30}{'n':>6}{'ball found':>12}")

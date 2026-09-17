@@ -5388,3 +5388,74 @@ cross-venue table says not to rely on.
 scale, or a tracker that accumulates a ball across the ten frames of a minute instead of
 deciding from one. Both are outside a frozen-backbone CPU system, and both are the honest
 recommendation for the class this corpus cannot separate.
+
+## The rule as it was actually stated works, and the count-only version was the wrong test (A18)
+
+`experiments/ball_detection_rule.py --clip-venues`, `results/ball_detection_rule.csv`
+
+A16 refused "one to four people inside the boundary means not playing" because it is wrong on
+**88 of 278** genuine ACTIVE_PLAY frames at venue_01: a camera sees part of a pitch and a
+detector misses distant players, so a real match routinely shows four or fewer. That refusal
+tested half a rule. The rule as given had a second clause - *and detect if there is a ball* -
+and the ball is what separates four people having a kickabout from four people standing about.
+
+**Both clauses, on frames that already have labels:**
+
+| frames | n | count alone fires | with the ball clause |
+|---|---|---|---|
+| venue_01 camera B, ACTIVE_PLAY | 278 | 88 (31.7%) | **0 (0.0%)** |
+| venue_01 camera B, EMPTY | 243 | 27 (11.1%) | 24 (9.9%) |
+| nine clip venues, all ACTIVE_PLAY | 396 | 9 (2.3%) | **3 (0.8%)** |
+
+Rows one and three are entirely genuine play, so every count in them is an error the rule would
+introduce. The ball clause removes **all 88** at venue_01 and two thirds of the cross-venue
+cost. **0.8% on 396 frames at nine venues the model has never seen is the best-evidenced
+cross-venue number in this project** - better evidenced than any figure the probe has.
+
+**Which clause is doing the protecting is not the obvious one.** A *found* ball vetoes the
+not-playing call, and that direction is sound whatever the detector's recall, because a found
+ball is a found ball. The rule also requires the ball to be *absent*, and that direction is
+not sound - at an unseen venue 60% of real play shows no detectable ball. What keeps it from
+mattering is the count: at those nine venues the median is 10 people inside the boundary, so
+the unsound clause is only consulted on **9 frames out of 396** and gets 3 of them wrong. The
+rule is protected by the count, not by the ball, and it would stop being safe the moment a
+camera framed less of a pitch.
+
+**The half that is not evidenced, stated as plainly as the half that is.** The corpus holds
+**6 recorded C3 frames**, one slot at one camera, and the rule identifies **1**: three show
+nobody inside the boundary at all, and two show a ball. A cost measured on 396 frames and a
+benefit measured on 6 is not a balanced case. What is claimed here is that the rule is *safe*,
+not that it is *shown to work*.
+
+**It was adopted anyway, and the reason is not the numbers.** Before this the deployed path
+could not return C3 under any circumstances - two gates, both pointing at EMPTY, and a probe
+that has 6 real frames of the class. A rule with an unmeasurable recall and a measured cost
+below one percent is better than a system that is structurally incapable of the answer. It can
+be switched off with `PersonGate(small_group_max=0)`, which restores A16 exactly.
+
+**On the unseen clip it gives the answer the footage deserves.** Through `run_slot`, boundary
+plus all three gates:
+
+| minute | verdict | what is there |
+|---|---|---|
+| 0-8, 10-14 | EMPTY | nobody |
+| **9, 15** | **MAINTENANCE_NON_SPORTING** | **one person walking, no ball** |
+| 12 | EMPTY | one person, not detected inside the boundary |
+
+False-play stays **0/13**. The slot verdict moves from REVIEW - "intermittent activity, 12%
+play, neither threshold met" - to **NOTUSED**, "empty in 88% of samples with only 0% active
+play". A pitch nobody played on now reports as a pitch nobody played on, which is the question
+the thesis exists to answer and the first time the deployed path has answered it correctly on
+footage it had never seen.
+
+**Minute 12 is the remaining failure and it is the person gate's, not this rule's.** A person
+is visible and the detector finds nobody inside the boundary, so A16 overrules to EMPTY before
+this rule is ever consulted. The 6 recorded C3 frames show the same thing - three of them have
+a count of zero. Whatever fixes those minutes is a better detector or a wider boundary, not a
+better rule on top of this count.
+
+**RQ6 is unaffected**, rechecked rather than assumed: with the extended gate in the loop the
+person gate still overrules 0 of 521 verdicts and every figure in the risk-coverage band is
+identical. That follows from the table above - the combined rule fires on 0 of venue_01's 278
+ACTIVE_PLAY frames - but a gate that gained a new output class is exactly the sort of change
+that quietly moves a number nobody re-ran.
