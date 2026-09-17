@@ -629,19 +629,24 @@ def test_a_ball_never_stops_the_gate_overruling_an_empty_pitch(monkeypatch):
     assert counted.ball is True
 
 
-def test_the_gate_can_only_ever_weaken_a_play_verdict(monkeypatch):
+def test_the_gate_only_ever_moves_a_verdict_down_the_ladder(monkeypatch):
     """The safety property the whole design rests on, checked over every combination rather
     than argued in a comment.
 
+    The three classes form a ladder of how much activity is being claimed - ACTIVE_PLAY above
+    C3 above EMPTY - and every overrule this gate makes is a step *down* it. A16 steps from
+    play to empty, A18 from play to C3, A22 from C3 to empty. Nothing steps up, so no amount
+    of detector noise can manufacture a busier pitch than the probe reported.
+
     `BALL_CONFIDENCE` sits below the person threshold because a football is about 400 square
-    pixels and the detector is unsure of it. A detection that cheap is allowed to *withhold* a
-    play verdict - it vetoes the C3 overrule - and never to assert one. So: whatever the count
-    and whatever the ball, ACTIVE_PLAY never comes out unless it went in.
+    pixels and the detector is unsure of it. A detection that cheap is allowed to withhold a
+    claim and never to make one, which is this property restated.
     """
     from pitch_occupancy.data.taxonomy import Class3
     from pitch_occupancy.vision import people
 
     assert people.BALL_CONFIDENCE < people.DETECT_CONFIDENCE
+    rung = {Class3.EMPTY: 0, Class3.MAINTENANCE_NON_SPORTING: 1, Class3.ACTIVE_PLAY: 2}
     gate = people.PersonGate()
     for count in (0, 1, 4, 5, 11):
         for ball in (False, True):
@@ -650,9 +655,38 @@ def test_the_gate_can_only_ever_weaken_a_play_verdict(monkeypatch):
                 lambda *_a, _c=count, _b=ball, **_k: people.Counted(people=_c, ball=_b))
             for given in Class3:
                 out, _ = gate.inspect(given, _blank())
-                assert out is given or given is Class3.ACTIVE_PLAY, (given, out, count, ball)
-                if out is Class3.ACTIVE_PLAY:
-                    assert given is Class3.ACTIVE_PLAY
+                assert rung[out] <= rung[given], (given, out, count, ball)
+
+
+def test_nobody_on_the_pitch_overrules_a_maintenance_verdict_too(monkeypatch):
+    """A22. Restricting the empty-pitch rule to ACTIVE_PLAY inputs was caution, not evidence,
+    and it was the most expensive thing the gate did: on 243 recorded empty frames at a
+    held-out venue the probe answers ACTIVE_PLAY or C3 and never EMPTY, C3 on 38% of them.
+    Passing those through left total error at 0.4844 where overruling gives 0.1111."""
+    from pitch_occupancy.data.taxonomy import Class3
+    from pitch_occupancy.vision import people
+
+    monkeypatch.setattr(people, "detect_inside",
+                        lambda *_a, **_k: people.Counted(people=0, ball=False))
+    state, counted = people.PersonGate().inspect(Class3.MAINTENANCE_NON_SPORTING, _blank())
+    assert state is Class3.EMPTY
+    assert counted.people == 0
+
+
+def test_an_already_empty_verdict_does_not_pay_for_the_detector(monkeypatch):
+    """EMPTY is the bottom of the ladder, so there is nothing for the gate to do and no reason
+    to spend a fifth of a second finding that out. At 20 cameras a minute it is the difference
+    between an idle site costing nothing and costing a detector pass per camera."""
+    from pitch_occupancy.data.taxonomy import Class3
+    from pitch_occupancy.vision import people
+
+    called = []
+    monkeypatch.setattr(people, "detect_inside",
+                        lambda *_a, **_k: called.append(1) or people.Counted(0, False))
+    state, counted = people.PersonGate().inspect(Class3.EMPTY, _blank())
+    assert state is Class3.EMPTY
+    assert counted is None
+    assert not called, "ran the detector on a verdict it cannot change"
 
 
 def test_a_small_group_with_no_ball_is_not_playing(monkeypatch):

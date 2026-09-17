@@ -19,10 +19,18 @@ which is why it is worth having beside a probe that has both.
 - **The foot of the box, not its centre.** Someone standing at the touchline has their centre
   over the pitch and their feet outside it, and it is the feet that say where they stand.
 
-**One direction, like `MotionGate`.** The gate turns ACTIVE_PLAY into EMPTY when it finds
-nobody; it never turns EMPTY into ACTIVE_PLAY. Finding nobody is strong evidence against a
+**One direction, like `MotionGate`.** The gate turns a not-empty verdict into EMPTY when it
+finds nobody; it never turns EMPTY into anything. Finding nobody is strong evidence against a
 match - 0.4% of real play frames - while finding somebody is not evidence for one, since a
 groundskeeper and a person crossing the pitch both count as somebody.
+
+**It applies to a C3 verdict as well as a play verdict (A22), and restricting it to ACTIVE_PLAY
+cost more than anything else the gate does.** The evidence behind "nobody inside means empty" -
+89% of recorded empty frames, 0.4% of recorded play frames - says nothing about what the probe
+guessed first, and the probe guesses C3 often: on 243 recorded empty frames at a held-out venue
+it answers ACTIVE_PLAY or C3 and **never EMPTY**, C3 on 38% of them on average. Passing those
+through untouched left total error at 0.4844 where overruling them gives **0.1111**, with
+false-play unchanged at 0.0123.
 
 **The C3 rule, and why the ball clause is what makes it possible (A18).** "One to four people
 means not playing" on its own is wrong on **88 of 278** real matches at venue_01, because a
@@ -154,11 +162,12 @@ def count_inside(image_bgr, polygon) -> int | None:
 class PersonGate:
     """Weaken an ACTIVE_PLAY verdict when the detector does not support it.
 
-    Two overrules, both in the same direction - a play verdict can be reduced and never
+    Two overrules, both in the same direction - a verdict can be weakened and never
     manufactured:
 
-    * **nobody inside the boundary** becomes EMPTY (A16)
-    * **a small group with no ball** becomes C3, present but not playing (A18)
+    * **nobody inside the boundary** becomes EMPTY, from ACTIVE_PLAY (A16) or from C3 (A22)
+    * **a small group with no ball** becomes C3, present but not playing (A18), from
+      ACTIVE_PLAY only - C3 is already that verdict
 
     `small_group_max` is the largest group the second rule will call not-playing. Four is the
     number the rule was stated with and the number the tables in the module docstring were
@@ -172,9 +181,10 @@ class PersonGate:
                 polygon=None) -> tuple[Class3, Counted | None]:
         """Return the possibly-overruled state and everything the pass found.
 
-        The detector only runs when the verdict is ACTIVE_PLAY, because that is the only
-        verdict this gate can change. At one frame per camera per minute a second of CPU is
-        affordable; spending it on frames the answer cannot alter is not.
+        The detector runs for any verdict except EMPTY, because EMPTY is the only one this
+        gate cannot change - it weakens, and there is nothing weaker. At one frame per camera
+        per minute a fifth of a second of CPU is affordable; spending it on frames the answer
+        cannot alter is not, which is why an already-empty verdict returns immediately.
 
         **The ball does not veto the EMPTY overrule.** A frame with nobody on the pitch and a
         ball inside the boundary is still turned to EMPTY - a ball lying on an empty pitch is
@@ -188,14 +198,15 @@ class PersonGate:
         boundary, so the unsound clause is only ever consulted on 9 frames out of 396 and
         fires wrongly on 3. It is protected by the count, not by the ball.
         """
-        if state is not Class3.ACTIVE_PLAY:
+        if state is Class3.EMPTY:
             return state, None
         counted = detect_inside(image_bgr, polygon)
         if counted is None:
             return state, None
         if counted.people == 0:
             return Class3.EMPTY, counted
-        if 0 < counted.people <= self.small_group_max and not counted.ball:
+        if (state is Class3.ACTIVE_PLAY
+                and 0 < counted.people <= self.small_group_max and not counted.ball):
             return Class3.MAINTENANCE_NON_SPORTING, counted
         return state, counted
 

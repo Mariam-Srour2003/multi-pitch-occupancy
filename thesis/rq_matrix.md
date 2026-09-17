@@ -27,7 +27,7 @@ Updated 2026-09-06.
 | evidence | file | finding |
 |---|---|---|
 | H3 cross-venue recall | `h3_cross_venue_recall.csv` | DINOv2 0.930, ConvNeXtV2 0.910 play-recall on unseen venues |
-| H3 with the gates (A20, corrected) | `h3_with_gates.csv` | recall 1.0000 → 0.9991, **false-play 0.6173 → 0.0123**, **total error on empty pitches 1.0000 → 0.4844**. The probe answers EMPTY on *none* of the 243 control frames in any fold; the gate fixes the play-shaped half. Thresholds were read off these frames, so both gated figures are floors |
+| H3 with the gates (A20, corrected) | `h3_with_gates.csv` | recall 1.0000 → 0.9991, **false-play 0.6173 → 0.0123**, **total error on empty pitches 1.0000 → 0.1111** (A22). The probe answers EMPTY on *none* of the 243 control frames in any fold; the gate fixes the play-shaped half. Thresholds were read off these frames, so both gated figures are floors |
 | Label efficiency | `label_efficiency.csv` | 10-25 labels already beat the zero-label rule |
 | Efficiency | `efficiency_latency.csv` | 20 cameras in 2.5-5.7 s against a 60 s cycle |
 | H6 zero-shot (cold start) | `h6_zero_shot_gap.csv` | **prompt choice moves macro-F1 by 0.726; the three backbones span 0.082** |

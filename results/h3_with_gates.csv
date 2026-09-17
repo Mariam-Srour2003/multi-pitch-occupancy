@@ -1,5 +1,5 @@
 arm,pruned,gated,play_recall,false_play,balanced,any_wrong_on_empty
 "full, probe",False,False,0.9444,0.7684,0.1761,0.8342
-"full, gated",False,True,0.9436,0.0123,0.9312,0.1617
+"full, gated",False,True,0.9436,0.0123,0.9312,0.1011
 "pruned, probe",True,False,1.0,0.6173,0.3827,1.0
-"pruned, gated",True,True,0.9991,0.0123,0.9868,0.4844
+"pruned, gated",True,True,0.9991,0.0123,0.9868,0.1111

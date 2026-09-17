@@ -5710,3 +5710,59 @@ harmful, and this is the same finding from the other side, on a camera whose out
 too loose. And the gate's "nobody inside the boundary means EMPTY" rule is restricted to
 ACTIVE_PLAY inputs for no reason stronger than caution; the evidence behind it - 89% of empty
 frames show nobody, 0.4% of play frames - does not depend on what the probe said first.
+
+## The empty-pitch rule applied to C3 verdicts too, which was the biggest single fix available (A22)
+
+`experiments/h3_with_gates.py`, `results/h3_with_gates.csv`
+
+The A20 correction ended with two repairs it had identified and not taken. This is the first.
+`PersonGate` refused to act unless the probe had said ACTIVE_PLAY - a restriction inherited
+from A16, where the gate was introduced as a brake on false play. Nothing in the evidence
+behind the rule supports it. "Nobody inside the boundary means the pitch is empty" rests on 89%
+of recorded empty frames showing nobody and 0.4% of recorded play frames doing so, and neither
+number has anything to say about what the probe guessed first.
+
+It mattered because the probe guesses C3 constantly. On the 243 recorded empty control frames
+it answers ACTIVE_PLAY or C3 and **never EMPTY**, C3 on 38% on average and 69% in the worst
+fold - all of which the gate was waving through.
+
+| arm | play-recall | false-play | any wrong verdict on an empty pitch |
+|---|---|---|---|
+| pruned, probe | 1.0000 | 0.6173 | 1.0000 |
+| pruned, gated *before A22* | 0.9991 | 0.0123 | 0.4844 |
+| pruned, gated *after A22* | 0.9991 | 0.0123 | **0.1111** |
+| full, gated *after A22* | 0.9436 | 0.0123 | **0.1011** |
+
+**0.4844 to 0.1111 for no change in false-play and no change in recall.** It is the largest
+single improvement any change in this project has produced, and it is a deleted condition
+rather than a new idea - the rule was already right, it was being asked to justify itself
+twice.
+
+**What it costs, on the only evidence that can price it.** Three of the six recorded C3 frames
+now read EMPTY: the ones where the person is outside the boundary, which the gate cannot
+distinguish from nobody being there. That is half the recorded C3 corpus, and the corpus is six
+frames from one slot at one camera. The trade is ~91 corrected frames per fold against 3 lost,
+and it is taken on that arithmetic while stating plainly that the 3 are better evidenced per
+frame than the 91 are per frame.
+
+**A labelling question sits underneath and is not mine to settle.** Those three frames show
+someone beside the pitch, not on it. For a system whose question is *was this pitch used*, a
+verdict of EMPTY may be the right answer and the label the loose one. The protocol says
+"people present, not playing"; whether "present" means present *on the pitch* is a supervisor
+decision, and the boundary already assumes one answer.
+
+**The ladder, made explicit.** The three classes order by how much activity they claim -
+ACTIVE_PLAY above C3 above EMPTY - and every overrule the gate makes is a step down it: A16
+play to empty, A18 play to C3, A22 C3 to empty. A test now checks that property over every
+combination of count and ball rather than arguing it in a comment, so no detector noise can
+manufacture a busier pitch than the probe reported.
+
+**Unchanged on the unseen clip**: 0/13 false-play, minutes 9 and 15 still C3, slot verdict still
+NOTUSED. Minute 12 still wrong, and A19 already established that it is the boundary's shape.
+
+**Cost to the cycle, re-measured because the trigger changed.** The detector now runs on any
+verdict except EMPTY rather than only on ACTIVE_PLAY, so A21's table was re-run: 5.5 s with
+every camera already empty to **8.2 s with none of them**, 9% to 14% of the 60 s cycle. That
+reads *lower* than A21's 6.7-10.6 s for the same work, which is machine load on a laptop and
+is exactly what both entries warn about - the shape is what transfers, not the seconds. An
+idle site still pays nothing, because an EMPTY verdict returns before the detector is reached.

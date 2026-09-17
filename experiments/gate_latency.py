@@ -6,9 +6,9 @@ person gate runs a detector - so the reported throughput describes something the
 being three amendments ago.
 
 The gate's cost is not a constant, which is why this is a table and not a number: the detector
-only runs when the verdict is ACTIVE_PLAY, because that is the only verdict it can change. A
-site with nobody on it pays nothing. A site mid-match pays for every camera. The honest answer
-is a cost per play-rate, and the deployment claim has to hold at 100%.
+runs for any verdict except EMPTY, since EMPTY is the only one the gate cannot weaken further
+(A22). A site the probe already calls empty pays nothing. A busy site pays for every camera.
+The honest answer is a cost per busy-rate, and the deployment claim has to hold at 100%.
 
 **Measured on the machine that happens to be here, like every other timing in this project, and
 therefore not the deployment claim.** WP7-T1's run on the target Mini-PC is what settles that.
@@ -94,10 +94,10 @@ def main() -> int:
           f"{det_med:>12.0f}{det_p95:>10.0f}")
 
     # One round is: embed every camera, motion-cue every camera, and run the detector on the
-    # cameras whose verdict survived as ACTIVE_PLAY.
+    # cameras whose verdict is not already EMPTY.
     print(f"\none round of {N_CAMERAS} cameras against the {CYCLE_SECONDS:.0f} s cycle, "
-          f"by how many of them are showing play:")
-    print(f"{'cameras in play':<20}{'round (s)':>12}{'of the cycle':>15}{'verdict':>10}")
+          f"by how many verdicts are not already EMPTY:")
+    print(f"{'not already empty':<20}{'round (s)':>12}{'of the cycle':>15}{'verdict':>10}")
     records = []
     for rate in (0.0, 0.25, 0.5, 1.0):
         n_play = int(round(rate * N_CAMERAS))
@@ -106,7 +106,7 @@ def main() -> int:
         print(f"{n_play:>3} of {N_CAMERAS:<14}{seconds:>12.1f}{seconds / CYCLE_SECONDS:>14.0%}"
               f"{'  fits' if ok else '  OVER':>10}")
         records.append({"backbone": args.backbone, "cameras": N_CAMERAS,
-                        "cameras_in_play": n_play, "round_seconds": round(seconds, 2),
+                        "cameras_not_empty": n_play, "round_seconds": round(seconds, 2),
                         "cycle_fraction": round(seconds / CYCLE_SECONDS, 4),
                         "fits": ok, "embed_ms": round(emb_med, 1),
                         "motion_ms": round(mot_med, 2), "detect_ms": round(det_med, 1)})

@@ -842,3 +842,44 @@ constant, and that term is smaller than the backbone's own.
 fresh model per call - swapping weights on disk mid-run, say - would now get the old one until
 the process restarts. Nothing in this system does that, and the per-name cache means changing
 `model_name` still loads a new model.
+
+---
+
+### 2026-09-17 — A22: the empty-pitch rule applies to a C3 verdict as well as a play verdict
+
+**What changes.** `PersonGate` runs for any verdict except EMPTY, instead of only for
+ACTIVE_PLAY. Finding nobody inside the boundary now overrules C3 as well as ACTIVE_PLAY. The
+A18 small-group rule still applies to ACTIVE_PLAY only, since C3 is already that verdict.
+
+**Why the restriction was wrong.** It was inherited from A16, where the gate was introduced as
+a brake on false *play*. The evidence behind the rule - 89% of recorded empty frames show
+nobody inside the boundary, 0.4% of recorded play frames do - says nothing about what the probe
+guessed first. And the probe guesses C3 constantly: on the 243 recorded empty control frames it
+answers ACTIVE_PLAY or C3 and **never EMPTY**, C3 on 38% of them on average.
+
+| arm | play-recall | false-play | any wrong verdict on an empty pitch |
+|---|---|---|---|
+| pruned, probe | 1.0000 | 0.6173 | 1.0000 |
+| pruned, gated before A22 | 0.9991 | 0.0123 | 0.4844 |
+| pruned, gated **after A22** | 0.9991 | 0.0123 | **0.1111** |
+
+The largest single improvement in this project, produced by deleting a condition rather than
+adding an idea.
+
+**What it costs.** Three of the six recorded C3 frames now read EMPTY - the ones where the
+person is beside the pitch rather than on it, which the gate cannot distinguish from nobody
+being there. Half the recorded C3 corpus, and that corpus is six frames from one slot.
+
+**A labelling question the supervisor should settle.** For a system asking *was this pitch
+used*, EMPTY may be the right verdict for a frame showing someone beside the pitch, and the
+label the loose one. §2.5's "people present, not playing" does not say whether "present" means
+present *on the pitch*. The boundary already assumes it does.
+
+**The invariant this makes explicit.** ACTIVE_PLAY above C3 above EMPTY is a ladder of how much
+activity is claimed, and every overrule the gate makes is a step down it - A16 play to empty,
+A18 play to C3, A22 C3 to empty. A test checks it over every combination of count and ball, so
+detector noise can never manufacture a busier pitch than the probe reported.
+
+**Risk this amendment accepts.** C3 recall is now bounded by the boundary's accuracy, on a
+class with six recorded frames. If the labelling question is settled the other way - present
+means present anywhere in view - this amendment should be withdrawn rather than adjusted.
