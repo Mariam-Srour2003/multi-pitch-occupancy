@@ -6105,3 +6105,54 @@ turn 114 single-class frames into a final test set that could refute something. 
 request as always, now with a specific address - it must be footage from
 `clipvenue_b_floodlit_track` or `clipvenue_c_teal_boards`, because any other venue is
 development data and cannot be added to a locked set after the fact.
+
+## The probe recognises an empty pitch at night; the clock rule does not (A28)
+
+`scripts/make_median_empties.py`, `experiments/median_empty_night.py`, `results/median_empty_night.csv`
+
+A25 left DINOv2 indistinguishable from a light meter on every corpus number, and A26 showed the
+light meter fails on real footage while the deployed system does not. What neither could do is
+test the probe *itself* on the missing cell, because the corpus holds 9 empty frames at night
+and all nine are venue_01's.
+
+That cell can be manufactured, by the one synthesis operation this project has shown works.
+Generated EMPTY frames repaired the false-play collapse and generated C3 frames did nothing,
+because the first were **subtraction** and the second addition. A temporal median is subtraction
+with no model at all: players move, the pitch does not, so the per-pixel median of a clip is
+that venue's pitch with the people gone, in its own pixels at its own exposure.
+
+**A third guard, because the first two were proxies.** `make_median_empties.py` already refused
+a median that resembles no frame (residual) and one that nothing moved in (spread). Both reason
+about pixel differences and *infer* whether the people went. A detector asks directly, and on
+the 11 frames the thresholds passed it found people inside the boundary on **four** - two people
+on two of the `clipvenue_a` medians, one on a third, and **eight** on the `clipvenue_e` median,
+which is the same venue whose survivors prompted the spread check in the first place. Tightening
+a threshold was never going to fix that; it was the wrong instrument. **5 frames survive all
+three**, from `clipvenue_a_blue_barrier`, floodlit night.
+
+**What the frames can and cannot test, fixed before the numbers were looked at.** They cannot
+test the person gate or anything built on the detector - the detector *selected* them, so it
+scores perfectly by construction and the figure would mean nothing. It is not reported. They
+can test a probe and the clock rule, neither of which had a say in the selection. The probe is
+fitted with `clipvenue_a` held out, so the venue is unseen in the ordinary sense too.
+
+| system | calls it EMPTY | calls it PLAY |
+|---|---|---|
+| **DINOv2 probe** | **5 / 5** | 0 / 5 |
+| clock rule | 0 / 5 | **5 / 5** |
+
+**This is the first evidence in the project that the probe reads the pitch and not the clock.**
+Every corpus number is compatible with DINOv2 being a light meter, because in the corpus night
+means football. Here is night that does not mean football, at a venue the probe never saw, and
+it answers EMPTY five times out of five while the light meter answers PLAY five times out of
+five.
+
+**Held at its proper weight.** Five frames, one venue, and manufactured ones - every frame is an
+average of frames that had people in them, and a median is smoother than a photograph in a way
+that might itself read as emptiness. This does not substitute for a recorded empty pitch at
+night and is not reported as one. What it does is move "the probe might be a light meter" from
+*unexamined* to *examined once, and it was not*.
+
+**With A26 it makes a pair.** The clock rule beats the backbones on 1,692 corpus frames, and
+loses to them on every frame this project has that sits outside the corpus's confound: 16 clip
+minutes and now 5 manufactured stills, at two different venues, 21 for 21.

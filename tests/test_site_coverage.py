@@ -51,6 +51,11 @@ OUT_OF_SCOPE = {
         "false-play 0.6173 to 0.0123 - is only honest beside the note that the gate's "
         "thresholds were read off the same control frames, which a table row cannot carry."
     ),
+    "median_empty_night.csv": (
+        "A28: a probe and the clock rule on 5 manufactured empty-at-night frames. Two rows "
+        "that mean nothing without the paragraph on what selected the frames and what they "
+        "therefore cannot test."
+    ),
     "clock_rule_on_video.csv": (
         "A26: three systems on the one clip that holds the corpus's missing cell. Three rows "
         "whose meaning is entirely in what the corpus lacks, which a table cannot carry."

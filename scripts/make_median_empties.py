@@ -14,8 +14,9 @@ the camera's own pixels, at the camera's own exposure. It is the same operation
 it produces is *a real venue with nobody on it*, which is exactly the class the corpus lacks -
 but every one is an average of frames that had people in them, so a median over too few, or
 over frames where someone stood still, leaves a smear where a person was. That is why the
-output is checked rather than trusted: `--min-frames` refuses a thin stack, and the residual
-check below rejects a median that still differs too much from its own members.
+output is checked rather than trusted: `--min-frames` refuses a thin stack, the residual and
+spread checks below reject a median that resembles no frame or that nothing moved in, and a
+person detector then asks the question those two only approximate.
 
     uv run python scripts/make_median_empties.py --out data/interim/median_empties
 """
@@ -53,6 +54,20 @@ MIN_FRAMES = 6
 #: out. A stack of six frames of people standing still fails it, as it should.
 MAX_RESIDUAL = 3.0
 MIN_SPREAD = 3.5
+
+#: And a third check, because the first two are proxies and this is the question (A28).
+#:
+#: Both thresholds above reason about pixel differences and infer from them whether the people
+#: went. A detector answers it directly. Run on the 11 frames the two thresholds passed, it
+#: found people inside the boundary on **four** of them - two people on two of the
+#: `clipvenue_a` medians, one on a third, and **eight** on the `clipvenue_e` median, which is
+#: the same venue whose survivors prompted `MIN_SPREAD` in the first place. Tightening a
+#: threshold was never going to fix that; it was the wrong instrument.
+#:
+#: **What this costs.** A frame selected by the person detector cannot afterwards be used to
+#: evaluate the person detector, or the gate built on it. It can evaluate a probe, and that is
+#: what `median_empty_night.py` does with the output.
+REJECT_IF_ANYONE_INSIDE = True
 
 
 def _small(bgr: np.ndarray) -> np.ndarray:
@@ -110,6 +125,17 @@ def main() -> int:
         if spread < MIN_SPREAD:
             refused.append((venue, camera, f"spread {spread:.2f} - nothing moved, people survive"))
             continue
+
+        # The direct question, after two proxies for it.
+        if REJECT_IF_ANYONE_INSIDE:
+            from pitch_occupancy.vision import roi
+            from pitch_occupancy.vision.people import detect_inside
+
+            counted = detect_inside(med, roi.get(camera))
+            if counted is not None and counted.people:
+                refused.append((venue, camera,
+                                f"detector finds {counted.people} inside the boundary"))
+                continue
 
         name = f"medempty_{camera}.jpg"
         cv2.imwrite(str(args.out / name), med, [cv2.IMWRITE_JPEG_QUALITY, 92])
