@@ -31,6 +31,7 @@ later if it is skipped.
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -286,6 +287,37 @@ def attention_rollout(model, processor, image_bgr: np.ndarray, *,
     return mass.reshape(side, side)
 
 
+#: One detector per thread, built on first use.
+#:
+#: `detect_objects` used to call ``YOLO(model_name)`` on every frame. Measured on eight 1080p
+#: frames at imgsz=1280: **292 ms per frame constructing, 152 ms reusing** - the construction
+#: was costing more than the inference. At one frame per camera per minute across 20 cameras
+#: that is 2.8 s a cycle spent loading the same weights twenty times.
+#:
+#: Thread-local rather than a plain module global because `evaluation/latency.py` runs the
+#: pipeline on several threads to measure concurrency, and an ultralytics model is not
+#: documented as safe to predict on from more than one. One model per thread costs one extra
+#: load per thread and removes the question.
+_DETECTORS = threading.local()
+
+
+def _detector(model_name: str):
+    """The loaded detector for this thread, or ``None`` if ultralytics is unavailable."""
+    cache = getattr(_DETECTORS, "models", None)
+    if cache is None:
+        cache = _DETECTORS.models = {}
+    if model_name not in cache:
+        try:
+            from ultralytics import YOLO
+        except ImportError:  # pragma: no cover - dependency is pinned
+            return None
+        try:
+            cache[model_name] = YOLO(model_name)
+        except Exception:  # noqa: BLE001 - a missing weights file must fail closed
+            return None
+    return cache[model_name]
+
+
 def detect_objects(image_bgr: np.ndarray, *, confidence: float = 0.25,
                    model_name: str = "yolov8n.pt", imgsz: int | None = None,
                    classes: Sequence[int] = (0,),
@@ -297,13 +329,11 @@ def detect_objects(image_bgr: np.ndarray, *, confidence: float = 0.25,
     detector costs, and the ball measurement (A17) is only affordable because it is free -
     the detector was already running for the person count.
     """
-    try:
-        from ultralytics import YOLO
-    except ImportError:  # pragma: no cover - dependency is pinned
+    detector = _detector(model_name)
+    if detector is None:
         return None
 
     try:
-        detector = YOLO(model_name)
         kwargs = {"verbose": False, "conf": confidence, "classes": list(classes)}
         if imgsz is not None:
             kwargs["imgsz"] = imgsz

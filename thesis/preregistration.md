@@ -806,3 +806,37 @@ doing the work.
 **Risk this amendment accepts.** A reader who takes 0.0123 as a measured cross-venue rate will
 overestimate the system at a new site. The floor-not-estimate wording is load-bearing and must
 survive into the thesis text.
+
+---
+
+### 2026-09-17 — A21: the detector is cached, and the cycle cost is re-measured for the gates
+
+**What changes.** `explain.detect_objects` keeps one loaded detector per thread instead of
+calling `YOLO(model_name)` on every frame. No output changes; only the clock does. Per thread
+rather than globally, because `evaluation/latency.py` drives the pipeline from several threads
+and an ultralytics model is not documented as safe to predict on from more than one.
+
+**Why it was worth doing.** Eight 1080p frames at imgsz=1280: **292 ms per frame constructing,
+152 ms reusing**. Building the model cost more than running it, and across 20 cameras that was
+2.8 s of every 60 s cycle spent loading the same weights twenty times. Two tests pin it, since
+nothing else can see the difference.
+
+**The evaluation that was missing.** `efficiency_latency.csv` measures the probe, and RQ1 and
+RQ2 both quote it; the deployed path has been probe plus two gates since A14.
+`experiments/gate_latency.py` reports the round by play rate, because the detector only runs on
+verdicts it could change and an empty site pays nothing:
+
+| cameras in play | round | of the 60 s cycle |
+|---|---|---|
+| 0 of 20 | 6.7 s | 11% |
+| **20 of 20** | **10.6 s** | **18%** |
+
+**What is claimed and what is not.** This is a laptop, and so is every other timing in this
+project; WP7-T1 on the target Mini-PC settles the deployment claim. What holds independent of
+the machine is the shape: the gates add a term proportional to the play rate rather than a
+constant, and that term is smaller than the backbone's own.
+
+**Risk this amendment accepts.** A cached model is process state, and a caller that expected a
+fresh model per call - swapping weights on disk mid-run, say - would now get the old one until
+the process restarts. Nothing in this system does that, and the per-name cache means changing
+`model_name` still loads a new model.

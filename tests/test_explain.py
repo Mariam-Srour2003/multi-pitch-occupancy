@@ -244,3 +244,73 @@ def test_the_redaction_refuses_rather_than_degrading_when_the_detector_is_missin
     out, n = redact_people(frame, model_name="definitely-not-a-model-file.pt")
     assert n == -1
     assert out.shape == frame.shape
+
+
+# --- the detector is loaded once per thread, not once per frame (A21) ---------------------
+
+
+def test_the_detector_is_built_once_and_reused(monkeypatch):
+    """Measured on eight 1080p frames at imgsz=1280: 292 ms per frame constructing the model,
+    152 ms reusing it. The construction cost more than the inference, and at one frame per
+    camera per minute across 20 cameras it was 2.8 s a cycle spent loading the same weights
+    twenty times. This test is what stops that coming back, since nothing else would notice -
+    the outputs are identical either way."""
+    import numpy as np
+
+    from pitch_occupancy.vision import explain
+
+    built = []
+
+    class FakeYOLO:
+        def __init__(self, name):
+            built.append(name)
+
+        def predict(self, _image, **_kwargs):
+            return []
+
+    import sys
+    import threading
+    import types
+
+    monkeypatch.setattr(explain, "_DETECTORS", threading.local())
+
+    module = types.ModuleType("ultralytics")
+    module.YOLO = FakeYOLO
+    monkeypatch.setitem(sys.modules, "ultralytics", module)
+
+    frame = np.zeros((32, 32, 3), np.uint8)
+    for _ in range(5):
+        explain.detect_objects(frame)
+    assert built == ["yolov8n.pt"], f"built the detector {len(built)} times"
+
+
+def test_a_second_model_name_gets_its_own_detector(monkeypatch):
+    """The cache is per name, not a single slot - swapping names must not silently keep
+    serving the first model's predictions."""
+    import sys
+    import threading
+    import types
+
+    import numpy as np
+
+    from pitch_occupancy.vision import explain
+
+    built = []
+
+    class FakeYOLO:
+        def __init__(self, name):
+            built.append(name)
+
+        def predict(self, _image, **_kwargs):
+            return []
+
+    monkeypatch.setattr(explain, "_DETECTORS", threading.local())
+    module = types.ModuleType("ultralytics")
+    module.YOLO = FakeYOLO
+    monkeypatch.setitem(sys.modules, "ultralytics", module)
+
+    frame = np.zeros((32, 32, 3), np.uint8)
+    explain.detect_objects(frame, model_name="a.pt")
+    explain.detect_objects(frame, model_name="b.pt")
+    explain.detect_objects(frame, model_name="a.pt")
+    assert built == ["a.pt", "b.pt"]

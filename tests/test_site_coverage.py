@@ -41,6 +41,11 @@ OUT_OF_SCOPE = {
         "rule does not miss play; cannot confirm it does not invent it, since no clip "
         "venue has a recorded empty pitch."
     ),
+    "gate_latency.csv": (
+        "A21: what the gates cost the 60 s cycle, by play rate. Machine-dependent like "
+        "every timing here, and the point is the shape - a term proportional to the play "
+        "rate, smaller than the backbone's - which a row of seconds would not carry."
+    ),
     "h3_with_gates.csv": (
         "A20: H3 cross-venue with the gates in the loop. Four rows whose headline - "
         "false-play 0.6173 to 0.0123 - is only honest beside the note that the gate's "

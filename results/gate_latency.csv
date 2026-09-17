@@ -1,0 +1,5 @@
+backbone,cameras,cameras_in_play,round_seconds,cycle_fraction,fits,embed_ms,motion_ms,detect_ms
+dinov2,20,0,6.72,0.112,True,331.8,4.11,193.5
+dinov2,20,5,7.69,0.1281,True,331.8,4.11,193.5
+dinov2,20,10,8.65,0.1442,True,331.8,4.11,193.5
+dinov2,20,20,10.59,0.1765,True,331.8,4.11,193.5

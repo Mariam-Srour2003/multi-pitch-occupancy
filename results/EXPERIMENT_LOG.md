@@ -5593,3 +5593,54 @@ probe number.
 as always: recorded empty pitches at a venue that is not venue_01. Two hours of footage of one
 unused pitch at one new site would convert the strongest claim in this project from a floor
 into a measurement.
+
+## The gates cost 18% of the cycle at worst, and the detector was being rebuilt every frame (A21)
+
+`experiments/gate_latency.py`, `results/gate_latency.csv`
+
+`efficiency_latency.csv` reports 20 cameras in 2.5-5.7 s against the 60 s cycle, and it
+measures **the probe**. Since A14 the deployed path is probe plus motion gate plus person gate,
+and the person gate runs a detector, so the reported throughput describes a system that stopped
+existing three amendments ago. RQ1 and RQ2 both quote it.
+
+**A defect found by measuring rather than by reading.** `detect_objects` called
+`YOLO(model_name)` on every frame. On eight 1080p frames at imgsz=1280:
+
+| | median per frame |
+|---|---|
+| constructing the model each call | **292 ms** |
+| reusing a loaded model | **152 ms** |
+
+The construction cost more than the inference. Across 20 cameras that is 2.8 s of every cycle
+spent loading the same weights twenty times. The detector is now cached per thread - per
+thread, not globally, because `evaluation/latency.py` runs the pipeline on several threads to
+measure concurrency and an ultralytics model is not documented as safe to predict on from more
+than one. Two tests pin it, because nothing else would notice: the outputs are identical either
+way, only the clock changes.
+
+**What a round costs now.** The detector runs only on cameras whose verdict survived as
+ACTIVE_PLAY, so the cost depends on how busy the site is - an empty site pays nothing:
+
+| stage | median | p95 |
+|---|---|---|
+| backbone embed (DINOv2, one frame) | 332 ms | 340 ms |
+| motion cue (160x90 difference) | 4.1 ms | 4.3 ms |
+| person gate detector (imgsz 1280) | 193 ms | 242 ms |
+
+| cameras in play | round | of the 60 s cycle |
+|---|---|---|
+| 0 of 20 | 6.7 s | 11% |
+| 5 of 20 | 7.7 s | 13% |
+| 10 of 20 | 8.7 s | 14% |
+| **20 of 20** | **10.6 s** | **18%** |
+
+**The deployment claim survives, with room.** Worst case - every camera mid-match, every one
+paying for a detector pass - is 10.6 s of a 60 s cycle. The motion gate is free at 4 ms and
+sits first for that reason; it is the person gate that costs, and it costs only where it can
+change the answer.
+
+**This is a laptop and it is not the deployment claim**, the same caveat `efficiency_latency.py`
+carries: WP7-T1's run on the target Mini-PC is what settles it. What this establishes is the
+*shape* - that the gates add a term proportional to the play rate rather than a constant, and
+that the term is smaller than the backbone's - which is machine-independent in a way the
+seconds are not.

@@ -76,6 +76,7 @@ at an unseen venue rests on 13 hand-labelled minutes.*
 |---|---|---|
 | Latency + concurrency | `efficiency_latency.csv` | ConvNeXtV2 151 ms, ViT 303 ms, DINOv2 418 ms (median, 4 threads) |
 | 20-camera throughput | same | 2.5 s / 4.5 s / 5.7 s per round; all inside the 60 s cycle |
+| 20-camera throughput **with the gates** (A21) | `gate_latency.csv` | 6.7 s empty to **10.6 s** with every camera mid-match; 18% of the cycle at worst |
 | Accuracy under honest protocols | `h1_h2_baseline_floor.csv`, `h3_cross_venue_recall.csv` | DINOv2 leads both |
 
 **Answered, and it overturns the pilot's recommendation.** The pilot chose ConvNeXtV2 as
