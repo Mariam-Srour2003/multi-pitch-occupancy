@@ -32,6 +32,11 @@ labels:
   players who were always there.
 - **the 6 recorded C3 frames**, where the current boundary finds nobody.
 
+**A fourth arm was added later (A23): the same mask read without its convex hull.** The hull is
+documented in `derive_roi.py` as a known limitation - it cannot exclude anything lying *inside*
+its span - and at venue_01 camera B what lies inside its span is the car park behind the goal,
+where the people who make 24 recorded empty frames read as C3 are standing.
+
 The detector runs once per frame and both boundaries are applied to the same boxes, so the
 comparison is exact and costs one pass rather than two.
 
@@ -88,7 +93,12 @@ def main() -> int:
         turf_mask_grown,
     )
 
-    ARMS = {"current": turf_mask, "flat-field": turf_mask_flat, "grown": turf_mask_grown}
+    # `contour` is the current mask read without a convex hull (A23). It is an arm here and
+    # not a fourth mask function because the mask is identical - only the simplification of it
+    # differs, and putting it beside the two threshold changes is what shows that the hull
+    # costs more than the threshold does.
+    ARMS = {"current": (turf_mask, True), "flat-field": (turf_mask_flat, True),
+            "grown": (turf_mask_grown, True), "contour": (turf_mask, False)}
 
     rows = [r for r in read_manifest(DATASET / "manifest.csv") if r.source != "synthetic"]
 
@@ -116,8 +126,8 @@ def main() -> int:
         med = _median(paths[c])
         if med is None:
             continue
-        for arm, fn in ARMS.items():
-            polys[arm][c] = polygon_from_mask(fn(med))
+        for arm, (fn, use_hull) in ARMS.items():
+            polys[arm][c] = polygon_from_mask(fn(med), hull=use_hull)
 
     from pitch_occupancy.vision import roi
 

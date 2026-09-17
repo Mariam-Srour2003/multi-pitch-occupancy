@@ -5766,3 +5766,50 @@ every camera already empty to **8.2 s with none of them**, 9% to 14% of the 60 s
 reads *lower* than A21's 6.7-10.6 s for the same work, which is machine load on a laptop and
 is exactly what both entries warn about - the shape is what transfers, not the seconds. An
 idle site still pays nothing, because an EMPTY verdict returns before the detector is reached.
+
+## Tightening the boundary fails the same way loosening it did (A23)
+
+`experiments/roi_flat_field.py`, `results/roi_flat_field.csv`
+
+The second repair the A20 correction identified: venue_01 camera B's outline reaches past the
+goal line into the car park, which is why 24 recorded empty frames read as C3. `derive_roi.py`
+has always named the cause - the outline is a **convex hull**, and a hull cannot exclude
+anything lying inside its span. Seen at an angle, the hull runs from the pitch's far corner to
+its near one and swallows the tarmac between them.
+
+So the obvious repair: read the same mask without the hull, following the region's own outline.
+Nothing else changes - same median, same threshold, same morphology - so this isolates what the
+hull costs.
+
+| | n | current | contour |
+|---|---|---|---|
+| venue_01 EMPTY, finds nobody | 243 | 88.9% | **92.2%** |
+| venue_01 EMPTY, in the 1-4 band (a wrong C3) | 243 | 27 | **19** |
+| clip venues, finds nobody (a wrong EMPTY) | 396 | 0 | 2 |
+| **clip venues, in the 1-4 band** | 396 | **9** | **55** |
+| mean coverage across 69 cameras | | 60.1% | 54.4% |
+
+**It fixes what it was aimed at and costs six times more elsewhere.** Eight fewer wrong C3
+calls at venue_01, against **46 more** cross-venue play frames dropping into the 1-4 band -
+the band where A18's unsound clause is consulted - plus the first two clip frames ever to
+report an empty pitch during a match. The median count at the nine clip venues falls from 10 to
+8: the contour clips players standing on the parts of the pitch the mask reads as slightly less
+green, which the hull was bridging over.
+
+**Both directions now fail, and that is the finding.** A19 loosened the boundary and lost
+cross-venue accuracy by admitting spectators. A23 tightens it and loses cross-venue accuracy by
+dropping players. The current hull is not a good boundary - it demonstrably contains a car park
+- it is a **local optimum of a colour threshold**, and the two experiments bracket it from
+either side.
+
+**What the mask actually contains, looked at rather than inferred.** Rendered over the median
+frame, the excess-green region at venue_01 camera B includes the trees beyond the fence at the
+top left and the vegetation past the far touchline. Neither the hull nor the contour can help
+with that: they are two ways of simplifying a mask that has already decided a tree is turf.
+
+**So the recommendation is unchanged and is now measured from both sides.** A boundary from the
+pitch's **line markings** - four touchlines bound the playing surface exactly, and they are
+white on green under any lighting these cameras see - rather than from the colour of the
+surface. Every remaining boundary error in this project is a colour error: a tree read as turf,
+a dim far end read as not-turf, tarmac bridged by a hull. None of them is a geometry error.
+`polygon_from_mask(hull=False)` stays as the measured alternative behind this entry.

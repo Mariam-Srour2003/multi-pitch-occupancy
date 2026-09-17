@@ -188,15 +188,27 @@ def turf_mask(bgr: np.ndarray) -> np.ndarray:
     return _clean(m)
 
 
-def polygon_from_mask(mask: np.ndarray, max_points: int = 8) -> list[list[float]] | None:
+def polygon_from_mask(mask: np.ndarray, max_points: int = 8, *,
+                      hull: bool = True) -> list[list[float]] | None:
+    """Simplify the largest region of ``mask`` to a polygon of at most ``max_points``.
+
+    ``hull=False`` follows the region's own outline instead of its convex hull, which is
+    tighter wherever the pitch is seen at an angle - a hull spans from the far corner of the
+    pitch to the near one and swallows whatever lies between, which at venue_01 camera B is
+    the car park behind the goal. It is offered rather than assumed because a ragged mask
+    makes a ragged polygon, and `roi.validate` rejects a self-intersecting one; see A23 for
+    what it is actually worth.
+    """
     cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not cnts:
         return None
-    hull = cv2.convexHull(max(cnts, key=cv2.contourArea))
-    peri = cv2.arcLength(hull, True)
-    approx = hull
+    outline = max(cnts, key=cv2.contourArea)
+    if hull:
+        outline = cv2.convexHull(outline)
+    peri = cv2.arcLength(outline, True)
+    approx = outline
     for eps in np.linspace(0.005, 0.08, 40):
-        approx = cv2.approxPolyDP(hull, eps * peri, True)
+        approx = cv2.approxPolyDP(outline, eps * peri, True)
         if len(approx) <= max_points:
             break
     h, w = mask.shape
