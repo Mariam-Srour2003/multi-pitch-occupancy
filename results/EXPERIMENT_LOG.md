@@ -5539,6 +5539,10 @@ boundary's shape, and it is not repairable by loosening it.
 
 ## The headline cross-venue failure, measured on the system instead of the probe (A20)
 
+> **Corrected below, and the correction is larger than the entry.** False-play
+> is the right number and it is not the whole error: the gate also answers C3 on empty
+> pitches, which false-play does not count. See *"false-play was the wrong denominator"*.
+
 `experiments/h3_with_gates.py`, `results/h3_with_gates.csv`
 
 Every cross-venue number this project reports describes **the probe**. The deployed path has
@@ -5644,3 +5648,65 @@ carries: WP7-T1's run on the target Mini-PC is what settles it. What this establ
 *shape* - that the gates add a term proportional to the play rate rather than a constant, and
 that the term is smaller than the backbone's - which is machine-independent in a way the
 seconds are not.
+
+## False-play was the wrong denominator, and the probe is worse than 0.6173 said (A20, corrected)
+
+`experiments/h3_with_gates.py`, `results/h3_with_gates.csv`
+
+The A20 entry above reports false-play falling from 0.6173 to 0.0123 and is arithmetically
+right. It is also the wrong question, and an audit of the 24 control frames the gate answers
+C3 on is what showed it.
+
+**Those 24 frames are labelled correctly and the gate is wrong on them.** Rendered with the
+person boxes drawn, the pitch is plainly empty in every one; the people the detector finds are
+standing behind the goal on the car-park tarmac, beyond the fence. The boundary for
+`slot_20260711_1000_camB` reaches past the goal line, so people who are not on the pitch are
+counted as being on it, and A18 turns that into "present but not playing". False-play does not
+notice, because C3 is not a play verdict - so the metric credits the gate for every frame it
+mislabels as maintenance.
+
+**With every wrong verdict counted, not just the play-shaped ones:**
+
+| arm | play-recall | false-play | **any wrong verdict on an empty pitch** |
+|---|---|---|---|
+| full, probe | 0.9444 | 0.7684 | 0.8342 |
+| full, gated | 0.9436 | 0.0123 | **0.1617** |
+| pruned, probe | 1.0000 | 0.6173 | **1.0000** |
+| pruned, gated | 0.9991 | 0.0123 | **0.4844** |
+
+**The probe never answers EMPTY. Not rarely - never.** In all seven pruned folds, across all
+243 control frames, the predictions are only ever ACTIVE_PLAY or C3:
+
+| held-out venue | says PLAY | says C3 | says EMPTY |
+|---|---|---|---|
+| clipvenue_a_blue_barrier | 75 | 168 | **0** |
+| clipvenue_d_indoor_dome | 181 | 62 | **0** |
+| clipvenue_e_pink_boards | 166 | 77 | **0** |
+| clipvenue_f_outdoor_bldg | 198 | 45 | **0** |
+| clipvenue_g_netting | 144 | 99 | **0** |
+| clipvenue_h_teal_pitch | 108 | 135 | **0** |
+| clipvenue_i_outdoor_trees | 178 | 65 | **0** |
+
+0.6173 read as "the probe is wrong about 62% of unseen empty pitches". The truth is that it is
+wrong about **all** of them, and 0.6173 was measuring only which *kind* of wrong. A probe whose
+EMPTY training evidence is five scenes, most of them generated, does not have a concept of an
+empty pitch to transfer.
+
+**And the gate fixes half of that, not all of it.** It only ever weakens ACTIVE_PLAY, so a
+frame the probe calls C3 passes through untouched - which is 38% of the control frames on
+average and 69% in the worst fold. Wrong verdicts fall from 1.0000 to 0.4844, which is a real
+improvement and is not the 0.0123 that false-play alone suggested.
+
+**What A20 should have claimed, and what the thesis should say.** The gates remove the
+*play-shaped* error at unseen venues almost entirely, and that is the error that matters for
+pitch utilisation, since a false ACTIVE_PLAY inflates reported usage while a false C3 does not.
+They leave a second error the probe makes just as often and that nothing currently addresses.
+The honest headline is two numbers, not one: **false-play 0.6173 to 0.0123, total error 1.0000
+to 0.4844.**
+
+**Two repairs this points at, neither of them adopted here.** The boundary for venue_01
+camera B should stop at the goal line - A19 measured *loosening* boundaries and found it
+harmful, and this is the same finding from the other side, on a camera whose outline is already
+too loose. And the gate's "nobody inside the boundary means EMPTY" rule is restricted to
+ACTIVE_PLAY inputs for no reason stronger than caution; the evidence behind it - 89% of empty
+frames show nobody, 0.4% of play frames - does not depend on what the probe said first.

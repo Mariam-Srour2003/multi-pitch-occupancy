@@ -116,7 +116,16 @@ def main() -> int:
             out.append(state.value)
         return out
 
-    def score(rows_, pred: list[str]) -> tuple[float, float]:
+    def score(rows_, pred: list[str]) -> tuple[float, float, float]:
+        """(play-recall, false-play, any-wrong-verdict on the EMPTY frames).
+
+        The third number exists because the gate can be wrong in a way false-play cannot see.
+        A18 turns a small group with no ball into C3, and on an empty pitch that is not a
+        false *play* - it is still a false verdict. Reporting only false-play would credit the
+        gate for every frame it mislabels as maintenance, which is 24 of the 243 control
+        frames: the boundary for that camera reaches past the goal line into the car park, so
+        people standing on tarmac behind the fence are counted as being on the pitch.
+        """
         truth = [r.class3 for r in rows_]
         n_e = sum(1 for t in truth if t == EMPTY)
         n_p = len(truth) - n_e
@@ -124,13 +133,16 @@ def main() -> int:
                if n_p else float("nan"))
         fp = (sum(p == PLAY for p, t in zip(pred, truth, strict=True) if t == EMPTY) / n_e
               if n_e else float("nan"))
-        return rec, fp
+        wrong = (sum(p != EMPTY for p, t in zip(pred, truth, strict=True) if t == EMPTY) / n_e
+                 if n_e else float("nan"))
+        return rec, fp, wrong
 
     records = []
-    print(f"\n{'arm':<22}{'play-recall':>13}{'false-play':>13}{'balanced':>11}")
+    print(f"\n{'arm':<22}{'play-recall':>13}{'false-play':>13}{'balanced':>11}"
+          f"{'any wrong verdict':>20}")
     for prune in (False, True):
         for use_gate in (False, True):
-            recs, fps = [], []
+            recs, fps, wrongs = [], [], []
             for fold in folds:
                 train = distinct_rows(list(fold.train)) if prune else list(fold.train)
                 if len({r.class3 for r in train}) < 2:
@@ -145,13 +157,17 @@ def main() -> int:
                     p_test = gated(test, p_test)
                     p_ctrl = gated(control, p_ctrl)
                 recs.append(score(test, p_test)[0])
-                fps.append(score(control, p_ctrl)[1])
+                _r, fp, wrong = score(control, p_ctrl)
+                fps.append(fp)
+                wrongs.append(wrong)
             mr, mf = float(np.mean(recs)), float(np.mean(fps))
+            mw = float(np.mean(wrongs))
             name = f"{'pruned' if prune else 'full'}, {'gated' if use_gate else 'probe'}"
-            print(f"{name:<22}{mr:>13.4f}{mf:>13.4f}{mr - mf:>11.4f}")
+            print(f"{name:<22}{mr:>13.4f}{mf:>13.4f}{mr - mf:>11.4f}{mw:>20.4f}")
             records.append({"arm": name, "pruned": prune, "gated": use_gate,
                             "play_recall": round(mr, 4), "false_play": round(mf, 4),
-                            "balanced": round(mr - mf, 4)})
+                            "balanced": round(mr - mf, 4),
+                            "any_wrong_on_empty": round(mw, 4)})
 
     RESULTS.mkdir(exist_ok=True)
     out = RESULTS / "h3_with_gates.csv"
@@ -160,7 +176,8 @@ def main() -> int:
         w.writeheader()
         w.writerows(records)
     print(f"\nwrote {out}")
-    print("\nthe motion gate is not applied - these are single frames, not a sequence - so "
+    print("\n'any wrong verdict' counts C3 calls on an empty pitch, which false-play does not.")
+    print("the motion gate is not applied - these are single frames, not a sequence - so "
           "the gated rows are a lower bound on what the deployed path does.")
     return 0
 

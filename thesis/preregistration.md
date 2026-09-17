@@ -775,6 +775,8 @@ none.
 
 ### 2026-09-17 — A20: the cross-venue numbers are re-reported for the system, not the probe
 
+**Corrected the same day, and the correction is larger than the amendment.** False-play does not count C3 verdicts on an empty pitch, and the gate produces them: 24 of the 243 control frames, on a camera whose boundary reaches past the goal line into the car park, so people on tarmac behind the fence are counted as on the pitch. Counting every wrong verdict, the probe answers EMPTY on **none** of the 243 frames in any of the seven folds - 0.6173 measured which *kind* of wrong it was, not whether it was wrong - and the gate takes total error from **1.0000 to 0.4844**, not to 0.0123. It only weakens ACTIVE_PLAY, so the frames the probe calls C3 pass through untouched. The thesis must report two numbers: false-play 0.6173 to 0.0123, total error 1.0000 to 0.4844.
+
 **What changes.** No code. An evaluation that was missing: every cross-venue figure in this
 project describes the probe, and the deployed path has not been the probe alone since A14.
 `experiments/h3_with_gates.py` re-runs H3's seven leave-one-venue-out folds with the person
