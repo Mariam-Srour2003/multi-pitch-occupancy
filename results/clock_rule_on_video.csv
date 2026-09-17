@@ -1,0 +1,4 @@
+system,minutes,says_play,false_play,empty_correct,empty_minutes
+clock rule,16,16,1.0,0,13
+probe alone (dinov2),16,7,0.3846,8,13
+deployed path (probe + boundary + gates),16,0,0.0,13,13

@@ -110,6 +110,12 @@ meter **on this dataset**, which is a statement about the dataset. The corpus co
 frames at night and 6 play frames in daylight. Until those two cells are filled, no experiment
 here can separate an occupancy model from a light meter, and saying so is the contribution.
 
+*Then show the clip (A26).* 234 seconds of floodlit night with nobody playing — the cell the
+corpus does not have. Clock rule: **16 of 16 minutes wrong**, false-play **1.00**. Probe alone:
+0.38. The deployed path: **0.00, 13 of 13 empty minutes right**. A 1,692-frame benchmark ranked
+the trivial rule first; one clip reversed the ranking completely, and the difference between
+them is not size or statistics — it is one missing cell.
+
 ### 8. A protocol a constant predictor wins
 
 Under leave-one-venue-out, **a constant predictor scores macro-F1 1.000**

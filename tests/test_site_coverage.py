@@ -51,6 +51,10 @@ OUT_OF_SCOPE = {
         "false-play 0.6173 to 0.0123 - is only honest beside the note that the gate's "
         "thresholds were read off the same control frames, which a table row cannot carry."
     ),
+    "clock_rule_on_video.csv": (
+        "A26: three systems on the one clip that holds the corpus's missing cell. Three rows "
+        "whose meaning is entirely in what the corpus lacks, which a table cannot carry."
+    ),
     "line_marking_boundary.csv": (
         "A24: coverage at each stage of a line-marking boundary, per camera. The result is "
         "that it does not work and why - a named failure mode, not a number to report."

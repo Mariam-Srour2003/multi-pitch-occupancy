@@ -5984,3 +5984,53 @@ on the point estimate, and the claim that the refutation is meaningful is not.
 - 2026-09-17 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 33 claims verified against their artefacts, 0 recorded as unsupported
 
 - 2026-09-17 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 34 claims verified against their artefacts, 0 recorded as unsupported
+
+## The baseline that beats the backbones gets every minute of real footage wrong (A26)
+
+`experiments/clock_rule_on_video.py`, `results/clock_rule_on_video.csv`
+
+A25 left the project with an uncomfortable headline: on the corrected labels a rule that never
+looks at the image beats all three frozen backbones cross-venue, on recall **and** on
+false-play. Read at face value that says the deep half of this work is unnecessary and the
+gates on top of it doubly so.
+
+It should not be read at face value, and the reason is checkable rather than rhetorical. The
+rule wins on a confound - night is 99% ACTIVE_PLAY, day is 98% EMPTY - and **the corpus holds
+almost no frames where that shortcut fails**: 9 empty frames at night, 6 play frames in
+daylight. The unseen clip is such a frame sixteen times over: floodlit night, nobody playing.
+
+Three systems, the same 16 minutes, the same boundary:
+
+| system | says PLAY | false-play | empty minutes correct |
+|---|---|---|---|
+| clock rule | **16 of 16** | **1.00** | **0 / 13** |
+| probe alone (DINOv2) | 7 | 0.38 | 8 / 13 |
+| **deployed path** (probe + boundary + motion + person gates) | **0** | **0.00** | **13 / 13** |
+
+**The rule is wrong on every minute of the clip.** Not degraded - inverted. It cannot be
+otherwise: it reads one variable, that variable says "night", and at night this corpus is 99%
+football.
+
+**And it was given the charitable setting.** It is told `lighting="night"`, which is the truth
+by inspection - black sky, lit fixtures. Told `"day"` it would answer EMPTY to all sixteen and
+score 13/13 on the empty minutes for exactly the wrong reason, which is worth stating because
+it shows the rule has no way to be right *for a reason*.
+
+**What this settles and what it does not.** It does not restore the backbone claim A25
+refuted: on the corpus, DINOv2 really is indistinguishable from a light meter, and that
+remains the honest reading of every corpus number. What it settles is which system to deploy,
+and the ordering is unambiguous on the only footage in this project that contains the missing
+cell: 0.00 false-play against 0.38 against 1.00.
+
+**The methodological point, which is the thesis's contribution and now has its cleanest
+statement.** A benchmark of 1,692 frames ranked the clock rule first and the deployed system
+below it. **A single 234-second clip reversed that ranking completely.** The difference between
+them is not size, sophistication or statistics - it is that the clip contains the class-lighting
+combination the benchmark does not. No amount of care in the protocol compensates for a cell
+the data never fills, and no amount of data compensates for never checking the model on
+something it has not seen.
+
+**It also prices the gates for the first time against a real alternative.** The probe alone is
+0.38 false-play here; with the boundary and the two gates it is 0.00. Everything A14 through
+A22 added is the difference between a system that is wrong on five of thirteen empty minutes
+and one that is wrong on none.
