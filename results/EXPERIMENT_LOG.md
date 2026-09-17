@@ -5813,3 +5813,53 @@ white on green under any lighting these cameras see - rather than from the colou
 surface. Every remaining boundary error in this project is a colour error: a tree read as turf,
 a dim far end read as not-turf, tarmac bridged by a hull. None of them is a geometry error.
 `polygon_from_mask(hull=False)` stays as the measured alternative behind this entry.
+
+## The line-marking boundary, attempted (A24)
+
+`experiments/line_marking_boundary.py`, `results/line_marking_boundary.csv`
+
+A19 and A23 bracket the colour-threshold boundary from both sides and both end with the same
+recommendation: take the boundary from the pitch's **line markings**, which bound the playing
+surface exactly and are white on green under any lighting these cameras see. Recommending it
+three times without trying it is not a finding. This is the attempt, and it does not land.
+
+**Markings are detectable.** A white top-hat - brighter than a neighbourhood wider than the
+line - plus a low-saturation test, on the per-camera median. Rendered over venue_01 camera B it
+picks out the halfway line, the penalty box and the far touchline unmistakably.
+
+**And so is everything else bright and thin.** Fences, netting, window frames, building edges.
+Across 14 cameras the hull of unrestricted "marking" pixels covers **81-94%** of the frame,
+which is no boundary at all. Gating on the turf mask brings that to 44-66% - and inherits the
+turf mask's defect, because `turf_mask` calls the trees beyond the fence turf, so tree
+highlights arrive as markings.
+
+**Requiring straightness removes the contamination and most of the markings with it.**
+
+| stage | coverage across 14 cameras |
+|---|---|
+| current boundary | 55-79% |
+| raw marking pixels | 81-94% |
+| restricted to the turf mask | 44-66% |
+| **only long straight segments** | **7-25%**, and 3 of 14 produce nothing at all |
+
+**None of the 11 that produced a polygon lands within 10 percentage points of the current
+boundary.** At venue_01 camera B, `HoughLinesP` at a minimum length of 12% of frame width finds
+**7** segments and their hull covers 14% against the current 55%; every one of the 7 is in the
+far half of the pitch.
+
+**Why it fails is specific, and is the part worth keeping.** A single top-hat kernel matches a
+line of one width. Under perspective a touchline is several pixels across at the near edge of
+the frame and sub-pixel at the far edge, so one kernel is right for one horizontal band and
+wrong above and below it. At camera B the kernel suits the far half, which is exactly where the
+segments were found. Lowering the threshold to catch the near half brings the fence back in.
+
+**What the next attempt should do differently.** Either scale the kernel width with image row -
+perspective is a smooth function of height for a fixed camera, and the median frame is stable
+enough to estimate it - or fit a homography from a pitch template to the detected segments,
+which uses the fact that markings are not merely lines but *a known arrangement of lines*. The
+second is the standard method in sports analytics and needs most of a pitch outline in frame,
+which most of these cameras do not have.
+
+**Nothing is wired in.** What changes is the status of the recommendation: it was an untested
+idea appearing in three entries and is now a tested one with a named failure mode, which is
+worth more even though the boundary is no better than it was this morning.

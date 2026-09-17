@@ -51,6 +51,10 @@ OUT_OF_SCOPE = {
         "false-play 0.6173 to 0.0123 - is only honest beside the note that the gate's "
         "thresholds were read off the same control frames, which a table row cannot carry."
     ),
+    "line_marking_boundary.csv": (
+        "A24: coverage at each stage of a line-marking boundary, per camera. The result is "
+        "that it does not work and why - a named failure mode, not a number to report."
+    ),
     "roi_flat_field.csv": (
         "A19: per-frame person counts under three candidate boundaries. Both alternatives "
         "were rejected, and the corpus table favours the one the unseen clip rules out - "
