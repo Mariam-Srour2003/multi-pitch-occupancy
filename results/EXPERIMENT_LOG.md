@@ -6045,3 +6045,20 @@ macro-F1 goes from **0.9091 to 0.9865**, which moves it past ConvNeXtV2 (0.9849)
 0.0008 of DINOv2 (0.9873). On `lo_venue_out` it ties the majority-class baseline at a perfect
 1.0000, which that protocol has always awarded to constants and is why it is reported as a
 degenerate protocol rather than a result. The claims ledger re-derives 34 of 34.
+
+**A25 follow-up: the rule that produced the bad labels is removed, not re-tuned.** Correcting
+216 rows fixed the data and left the code that generated them in place, so a re-extraction
+would have restored the defect. `data/extract.py` no longer infers lighting at all. It writes
+`unknown`, which is what extraction actually knows, and keeps the `brightness` column, which was
+a measurement and was never the problem - the inference from it was.
+
+**No threshold replaces it, deliberately.** An indoor hall has no sky to be dark and a floodlit
+pitch is brighter than an overcast one, so there is no cutoff that separates them; the earlier
+attempt to find one is what filed 216 frames wrong. The judgement now lives in
+`scripts/relabel_clip_lighting.py`, per venue, with the visual evidence written beside it.
+
+`tests/test_extract.py::test_lighting_is_measured_not_assumed` asserted the old behaviour, and
+its name was the mistake in miniature: the brightness *was* measured, and the conclusion drawn
+from it was assumed. It is now `test_extraction_does_not_guess_the_lighting`, and it still
+checks that the bright fixture reads brighter than the dark one - measuring was never what went
+wrong.

@@ -8,10 +8,23 @@ camera. All of that is already in the filename, so extracted frames keep the est
 
 **Clips** (``raw/highlights_2026-09-04/``) are 10-14 s highlights whose filenames encode
 only the export session. Venue comes from ``configs/clip_venues.csv`` (assigned by
-background fingerprint plus visual confirmation), and lighting has to be measured from the
-pixels because there is no timestamp to infer it from. Since a filename cannot carry all
-of that, extraction writes a sidecar - ``data/interim/clip_frames.csv`` - that the manifest
-joins on, exactly as it already joins ``labels.csv`` for provenance.
+background fingerprint plus visual confirmation). Since a filename cannot carry all of that,
+extraction writes a sidecar - ``data/interim/clip_frames.csv`` - that the manifest joins on,
+exactly as it already joins ``labels.csv`` for provenance.
+
+**Lighting is no longer inferred here, and that is the correction A25 exists for.** This
+module used to set ``lighting`` from mean frame brightness, below 80 being night, "calibrated
+against the known day/night recordings in raw/venue_01". The calibration does not survive
+leaving venue_01: a floodlit five-a-side pitch fills its frame with intensely lit turf and
+reads *brighter* than an overcast afternoon there - 120 against 69 - so the rule filed night
+football as daylight. It measured how bright the picture is, not whether it was daytime, and
+it was wrong for **216 of 396** frames, including every frame of the locked final test set.
+
+The rule is not replaced by a better threshold, because no threshold works: an indoor hall has
+no sky to be dark, and a floodlit pitch is brighter than an overcast one. Clip frames now carry
+``lighting = "unknown"``, which is what extraction actually knows, and
+``scripts/relabel_clip_lighting.py`` records a per-venue judgement made by looking. The
+``brightness`` column is still written - it is a measurement, and it was never the problem.
 
 Frames are sampled from the middle 80% of each clip: the first and last moments of a
 highlight often contain a cut or a replay wipe.
@@ -25,13 +38,16 @@ from pathlib import Path
 
 import cv2
 
-__all__ = ["ClipFrame", "load_clip_venues", "extract_clip_frames", "CLIP_SIDECAR"]
+__all__ = ["ClipFrame", "load_clip_venues", "extract_clip_frames", "CLIP_SIDECAR",
+           "UNKNOWN_LIGHTING"]
 
 CLIP_SIDECAR = Path("data/interim/clip_frames.csv")
 
-#: Mean grayscale intensity below which a frame is treated as floodlit rather than
-#: daylight. Calibrated against the known day/night recordings in raw/venue_01.
-NIGHT_BRIGHTNESS_BELOW = 80.0
+#: What a clip frame's lighting is on extraction: not known. See the module docstring -
+#: brightness cannot tell a floodlit pitch from a bright afternoon, and pretending otherwise
+#: mislabelled 216 of 396 frames. `scripts/relabel_clip_lighting.py` supplies the real value
+#: from a per-venue visual audit.
+UNKNOWN_LIGHTING = "unknown"
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,7 +120,7 @@ def extract_clip_frames(
                     clip_id=clip_id,
                     t_ms=t_ms,
                     brightness=round(brightness, 2),
-                    lighting="night" if brightness < NIGHT_BRIGHTNESS_BELOW else "day",
+                    lighting=UNKNOWN_LIGHTING,
                 )
             )
         cap.release()

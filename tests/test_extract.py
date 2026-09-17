@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from pitch_occupancy.data.extract import (
-    NIGHT_BRIGHTNESS_BELOW,
+    UNKNOWN_LIGHTING,
     extract_clip_frames,
     load_clip_venues,
     read_sidecar,
@@ -57,15 +57,31 @@ def test_filename_encodes_venue_clip_and_offset(clips, tmp_path: Path) -> None:
     assert len({r.file for r in rows}) == len(rows), "frame names collide"
 
 
-def test_lighting_is_measured_not_assumed(clips, tmp_path: Path) -> None:
-    """Clips have no timestamp, so day/night can only come from the pixels."""
+def test_extraction_does_not_guess_the_lighting(clips, tmp_path: Path) -> None:
+    """The inverse of what this test used to assert, and the old name was the mistake.
+
+    It was `test_lighting_is_measured_not_assumed`, and it pinned a brightness threshold:
+    below 80 is night. The measurement was real and the inference from it was not. A floodlit
+    five-a-side pitch fills its frame with lit turf and reads *brighter* than an overcast
+    afternoon at venue_01 - 120 against 69 - so the rule filed night football as daylight,
+    wrongly, for 216 of 396 frames including every frame of the locked final test set (A25).
+
+    No threshold replaces it: an indoor hall has no sky to be dark, and a floodlit pitch is
+    brighter than an overcast one. Extraction now records what it knows - the brightness - and
+    says `unknown` about what it does not. `scripts/relabel_clip_lighting.py` supplies the
+    value from a per-venue visual audit.
+    """
     d, venues = clips
     rows = extract_clip_frames(d, tmp_path / "out", venues=venues, per_clip=2)
     bright = [r for r in rows if r.venue_code == "ca"]
     dark = [r for r in rows if r.venue_code == "cb"]
-    assert all(r.lighting == "day" for r in bright)
-    assert all(r.lighting == "night" for r in dark)
-    assert all(r.brightness > NIGHT_BRIGHTNESS_BELOW for r in bright)
+    assert bright and dark, "the fixture must supply both a bright and a dark clip"
+    assert {r.lighting for r in rows} == {UNKNOWN_LIGHTING}, (
+        "extraction inferred a lighting condition it cannot know"
+    )
+    # The brightness is still measured, and it still separates the two fixtures - which is
+    # why the old test passed. Measuring is not the problem; concluding from it was.
+    assert min(r.brightness for r in bright) > max(r.brightness for r in dark)
 
 
 def test_unassigned_clip_is_refused(clips, tmp_path: Path) -> None:
