@@ -22,9 +22,37 @@ table.
 Every empty pitch in the corpus is one venue, two cameras, two days. Every other venue is
 active play only. That single fact is what most of this request is about.
 
+**And as of 2026-09-17 there is a sharper way to say it.** The lighting labels for the clip
+venues were wrong - a brightness threshold filed 216 frames of floodlit night football as
+daylight - and correcting them exposes a confound that the venue table hides:
+
+| | EMPTY | ACTIVE_PLAY | MAINTENANCE |
+|---|---|---|---|
+| **daylight** | **485** | 6 | 6 |
+| **night / floodlit** | **9** | **1186** | 0 |
+
+**"Night means play, day means not-play" is correct on 99.1% of the recorded corpus**, and on
+98.8% within venue_01 alone. So nothing measured on this data can separate *recognises an empty
+pitch* from *recognises the time of day* — and that is not a labelling mistake, it is how
+five-a-side pitches are used. People play in the evening.
+
+What that costs, concretely: a rule that reads only the clock and never looks at the image
+**beats all three frozen backbones** on this project's cross-venue protocol, on recall and on
+false-play at once. On a 234-second clip of a floodlit pitch with nobody on it, the same rule is
+wrong on **every one of 16 minutes**. The corpus cannot tell those two facts apart. Two cells
+would:
+
+| the two frames that matter most | currently |
+|---|---|
+| **an empty pitch at night** | 9 frames, all venue_01 |
+| **active play in daylight** | 6 frames, all venue_01 |
+
+Item 1 below is both of those cells. Everything else in this list is worth less than either of
+them, and the first of the two is worth more than the second.
+
 ---
 
-## 1 · Empty pitches at any venue other than venue_01 ★
+## 1 · Empty pitches at another venue — and, above all, at night ★
 
 > **Sharper as of 2026-09-17, and the reason changed.** This was originally about what the
 > model cannot *learn*. It is now also about what nothing can be *checked* against. Six
@@ -49,6 +77,26 @@ active play only. That single fact is what most of this request is about.
 **The highest-value frames in this request, and the cheapest to produce.** An empty pitch
 needs no scheduling and no event — just a camera pointed at one for a few minutes, at two or
 three sites, in daylight and under floodlights.
+
+> **Ask for the floodlit half first.** After the 2026-09-17 correction, *empty at night* is the
+> single cell that breaks the confound: it is the combination the clock rule must get wrong and
+> a working model must get right. Twenty minutes of an unused pitch after dark is worth more
+> than an hour of one in the afternoon, because the afternoon frames are the 485 the corpus
+> already has.
+>
+> **And if any of it can come from `clipvenue_b_floodlit_track` or `clipvenue_c_teal_boards`,
+> ask for that.** Those two are the locked final test set: 114 frames, every one ACTIVE_PLAY,
+> every one night. As it stands a model that answers ACTIVE_PLAY unconditionally scores 1.000
+> on it, so opening it buys a confirmation rather than a test (A27). Empty frames from *those
+> two venues specifically* would turn it into a final test set that can refute something —
+> footage from anywhere else is development data and cannot join a locked set afterwards.
+
+**The other half of the cell, and it is not free like the first.** *Active play in daylight* -
+the corpus has six frames - needs a booked game in the afternoon, which is a scheduling request
+rather than a camera pointed at nothing. It is worth asking for because it closes the confound
+from the other side: with empty-at-night alone a model could still be reading "is it dark", and
+daylight play is what rules that out. But if only one of the two can be had, take the empty
+night pitch: it is free, and it is the combination the trivial baseline must get wrong.
 
 *What it unblocks, and it is four separate things:*
 
