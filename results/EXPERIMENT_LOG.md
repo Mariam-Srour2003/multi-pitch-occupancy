@@ -5266,3 +5266,43 @@ it, because none of them has an empty pitch on record.
 wired in as a gate that can only turn ACTIVE_PLAY into EMPTY, which is the direction 396
 frames say is safe, and it is not promoted to the classifier on the strength of one venue's
 empty pitches.
+
+## The REVIEW band is unchanged by the person gate, and the reason is the useful part
+
+`experiments/rq6_on_a_real_class_mix.py --gates`, `results/rq6_real_class_mix.csv`
+
+RQ6's operating point was computed on the probe alone. The gates now run in the deployed path,
+so the band was recomputed with the A16 person gate applied before confidence is read - the
+order `run_slot` uses, since the gate's verdict is the one that reaches review. Every figure
+came back identical:
+
+| | accuracy at full coverage | 95% target | 99% target |
+|---|---|---|---|
+| probe alone | 0.9386 | answer 97%, review 3% | answer 73%, review 27% |
+| probe + person gate | 0.9386 | answer 97%, review 3% | answer 73%, review 27% |
+
+**The gate overruled 0 of 521 verdicts.** Not a wiring fault - it is the split. The probe makes
+32 errors here and **all 32 are missed play**; false-play on venue_01 camera B is 0.0000 once
+the generated EMPTY frames are in training. The gate only turns ACTIVE_PLAY into EMPTY, so it
+can act only where the probe says PLAY wrongly, and of the 246 frames it does call PLAY the
+person count is zero on none of them, median 7. There is nothing here for it to catch.
+
+This is the sixth measurement to stall on the same wall, and it is worth naming plainly:
+**venue_01 camera B cannot exhibit the failure these gates exist to fix.** It is the only
+recorded split with both classes, which is why RQ6 uses it, and it is also the split the probe
+has effectively memorised. Every cross-venue intervention will read as "no change" here.
+
+**What the one-way choice costs, measured rather than assumed.** Of the 32 missed-play frames,
+25 have two or more people inside the boundary - a count rule running in the PLAY direction
+would recover them and take accuracy from 0.9386 to **0.9655**. It would also call 11 of the
+243 recorded EMPTY frames a match (false-play 0.0453). That trade is favourable *on this
+split*, and it is still not taken: the 0.0453 is evidenced at one venue, and the reason the
+gate is one-way is that 396 clip-venue frames confirm the count never misses play while no
+venue but this one can confirm it does not invent it. The number above is what a future
+supervisor decision would be buying, stated so the decision can be made on evidence.
+
+**Also fixed here.** The results file gained a `gates` column. Without it the two arms append
+as twelve indistinguishable rows, and a results file you cannot attribute to a run records
+nothing.
+
+- 2026-09-17 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person

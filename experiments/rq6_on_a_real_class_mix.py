@@ -34,6 +34,7 @@ from pathlib import Path
 import numpy as np
 
 from pitch_occupancy.data.feature_cache import load_cache
+from pitch_occupancy.data.taxonomy import Class3
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.db.seed import PHYSICAL_CAMERA
 from pitch_occupancy.vision.heads import LinearProbe
@@ -74,6 +75,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--backbone", default="dinov2")
     ap.add_argument("--roi-pooled", action="store_true")
+    ap.add_argument("--gates", action="store_true",
+                    help="apply the A16 person gate before reading confidence")
     args = ap.parse_args()
 
     rows = read_manifest(DATASET / "manifest.csv")
@@ -104,6 +107,34 @@ def main() -> int:
     classes = list(probe.classes_)
     pred = [classes[int(i)] for i in proba.argmax(1)]
     conf = proba.max(1)
+
+    if args.gates:
+        # The gates run before confidence is read, because that is the order the deployed
+        # path uses: `run_slot` overrules the verdict and the verdict is what reaches the
+        # REVIEW band. Reading confidence from the probe and the class from the gate would
+        # describe a system nobody runs.
+        #
+        # An overruled frame keeps the probe's confidence. The gate has no calibrated
+        # confidence of its own - it is a count and a threshold - and inventing one (1.0, say)
+        # would put every gated frame at the top of the risk-coverage curve on no evidence.
+        import cv2
+
+        from pitch_occupancy.vision import roi
+        from pitch_occupancy.vision.people import PersonGate
+
+        gate = PersonGate()
+        n_over = 0
+        for i, r in enumerate(test):
+            if pred[i] != PLAY:
+                continue
+            frame = cv2.imread(str(DATASET / r.file))
+            if frame is None:
+                continue
+            state, _count = gate.apply(Class3(pred[i]), frame, roi.get(r.camera))
+            if state.value != pred[i]:
+                pred[i] = state.value
+                n_over += 1
+        print(f"person gate overruled {n_over} of {len(test)} verdicts")
     truth = [r.class3 for r in test]
     correct = np.array([p == t for p, t in zip(pred, truth)])
 
@@ -119,7 +150,11 @@ def main() -> int:
         k = max(1, int(round(m * len(band))))
         cov, lo, hi, thr = band[k - 1]
         print(f"{cov:>10.2f}{lo:>14.4f}{hi:>13.4f}{thr:>12.4f}{1 - cov:>9.0%}")
+        # `gates` is part of the row, not just the console output. Two arms whose numbers
+        # come out identical are indistinguishable once appended, and a results file where
+        # you cannot tell which run a row came from is not a record of anything.
         records.append({"backbone": args.backbone, "roi_pooled": args.roi_pooled,
+                        "gates": args.gates,
                         "coverage": round(cov, 4), "acc_worst": round(lo, 4),
                         "acc_best": round(hi, 4), "threshold": round(thr, 4),
                         "review_rate": round(1 - cov, 4)})
@@ -135,7 +170,18 @@ def main() -> int:
 
     RESULTS.mkdir(exist_ok=True)
     p = RESULTS / "rq6_real_class_mix.csv"
+    # An append only makes sense onto a file with the same columns. When the header predates
+    # a column, the old rows are carried over with it filled in rather than silently mixed.
     exists = p.exists()
+    if exists:
+        with p.open(newline="", encoding="utf-8") as fh:
+            prior = list(csv.DictReader(fh))
+        if prior and set(prior[0]) != set(records[0]):
+            with p.open("w", newline="", encoding="utf-8") as fh:
+                w0 = csv.DictWriter(fh, fieldnames=list(records[0]))
+                w0.writeheader()
+                for row in prior:
+                    w0.writerow({k: row.get(k, "") for k in records[0]})
     with p.open("a" if exists else "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=list(records[0]))
         if not exists:
