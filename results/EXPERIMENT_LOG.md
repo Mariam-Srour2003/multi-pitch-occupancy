@@ -6108,6 +6108,11 @@ development data and cannot be added to a locked set after the fact.
 
 ## The probe recognises an empty pitch at night; the clock rule does not (A28)
 
+> **Corrected by A29 (same day): 18 of 26, not 5 of 5.** These five frames came from
+> six-frame medians at one venue and were the easy survivors of a weak filter. Whole-clip
+> medians give 26 frames at three venues and the probe gets 69% of them, not 100%. The
+> ordering against the clock rule stands; the reliability claim does not.
+
 `scripts/make_median_empties.py`, `experiments/median_empty_night.py`, `results/median_empty_night.csv`
 
 A25 left DINOv2 indistinguishable from a light meter on every corpus number, and A26 showed the
@@ -6156,3 +6161,52 @@ night and is not reported as one. What it does is move "the probe might be a lig
 **With A26 it makes a pair.** The clock rule beats the backbones on 1,692 corpus frames, and
 loses to them on every frame this project has that sits outside the corpus's confound: 16 clip
 minutes and now 5 manufactured stills, at two different venues, 21 for 21.
+
+## A better median set corrects A28 downward: 18 of 26, not 5 of 5 (A29)
+
+`scripts/median_empties_from_clips.py`, `experiments/median_empty_night.py`
+
+A28 reported DINOv2 calling **5 of 5** manufactured empty-night frames EMPTY and read it as the
+first evidence that the probe reads the pitch rather than the clock. The direction survives.
+The number does not.
+
+**The medians were built from six frames each**, because that is the rate the dataset sampled
+each clip at. Six frames of a ten-second highlight is a thin stack: a slow player, or one who
+happens to stand where another stood, survives the median. The source clips hold **250-350
+frames**, and a median over all of them is the same subtraction with fifty times the evidence -
+a player would have to stand still for ten seconds to survive it.
+
+| | frames | venues | rejected by the detector |
+|---|---|---|---|
+| A28, six-frame medians | 5 | 1 | 4 of 11 |
+| **A29, whole-clip medians** | **26** | **3** | 10 of 66 |
+
+**And the score falls.** Scored leave-one-venue-out, each venue's frames judged by a probe that
+never saw that venue:
+
+| | clipvenue_a | clipvenue_e | clipvenue_g | all |
+|---|---|---|---|---|
+| **DINOv2 probe, says EMPTY** | 17 / 21 | 0 / 1 | 1 / 4 | **18 / 26** |
+| clock rule, says EMPTY | 0 / 21 | 0 / 1 | 0 / 4 | **0 / 26** |
+
+**0.69, not 1.00.** A28's five frames were the survivors of a weaker filter at a single venue,
+and they were the easy ones. The honest statement is that the probe gets **about two thirds** of
+manufactured empty night pitches right at venues it has never seen, and still calls **8 of 26**
+of them a match.
+
+**The protocol mattered more than expected and is worth recording.** Holding out all three
+venues at once - the first way this was run - gives **12 of 26**, because the fit drops from
+1,410 frames over 7 venues to 1,362 over 5. Holding out one venue at a time, which is what H3
+does and what this should have done from the start, gives 18. Six of the twenty-six frames
+turned on nothing but how much training data the probe was left with.
+
+**What stands from A28 and what does not.** The ordering stands, and it is not close: 18 against
+0. The clock rule is wrong on every one of 26 frames at three venues, which is what it must be -
+they are night, and in this corpus night means football. So the claim that the probe reads
+something other than the clock survives. The claim that it reads it *reliably* does not, and
+A28's phrasing - "it answers EMPTY five times out of five" - was a small sample flattering a
+real effect.
+
+**Still manufactured, still not a recorded empty pitch at night.** 26 averages of frames that
+had people in them, at three venues, filtered by a detector that therefore cannot be evaluated
+on them. The cell A25 named is still empty.

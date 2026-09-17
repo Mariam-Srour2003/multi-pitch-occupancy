@@ -49,6 +49,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DATASET = ROOT / "data" / "processed"
 CACHE = ROOT / "data" / "cache"
 MEDIANS = ROOT / "data" / "interim" / "median_empties"
+MEDIANS_FULL = ROOT / "data" / "interim" / "median_empties_full"
 RESULTS = ROOT / "results"
 EMPTY, PLAY = "C1_EMPTY", "C2_ACTIVE_PLAY"
 SEED = 42
@@ -57,27 +58,49 @@ SEED = 42
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--backbone", default="dinov2")
-    ap.add_argument("--venue", default="clipvenue_a_blue_barrier")
+    ap.add_argument("--venue", default=None,
+                    help="restrict to one venue; default is every venue in the index")
+    ap.add_argument("--dir", type=Path, default=None,
+                    help="median directory; default is the full-clip set if it exists")
     args = ap.parse_args()
 
-    index = MEDIANS / "index.csv"
+    # The full-clip set (A29) is preferred when present: it medians 250-350 frames per clip
+    # rather than the six the dataset sampled, so a player must stand still for ten seconds to
+    # survive it. `--dir` overrides.
+    base = args.dir or (MEDIANS_FULL if (MEDIANS_FULL / "index.csv").exists() else MEDIANS)
+    index = base / "index.csv"
     if not index.exists():
-        raise SystemExit(f"{index} does not exist. Run scripts/make_median_empties.py first.")
+        raise SystemExit(f"{index} does not exist. Run "
+                         f"scripts/median_empties_from_clips.py first.")
     with index.open(newline="", encoding="utf-8") as fh:
-        medians = [r for r in csv.DictReader(fh) if r["venue"] == args.venue]
+        medians = [r for r in csv.DictReader(fh)
+                   if r["venue"].startswith("clipvenue_")
+                   and (args.venue is None or r["venue"] == args.venue)]
     if not medians:
-        raise SystemExit(f"no median frames for {args.venue}")
+        raise SystemExit(f"no clip-venue median frames in {index}")
+    venues = sorted({r["venue"] for r in medians})
 
     every = read_manifest(DATASET / "manifest.csv")
     cached = load_cache(args.backbone, CACHE)
     feats = {f: v for f, v in zip(cached.files, cached.features, strict=False)}
 
-    # Held out properly: the venue the frames come from contributes nothing to the fit.
-    train = [r for r in development_rows(every) if r.file in feats and r.venue != args.venue]
-    print(f"{len(medians)} median EMPTY frames from {args.venue}, "
-          f"lighting {medians[0]['lighting']}")
-    print(f"probe trained on {len(train)} frames with {args.venue} held out "
-          f"({len({r.venue for r in train})} venues)\n")
+    # Leave *one* venue out, per venue, rather than all of them at once.
+    #
+    # Holding out all three shrinks the fit from 1410 frames and 7 venues to 1362 and 5, so a
+    # score measured that way confounds "this venue is unseen" with "there is less training
+    # data". H3 holds out one venue at a time and this matches it: each venue's median frames
+    # are scored by a probe that saw the other venues and not that one.
+    def fit_without(held: str):
+        rows_ = [r for r in development_rows(every) if r.file in feats and r.venue != held]
+        return LinearProbe(args.backbone, seed=SEED).fit(
+            np.stack([feats[r.file] for r in rows_]), rows_), len(rows_)
+
+    train = [r for r in development_rows(every) if r.file in feats and r.venue not in venues]
+    print(f"{base.name}: {len(medians)} median EMPTY frames, night, "
+          f"from {len(venues)} venues")
+    for v in venues:
+        print(f"    {v:<34}{sum(1 for r in medians if r['venue'] == v):>4}")
+    print("leave-one-venue-out: one probe per venue, each blind to its own\n")
 
     from PIL import Image
 
@@ -86,7 +109,7 @@ def main() -> int:
 
     images, polygons = [], []
     for r in medians:
-        img = cv2.imread(str(MEDIANS / r["file"]))
+        img = cv2.imread(str(base / r["file"]))
         images.append(img)
         polygons.append(roi.get(r["camera"]))
 
@@ -101,29 +124,37 @@ def main() -> int:
     template = train[0]
     from dataclasses import replace
 
-    rows = [replace(template, file=r["file"], venue=args.venue,
+    rows = [replace(template, file=r["file"], venue=r["venue"],
                     lighting=r["lighting"], class3=EMPTY) for r in medians]
 
-    probe = LinearProbe(args.backbone, seed=SEED).fit(
-        np.stack([feats[r.file] for r in train]), train)
-    probe_pred = list(probe.predict(X, rows))
+    # One probe per held-out venue; each frame is scored by the probe that never saw its
+    # venue. `n_train` is printed so the fits are visibly comparable to each other.
+    probe_pred: list[str] = [""] * len(rows)
+    for v in venues:
+        probe_v, n_train = fit_without(v)
+        idx = [i for i, r in enumerate(medians) if r["venue"] == v]
+        preds = probe_v.predict(X[idx], [rows[i] for i in idx])
+        for i, pr in zip(idx, preds, strict=True):
+            probe_pred[i] = pr
+        print(f"  probe for {v:<34}fitted on {n_train} frames")
+    print()
     clock = ClockRule().fit(np.zeros((len(train), 1)), train)
     clock_pred = list(clock.predict(np.zeros((len(rows), 1)), rows))
 
-    print(f"{'frame':<38}{'probe':>26}{'clock rule':>26}")
-    for r, p, c in zip(medians, probe_pred, clock_pred, strict=True):
-        print(f"{r['file']:<38}{p.split('_', 1)[1]:>26}{c.split('_', 1)[1]:>26}")
-
     records = []
-    print(f"\n{'system':<24}{'calls it EMPTY':>17}{'calls it PLAY':>16}")
+    print(f"{'system':<22}{'venue':<32}{'says EMPTY':>13}{'says PLAY':>12}")
     for name, pred in (("probe (" + args.backbone + ")", probe_pred),
                        ("clock rule", clock_pred)):
-        n_e = sum(1 for p in pred if p == EMPTY)
-        n_p = sum(1 for p in pred if p == PLAY)
-        print(f"{name:<24}{n_e:>10}/{len(pred):<6}{n_p:>10}/{len(pred):<6}")
-        records.append({"system": name, "venue": args.venue, "n_frames": len(pred),
-                        "says_empty": n_e, "says_play": n_p,
-                        "says_other": len(pred) - n_e - n_p})
+        for v in [*venues, "ALL"]:
+            idx = ([i for i, r in enumerate(medians) if r["venue"] == v]
+                   if v != "ALL" else list(range(len(medians))))
+            n_e = sum(1 for i in idx if pred[i] == EMPTY)
+            n_p = sum(1 for i in idx if pred[i] == PLAY)
+            label = name if v == venues[0] else ""
+            print(f"{label:<22}{v:<32}{n_e:>7}/{len(idx):<5}{n_p:>7}/{len(idx):<5}")
+            records.append({"system": name, "venue": v, "n_frames": len(idx),
+                            "says_empty": n_e, "says_play": n_p,
+                            "says_other": len(idx) - n_e - n_p})
 
     print("\nthe person gate is deliberately absent: these frames were selected by the "
           "detector\nit runs, so it scores perfectly on them by construction and the figure "
