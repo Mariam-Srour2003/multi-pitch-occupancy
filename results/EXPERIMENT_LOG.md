@@ -6426,3 +6426,46 @@ significance result that nothing else would have caught. The check is advisory b
 reads content from git rather than modification times, which is why it could say *re-run to be
 sure* without crying wolf: six candidates, one real. That ratio is what makes it worth running
 after any change to the manifest, and it is now the thing to run after one.
+
+## The staleness check could not be cleared by doing what it asked (A34)
+
+`experiments/reproduce_all.py`, `tests/test_reproduce_all.py`
+
+A33 used the staleness check, re-ran the six stages it named, and five of them were **still
+listed afterwards**. That was written off in passing as the check being conservative. It is not
+conservative, it is broken, and the mechanism is exact:
+
+`stale_inputs` compared an input's last content change against the **output's**. Both come from
+git, which only records a change when content changes - so a stage whose rerun produces
+identical bytes gets no new timestamp and stays flagged for ever. `h6_zero_shot_gap.csv` last
+changed on 2026-09-07 and `h1_h2_baseline_floor.csv` changed today; re-running h6-zero-shot a
+hundred times would not have moved either date.
+
+**A warning that cannot be cleared by doing what it asks is one the next person learns to skim
+past** - which is the failure this module's own docstring warns about, for modification times,
+two paragraphs above the code that repeats it in a different form.
+
+**The fix separates two questions the timestamps had conflated.** "When did this output last
+change" is what git answers. "When did this stage last run" is what the check needs, and nothing
+recorded it. A run ledger now does: `data/interim/stage_runs.json`, written on success and only
+after the outputs are confirmed present, so an exit-0 run that produced nothing cannot clear a
+warning. It is machine state rather than a result, which is why it lives under `data/` with the
+caches and is gitignored - a fresh clone has no ledger and falls back to the git timestamps,
+which is the conservative direction.
+
+After the fix, re-running the five settled all five, and the check now reports nothing stale.
+
+**Two smaller defects fell out of it.**
+
+*The new dependency made a passing test read real global state.* `stale_inputs` consults the
+ledger, and `test_a_stage_is_judged_on_its_newest_output_not_its_oldest` uses the stage name
+`figures` - so the moment a real `figures` entry existed, that test picked it up, passed its
+first assertion for the wrong reason and failed its second. An autouse fixture now points
+`RUN_LEDGER` at a temporary file for every test in the module. This is the same mistake made
+with `vision/roi`'s store in A16 and fixed the same way; isolating one global and leaving the
+next one is how it recurs.
+
+*And the new test read a different module.* `tests/test_reproduce_all.py` loads
+`reproduce_all` by path under the bare name; `import experiments.reproduce_all` gives a second
+module object that the fixture has not patched. The test passed alone and failed in the suite,
+which is the signature of exactly that.

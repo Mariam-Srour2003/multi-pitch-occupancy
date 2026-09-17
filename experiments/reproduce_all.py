@@ -78,6 +78,43 @@ def _last_content_change(path: Path) -> int | None:
         return None
 
 
+#: When each stage last ran here, written on success. Machine state rather than a result, so it
+#: lives under `data/` with the caches - `results/` is for things the thesis quotes - and a
+#: fresh clone with no ledger simply falls back to the git timestamps.
+#:
+#: It exists because the check below could not otherwise be cleared. `stale_inputs` compared an
+#: input's last content change against the *output's*, and an output that legitimately does not
+#: change has no new commit - so a stage whose rerun produces identical bytes stays flagged for
+#: ever, however many times it is run. Six stages were flagged on 2026-09-17, all six were
+#: rerun, five produced identical output, and all five were still flagged afterwards. A warning
+#: that cannot be cleared by doing what it asks is one the next person learns to skim past,
+#: which is the failure this module's docstring already warns about for modification times.
+RUN_LEDGER = DATA / "interim" / "stage_runs.json"
+
+
+def _load_runs() -> dict[str, int]:
+    import json
+
+    try:
+        return {str(k): int(v) for k, v in json.loads(
+            RUN_LEDGER.read_text(encoding="utf-8")).items()}
+    except (OSError, ValueError, AttributeError):
+        return {}
+
+
+def record_run(name: str) -> None:
+    """Note that ``name`` completed just now. Never raises: this is bookkeeping, not a result."""
+    import json
+
+    runs = _load_runs()
+    runs[name] = int(time.time())
+    try:
+        RUN_LEDGER.parent.mkdir(parents=True, exist_ok=True)
+        RUN_LEDGER.write_text(json.dumps(runs, indent=2, sort_keys=True), encoding="utf-8")
+    except OSError:
+        pass
+
+
 @dataclass(frozen=True, slots=True)
 class Stage:
     name: str
@@ -120,6 +157,12 @@ class Stage:
             return []
         built = [_last_content_change(p) for p in self.produces]
         known = [t for t in built if t is not None]
+        # When this stage last *ran*, which is the question, against when its output last
+        # *changed*, which is what the commit timestamps answer. They differ exactly when a
+        # rerun produces identical bytes - the case that made this check unclearable.
+        ran = _load_runs().get(self.name)
+        if ran is not None:
+            known.append(ran)
         if not known:
             return []
         # The *newest* output, because a stage writes all of its outputs in one run and a
@@ -682,7 +725,8 @@ def main() -> int:
     if outdated:
         print(
             "\nmay be stale - an input's content changed after the output was last built."
-            "\nRead from git, so a rerun that produced identical bytes does not trigger it;"
+            "\nCleared by re-running: the ledger records when a stage last produced its"
+            "\noutputs, so a rerun whose bytes are identical settles it;"
             "\nbut an output can also be legitimately unchanged because the input's change did"
             "\nnot reach it, so this says re-run to be sure rather than this is wrong:"
         )
@@ -736,6 +780,10 @@ def main() -> int:
                 print(f"  exit 0 but only {len(produced)}/{len(s.produces)} outputs exist")
                 failed.append(s.name)
             else:
+                # Recorded on success only, and after the outputs are confirmed present: the
+                # ledger answers "when did this stage last produce its outputs", so an exit-0
+                # run that produced nothing must not clear a staleness warning.
+                record_run(s.name)
                 print(f"  ok in {dt:.1f} min")
 
     if failed:

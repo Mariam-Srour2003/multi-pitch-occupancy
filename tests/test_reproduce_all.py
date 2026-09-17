@@ -26,6 +26,21 @@ spec.loader.exec_module(reproduce_all)
 STAGES = reproduce_all.STAGES
 
 
+@pytest.fixture(autouse=True)
+def _isolated_run_ledger(tmp_path, monkeypatch):
+    """Point the run ledger at a temporary file for every test in this module.
+
+    `stale_inputs` consults `RUN_LEDGER` to answer "when did this stage last run", which is
+    real state on the machine the suite happens to run on. Without this,
+    `test_a_stage_is_judged_on_its_newest_output_not_its_oldest` uses the stage name `figures`
+    and silently picked up the real `figures` entry the moment one existed - the test passed
+    its first assertion for the wrong reason and failed its second. The same mistake was made
+    with `vision/roi`'s store and fixed the same way; isolating one global and leaving the
+    next one is how it recurs.
+    """
+    monkeypatch.setattr(reproduce_all, "RUN_LEDGER", tmp_path / "stage_runs.json")
+
+
 def test_stage_names_are_unique() -> None:
     names = [s.name for s in STAGES]
     assert len(names) == len(set(names))
@@ -297,3 +312,32 @@ def test_a_stage_is_judged_on_its_newest_output_not_its_oldest(tmp_path, monkeyp
 
     times[src] = 400  # now the input really is newer than anything the stage produced
     assert stage.stale_inputs() == [src]
+
+
+def test_a_staleness_warning_can_be_cleared_by_rerunning(tmp_path, monkeypatch) -> None:
+    """The defect this ledger exists for: a warning nobody can clear is a warning nobody reads.
+
+    `stale_inputs` compared an input's last content change against the *output's*. An output
+    that legitimately does not change has no new commit, so a stage whose rerun produces
+    identical bytes stayed flagged for ever. On 2026-09-17 six stages were flagged, all six
+    were rerun, five produced identical output, and all five were still flagged.
+
+    The stage below has an output older than its input and is therefore stale. Recording a run
+    must settle it without the output changing at all.
+    """
+    # `reproduce_all` here is the module this file loaded by path, not
+    # `experiments.reproduce_all` - importing that name gives a second module object that the
+    # autouse fixture has not patched, and the test then reads the real ledger.
+    ra = reproduce_all
+
+    out, src = tmp_path / "out.csv", tmp_path / "in.csv"
+    out.write_text("x", encoding="utf-8")
+    src.write_text("y", encoding="utf-8")
+    stage = ra.Stage(name="fixture", command=[], produces=[out], requires=[src])
+
+    times = {out: 100, src: 200}
+    monkeypatch.setattr(ra, "_last_content_change", lambda p: times.get(p))
+
+    assert stage.stale_inputs() == [src], "an output older than its input must read as stale"
+    ra.record_run("fixture")
+    assert stage.stale_inputs() == [], "re-running must clear it without the output changing"

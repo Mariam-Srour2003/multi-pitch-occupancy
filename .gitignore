@@ -106,3 +106,4 @@ results/.*.lock
 
 # Schedule-editor backups: generated per write, pruned to the last 20, never source.
 /configs/schedule_history/
+data/interim/stage_runs.json
