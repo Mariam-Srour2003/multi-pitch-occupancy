@@ -6034,3 +6034,14 @@ something it has not seen.
 0.38 false-play here; with the boundary and the two gates it is 0.00. Everything A14 through
 A22 added is the difference between a system that is wrong on five of thirteen empty minutes
 and one that is wrong on none.
+
+- 2026-09-17 | WP4-T1 benchmark v2 | `python experiments/benchmark_v2.py` | `benchmark_v2.csv` | 8 models x 4 protocols; every protocol degenerate, each differently
+
+**A25 addendum: the relabelling is contained to one model, and it moves that model everywhere.**
+`benchmark_v2.py` was re-run once its published reference table was regenerated. Of its 153
+rows, **only the clock rule's changed** - it is the only model that reads the `lighting` field,
+so this is the containment check the change needed. Across five seeds on the random split its
+macro-F1 goes from **0.9091 to 0.9865**, which moves it past ConvNeXtV2 (0.9849) and to within
+0.0008 of DINOv2 (0.9873). On `lo_venue_out` it ties the majority-class baseline at a perfect
+1.0000, which that protocol has always awarded to constants and is why it is reported as a
+degenerate protocol rather than a result. The claims ledger re-derives 34 of 34.
