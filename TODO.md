@@ -2176,12 +2176,20 @@ tagged with the question it answers. Fix that first — it is what turns a build
         `scripts/ingest_synthetic.py` (three batches by conditioning venue) — done 2026-09-19
         as `syn_pending4d_{cg,dm,vb}_*`; `dinov2.npz` rebuilt over the 1,892-row manifest.
         A13's exclusion keeps them out of every published probe table (1,578 dev frames).
-  - [ ] **[H] WP9-T0b Hand counts.** `data/processed/hand_counts.csv` — 100 development frames
-        stratified venue × class × lighting: `people_inside, ball_visible`. Claude does a first
-        pass by eye; you verify. This is the detector's ground truth and gates WP9-T2.
+  - [~] **[H] WP9-T0b Hand counts.** `results/hand_counts.csv` — 100 development frames
+        stratified venue × class × lighting, chosen by `scripts/sample_hand_counts.py` (one per
+        perceptual-hash scene before any second), rendered with the boundary drawn.
+        **Claude's first pass by eye is in**, with `people_inside`, `people_on_pitch`,
+        `ball_visible` and a `confidence` column — **47 of 100 are marked `unsure`**, so
+        WP9-T2's numbers are provisional on your verification pass. The renders are in the
+        session scratch folder; re-make them with
+        `uv run python scripts/sample_hand_counts.py --render <folder> --force`.
   - [ ] **[H] WP9-T0c Relabel audit.** From the hand counts, ACTIVE_PLAY frames with ≤ 4 real
         people → `3_people_not_playing`, listed in `results/relabel_under_A36.csv`; re-run
-        `h3_with_false_play.py` and log the delta as a dated correction.
+        `h3_with_false_play.py` and log the delta as a dated correction. **Three candidates
+        found in the first pass** (`slot_20260711_1000_camA_t000014_m`,
+        `slot_20260712_2030_camA_t003476`, `slot_20260712_2030_camA_t001857`); not moved until
+        WP9-T0b is verified, because relabelling on a first pass would put a guess in the truth.
   - [ ] **[H] WP9-T0d Public evaluation footage.** CC-licensed clips (empty pitch at night,
         ≤ 4-player kickabout, groundskeeping) into `data/raw/public_<source>/` with
         `provenance.csv`. Evaluation only.
@@ -2195,12 +2203,22 @@ tagged with the question it answers. Fix that first — it is what turns a build
       hands the pipeline + slot context to `run_slot` (`tests/test_scheduler_pipeline.py`);
       the unseen clip reads 13/13 EMPTY, 0 PLAY through the seam; the real-recordings
       scheduler test still passes. `worker --derive-roi` measures a missing boundary.
-- [ ] **WP9-T2 Detector selection.** `vision/detector.py` registry; `pitch fetch-weights`;
-      `experiments/detector_audit.py` → `results/detector_audit.csv`, `detector_latency.csv`.
-      Selection rule written before running (A36).
-- [ ] **WP9-T3 Counting, rules, fusion, bursts.** `vision/counting.py`, `vision/rules.py`,
-      `configs/rules.json`, `slots/fusion.fuse_pitch`, UNCERTAIN in `aggregate_slot`,
-      `frame_source.read_burst`, `worker.run_slot` burst path. Pure, fast tests.
+- [x] **WP9-T2 Detector selection** — done 2026-09-19. `vision/detector.py` (registry, tiling,
+      thread-local cache, None≠[]); `pitch fetch-weights`; `experiments/detector_audit.py` →
+      `detector_audit.csv`, `detector_latency.csv`, `detector_false_person_heights.csv`.
+      **Chosen by the registered rule: `yolov8n` @1280, untiled** — the detector already here,
+      and also the fastest (118 ms, round 10.6 s of 30). Tiling measured and refused: ball
+      recall 0.43→0.59 but count agreement 0.70→0.38 and false-person 0.042→0.133, and the
+      rule reads the count. Every candidate answers "≥5?" and "=0?" at 0.96/0.95 — the
+      question the rule actually asks does not discriminate between them.
+- [x] **WP9-T3 Counting, rules, fusion, bursts** — done 2026-09-19. `vision/counting.py`
+      (foot-point, ball-centre, min-height filter, 2-of-3 persistence, hi-vis, spread);
+      `vision/rules.py` (`MinuteState`, `FrameVerdict`, `RuleConfig`, `decide` = A36's table);
+      `configs/rules.json` (unfrozen until WP9-T5); `slots/fusion.fuse_pitch` (counts summed,
+      table applied once, half-blind pitch at half confidence); UNCERTAIN in `aggregate_slot`
+      (an abstained minute is a minute not captured — one mechanism, no new threshold);
+      `frame_source.read_burst` (recording seeks; stream paces on its own frame rate, one
+      connection); `vision/pitch_classifier.py`; `worker.run_slot` burst path.
 - [ ] **WP9-T4 Overlay + redaction.** `vision/overlay.py` (person masks, ball, outline, trace);
       pages show it; `experiments/make_overlay_figures.py` under the redaction sweep.
 - [ ] **WP9-T5 Thresholds frozen.** `experiments/fit_rule_thresholds.py` on venue_01 camera A

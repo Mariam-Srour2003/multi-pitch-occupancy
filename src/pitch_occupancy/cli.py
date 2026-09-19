@@ -115,6 +115,27 @@ def build_cache_cmd(
         )
 
 
+@app.command("fetch-weights")
+def fetch_weights_cmd(
+    keys: list[str] = typer.Argument(None, help="Detector keys; default: all registered."),
+) -> None:
+    """Download the registered detector weights to the repository root (WP9-T2).
+
+    The one deliberate network access the detector path makes. Nothing downloads as a side
+    effect of a prediction: a worker that reaches for the network on its first frame at 3 am
+    is a worker that fails at 3 am, so a missing file is "not checked" there and a download
+    here. Weights are gitignored; run this once per clone.
+    """
+    from pitch_occupancy.vision.detector import DETECTORS, fetch_weights
+
+    unknown = sorted(set(keys or ()) - set(DETECTORS))
+    if unknown:
+        raise typer.BadParameter(f"unknown detector(s) {unknown}; known: {sorted(DETECTORS)}")
+    for key, path, present in fetch_weights(keys or None):
+        size = f"{path.stat().st_size / 1e6:.1f} MB" if present else "MISSING"
+        typer.echo(f"  {key:<14} {path.name:<20} {size}")
+
+
 @app.command("extract-clips")
 def extract_clips_cmd(
     per_clip: int = typer.Option(6, help="Frames sampled from each clip's middle 80%."),

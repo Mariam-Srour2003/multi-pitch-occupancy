@@ -6617,3 +6617,115 @@ of `run_slot` and false of the process that calls it. The seam exists so the nex
 is about one path.
 
 - 2026-09-19 | A36 WP9-T1 the seam | uv run python scripts/run_slot_on_video.py data/raw/venue_unseen_2026-09-15/empty_floodlit_night.mp4 --every 15 --truth-csv configs/unseen_clip_truth.csv | configs/roi.json | run_due had never passed the gates or the boundary; through pipeline.assemble the unseen clip reads 13/13 empty samples EMPTY, 0 PLAY
+
+- 2026-09-19 | WP9-T2 detector audit | uv run python experiments/detector_audit.py --imgsz 1280 --tiles 1 | detector_audit.csv | chosen yolo11n-seg @1280 x1 on false-person and latency only (no hand counts); false-person 0.008; 191 ms/frame; round 17.2 s of 30; machine-dependent
+
+- 2026-09-19 | WP9-T2 detector audit | uv run python experiments/detector_audit.py --keys yolo11n yolo11n-seg yolov8n yolov8n-seg yolov8s --imgsz 1280 --tiles 1 2 | detector_audit.csv | chosen yolov8n @1280 x1 at |d|<=1 0.700 on 100 hand-counted frames; false-person 0.042; 118 ms/frame; round 10.6 s of 30; machine-dependent
+
+## The detector audit picks the detector already in the repo, and tiling trades the count for the ball (A36, WP9-T2)
+
+`experiments/detector_audit.py`, `results/detector_audit.csv`, `results/hand_counts.csv`
+
+Seven detectors, two tilings, against 100 hand-counted frames, 120 recorded venue_01 EMPTY
+frames and 147 play frames across ten venues. The selection rule was written into A36 before
+any of it ran: among configurations whose 30-camera × 3-frame round fits in 30 s, best rate of
+`|detected − truth| ≤ 1` on the hand counts, tie-break on the false-person rate on the empties,
+then latency.
+
+| config | \|d\|≤1 | MAE | ≥5 when ≥5 | 0 when 0 | false-person | ball recall | ms |
+|---|---|---|---|---|---|---|---|
+| **yolov8n ×1** | **0.70** | 1.23 | 0.964 | 0.952 | 0.042 | 0.430 | **118** |
+| yolov8s ×1 | 0.66 | 1.29 | 0.964 | 0.952 | 0.075 | 0.410 | 304 |
+| yolo11n ×1 | 0.65 | 1.39 | 0.964 | 0.952 | **0.017** | 0.467 | 175 |
+| yolov8n-seg ×1 | 0.64 | **1.15** | 0.964 | 0.952 | 0.042 | 0.330 | 163 |
+| yolo11n-seg ×1 | 0.62 | 1.40 | 0.964 | 0.952 | **0.008** | 0.355 | 200 |
+| yolov8n ×2 | 0.38 | 2.63 | 0.982 | 0.905 | 0.133 | 0.585 | 589 |
+| yolo11n ×2 | 0.42 | 2.77 | 0.982 | 0.952 | 0.100 | 0.620 | 684 |
+
+**The winner is the detector that was already here.** `yolov8n` at imgsz 1280 - the setting
+A16 measured every published person count at - is best on the registered criterion and also the
+fastest. A generation of model development and three times the parameters do not move the
+number this rule reads. That is a result about the task, not about the models: counting people
+on CCTV at 1280 pixels is not where a COCO detector's capacity goes.
+
+**Tiling buys the ball and loses the count, and it loses more than it buys.** Four overlapping
+crops plus the whole frame take ball recall from 0.43 to 0.585 - and at the four venues where
+the ball was nearly invisible it roughly triples: `f_outdoor_bldg` 0.17 → 0.58,
+`i_outdoor_trees` 0.13 → 0.47, `h_teal_pitch` 0.20 → 0.47, `d_indoor_dome` 0.20 → 0.47. It
+also takes `|d| ≤ 1` from 0.70 to 0.38, MAE from 1.23 to 2.63, and the false-person rate on
+empty pitches from 0.042 to 0.133, and it costs 589 ms against 118. A person straddling a tile
+edge appears as two partial boxes whose overlap is below the merge threshold, so the count
+inflates; that is the mechanism, and the same mechanism is why small distant objects are found.
+**The rule reads the count and only records the ball (A17), so the trade is refused** - tiles
+stay at 1. The ball figures are kept because WP9-T6's `ball_recovery` is the experiment that
+decides what, if anything, may use them, and this is the first measurement it has.
+
+**What the registered criterion did not ask, and the table answers anyway.** The rule does not
+need an exact count. It needs two thresholds: *is this five or more* and *is this zero*. Every
+configuration answers both at **0.964 and 0.952** - the same numbers, 56 frames with five or
+more people inside the boundary and 21 with none. So the criterion that separated the models is
+the one the method is least sensitive to, and the one it depends on is not discriminating at
+all. The choice stands as registered; the observation is recorded here rather than used to
+re-choose, because re-ranking on a metric picked after seeing the table is exactly the move
+A36's selection rule exists to prevent.
+
+**The counting truth is a first pass by eye and says so.** `results/hand_counts.csv` carries a
+`confidence` column and **47 of 100 frames are marked `unsure`** - a far-side player at a clip
+venue is a dozen pixels, and "whose feet are inside this hull" is genuinely undecidable on
+some of them. Per-venue `|d| ≤ 1` for the winner tracks that directly: venue_01 0.88 and
+`h_teal_pitch` 0.86, against `d_indoor_dome` 0.29 and `a_blue_barrier` 0.38. The dome's derived
+boundary covers only the near half of its pitch, so most of its players are outside it by
+construction and the disagreements there are about the boundary, not the detector. **[H] A
+second pass by a person is WP9-T0b and is not done**; every number above is provisional on it.
+
+**A separate finding the audit surfaced, which is about the boundaries and not the detector.**
+The hand count recorded people on the pitch as well as people inside the camera's boundary, and
+the two differ badly: **18 of 74 play frames have fewer than five people inside their own
+camera's boundary** while the pitch plainly holds a match. This is A16's 88-of-278 measured
+again on a different sample, and it is why A36 fuses counts at pitch level rather than deciding
+per camera. It also says several derived hulls are too tight - `venue_01` camera B repeatedly
+shows ten people on the pitch and three inside the outline.
+
+**Three of the 74 play frames hold four or fewer people on the pitch** and are relabelling
+candidates under §2.7: `slot_20260711_1000_camA_t000014_m.jpg` (a child and two adults with a
+ball, in daylight - one of the six daytime play frames in the whole corpus),
+`slot_20260712_2030_camA_t003476.jpg` and `slot_20260712_2030_camA_t001857.jpg`. Listed here;
+moved only after the [H] verification pass, because relabelling on a first pass by eye would put
+a guess into the ground truth.
+
+- 2026-09-19 | WP9-T2 detector audit | uv run python experiments/detector_audit.py --keys yolo11n yolo11n-seg yolov8n yolov8n-seg yolov8s --imgsz 1280 --tiles 1 2 | detector_audit.csv | yolov8n @1280 x1 chosen by the registered rule at |d|<=1 0.700 on 100 hand-counted frames; false-person 0.042; 118 ms/frame; round 10.6 s of 30; tiling halves the count agreement and raises ball recall 0.43->0.59; machine-dependent
+
+## The detector-first path reproduces the gated probe on the unseen clip, with no probe (A36, WP9-T3)
+
+`src/pitch_occupancy/vision/rules.py`, `pitch_classifier.py`, `slots/fusion.fuse_pitch`
+
+The decision table registered in A36 is now code, and `scripts/run_slot_on_video.py --model
+yolov8n` runs it through `worker.run_slot` exactly as the worker would - the same seam, the
+same boundary lookup, the same slot aggregation.
+
+On the 234-second floodlit clip with nobody playing, at 15-second spacing:
+
+| path | empty samples read EMPTY | says PLAY | false-play | slot verdict |
+|---|---|---|---|---|
+| probe + boundary + gates (A26, WP9-T1) | 13 / 13 | 0 | 0.00 | NOTUSED |
+| **detector-first (this)** | **13 / 13** | **0** | **0.00** | **NOTUSED** |
+
+Identical, and that is the finding. The second row has **no backbone, no feature cache and no
+fitted head** - nothing in it was trained on this project's data, so there is nothing in it
+that can have memorised a camera. The first row's EMPTY verdicts come from a probe that
+answers EMPTY at an unseen camera 0 times in 243 (A20), rescued by two gates; the second
+row's come from counting, and the count is the verdict rather than an overrule on one.
+
+Both paths call the same two of the three walker minutes (9 and 15) and miss the third (12);
+the detector finds one person in each of the two it calls and none in the one it misses. That
+is the detector's recall on a distant figure at night and it is the same limit in both rows.
+
+The rule file is **unfrozen** (`frozen_at: null`), so this ran with the shipped defaults -
+`person_conf` 0.25, `ball_conf` 0.10, no minimum-height filter, no motion thresholds, row 8
+off. WP9-T5 fits those on venue_01 camera A and freezes them; this number is what the rule
+does before any of its own thresholds have been tuned, which is the honest place to record it.
+The burst was one frame per sample here, because the script's own frame source does not
+implement `read_burst` - so no motion cue was available and rows 4 and 8 could not have fired
+in any case.
+
+- 2026-09-19 | WP9-T3 rule engine on the unseen clip | uv run python scripts/run_slot_on_video.py data/raw/venue_unseen_2026-09-15/empty_floodlit_night.mp4 --every 15 --truth-csv configs/unseen_clip_truth.csv --model yolov8n | configs/rules.json | detector-first reads 13/13 empty samples EMPTY at 0.00 false-play, matching the gated probe with no trained component; rules unfrozen

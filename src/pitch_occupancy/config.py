@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     db_path: Path = DATA_DIR / "db" / "pitch_monitor.db"
     evidence_dir: Path = DATA_DIR / "evidence"
     feature_cache_dir: Path = DATA_DIR / "cache"
+    #: The detector-first decision rule's numbers (A36, `vision/rules.RuleConfig`). Committed,
+    #: like a boundary: a rule is part of what the deployment *is*.
+    rules_path: Path = CONFIGS_DIR / "rules.json"
 
     # slot aggregation baseline (see docstring)
     used_min_playing_ratio: float = Field(default=0.35, ge=0.0, le=1.0)

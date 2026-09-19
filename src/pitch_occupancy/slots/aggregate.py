@@ -20,13 +20,14 @@ converted into a billing decision.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import product
-from typing import Sequence
 
 from pitch_occupancy.data.taxonomy import Class3, SlotStatus
+from pitch_occupancy.data.taxonomy import to_class3 as folder_to_class3
 
-__all__ = ["Thresholds", "SlotVerdict", "aggregate_slot", "tune_thresholds"]
+__all__ = ["Thresholds", "SlotVerdict", "UNCERTAIN", "aggregate_slot", "tune_thresholds"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +89,10 @@ class SlotVerdict:
     maintenance_ratio: float
     n_samples: int
     mean_confidence: float
+    #: The share of the slot's minutes on which the system declined to say (A36). Abstained
+    #: minutes are not samples: they lower the capture rate like a minute with no frame, and
+    #: can push the verdict toward REVIEW and nowhere else.
+    uncertain_ratio: float = 0.0
 
     def __str__(self) -> str:  # pragma: no cover - display only
         return (
@@ -96,8 +101,28 @@ class SlotVerdict:
         )
 
 
+#: What a caller may write for a minute the system declined to decide (A36).
+UNCERTAIN = "UNCERTAIN"
+
+
+def _as_class3(state: Class3 | str | None) -> Class3 | None:
+    """A per-minute state as its reporting class, or None for an abstention.
+
+    Accepts the three-class values the probe path has always written, the four folder names
+    the detector-first path speaks (`vision/rules.MinuteState`), ``"UNCERTAIN"`` and None.
+    """
+    if state is None or state == UNCERTAIN:
+        return None
+    if isinstance(state, Class3):
+        return state
+    try:
+        return Class3(state)
+    except ValueError:
+        return folder_to_class3(str(state))
+
+
 def aggregate_slot(
-    states: Sequence[Class3 | str],
+    states: Sequence[Class3 | str | None],
     confidences: Sequence[float] | None = None,
     thresholds: Thresholds | None = None,
     *,
@@ -111,6 +136,14 @@ def aggregate_slot(
     decided from the fragment that survived. Optional rather than required so existing
     callers keep working, and absent rather than defaulted to ``len(states)``, which would
     make the check silently vacuous - the failure mode this project keeps meeting.
+
+    **An abstained minute is not a sample** (A36). ``None`` or ``"UNCERTAIN"`` in ``states``
+    is a minute the system declined to decide - no boundary, no detector, movement without
+    anyone found. The ratios are computed over the decided minutes only, and the abstained
+    ones count against the capture floor exactly as a minute with no frame does: they can
+    push the slot toward REVIEW and nowhere else, so the REVIEW-never-accuses rule of
+    `slots/reconcile.py` is untouched. ``confidences`` are the decided minutes' confidences,
+    in order.
     """
     th = thresholds or Thresholds()
     if not states:
@@ -118,50 +151,62 @@ def aggregate_slot(
             SlotStatus.REVIEW, "no samples captured for this slot", 0.0, 0.0, 0.0, 0, 0.0
         )
 
-    values = [Class3(s) for s in states]
+    mapped = [_as_class3(s) for s in states]
+    values = [v for v in mapped if v is not None]
+    abstained = len(mapped) - len(values)
+    total = minutes_expected or len(states)
+    uncertain_ratio = abstained / total if total else 0.0
     n = len(values)
+    conf = sum(confidences) / len(confidences) if confidences else 1.0
+    if not values:
+        return SlotVerdict(
+            SlotStatus.REVIEW,
+            f"no decided minutes: the system abstained on all {abstained} observed minute(s)",
+            0.0, 0.0, 0.0, 0, conf, uncertain_ratio,
+        )
+
     counts = Counter(values)
     play = counts[Class3.ACTIVE_PLAY] / n
     empty = counts[Class3.EMPTY] / n
     maint = counts[Class3.MAINTENANCE_NON_SPORTING] / n
-    conf = sum(confidences) / len(confidences) if confidences else 1.0
 
     if minutes_expected and n / minutes_expected < th.review_below_capture:
+        why = (f" ({abstained} of them observed but abstained)" if abstained else "")
         return SlotVerdict(
             SlotStatus.REVIEW,
-            f"only {n} of {minutes_expected} minutes captured "
-            f"({n / minutes_expected:.0%}); too little of the slot was observed to decide",
-            play, empty, maint, n, conf,
+            f"only {n} of {minutes_expected} minutes decided "
+            f"({n / minutes_expected:.0%}){why}; too little of the slot was observed to decide",
+            play, empty, maint, n, conf, uncertain_ratio,
         )
     if confidences and conf < th.review_below_confidence:
         return SlotVerdict(
             SlotStatus.REVIEW,
             f"mean confidence {conf:.2f} below {th.review_below_confidence:.2f}; "
             f"footage too uncertain to decide",
-            play, empty, maint, n, conf,
+            play, empty, maint, n, conf, uncertain_ratio,
         )
     if play >= th.used_min_play:
         return SlotVerdict(
             SlotStatus.USED,
             f"active play in {play:.0%} of samples (>= {th.used_min_play:.0%})",
-            play, empty, maint, n, conf,
+            play, empty, maint, n, conf, uncertain_ratio,
         )
     if play < th.notused_max_play and empty >= th.notused_min_empty:
         return SlotVerdict(
             SlotStatus.NOTUSED,
             f"empty in {empty:.0%} of samples with only {play:.0%} active play",
-            play, empty, maint, n, conf,
+            play, empty, maint, n, conf, uncertain_ratio,
         )
     if maint >= th.used_min_play:
         return SlotVerdict(
             SlotStatus.REVIEW,
             f"maintenance-dominated ({maint:.0%}); pitch occupied but not played on",
-            play, empty, maint, n, conf,
+            play, empty, maint, n, conf, uncertain_ratio,
         )
     return SlotVerdict(
         SlotStatus.REVIEW,
         f"intermittent activity: {play:.0%} play, {empty:.0%} empty - neither threshold met",
-        play, empty, maint, n, conf,
+        play, empty, maint, n, conf, uncertain_ratio,
     )
 
 

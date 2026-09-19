@@ -52,6 +52,20 @@ class FrameSource(ABC):
     def read(self, camera_id: str, minute_index: int) -> Frame | None:
         """Return the frame for that minute, or ``None`` if it could not be read."""
 
+    def read_burst(self, camera_id: str, minute_index: int, *, n: int = 3,
+                   spacing_s: float = 1.0) -> list[Frame]:
+        """Up to ``n`` frames about ``spacing_s`` apart at the start of the minute (A36).
+
+        The detector-first path reads a short burst per camera per minute rather than one
+        frame: a ball seen in any of three counts, the burst supplies a motion cue without
+        waiting for the previous minute, and a detection has to persist in two of three
+        frames to be counted. The default is a single `read`, so a source that knows nothing
+        about bursts still works and simply gives the rule one frame - which the rule
+        handles, with motion unmeasured. An empty list is a gap, never a fabricated frame.
+        """
+        frame = self.read(camera_id, minute_index)
+        return [frame] if frame is not None else []
+
     @property
     @abstractmethod
     def n_minutes(self) -> int: ...
@@ -103,6 +117,23 @@ class VideoSlotSource(FrameSource):
         if not ok:
             return None  # a gap, not a fabricated frame
         return Frame(camera_id, minute_index, image, str(self._videos[camera_id]))
+
+    def read_burst(self, camera_id: str, minute_index: int, *, n: int = 3,
+                   spacing_s: float = 1.0) -> list[Frame]:
+        """``n`` frames at ``minute*step + k*spacing_s`` seconds, by seeking to each."""
+        if camera_id not in self._videos:
+            raise KeyError(f"unknown camera {camera_id!r}; have {self.cameras()}")
+        cap = self._capture(camera_id)
+        fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+        out: list[Frame] = []
+        for k in range(max(1, n)):
+            position = (minute_index * self._step + k * spacing_s) * fps
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int(position))
+            ok, image = cap.read()
+            if not ok:
+                break  # the burst ran off the end of the recording; keep what was read
+            out.append(Frame(camera_id, minute_index, image, str(self._videos[camera_id])))
+        return out
 
     def close(self) -> None:
         for cap in self._caps.values():
@@ -218,6 +249,42 @@ class RTSPSource(FrameSource):
             if ok and image is not None:
                 return Frame(camera_id, minute_index, image, url)
         return None  # every retry failed: record the gap
+
+    def read_burst(self, camera_id: str, minute_index: int, *, n: int = 3,
+                   spacing_s: float = 1.0) -> list[Frame]:
+        """``n`` frames from one connection, ``spacing_s`` apart, paced by the stream itself.
+
+        One open per burst rather than one per frame: reconnecting three times a minute is
+        three chances for a blip. Between frames the stream is *grabbed* (decoded and
+        discarded) for ``spacing_s`` worth of frames at the stream's reported rate, so the
+        spacing comes from the camera's clock and a stale buffered frame is never returned
+        as "a second later". A burst that loses the connection part-way keeps what it read;
+        a burst that read nothing is retried like a single frame, and an empty list is the gap.
+        """
+        if camera_id not in self._urls:
+            raise KeyError(f"unknown camera {camera_id!r}; have {self.cameras()}")
+        self.wait_for(minute_index)
+        url = self._urls[camera_id]
+        for _ in range(self._retries + 1):
+            capture = self._open(url)
+            out: list[Frame] = []
+            try:
+                fps = float(getattr(capture, "get", lambda _p: 0.0)(cv2.CAP_PROP_FPS) or 25.0)
+                skip = max(1, int(round(fps * spacing_s)))
+                for k in range(max(1, n)):
+                    if k:
+                        for _ in range(skip):
+                            if not capture.grab():
+                                break
+                    ok, image = capture.read()
+                    if not ok or image is None:
+                        break
+                    out.append(Frame(camera_id, minute_index, image, url))
+            finally:
+                capture.release()
+            if out:
+                return out
+        return []
 
 
 def discover_slots(directory: Path) -> dict[str, dict[str, Path]]:

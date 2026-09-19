@@ -48,7 +48,7 @@ from pitch_occupancy.slots.evidence import (
     select_evidence_around_transitions,
 )
 from pitch_occupancy.slots.fusion import fuse
-from pitch_occupancy.vision.rules import MinuteState
+from pitch_occupancy.vision.rules import MinuteState, from_class3
 
 __all__ = ["Classifier", "SlotRun", "run_slot", "main"]
 
@@ -91,6 +91,9 @@ class SlotRun:
     minutes_uncertain: int = 0
     #: The cameras that had no resolvable boundary. The first thing to fix at a new site.
     uncertain_cameras: tuple[str, ...] = ()
+    #: The four-class state per decided minute (`vision/rules.MinuteState` values), which
+    #: the three-class `samples` cannot carry. What the evaluation reads (A36).
+    minute_states: tuple[str, ...] = ()
 
     @property
     def capture_rate(self) -> float:
@@ -180,6 +183,10 @@ def run_slot(
         require_boundary = pipeline.require_boundary
     if classify is None:
         raise TypeError("run_slot needs a classifier or a pipeline that carries one")
+    # The detector-first path reads a burst per camera-minute and fuses counts at pitch
+    # level (A36); the probe path reads one frame and fuses classes, as it always has.
+    burst_n, burst_spacing = pipeline.burst if pipeline is not None else (1, 0.0)
+    detector_first = pipeline is not None and pipeline.kind == "detector"
 
     cameras = source.cameras()
     samples: list[Sample] = []
@@ -221,21 +228,28 @@ def run_slot(
     ball_minutes: list[int] = []
     uncertain_minutes = 0
     uncertain_cameras: set[str] = set()
+    minute_states4: list[str] = []
 
     for minute in range(source.n_minutes):
         observations: dict[str, tuple[Class3, float]] = {}
+        camera_observations: dict[str, object] = {}
         images: dict[str, object] = {}
         abstained = False
         for camera in cameras:
-            frame = source.read(camera, minute)
-            if frame is None:
+            if burst_n > 1:
+                frames = source.read_burst(camera, minute, n=burst_n, spacing_s=burst_spacing)
+            else:
+                single = source.read(camera, minute)
+                frames = [single] if single is not None else []
+            if not frames:
                 continue  # a gap; never a fabricated observation
+            frame = frames[-1]
             # The pitch boundary (WP3-T1). Passed per camera because a boundary belongs to
             # one, and applying another camera's outline is measurably worse than none at
             # all: on an unseen clip the wrong outline bought 0.06 of false-play where the
             # right one bought 0.42.
             polygon = polygon_for(camera) if polygon_for is not None else None
-            if polygon is None and require_boundary:
+            if polygon is None and require_boundary and not detector_first:
                 # A36: no boundary, no verdict. Recorded as UNCERTAIN rather than dropped,
                 # so the database shows a camera that was read and not scored, which is a
                 # different fact from a camera that produced nothing.
@@ -251,6 +265,41 @@ def run_slot(
                         image_path=frame.source_path,
                     )
                 )
+                continue
+            if detector_first:
+                # A36: the camera's burst is counted inside its boundary and decided by the
+                # table; the pitch is decided again below from every camera's count. The
+                # stored sample carries the three-class value the dashboard reads, or
+                # UNCERTAIN; the four-class state travels on the run. A camera with no
+                # boundary abstains here too (row 2, the detector never runs) - but as an
+                # observation the fusion can see, so the other half decides at half the
+                # confidence rather than as if it were the whole pitch.
+                observation = pipeline.observe_minute(
+                    camera, [f.image_bgr for f in frames], previous.get(camera),
+                    polygon=polygon,
+                )
+                verdict = observation.verdict
+                if verdict.rule == 2:
+                    uncertain_cameras.add(camera)
+                samples.append(
+                    Sample(
+                        camera_id=camera,
+                        minute_index=minute,
+                        predicted=(verdict.class3.value if verdict.decided
+                                   else MinuteState.UNCERTAIN.value),
+                        confidence=verdict.confidence,
+                        captured_at=datetime.now(UTC).isoformat(timespec="seconds"),
+                        image_path=frame.source_path,
+                    )
+                )
+                if verdict.motion is not None:
+                    motion_seen.append(verdict.motion)
+                previous[camera] = frame.image_bgr
+                camera_observations[camera] = observation
+                if not verdict.decided:
+                    abstained = True
+                if slot_dir is not None:
+                    images[camera] = frames[observation.evidence_index].image_bgr
                 continue
             if polygon_for is not None:
                 state, confidence = classify(frame.image_bgr, polygon=polygon)
@@ -292,35 +341,57 @@ def run_slot(
                 )
             )
 
-        if not observations:
-            missed += 1
-            if abstained:
+        if detector_first:
+            if not camera_observations:
+                missed += 1
+                if abstained:
+                    uncertain_minutes += 1
+                continue
+            pitch = pipeline.fuse(camera_observations)
+            if not pitch.decided:
+                # The pitch as a whole abstained - no camera could be scored, or movement
+                # with nobody found. It counts against the capture floor like a minute with
+                # no frame, and is recorded as the reason (A36).
+                missed += 1
                 uncertain_minutes += 1
-            continue
-
-        fused = fuse(observations)
-        fused_states.append(fused.state)
-        fused_conf.append(fused.confidence)
-        disagreements.append(fused.disagreed)
-
-        # The frame from the camera whose observation won the fusion - the one that actually
-        # justifies the minute's state. Saving an averaged or arbitrary camera would hand an
-        # operator a picture of an empty half to explain a verdict of "play on the other one".
-        path = None
-        if slot_dir is not None:
+                continue
+            state, confidence, disagreed = pitch.class3, pitch.confidence, pitch.disagreed
+            winner = pitch.winning_camera
+            if pitch.people_inside is not None:
+                people_seen.append(pitch.people_inside)
+            if pitch.ball_seen:
+                ball_minutes.append(minute)
+            minute_states4.append(pitch.state.value)
+        else:
+            if not observations:
+                missed += 1
+                if abstained:
+                    uncertain_minutes += 1
+                continue
+            fused = fuse(observations)
+            state, confidence, disagreed = fused.state, fused.confidence, fused.disagreed
+            # The frame from the camera whose observation won the fusion - the one that
+            # actually justifies the minute's state. Saving an averaged or arbitrary camera
+            # would hand an operator a picture of an empty half to explain a verdict of
+            # "play on the other one".
             winner = max(
                 (c for c, _, _ in fused.per_camera if c in images),
                 key=lambda c: observations[c][1],
                 default=None,
             )
-            if winner is not None:
-                path = _write_evidence(slot_dir, minute, winner, images[winner])
-                if path is not None:
-                    written.append(path)
-        evidence_rows.append((minute, fused.state, fused.confidence,
-                              str(path) if path else None))
+            minute_states4.append(from_class3(state).value)
+        fused_states.append(state)
+        fused_conf.append(confidence)
+        disagreements.append(disagreed)
+
+        path = None
+        if slot_dir is not None and winner is not None and winner in images:
+            path = _write_evidence(slot_dir, minute, winner, images[winner])
+            if path is not None:
+                written.append(path)
+        evidence_rows.append((minute, state, confidence, str(path) if path else None))
         if on_minute is not None:
-            on_minute(minute, fused.state)
+            on_minute(minute, state)
 
     # The slot's real length, so a slot that lost most of its minutes is downgraded to
     # REVIEW rather than decided from the fragment that survived (WP7-T5).
@@ -364,6 +435,7 @@ def run_slot(
         ball_minutes=tuple(ball_minutes),
         minutes_uncertain=uncertain_minutes,
         uncertain_cameras=tuple(sorted(uncertain_cameras)),
+        minute_states=tuple(minute_states4),
     )
 
 
