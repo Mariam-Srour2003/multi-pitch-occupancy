@@ -7,8 +7,8 @@ What exists, where it lives, what each file does, and how to run it.
 ## Read this first: where the code is
 
 <!-- branch-report:start -->
-`main` carries the whole project — 75 source modules,
-68 experiment scripts, 69 test files. Clone it and everything is
+`main` carries the whole project — 82 source modules,
+72 experiment scripts, 83 test files. Clone it and everything is
 there; no branch to check out first.
 
 ```bash
@@ -219,8 +219,9 @@ on the Mini-PC.
 |---|---|
 | `config.py` | Paths and runtime settings via pydantic-settings (`PITCH_*` env vars or `.env`). Holds the aggregation thresholds and `default_model_key = "dinov2"`. |
 | `cli.py` | The `pitch` command: `info`, `seed`, `coverage`, `cache`, `extract-clips`, `manifest`, `serve`, `retention`, `schedule`, `bookings`, `retraining`. |
-| `frame_source.py` | Where frames come from — `VideoSlotSource` (replay), `RTSPSource` (live), and `discover_slots()`. A failed read returns `None`, never a substituted frame. |
-| `worker.py` | The scheduler's slot loop: sample → classify → fuse → aggregate → evidence. Classifier is injected. `python -m pitch_occupancy.worker` replays the recorded slots through `scheduler.run_due` with the real classifier and writes the verdicts; `--dry-run` lists them and loads no model. |
+| `frame_source.py` | Where frames come from — `VideoSlotSource` (replay), `RTSPSource` (live), and `discover_slots()`. A failed read returns `None`, never a substituted frame. `read_burst()` (A36) takes three frames about a second apart: a recording seeks to each, a stream paces on its own frame rate inside one connection. |
+| `worker.py` | The scheduler's slot loop: sample → classify → fuse → aggregate → evidence. Classifier is injected. `python -m pitch_occupancy.worker` replays the recorded slots through `scheduler.run_due` with the real classifier and writes the verdicts; `--dry-run` lists them and loads no model. Given a `Pipeline` it reads bursts, fuses at pitch level and records a camera with no boundary as `UNCERTAIN`; `--derive-roi` measures a missing one from the footage. |
+| `pipeline.py` | **The one seam every surface classifies through** (A36). `assemble(model_key)` returns the classifier, its gates or its rule, and the boundary lookup as one object — a backbone key builds the probe path, a detector key builds the detector-first path. The worker, the scheduler, `/clip`, `/images`, `/roi` and every experiment take theirs from here, because each assembling its own is how A35 and A37 happened: two pages answering differently about one clip. `shared()` is the process-wide one the API uses, built *reporting* rather than requiring a boundary. |
 
 ### `data/` — dataset plumbing
 
@@ -247,14 +248,20 @@ on the Mini-PC.
 | `zeroshot.py` | CLIP prompt sets, templates and descriptors, and the class-direction encoding. |
 | `classifier.py` | **The production classifier** — the only thing in the package that turns a frame into a class outside an experiment. Frozen backbone plus a probe fitted at construction from the cached features; embeds through the same path the cache was built with, and trains on development rows only so the venue lock holds in deployment too. Confidence is the winning class probability and is **not** calibrated. |
 | `quality.py` | Frame quality and camera health. **Every threshold is relative to the camera's own history under the same lighting** — a global cutoff flags one venue rather than bad frames, which is this project's confound in a third disguise. Exposure clipping is the one absolute check. |
+| `detector.py` | **The detector registry** (A36), beside `backbones.py` and the same shape. Seven candidates, thread-local load, tiled inference with an NMS merge, and the contract the whole path rests on: `None` is *not checked* and `[]` is *checked, found nothing*. `pitch fetch-weights` downloads them deliberately — nothing downloads inside a prediction. |
+| `counting.py` | Pure geometry, no detector import, so every count is testable with detections written by hand. Places a person by the **foot** of their box and a ball by its **centre**, filters detections too short to be a person at that depth, and `persist()` takes the median over a burst so a shadow in one frame of three dies there. |
+| `rules.py` | `MinuteState` (the four folder classes plus `UNCERTAIN`), `FrameVerdict` with a readable trace, `RuleConfig` read from `configs/rules.json`, and `decide()` — A36's nine-row decision table as code. `play_min = 5` and `small_group_max = 4` are the facility's requirement, not fits. |
+| `pitch_classifier.py` | The detector-first classifier: a burst in, a `CameraObservation` out. Runs the detector per frame, persists the count, averages the burst motion cue, and hands it to `decide`. Keeps `worker.Classifier`'s two-value shape for legacy callers, and **raises** rather than returning a class when the detector cannot load. |
+| `overlay.py` | What the detector saw, drawn on the frame — people in azure, ball in amber, the boundary, the state and the row that fired. A detection outside the outline is dimmed rather than dropped, because *"found six, counted three"* is what this footage most often needs explained. Which detections were counted is read back from `counting.py` rather than recomputed, since a second implementation of "is this inside" drifts silently. `publishable()` composes it over a redacted copy. |
+| `roi_derive.py` | The boundary measured from footage — median frame, excess-green with Otsu, largest component, convex hull. Lifted out of `scripts/derive_roi.py` (A36) so the worker and the review pages can call it without `sys.path` surgery, and sampling frames spread over the whole recording rather than its first fifty seconds. |
 | `augment.py` | Train-time augmentation — the complement to `preprocess.py`. Preprocessing removes information permanently and has a floor; augmentation varies it and keeps every pixel at inference. Photometric jitter, synthetic fog and rain, night gamma, horizontal flip. **No rotations or warps** — the cameras are bolted down. Not a flag in the main benchmark, because augmenting means re-running the backbone per view and the feature cache no longer applies; `experiments/augmentation_transfer.py` spends that budget on the one boundary where it answers something. |
 
 ### `slots/` — from frames to a billing decision
 
 | File | What it does |
 |---|---|
-| `fusion.py` | Combines the two cameras of a pitch. Strongest activity wins; fusing zero cameras **raises** rather than returning EMPTY. |
-| `aggregate.py` | Ratios → USED / NOTUSED / REVIEW. Thresholds are tunable hyper-parameters, with `tune_thresholds()` so STAN must beat a *fitted* baseline. |
+| `fusion.py` | Combines the two cameras of a pitch. Strongest activity wins; fusing zero cameras **raises** rather than returning EMPTY. `fuse_pitch()` (A36) fuses *counts* instead of classes — the halves are summed and the rule applied once, because a camera sees half a pitch and three people on each make a match that no per-camera rule can see. Worth +0.52 play recall on the one pitch with two cameras. |
+| `aggregate.py` | Ratios → USED / NOTUSED / REVIEW. Thresholds are tunable hyper-parameters, with `tune_thresholds()` so STAN must beat a *fitted* baseline. An abstained minute (`None` / `UNCERTAIN`) is a minute **not captured**: it counts against the capture floor and can push a slot toward REVIEW and nowhere else, so no new threshold was invented for it. |
 | `evidence.py` | Picks the three images that justify a verdict — one per third of the slot, not the top three by confidence. |
 | `reconcile.py` | Verdicts vs booking records → typed anomalies. REVIEW never becomes an anomaly; anomalies are per field, never per person. |
 

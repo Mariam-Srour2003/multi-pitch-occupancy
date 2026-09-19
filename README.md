@@ -53,8 +53,8 @@ negative, most found by checking whether a guard actually guarded — and the mo
 sentence in the thesis is that no protocol compensates for a cell the data never fills.
 
 <!-- status:start -->
-**75 source modules · 68 experiment scripts · 69 test files
-· 82 committed result files.** Counts come from git, so this line cannot drift from
+**82 source modules · 72 experiment scripts · 83 test files
+· 90 committed result files.** Counts come from git, so this line cannot drift from
 the repository; the assessment above it is written by hand. What each module and experiment
 does is in [docs/CODEBASE.md](docs/CODEBASE.md); what each run found is in
 [results/EXPERIMENT_LOG.md](results/EXPERIMENT_LOG.md).
