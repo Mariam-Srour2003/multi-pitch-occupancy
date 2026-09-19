@@ -173,9 +173,25 @@ class PersonGate:
     number the rule was stated with and the number the tables in the module docstring were
     measured at. Setting it to 0 disables the C3 overrule and leaves A16's behaviour exactly
     as it was.
+
+    **`always_count` changes what is reported and never what is decided** (A38). By default
+    the detector is skipped on a verdict that is already EMPTY, because the gate only weakens
+    and there is nothing weaker - so the count is `None`, meaning *not checked*, which is a
+    different fact from zero. That is right for the worker, where a fifth of a second times
+    thirty cameras every minute is real money. It is wrong for a review page, where a person
+    is looking at one clip and a blank column reads as "nobody was found" when it means
+    "nobody looked".
+
+    With it on, the detector runs on every frame and the count is always reported - and the
+    verdict is **byte-for-byte the one the worker would reach**, which a test pins. The
+    frames it makes visible are the interesting ones: an EMPTY verdict with people found
+    inside the outline is the motion gate and the detector disagreeing, and the motion
+    threshold was fitted at one venue at a 15-second gap and calibrated nowhere else. Those
+    frames were previously invisible by construction.
     """
 
     small_group_max: int = 4
+    always_count: bool = False
 
     def inspect(self, state: Class3, image_bgr,
                 polygon=None) -> tuple[Class3, Counted | None]:
@@ -185,6 +201,7 @@ class PersonGate:
         gate cannot change - it weakens, and there is nothing weaker. At one frame per camera
         per minute a fifth of a second of CPU is affordable; spending it on frames the answer
         cannot alter is not, which is why an already-empty verdict returns immediately.
+        ``always_count`` runs it anyway, for the count alone - see the class docstring.
 
         **The ball does not veto the EMPTY overrule.** A frame with nobody on the pitch and a
         ball inside the boundary is still turned to EMPTY - a ball lying on an empty pitch is
@@ -199,7 +216,10 @@ class PersonGate:
         fires wrongly on 3. It is protected by the count, not by the ball.
         """
         if state is Class3.EMPTY:
-            return state, None
+            # Already the weakest verdict. Count only if asked to, and *return the same
+            # state either way* - what the detector finds here cannot make the verdict
+            # stronger, and a gate that strengthened one would stop being a gate.
+            return state, (detect_inside(image_bgr, polygon) if self.always_count else None)
         counted = detect_inside(image_bgr, polygon)
         if counted is None:
             return state, None

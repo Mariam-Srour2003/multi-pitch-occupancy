@@ -77,14 +77,34 @@ class ClipSample:
     probed: Class3 | None = None
     #: People inside the boundary, and whether a ball was seen there. ``None`` when the
     #: detector did not run - the gate skips a verdict it cannot change - which is why the
-    #: dashboard shows a dash rather than a zero. They are different facts.
+    #: dashboard shows a dash rather than a zero. They are different facts. A page wanting a
+    #: count on every frame passes ``PersonGate(always_count=True)``, which reports without
+    #: deciding (A38).
     people: int | None = None
     ball: bool | None = None
+    #: The motion cue against the previous sample, or ``None`` on the first, which has no
+    #: predecessor. Recorded because it is the other half of the audit trail: the count says
+    #: what the detector saw, this says what the cheaper gate saw, and the frames where they
+    #: disagree are the ones worth a reviewer's attention.
+    motion: float | None = None
 
     @property
     def corrected(self) -> bool:
         """True when its neighbours overruled it. The flag the reviewer is looking for."""
         return self.raw is not self.smoothed
+
+    @property
+    def gates_disagree(self) -> bool:
+        """EMPTY, and yet the detector found somebody inside the outline.
+
+        Only ever true when the detector was asked to look at a frame the motion gate had
+        already settled (``always_count``) - precisely the frame the default behaviour makes
+        invisible. It is not a contradiction in the verdict: the gates only weaken, so EMPTY
+        stands. It is the motion threshold being wrong, or the detector seeing a goalpost,
+        and `vision/motion.py` records that the threshold was fitted at one venue at a
+        15-second gap and calibrated nowhere else.
+        """
+        return self.raw is Class3.EMPTY and bool(self.people)
 
     @property
     def gated(self) -> bool:
@@ -267,12 +287,13 @@ def analyse_clip(
                 before = state
                 n_people: int | None = None
                 saw_ball: bool | None = None
+                cue: float | None = None
                 # Motion first, then people: the cheaper gate may already have settled it,
                 # and both only ever weaken a verdict, so the order changes cost not outcome.
                 # This mirrors `worker.run_slot` deliberately - two orders would be two
                 # systems.
                 if motion_gate is not None and previous is not None:
-                    state, _cue = motion_gate.apply(state, previous, frame, polygon)
+                    state, cue = motion_gate.apply(state, previous, frame, polygon)
                 if person_gate is not None:
                     state, found = person_gate.inspect(state, frame, polygon)
                     if found is not None:
@@ -280,7 +301,7 @@ def analyse_clip(
                 previous = frame
                 raw.append((t, state, float(confidence)))
                 probed.append(before if before is not state else None)
-                counted.append((n_people, saw_ball))
+                counted.append((n_people, saw_ball, cue))
             t += interval_s
             if len(raw) + len(unreadable) >= max_samples and duration_s <= 0:
                 break
@@ -299,8 +320,8 @@ def analyse_clip(
     smoothed = majority_smooth([state for _, state, _ in raw], window)
     samples = [
         ClipSample(index=i, t_s=t, raw=state, confidence=conf, smoothed=smooth,
-                   probed=was, people=n, ball=b)
-        for i, ((t, state, conf), smooth, was, (n, b))
+                   probed=was, people=n, ball=b, motion=cue)
+        for i, ((t, state, conf), smooth, was, (n, b, cue))
         in enumerate(zip(raw, smoothed, probed, counted, strict=True))
     ]
     return ClipAnalysis(

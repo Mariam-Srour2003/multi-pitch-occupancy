@@ -6951,3 +6951,51 @@ clip above it settled the verdict before the person gate was consulted on 52 of 
 reports and its page does not yet display.
 
 - 2026-09-19 | A37 the walkthrough pages apply the deployed gates | uv run python -m pytest tests/test_walkthrough_gates.py | walkthrough.py | Watch it work streamed the probe alone and answered ACTIVE_PLAY 0.999 on an empty floodlit pitch while Analyse answered EMPTY on the same clip; both tabs now agree 59/59, gates overruling the probe on 52
+
+## The review pages count on every frame; the worker still does not (A38)
+
+`src/pitch_occupancy/vision/people.py`, `clip_analysis.py`, `api/clip_review.py`,
+`api/clip_page.py`
+
+Reported from use, and reported twice, which is the part worth noticing. The Analyse table's
+*People inside* column showed a number on about one row in six and a dash on the rest, and a
+reader asked what the dash meant. It meant **"the detector did not run"**, which is not what
+a blank cell says to anybody: it reads as *nobody was found*.
+
+`PersonGate.inspect` returns immediately on a verdict that is already EMPTY, because the gate
+only weakens and there is nothing weaker - so the detector never ran, and no count existed.
+That is right for the worker, where a fifth of a second times thirty cameras every minute is
+real money, and wrong for a page where a person is looking at one clip. The dash appeared on
+exactly the frames the motion gate had already settled, which on this footage is most of them.
+
+**What the sparse column was actually showing.** Rows with a number were the frames whose
+motion cue cleared `MOTION_THRESHOLD = 1.098`, so the motion gate did not overrule and the
+person gate was consulted. On the unseen floodlit clip at 10-second spacing the cues sit at
+0.82-0.92 with six exceptions - 1.77, 1.24, 1.49, 1.48, 1.21, 1.53 - and those six are
+precisely the rows that carried a count. Nothing was wrong; nothing said so either.
+
+**`PersonGate(always_count=True)` reports without deciding.** The detector runs on every
+frame and the count is always returned, and the verdict is the one the worker would reach.
+That invariant is the whole risk here and is pinned exhaustively: every state crossed with
+every outcome the detector could return, asserting the gated verdict is identical with the
+flag on and off. **An EMPTY verdict with nine people found stays EMPTY** - the gates only
+weaken, and a gate that strengthened one would stop being a gate. `clip_review._gates` turns
+it on for the three review surfaces; `pipeline.default_gates` leaves it off for the worker,
+and a test asserts the two differ in this and nothing else.
+
+**What it makes visible.** A frame that is EMPTY *and* has people inside the outline is the
+motion gate and the detector disagreeing, and `vision/motion.py` records that its threshold
+was fitted at one venue at a 15-second gap and calibrated nowhere else. Those frames were
+invisible by construction: the gate that would have found them was the one being skipped. The
+table now carries the motion cue beside the count and flags the disagreement.
+
+On the unseen clip, 24 samples: **24 of 24 counted** against roughly 1 before, a cue on 23 of
+24 (the first has no predecessor), and **0 disagreements** - the two gates agree on every
+frame of it. The two C3 verdicts are the walker, found on both.
+
+**A defect found while fixing this.** The Analyse table's header had **two** `People inside`
+columns and each row emitted one cell, so every row was short and the browser padded it - the
+duplicate is visible in the report that prompted this. The second header is now the motion
+cue, which is the cell the rows were missing.
+
+- 2026-09-19 | A38 review pages count on every frame | uv run python -m pytest tests/test_always_count.py | clip_page.py | PersonGate(always_count=True) reports without deciding; 24/24 frames counted on the unseen clip against ~1 before, 0 gate disagreements; the verdict is pinned identical with the flag on and off; a duplicated table header fixed

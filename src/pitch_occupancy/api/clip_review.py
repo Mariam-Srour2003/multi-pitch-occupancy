@@ -78,10 +78,17 @@ class SampleOut(BaseModel):
     probed: str | None = None
     gated: bool = False
     #: People inside the boundary, and whether a ball was there. None means the detector did
-    #: not run - the gate skips a verdict it cannot change - which is a different fact from
-    #: zero and is why the page shows a dash.
+    #: not run, which is a different fact from zero and is why the page shows a dash. Since
+    #: A38 the review pages count on every frame, so a dash here means the detector could not
+    #: be loaded at all rather than that it was skipped.
     people: int | None = None
     ball: bool | None = None
+    #: The motion cue against the previous sample; None on the first, which has none.
+    motion: float | None = None
+    #: EMPTY, and yet somebody was found inside the outline. Not a contradiction - the gates
+    #: only weaken, so EMPTY stands - but the frame where the motion gate and the detector
+    #: disagree, which is the frame worth a reviewer's attention and was invisible before A38.
+    gates_disagree: bool = False
 
 
 class SegmentOut(BaseModel):
@@ -135,10 +142,18 @@ def _gates():
     the gates hard-wired it instead sees the person gate turn every frame of a synthetic video
     EMPTY, because a generated test frame contains no people. Patching this returns the route
     to the probe alone, which is what such a test means by "the model said".
-    """
-    from pitch_occupancy.pipeline import default_gates
 
-    return default_gates()
+    **The review pages count on every frame and the worker does not** (A38), and that is the
+    only way these differ from `pipeline.default_gates`. By default the detector is skipped on
+    a verdict already EMPTY, since the gate only weakens - correct for a worker paying a fifth
+    of a second per camera per minute, wrong for a person looking at one clip, where a blank
+    column reads as "nobody was found" when it means "nobody looked". `always_count` reports
+    without deciding: the verdict is the one the worker would reach, pinned by a test.
+    """
+    from pitch_occupancy.vision.motion import MotionGate
+    from pitch_occupancy.vision.people import PersonGate
+
+    return MotionGate(), PersonGate(always_count=True)
 
 
 def _derive_boundary(path: Path) -> list[list[float]] | None:
@@ -253,6 +268,8 @@ async def analyse(
                 index=s.index, t_s=s.t_s, clock=_clock(s.t_s), raw=s.raw.value,
                 probed=s.probed.value if s.probed else None, gated=s.gated,
                 people=s.people, ball=s.ball,
+                motion=None if s.motion is None else round(s.motion, 3),
+                gates_disagree=s.gates_disagree,
                 smoothed=s.smoothed.value, confidence=s.confidence, corrected=s.corrected,
             )
             for s in result.samples

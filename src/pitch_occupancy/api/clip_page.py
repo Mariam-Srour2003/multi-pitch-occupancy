@@ -137,6 +137,8 @@ del{color:var(--ink-3);text-decoration-color:var(--flag);margin-right:7px}
 .panes figcaption{font:500 10.5px 'JetBrains Mono',monospace;letter-spacing:.09em;
   text-transform:uppercase;color:var(--ink-3);padding:9px 13px;border-top:1px solid var(--line)}
 .struck{text-decoration:line-through;opacity:.55}
+.warnflag{display:inline-block;min-width:16px;text-align:center;border-radius:4px;
+  background:#b45309;color:#fff;font-weight:700;font-size:11px;padding:0 5px;cursor:help}
 .verdictbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;
   background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 14px}
 .verdictbar .spacer{margin-left:auto}
@@ -296,14 +298,20 @@ editor</a>.</p>
 
   <h2>Every sample</h2>
   <p class="sub2">Rows tinted red were overruled by their neighbours. The struck-through
-    value is what the model actually said about that frame.</p>
+    value is what the model actually said about that frame — the first strike is the probe's
+    verdict before a gate overruled it, the second is this frame's verdict before its
+    neighbours did. <b>People inside</b> is the detector's count within the outline, run on
+    every frame here; <b>motion</b> is how much changed since the previous sample. Rows
+    marked <span class="warnflag">!</span> are ones where the two disagree — the verdict is
+    empty and yet somebody was found — which is worth a look, because the motion threshold
+    was fitted at one venue and calibrated nowhere else.</p>
   <div style="margin:0 0 10px">
     <button class="ghost" id="toggle" aria-pressed="false">Show raw predictions only</button>
   </div>
   <div class="scroll"><table><thead><tr>
     <th class="num">#</th><th>Time</th><th>Prediction</th><th class="num">Confidence</th>
     <th class="num">People inside</th>
-    <th class="num">People inside</th>
+    <th class="num">Motion</th>
   </tr></thead><tbody id="rows"></tbody></table></div>
 </div>
 </main>
@@ -586,12 +594,21 @@ function render(d){
     // a gate, `corrected` is what the neighbours did afterwards. A reviewer chasing one
     // should never be handed the other.
     const gate=s.gated?'<del>'+s.probed+'</del> ':'';
+    // A dash here now means the detector could not be loaded at all. The review pages count
+    // on every frame (A38), so "not checked" is no longer a thing a reader has to guess at.
     const ppl=(s.people===null||s.people===undefined)?'\u2014'
       :(s.people+(s.ball?' + ball':''));
+    const mot=(s.motion===null||s.motion===undefined)?'\u2014':s.motion.toFixed(2);
+    // The verdict stands - the gates only weaken - so this flags the row rather than
+    // changing it. It is the motion threshold and the detector disagreeing about one frame.
+    const flag=s.gates_disagree
+      ? ' <span class="warnflag" title="the verdict is empty and yet the detector found '+
+        s.people+' inside the outline">!</span>' : '';
     rows.insertAdjacentHTML('beforeend','<tr'+((s.corrected&&!rawOnly)?' class="corr"':'')+
       '><td class="num">'+s.index+'</td><td class="mono">'+s.clock+'</td><td class="mono">'+
-      gate+was+'<span class="pill '+shown+'">'+shown+'</span></td><td class="num">'+
-      s.confidence.toFixed(3)+'</td><td class="num">'+ppl+'</td></tr>');
+      gate+was+'<span class="pill '+shown+'">'+shown+'</span>'+flag+'</td><td class="num">'+
+      s.confidence.toFixed(3)+'</td><td class="num">'+ppl+'</td>'+
+      '<td class="num mono">'+mot+'</td></tr>');
   }
 }
 </script></body></html>
