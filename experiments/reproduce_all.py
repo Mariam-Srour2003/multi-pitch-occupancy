@@ -24,7 +24,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,13 +37,15 @@ DATA = ROOT / "data"
 #: built from the raw highlight clips, and A26's comparison needs the 234-second clip of an
 #: empty floodlit pitch - the only footage this project has that contains the class-lighting
 #: combination the corpus lacks. `--only` past them, or point these at your own copies.
-CLIPS = Path(r"C:/Users/maria/Downloads/wetransfer_data-football_2026-09-04_1059")
-UNSEEN_CLIP = Path(
-    r"C:/Users/maria/Downloads/WhatsApp Video 2026-09-15 at 10.09.19 PM.mp4"
-)
+#:
+#: Both live under `data/raw/` now (A36) - the layout `docs/data_layout.md` records - rather
+#: than at two absolute paths in one person's Downloads folder, which no other machine had.
+#: The clip's per-sample truth is tracked at `configs/unseen_clip_truth.csv`.
+CLIPS = DATA / "raw" / "highlights_2026-09-04"
+UNSEEN_CLIP = DATA / "raw" / "venue_unseen_2026-09-15" / "empty_floodlit_night.mp4"
 
 
-@lru_cache(maxsize=None)
+@cache
 def _last_content_change(path: Path) -> int | None:
     """When this file's *content* last changed, as a unix timestamp, or None if unknown.
 

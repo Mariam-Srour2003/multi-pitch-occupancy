@@ -1,0 +1,17 @@
+sample,t_s,class4,class3,note
+0,0,1_empty,C1_EMPTY,nobody on the pitch
+1,15,1_empty,C1_EMPTY,nobody on the pitch
+2,30,1_empty,C1_EMPTY,nobody on the pitch
+3,45,1_empty,C1_EMPTY,nobody on the pitch
+4,60,1_empty,C1_EMPTY,nobody on the pitch
+5,75,1_empty,C1_EMPTY,nobody on the pitch
+6,90,1_empty,C1_EMPTY,nobody on the pitch
+7,105,1_empty,C1_EMPTY,nobody on the pitch
+8,120,1_empty,C1_EMPTY,nobody on the pitch
+9,135,3_people_not_playing,C3_MAINTENANCE_NON_SPORTING,"one person walking, no ball, no match"
+10,150,1_empty,C1_EMPTY,nobody on the pitch
+11,165,1_empty,C1_EMPTY,nobody on the pitch
+12,180,3_people_not_playing,C3_MAINTENANCE_NON_SPORTING,"one person walking, no ball, no match"
+13,195,1_empty,C1_EMPTY,nobody on the pitch
+14,210,1_empty,C1_EMPTY,nobody on the pitch
+15,225,3_people_not_playing,C3_MAINTENANCE_NON_SPORTING,"one person walking, no ball, no match"

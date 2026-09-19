@@ -7,7 +7,9 @@ This file is the tracked record of what belongs where.
 data/
 ├── raw/                          source footage — IMMUTABLE, never edited in place
 │   ├── venue_01/                 4 slot recordings, ~60 min each, 2 cameras × 2 slots
-│   └── highlights_2026-09-04/    66 match clips, 10–14 s each, multi-venue
+│   ├── highlights_2026-09-04/    66 match clips, 10–14 s each, multi-venue
+│   ├── venue_unseen_2026-09-15/  1 clip, 234 s, EMPTY floodlit pitch at night (A26/A36 eval)
+│   └── public_<source>/          CC-licensed evaluation footage, each with provenance.csv (A36)
 ├── interim/
 │   └── frames/<camera_tag>/      extracted frames awaiting labels
 ├── processed/                    the labelled dataset
@@ -61,6 +63,21 @@ Measured, not assumed:
 
 They are match highlights. Useful for venue and daylight-play diversity; they contribute
 nothing to `1_empty`, `3_people_not_playing` or `4_maintenance`.
+
+### `venue_unseen_2026-09-15/` — 1 clip, 234 s, 24 MB *(added 2026-09-19)*
+`empty_floodlit_night.mp4`, received 2026-09-15. A venue absent from the corpus, floodlit,
+**nobody playing at any point**: 13 of 16 samples at 15 s spacing empty, 3 with one person
+walking. The only footage holding the EMPTY × night cell. Development data, evaluation only.
+Truth is tracked at `configs/unseen_clip_truth.csv`; provenance notes in the folder's README.
+Previously referenced by an absolute Downloads path in `experiments/reproduce_all.py`.
+
+### `public_<source>/` — CC-licensed evaluation footage *(reserved 2026-09-19, A36)*
+The detector-first path has no training set, so evaluation footage is the only kind that
+helps, and the operator cannot easily supply more. Public clips under a Creative Commons
+licence - an empty pitch at night, a kickabout with four or fewer people, groundskeeping -
+may be admitted **for evaluation only**, one folder per source, each carrying
+`provenance.csv` (`file, url, licence, retrieved, truth_note`). They never join the labelled
+corpus, never tune a threshold, and are redacted like any other frame if reproduced.
 
 ## The confound this data still has
 

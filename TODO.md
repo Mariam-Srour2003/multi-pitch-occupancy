@@ -2159,6 +2159,58 @@ tagged with the question it answers. Fix that first — it is what turns a build
 
 ---
 
+## WP9 — Detector-first rebuild (A36, branch `rebuild/detector-first-occupancy`)
+
+> **Why.** The deployed probe never answers EMPTY at an unseen camera (0/243, A20), says PLAY
+> at 0.98 on an empty floodlit pitch (A26), and survives an 8-px blur (input ablation) — it
+> reads lighting, not people. The gates that fixed the real clip were only allowed to weaken
+> its verdict. WP9 lets the detector decide, keeps the probe as the comparator, and closes two
+> wiring defects (`scheduler.run_due` passed no boundary and no gates; no ROI key matched a
+> production camera id). Plan of record: `thesis/preregistration.md` A36.
+
+- [x] **WP9-T0 Truth and decisions.** A36 written; `labelling_protocol.md` §2.2/§2.4/§2.6
+      amended and §2.7 added (PLAYING = five or more, a requirement not a fit); unseen clip
+      moved to `data/raw/venue_unseen_2026-09-15/` with tracked truth in
+      `configs/unseen_clip_truth.csv`; `reproduce_all.py` paths off the Downloads folder.
+  - [ ] **WP9-T0a** File the 11 `_pending_4d/` frames under `3_people_not_playing` via
+        `scripts/ingest_synthetic.py` (three batches by conditioning venue), regenerate manifest.
+  - [ ] **[H] WP9-T0b Hand counts.** `data/processed/hand_counts.csv` — 100 development frames
+        stratified venue × class × lighting: `people_inside, ball_visible`. Claude does a first
+        pass by eye; you verify. This is the detector's ground truth and gates WP9-T2.
+  - [ ] **[H] WP9-T0c Relabel audit.** From the hand counts, ACTIVE_PLAY frames with ≤ 4 real
+        people → `3_people_not_playing`, listed in `results/relabel_under_A36.csv`; re-run
+        `h3_with_false_play.py` and log the delta as a dated correction.
+  - [ ] **[H] WP9-T0d Public evaluation footage.** CC-licensed clips (empty pitch at night,
+        ≤ 4-player kickabout, groundskeeping) into `data/raw/public_<source>/` with
+        `provenance.csv`. Evaluation only.
+  - [ ] **[H] WP9-T0e** Confirm the unseen clip's provenance in its README.
+- [ ] **WP9-T1 The seam.** `pipeline.py` `assemble(model_key)`; `roi.resolve` with
+      `_aliases`; `roi.derive_from_frames`; worker, scheduler, `/clip`, `/images`, `/roi` all
+      route through it; boundary mandatory (none → UNCERTAIN). Exit: `run_due` provably applies
+      gates + polygon; `run_slot_on_video.py` still 13/13 through the seam.
+- [ ] **WP9-T2 Detector selection.** `vision/detector.py` registry; `pitch fetch-weights`;
+      `experiments/detector_audit.py` → `results/detector_audit.csv`, `detector_latency.csv`.
+      Selection rule written before running (A36).
+- [ ] **WP9-T3 Counting, rules, fusion, bursts.** `vision/counting.py`, `vision/rules.py`,
+      `configs/rules.json`, `slots/fusion.fuse_pitch`, UNCERTAIN in `aggregate_slot`,
+      `frame_source.read_burst`, `worker.run_slot` burst path. Pure, fast tests.
+- [ ] **WP9-T4 Overlay + redaction.** `vision/overlay.py` (person masks, ball, outline, trace);
+      pages show it; `experiments/make_overlay_figures.py` under the redaction sweep.
+- [ ] **WP9-T5 Thresholds frozen.** `experiments/fit_rule_thresholds.py` on venue_01 camera A
+      only → `configs/rules.json` with `frozen_at`/`frozen_commit`.
+- [ ] **WP9-T6 Evaluation.** `ball_recovery`, `rule_frame_eval` (+4-class confusion),
+      `rule_on_clips`, `rule_on_unseen_clip`, `rule_slots`, `rule_ablation`; stages in
+      `reproduce_all.py`; claims in `thesis/claims.toml`; models tab row.
+- [ ] **WP9-T7 Production default + docs.** `default_model_key` → detector; CODEBASE.md
+      regenerated; `configs/README.md`, `docs/runbook.md`, `thesis/ethics.md` lines; dated
+      corrections under A20/A26 in `EXPERIMENT_LOG.md`.
+- [ ] **[H] WP9-T8** Latency on the Mini-PC (WP7-T1) for the detector path.
+
+Struck through by WP9, not deleted: ~~WP5-B fusion head as the deployed decision layer~~ and
+~~WP6 items that assume the probe is the deployed model~~ — both remain as comparators.
+
+---
+
 ## Milestone gate tracker
 
 > ### ★ Re-cut 2026-09-07, because two gates had become unpassable

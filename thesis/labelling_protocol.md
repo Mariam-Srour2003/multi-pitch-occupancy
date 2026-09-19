@@ -59,10 +59,13 @@ in use.
 
 ### 2.2 ACTIVE_PLAY (`2_playing`)
 
-Ball-and-athletic activity on the pitch, in any of these forms — all are usage:
+Ball-and-athletic activity on the pitch **by more than four people**, in any of these forms —
+all are usage:
 
-- a match, at any number of players;
-- warm-up, drills, shooting practice;
+- ~~a match, at any number of players;~~ a match, or organised play, with **five or more
+  people on the pitch** *(amended 2026-09-19, A36: the facility's rule is that four or fewer
+  people is not a game, whatever they are doing with the ball — see §2.7)*;
+- warm-up, drills, shooting practice — **with five or more people**; fewer is §2.4;
 - **academy or youth training** — counts as ACTIVE_PLAY, not as a separate class;
 - **goalkeeper-only, while a real match is running.** This is the case two-camera fusion
   exists for: one camera can see a nearly-empty half while play is genuinely happening on the
@@ -76,8 +79,11 @@ do **not** make a pitch occupied.
 
 ### 2.4 People present but not playing (`3_people_not_playing`)
 
-Humans inside the ROI without athletic activity:
+Humans inside the ROI without athletic activity, **and any group of one to four people
+whatever they are doing** *(amended 2026-09-19, A36)*:
 
+- **two to four people with a ball** — a kickabout, passing practice, one person shooting at
+  an empty goal. Not a game by the facility's rule, so not usage;
 - walk-throughs, someone crossing the pitch;
 - a **coach carrying gear**;
 - photo sessions, events, a birthday party, standing around talking;
@@ -99,8 +105,11 @@ not maintenance; a tool alone with no person is not either.
 Written explicitly so that Cohen's κ (WP2-T5) measures genuine disagreement rather than
 missing instructions.
 
-1. **Activity beats emptiness.** If any athletic activity is visible in the ROI, the frame is
-   ACTIVE_PLAY, however few people are involved.
+1. **Activity beats emptiness** ~~— if any athletic activity is visible in the ROI, the frame
+   is ACTIVE_PLAY, however few people are involved~~ **— but only above the head count.**
+   Athletic activity by five or more people inside the ROI is ACTIVE_PLAY; by four or fewer
+   it is `3_people_not_playing`. Any person at all still rules out EMPTY (rule 3).
+   *(Amended 2026-09-19, A36.)*
 2. **Sport beats non-sport.** A maintenance worker at the edge while a match is on is
    ACTIVE_PLAY. This matches the fusion module's priority order
    (`playing > maintenance > people > empty`), so labels and code agree.
@@ -114,6 +123,39 @@ missing instructions.
    This one is load-bearing: the day/night confound and the `lighting` mislabelling both came
    from metadata standing in for pixels, and labelling from a clock would bake that confound
    into the ground truth itself.
+
+### 2.7 The player-count threshold, and how it was set *(added 2026-09-19, A36)*
+
+**More than four people engaged in play is ACTIVE_PLAY; four or fewer is not**, with or
+without a ball. The number is the facility's, stated on 2026-09-13 and confirmed on
+2026-09-19: a small group knocking a ball about is not a booking being used. It is recorded
+as a **requirement**, not a fitted threshold, and `thesis/preregistration.md` A36 says so
+before any number under it exists — the alternative, choosing the cut once the detector's
+count distribution was known, is exactly the after-the-fact cutoff §2.6 exists to prevent.
+
+What the count means for the annotator:
+
+- Count **people whose feet are inside the ROI** (§2.1). A goalkeeper on the line counts; a
+  coach on the touchline does not.
+- Count **across the pitch**, not across the frame. If the frame shows one half and the match
+  is plainly on, label what the frame shows (§2.2 goalkeeper case, §2.6 rule 5) — the
+  two-camera sum is the system's job, and this is why per-camera counts under five are
+  *evidence*, never a verdict, in `vision/rules.py`.
+- **The ball does not rescue a small group.** Three people and a ball is §2.4.
+- **The ball does not condemn a large group.** Five or more people in athletic activity is
+  ACTIVE_PLAY even if no ball is visible in the frame — balls are small, fast and often out of
+  frame, and `results/ball_detection_rule.csv` found one in only 40% of genuine play frames.
+
+Consequences recorded elsewhere: the 11 generated frames held in `data/interim/_pending_4d/`
+(two to four people with a ball) are filed under `3_people_not_playing`; the 1,192 frames
+labelled ACTIVE_PLAY under the old rule are audited by hand count and those with four or fewer
+real people are relabelled and listed in `results/relabel_under_A36.csv`; every published table
+that counts ACTIVE_PLAY is re-issued beside its predecessor, not edited.
+
+The model's own cue for `4_maintenance` (a vehicle inside the boundary, or hi-vis on a person
+in a group of four or fewer) is a *prediction* rule and does not change §2.5, which remains the
+labelling test. With zero recorded maintenance frames the prediction rule is unevaluated, and
+is marked best-effort wherever it appears.
 
 ---
 
@@ -215,5 +257,6 @@ not cosmetic.
 | 3 | ROI polygons drawn, so §2.1 becomes a constraint rather than a convention | Us (WP3-T1) |
 | 4 | Second annotator identified for the κ sample and the human ceiling | Supervisor |
 | 5 | C3 taxonomy decision (WP2-T11) — with 6 frames and 0 maintenance, the recommendation is Option C: report 2-class with C3 as a flagged exception, and state the scope reduction plainly | Supervisor |
+| 6 | ~~Player-count threshold for ACTIVE_PLAY~~ **Settled 2026-09-19 (A36, §2.7): five or more.** Stated by the facility, recorded as a requirement. What remains is the [H] hand-count audit of the 1,192 ACTIVE_PLAY frames it relabels | Us (audit) |
 
 Once §3 is confirmed and this document is approved, the M1 gate's labelling half is closed.

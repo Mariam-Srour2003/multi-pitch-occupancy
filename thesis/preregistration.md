@@ -969,3 +969,128 @@ development data and cannot join a locked set afterwards.
 **Risk this amendment accepts.** Spending the set as described buys little. The alternative -
 unlocking it to rebalance - would destroy the only untouched evaluation this project has, and
 is worse.
+
+---
+
+### 2026-09-19 — A36: the prediction path is rebuilt detector-first; the probe becomes a comparator
+
+**What changes.** The deployed classifier stops being a frozen backbone with a linear head
+that gates may weaken, and becomes a **detector with an explicit rule** that the backbone no
+longer sits in front of. A person-and-ball detector counts what stands inside the camera's
+boundary; a written decision table turns the count into one of the four folder classes or an
+abstention; the DINOv2 probe, the clock rule and the gated probe stay in the repository as
+the things the new path is measured against. Nothing already published is edited; the tables
+that change are re-issued beside their predecessors.
+
+**Why now, and why this far.** Three findings, none new to this document, add up to a change
+of method rather than another gate:
+
+1. The probe never answers EMPTY at a camera it has not seen - 0 of 243 held-out empty frames
+   across seven folds (A20), and ACTIVE_PLAY at confidence 0.98 on an empty floodlit pitch
+   (A26). One labelled empty frame from the target camera repairs it (`empty_recognition.csv`),
+   which says the probe recognises cameras, not occupancy.
+2. Its accuracy survives an eight-pixel blur and dies under greyscale-plus-crop
+   (`input_ablation.csv`): the surviving signal is scene and lighting, which is the confound
+   A25 and A26 measured, and the corpus cannot supply the frames that would break it.
+3. The rule the gates already apply - nobody inside means empty, a count inside means
+   present - beats the probe on the only split with a class mix, without training (A16), and
+   is what got 13 of 13 empty minutes right on the real clip while the probe alone got 8 (A26).
+   The gates were allowed to weaken a verdict and never to make one. This amendment lets them
+   make it.
+
+Two wiring defects are closed on the same branch, recorded here because they mean the deployed
+path had been *worse* than every measured one: `scheduler.run_due` never passed the boundary or
+the gates to `worker.run_slot`, so `worker --source video|live` ran the bare probe; and no key
+in `configs/roi.json` or `roi_derived.json` matched a production camera id, so the boundary
+was `None` wherever it mattered. A35 found the same defect on the review page; this is it one
+layer up.
+
+**The decision table**, per pitch and per minute, first matching row wins. `n` is the number
+of people whose feet stand inside the boundary, persisted over a burst (below) and **summed
+across the pitch's cameras**; `ball` is a ball seen inside the boundary in any burst frame;
+`m` is the motion cue inside the boundary across the burst; `spread` is the mean pairwise
+distance between people relative to the boundary's diagonal.
+
+| # | condition | state | note |
+|---|---|---|---|
+| 1 | detector unavailable | UNCERTAIN | a missing detector is not an empty pitch |
+| 2 | no boundary for this camera | UNCERTAIN | the boundary is now mandatory |
+| 3 | `n = 0`, motion low or unmeasured | **EMPTY** | |
+| 4 | `n = 0`, motion high | UNCERTAIN | something moved and nobody was found |
+| 5 | vehicle inside, or hi-vis person with `n ≤ 4` | MAINTENANCE | best effort; unevaluable, see below |
+| 6 | `1 ≤ n ≤ 4` | PEOPLE_NOT_PLAYING | with or without a ball |
+| 7 | `n ≥ 5`, ball seen | **PLAYING** | highest confidence |
+| 8 | `n ≥ 5`, no ball, motion very low, people clustered | PEOPLE_NOT_PLAYING | kept only if it costs < 1% of real play minutes; otherwise disabled in config, not deleted |
+| 9 | `n ≥ 5`, no ball | **PLAYING** | lower confidence; ball absence is not evidence |
+
+UNCERTAIN is a first-class per-minute state. `aggregate_slot` treats an abstained minute as a
+missed one - it counts against the capture floor and can push a slot toward REVIEW and nowhere
+else - so the REVIEW-never-accuses guarantee of `slots/reconcile.py` is unchanged.
+
+**Pitch-level, not camera-level.** A16 measured that "one to four people means not playing"
+applied per camera is wrong on **88 of 278** real matches at venue_01, because a camera sees
+half a pitch and a detector misses far-side players. The count that the rule thresholds is
+therefore the sum over the pitch's cameras for the same minute; per-camera counts are
+evidence and are recorded, not classes. On a single-camera pitch the two coincide, and the
+under-count risk is stated wherever a single-camera number appears.
+
+**What the ball may and may not do.** A17 stands. Ball recall on genuine play is 0.06-0.89 by
+venue (`ball_detection_rule.csv`); its presence raises the PLAYING confidence and its absence
+lowers it, but absence alone never changes the class when five or more people stand on the
+pitch. Row 8 is the one exception and it demands two independent cues besides the missing
+ball; its cost is measured before it is enabled.
+
+**Burst sampling.** Each camera is read as a short burst - three frames about a second apart -
+once per minute, instead of one frame. A ball seen in any of the three counts; the burst
+supplies the motion cue without waiting for the previous minute; a person must persist in two
+of the three frames to be counted, which is the filter against a goalpost or a bag read as a
+person (11% of camera B's recorded empty frames have one, A16). This changes the sampling
+protocol stated in `thesis/protocol.md` and is the reason this is an amendment rather than a
+code change.
+
+**The truth changes, and this is the risk that matters most.** `labelling_protocol.md` §2.2
+labelled a match "at any number of players" and §2.6 rule 1 repeated "however few". This
+amendment adopts the rule the client stated on 2026-09-13 and again on 2026-09-19: **PLAYING
+is more than four people engaged in play; four or fewer, with or without a ball, is
+PEOPLE_NOT_PLAYING.** The threshold is a requirement from the facility, not a fitted number,
+and is recorded as such so it cannot be read as an after-the-fact cutoff. Consequences:
+`labelling_protocol.md` is amended with the old text struck through; the 11 held frames in
+`_pending_4d/` are filed as `3_people_not_playing`; a hand-count audit over the 1,192
+ACTIVE_PLAY frames identifies those with four or fewer real people, which are relabelled and
+listed; every published table that counts ACTIVE_PLAY is re-run and issued beside the old one.
+
+**What is tuned, on what, and what is not tuned.**
+
+| parameter | status |
+|---|---|
+| `play_min = 5`, `small_group_max = 4` | requirement; not tuned |
+| detector model, input size, tiling | chosen on a hand-counted sample of 100 development frames plus measured latency; the rule for choosing is written before the numbers exist |
+| person confidence, minimum box height, ball confidence, burst-gap motion thresholds, cluster threshold | fitted on **venue_01 camera A only**, then frozen in `configs/rules.json` with the commit hash |
+| burst length and spacing | fixed by design; sensitivity reported |
+
+Never touched by tuning: venue_01 camera B (the 243 empties and 278 play frames that every
+false-play number in this document rests on), the nine clip venues, the unseen floodlit clip,
+any public footage admitted for evaluation, and the locked final venues.
+
+**Evaluation commitments.** The rule has no training set, so every recorded frame that is not
+in the tuning camera is evaluation data. Every reported recall is paired with the false-play
+rate and EMPTY accuracy on camera B; ranking is on `recall − false_play`; the clock rule and
+the DINOv2 probe (bare and gated) appear on every table the detector-first path appears on;
+every number carries a bootstrap interval; the abstention (UNCERTAIN) rate is reported as a
+first-class figure beside recall, because a path that abstains its way to a low false-play
+rate has not earned it. The 4-class confusion is reported with `3 ↔ 4` marked as the accepted
+confusion, since the client accepts it and the data cannot measure it.
+
+**What remains unevaluable, and is said so.** MAINTENANCE has zero recorded frames; row 5 is
+smoke-tested on generated frames only and is labelled best-effort wherever it appears. Motion
+thresholds are fitted at one camera and their transfer is unmeasured, which is why motion is
+allowed to abstain and never to promote. The far-side recall of a COCO person detector on
+fisheye CCTV bounds PLAYING recall, and that bound is reported rather than argued around.
+
+**Risk this amendment accepts.** A venue where the detector misses far-side players will
+under-count, report PEOPLE_NOT_PLAYING or abstain, and send the slot to REVIEW instead of
+USED - a recall cost, taken deliberately, in exchange for EMPTY becoming answerable at a camera
+the system has never seen. The relabelling under the new threshold changes every published
+PLAY count; those tables are re-issued, not edited. And the method now rests on a detector
+whose training data this project did not choose, which is stated as a threat to validity in the
+same words the backbones already carry.
