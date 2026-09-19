@@ -33,6 +33,7 @@ from pitch_occupancy.config import CONFIGS_DIR, settings
 from pitch_occupancy.data.taxonomy import Class3
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from pitch_occupancy.pipeline import Pipeline
     from pitch_occupancy.vision.motion import MotionGate
     from pitch_occupancy.vision.people import PersonGate
 from pitch_occupancy.db.store import Sample
@@ -47,6 +48,7 @@ from pitch_occupancy.slots.evidence import (
     select_evidence_around_transitions,
 )
 from pitch_occupancy.slots.fusion import fuse
+from pitch_occupancy.vision.rules import MinuteState
 
 __all__ = ["Classifier", "SlotRun", "run_slot", "main"]
 
@@ -83,6 +85,12 @@ class SlotRun:
     #: Minutes where a ball was seen inside the boundary. Evidence, not a rule: a ball is
     #: found in 40% of genuine play frames at unseen venues, so its absence means nothing.
     ball_minutes: tuple[int, ...] = ()
+    #: Minutes in which no camera could be scored because none had a boundary (A36). They
+    #: are also counted in `minutes_missed`, since that is what the capture floor reads;
+    #: this says *why*, which "missed" alone does not.
+    minutes_uncertain: int = 0
+    #: The cameras that had no resolvable boundary. The first thing to fix at a new site.
+    uncertain_cameras: tuple[str, ...] = ()
 
     @property
     def capture_rate(self) -> float:
@@ -110,16 +118,33 @@ def _write_evidence(slot_dir: Path, minute: int, camera: str, image) -> Path | N
 def run_slot(
     slot_id: str,
     source: FrameSource,
-    classify: Classifier,
+    classify: Classifier | None,
     *,
     thresholds: Thresholds | None = None,
     on_minute: Callable[[int, Class3], None] | None = None,
     evidence_dir: Path | None = None,
     polygon_for: Callable[[str], list[list[float]] | None] | None = None,
-    motion_gate: "MotionGate | None" = None,
-    person_gate: "PersonGate | None" = None,
+    motion_gate: MotionGate | None = None,
+    person_gate: PersonGate | None = None,
+    pipeline: Pipeline | None = None,
+    venue: str | None = None,
+    slot_key: str | None = None,
 ) -> SlotRun:
     """Sample, classify, fuse and aggregate one slot.
+
+    ``pipeline`` is the assembled deployment (`pipeline.assemble`, A36): it supplies the
+    classifier, both gates and the per-camera boundary lookup in one object, so a caller
+    cannot pass one and forget the others - which is exactly what `scheduler.run_due` did
+    for as long as the gates existed. ``venue`` and ``slot_key`` narrow the boundary lookup
+    to the slot being run (`roi.resolve`). The older keyword arguments still work and still
+    win when both are given, so a test can hand this a scripted gate.
+
+    **With a pipeline, the boundary is mandatory.** A camera whose boundary cannot be
+    resolved contributes no observation: its minute is recorded as UNCERTAIN, and if no
+    camera on the pitch had one the minute counts as missed, which the capture floor turns
+    into REVIEW. Without a boundary the model scores the neighbouring pitch and the car park
+    as if they were this one, and A19 measured that at 0.74 false-play against 0.38 - a
+    verdict produced that way is not one this system should record as its own.
 
     Minutes where no camera produced a frame are counted as missed rather than filled in.
     They lower the capture rate, which is what a verdict's trustworthiness should depend
@@ -143,6 +168,19 @@ def run_slot(
     Left off by default: writing frames of identifiable people to disk is a decision a caller
     makes, not something that happens because a function was called.
     """
+    require_boundary = False
+    if pipeline is not None:
+        classify = classify or pipeline.classify
+        if motion_gate is None:
+            motion_gate = pipeline.motion_gate
+        if person_gate is None:
+            person_gate = pipeline.person_gate
+        if polygon_for is None:
+            polygon_for = pipeline.polygon_for(venue=venue, slot_key=slot_key)
+        require_boundary = pipeline.require_boundary
+    if classify is None:
+        raise TypeError("run_slot needs a classifier or a pipeline that carries one")
+
     cameras = source.cameras()
     samples: list[Sample] = []
     fused_states: list[Class3] = []
@@ -181,10 +219,13 @@ def run_slot(
     # count's 100%, so its absence carries no information and a rule using it would be a rule
     # about venue_01. See `vision/people.py` (A17).
     ball_minutes: list[int] = []
+    uncertain_minutes = 0
+    uncertain_cameras: set[str] = set()
 
     for minute in range(source.n_minutes):
         observations: dict[str, tuple[Class3, float]] = {}
         images: dict[str, object] = {}
+        abstained = False
         for camera in cameras:
             frame = source.read(camera, minute)
             if frame is None:
@@ -193,9 +234,26 @@ def run_slot(
             # one, and applying another camera's outline is measurably worse than none at
             # all: on an unseen clip the wrong outline bought 0.06 of false-play where the
             # right one bought 0.42.
+            polygon = polygon_for(camera) if polygon_for is not None else None
+            if polygon is None and require_boundary:
+                # A36: no boundary, no verdict. Recorded as UNCERTAIN rather than dropped,
+                # so the database shows a camera that was read and not scored, which is a
+                # different fact from a camera that produced nothing.
+                abstained = True
+                uncertain_cameras.add(camera)
+                samples.append(
+                    Sample(
+                        camera_id=camera,
+                        minute_index=minute,
+                        predicted=MinuteState.UNCERTAIN.value,
+                        confidence=0.0,
+                        captured_at=datetime.now(UTC).isoformat(timespec="seconds"),
+                        image_path=frame.source_path,
+                    )
+                )
+                continue
             if polygon_for is not None:
-                state, confidence = classify(frame.image_bgr,
-                                             polygon=polygon_for(camera))
+                state, confidence = classify(frame.image_bgr, polygon=polygon)
             else:
                 state, confidence = classify(frame.image_bgr)
 
@@ -203,8 +261,7 @@ def run_slot(
             # camera's frames in order, so it is the only place the rule can live.
             if motion_gate is not None:
                 state, cue = motion_gate.apply(
-                    state, previous.get(camera), frame.image_bgr,
-                    polygon_for(camera) if polygon_for is not None else None,
+                    state, previous.get(camera), frame.image_bgr, polygon,
                 )
                 if cue is not None:
                     motion_seen.append(cue)
@@ -213,10 +270,7 @@ def run_slot(
             # the answer. Both only ever turn ACTIVE_PLAY into EMPTY, so the order changes
             # cost and not the verdict.
             if person_gate is not None:
-                state, counted = person_gate.inspect(
-                    state, frame.image_bgr,
-                    polygon_for(camera) if polygon_for is not None else None,
-                )
+                state, counted = person_gate.inspect(state, frame.image_bgr, polygon)
                 if counted is not None:
                     people_seen.append(counted.people)
                     if counted.ball:
@@ -240,6 +294,8 @@ def run_slot(
 
         if not observations:
             missed += 1
+            if abstained:
+                uncertain_minutes += 1
             continue
 
         fused = fuse(observations)
@@ -306,6 +362,8 @@ def run_slot(
         motion_cues=tuple(motion_seen),
         people_counts=tuple(people_seen),
         ball_minutes=tuple(ball_minutes),
+        minutes_uncertain=uncertain_minutes,
+        uncertain_cameras=tuple(sorted(uncertain_cameras)),
     )
 
 
@@ -425,11 +483,24 @@ def _run_live(args) -> None:
     if not args.yes:
         _confirm_live(urls, schedule, args.evidence_dir)
 
-    from pitch_occupancy.vision.classifier import load_classifier
+    from pitch_occupancy.pipeline import assemble
 
-    classify = load_classifier(args.model)
-    print(f"\nclassifier: {classify.backbone} probe fitted on {classify.n_train} "
-          f"development frames (the locked venues are not among them)")
+    pipeline = assemble(args.model)
+    print(f"\n{pipeline.describe()}")
+
+    # Every camera's boundary, before a stream is opened. A camera without one is scored
+    # UNCERTAIN every minute (A36), and finding that out at the first slot boundary is an
+    # hour late. `--derive-roi` measures one from the stream now and stores it under the
+    # production id; `/roi` is where a person confirms or redraws it.
+    missing = _report_boundaries(
+        pipeline,
+        [(slot.venue_id, cam, f"{slot.venue_id}/{cam}", urls[slot.venue_id][cam], None)
+         for slot in schedule.slots for cam in slot.cameras],
+        derive=args.derive_roi,
+    )
+    if missing and not args.derive_roi:
+        print(f"  {len(missing)} camera(s) have no boundary and will read UNCERTAIN; pass "
+              f"--derive-roi to measure one from the stream, or draw one at /roi")
 
     connection = connect(settings.db_path)
     initialise(connection)
@@ -437,7 +508,7 @@ def _run_live(args) -> None:
         ran = run_forever(
             schedule,
             source_for=live_sources(urls),
-            classify=classify,
+            pipeline=pipeline,
             connection=connection,
             model_key=args.model,
             evidence_dir=args.evidence_dir,
@@ -452,6 +523,43 @@ def _run_live(args) -> None:
     print(f"\n{len(ran)} slot(s) written to the database")
 
 
+def _report_boundaries(
+    pipeline: Pipeline,
+    cameras: list[tuple[str, str, str, object, str | None]],
+    *,
+    derive: bool,
+) -> list[str]:
+    """Print where each camera's boundary comes from; derive and store the missing ones.
+
+    ``cameras`` is ``(venue, camera_id, store_key, footage, slot_key)`` per camera: the id
+    the worker will read the camera under, the key a derived boundary is saved under, and
+    the recording or stream a boundary can be measured from. Returns the ids still without
+    one. Printed rather than logged because this runs once, at start, for a person.
+    """
+    from pitch_occupancy.vision import roi
+
+    missing: list[str] = []
+    for venue, camera, store_key, footage, slot_key in cameras:
+        polygon, key = pipeline.boundary(camera, venue=venue, slot_key=slot_key)
+        if polygon is not None:
+            print(f"  boundary {venue}/{camera:<10} stored as {key!r}, keeps "
+                  f"{roi.coverage(polygon):.0%}")
+            continue
+        if derive and footage is not None:
+            polygon = roi.derive_from_video(footage)
+            if polygon is not None:
+                roi.save_derived(store_key, polygon)
+                print(f"  boundary {venue}/{camera:<10} DERIVED now from the footage and "
+                      f"stored as {store_key!r} ({len(polygon)} points, keeps "
+                      f"{roi.coverage(polygon):.0%}) - confirm it at /roi")
+                continue
+            print(f"  boundary {venue}/{camera:<10} could not be derived: no turf found")
+        else:
+            print(f"  boundary {venue}/{camera:<10} MISSING - minutes will read UNCERTAIN")
+        missing.append(f"{venue}/{camera}")
+    return missing
+
+
 def _report(slot_id: str, outcome: object) -> None:
     """Print one line per slot, whichever way it went.
 
@@ -464,11 +572,15 @@ def _report(slot_id: str, outcome: object) -> None:
     if isinstance(outcome, BaseException):
         print(f"  {slot_id:<34} SKIPPED  {type(outcome).__name__}: {outcome}")
         return
+    uncertain = (f"  UNCERTAIN {outcome.minutes_uncertain} (no boundary: "
+                 f"{', '.join(outcome.uncertain_cameras)})"
+                 if getattr(outcome, "minutes_uncertain", 0) else "")
     print(f"  {slot_id:<34} {outcome.verdict.status:<8} "
           f"{outcome.minutes_captured:>3}/"
           f"{outcome.minutes_captured + outcome.minutes_missed} minutes  "
           f"capture {outcome.capture_rate:.0%}  "
-          f"play {outcome.verdict.play_ratio:.2f} empty {outcome.verdict.empty_ratio:.2f}")
+          f"play {outcome.verdict.play_ratio:.2f} empty {outcome.verdict.empty_ratio:.2f}"
+          f"{uncertain}")
 
 
 def main() -> None:
@@ -521,6 +633,10 @@ def main() -> None:
     parser.add_argument("--yes", action="store_true",
                         help="live only: skip the confirmation prompt. For a service unit, "
                              "not for the first run")
+    parser.add_argument("--derive-roi", action="store_true",
+                        help="measure a boundary from the footage for any camera that has "
+                             "none stored, and save it to configs/roi_derived.json under the "
+                             "production id. Without it such cameras read UNCERTAIN (A36)")
     args = parser.parse_args()
 
     if args.source == "live":
@@ -542,11 +658,27 @@ def main() -> None:
         print("\ndry run: nothing was classified and nothing was written")
         return
 
-    from pitch_occupancy.vision.classifier import load_classifier
+    from pitch_occupancy.frame_source import discover_slots
+    from pitch_occupancy.pipeline import assemble
+    from pitch_occupancy.scheduler import _recording_key
+    from pitch_occupancy.vision import roi
 
-    classify = load_classifier(args.model)
-    print(f"\nclassifier: {classify.backbone} probe fitted on {classify.n_train} "
-          f"development frames (the locked venues are not among them)")
+    pipeline = assemble(args.model)
+    print(f"\n{pipeline.describe()}")
+
+    # The boundary for every recording's cameras, resolved the way `run_slot` will resolve
+    # it - through the recording key, so `file0` finds `slot_..._camA` (`roi.FILE_KEY_CAMERA`).
+    # A recording with no boundary reads UNCERTAIN; `--derive-roi` measures one from the
+    # file first, which is what a first night at a new site would need.
+    found = discover_slots(args.raw_dir)
+    wanted = []
+    for day in days:
+        for slot in schedule.slots:
+            key = _recording_key(slot, day)
+            for cam in slot.cameras:
+                store_key = f"{key}_{roi.FILE_KEY_CAMERA.get(cam, cam)}"
+                wanted.append((slot.venue_id, cam, store_key, found.get(key, {}).get(cam), key))
+    _report_boundaries(pipeline, wanted, derive=args.derive_roi)
 
     source_for = sources_from_recordings(args.raw_dir)
 
@@ -575,7 +707,7 @@ def main() -> None:
                 begins, _ = slot.window(day)
                 just_ran = run_due(
                     schedule, begins,
-                    source_for=source_for, classify=classify, model_key=args.model,
+                    source_for=source_for, pipeline=pipeline, model_key=args.model,
                     connection=connection, evidence_dir=args.evidence_dir, on_slot=_report,
                 )
                 seen.update(just_ran)

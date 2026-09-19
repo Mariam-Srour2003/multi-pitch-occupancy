@@ -6536,3 +6536,84 @@ only the worker and now this one have the boundary and the gates. `/images` and 
 score whole frames, which is correct for what they are - a boundary editor has to show what no
 boundary looks like - but nothing states that, and the next report of this kind will come from
 there.
+
+- 2026-09-19 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
+
+## The scheduler was running the probe alone too, and the boundary store knew no production camera (A36, WP9-T1)
+
+`src/pitch_occupancy/pipeline.py`, `scheduler.py`, `worker.py`, `vision/roi.py`,
+`vision/roi_derive.py`, `vision/rules.py`
+
+A35 found the review page assembling its own inference - probe, no boundary, no gates - and
+closed with the observation that the worker, the page, `/images` and `/roi` each built their
+own classifier call. Reading the worker's caller for the rebuild (A36) found the same defect
+one layer up, and it had been there longer.
+
+**`scheduler.run_due` never passed the gates or the boundary.** It called
+`run_slot(slot_id, source, classify, evidence_dir=...)` and nothing else, although `run_slot`
+had accepted `polygon_for`, `motion_gate` and `person_gate` since A14-A16 and every number
+published for "the system" (A20: false-play 0.0123 at recall 0.9436) was measured with them.
+So `worker --source video`, and the live path behind it, ran the bare probe - the arm measured
+at 0.6173-0.7684 false-play and a total error of 1.0000 on the 243 held-out empties. The only
+production constructions of `MotionGate` and `PersonGate` in `src/` were on the review page,
+after A35 put them there.
+
+**And `roi.get` was handed ids the store had never heard of.** `configs/roi.json` holds
+`cam` and `cam2`; `configs/roi_derived.json` holds `slot_20260711_1000_camA` and 99 clip ids.
+The worker reads a recording's cameras as `file0`/`file1` (`frame_source.discover_slots`) and
+the camera config names them `camera_A`/`camera_B` under `venue_01`. None of those is a key.
+Had `run_due` passed a `polygon_for`, it would have returned None for every camera anyway.
+
+**What changed.** One seam. `pipeline.assemble(model_key)` returns the classifier, both
+gates and the boundary lookup as one object; `run_due`, `worker.main`, `worker._run_live`,
+`/clip`, `/images`, `/roi` and `scripts/run_slot_on_video.py` all take theirs from it, and a
+test spies on what reaches `run_slot`. `roi.resolve` looks a camera up the way production
+names it - `<slot>/<camera>`, `<venue>/<camera>`, the bare id, each through an `_aliases`
+block in `roi.json` - and, given a recording key, maps `file0 -> camA` and `file1 -> camB`.
+
+That last mapping was measured rather than assumed, because `discover_slots` is right that
+the `(1)` suffix does not name a physical camera across days. Within one recording it does
+name the extraction's `camA`/`camB`: a boundary derived from each recording file against the
+stored outlines, by IoU -
+
+| recording | file | vs camA | vs camB |
+|---|---|---|---|
+| slot_20260711_1000 | file0 | **0.85** | 0.54 |
+| slot_20260711_1000 | file1 | 0.54 | **0.93** |
+| slot_20260712_2030 | file0 | **0.99** | 0.77 |
+| slot_20260712_2030 | file1 | 0.77 | **0.98** |
+
+The `_aliases` for `camera_A`/`camera_B` point at the daytime recording's outline of each
+physical camera (`db/seed.py` PHYSICAL_CAMERA); `/roi` is where a person confirms or redraws.
+
+**The boundary is now mandatory on the deployed path.** With a pipeline, a camera whose
+boundary cannot be resolved contributes no observation: its minute is recorded as an
+`UNCERTAIN` sample and, if no camera on the pitch had one, the minute counts as missed, which
+the existing capture floor turns into REVIEW. The interactive pages score the whole frame and
+say so in the verdict's trace. `worker --derive-roi` measures a missing boundary from the
+footage and stores it under the production id (`roi.derive_from_video`, the library home of
+what `scripts/derive_roi.py` did - the routine three callers had been reaching through
+`sys.path`, sampling the first fifty seconds of an hour-long recording for its median).
+
+Two store defects fixed on the way: `roi.save` merged the derived store into the hand-drawn
+one on every write (the first outline drawn in the editor would have copied 99 derived
+boundaries into `roi.json`), and `_write` dropped every underscored key but its own comment.
+
+**Reproduced through the seam, on the unseen floodlit clip**, 16 samples at 15 s:
+
+| | empty samples read EMPTY | says PLAY | false-play |
+|---|---|---|---|
+| deployed path via `pipeline.assemble` | **13 / 13** | 0 | **0.00** |
+
+Of the three samples with one person walking, two read C3 and one read EMPTY - the detector
+found the walker on two of three. That miss is recorded, not smoothed: it is the same path
+A26 measured, and the same answer. The real-recordings scheduler test still reproduces the
+published verdicts. The probe is fitted on 1,578 development frames as before; the 11
+`_pending_4d` frames filed under A36 are `source=synthetic` and A13's exclusion keeps them
+out of every published probe table.
+
+**What this says.** Every "the system does X" claim in this log between A14 and A35 was true
+of `run_slot` and false of the process that calls it. The seam exists so the next such claim
+is about one path.
+
+- 2026-09-19 | A36 WP9-T1 the seam | uv run python scripts/run_slot_on_video.py data/raw/venue_unseen_2026-09-15/empty_floodlit_night.mp4 --every 15 --truth-csv configs/unseen_clip_truth.csv | configs/roi.json | run_due had never passed the gates or the boundary; through pipeline.assemble the unseen clip reads 13/13 empty samples EMPTY, 0 PLAY

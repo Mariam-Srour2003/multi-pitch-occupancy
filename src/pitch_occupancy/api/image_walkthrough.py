@@ -96,8 +96,9 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
     # Whether a boundary was actually found is reported rather than assumed. Asking for one
     # that does not exist and silently analysing the whole frame would produce precisely the
     # answers the operator applied a boundary to avoid - the neighbouring pitch counted as
-    # this one - and nothing on the page would say so.
-    polygon = roi.get(camera) if camera else None
+    # this one - and nothing on the page would say so. `resolve` knows production's camera
+    # ids; `get` did not (A36).
+    polygon = roi.resolve(camera) if camera else None
     classifier = _classifier()
     yield json.dumps({
         "type": "meta", "backbone": getattr(classifier, "backbone", "?"),

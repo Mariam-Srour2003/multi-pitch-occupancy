@@ -32,11 +32,11 @@ where that changes.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import date as Date
 from datetime import datetime, time, timedelta
 from pathlib import Path
-from typing import Callable, Iterable
 
 from pitch_occupancy.config import settings
 
@@ -173,13 +173,27 @@ def run_due(
     now: datetime,
     *,
     source_for: Callable[[ScheduledSlot, Date], object],
-    classify,
+    classify=None,
+    pipeline=None,
     connection=None,
     model_key: str | None = None,
     on_slot: Callable[[str, object], None] | None = None,
     evidence_dir: Path | None = None,
 ) -> list[str]:
     """Run every slot due at ``now`` and persist its verdict. Returns the slot ids run.
+
+    ``pipeline`` is the assembled deployment (`pipeline.assemble`, A36) and is what a
+    deployment passes. **Until 2026-09-19 this function passed `run_slot` a bare classifier
+    and nothing else** - no boundary lookup, no motion gate, no person gate - although
+    `run_slot` had accepted all three since A14-A16 and every published number for "the
+    system" was measured with them. So ``worker --source video`` and the live path ran the
+    probe alone, the configuration measured at 0.62-0.77 false-play, while the review page
+    and the experiments ran the gated one. A35 found the same shape of defect on the review
+    page; this was it one layer up, and a test now spies on what reaches `run_slot`.
+
+    ``classify`` alone still works, for tests that script a classifier and want nothing in
+    front of it. With a pipeline, the slot's venue and recording key are passed too, so the
+    boundary is resolved for *this* slot's cameras (`roi.resolve`).
 
     ``evidence_dir`` is passed straight to `worker.run_slot` and is off by default: writing
     frames of identifiable people to disk is the caller's decision. Without it the verdict is
@@ -196,12 +210,22 @@ def run_due(
     from pitch_occupancy.db.store import ensure_slot, record_slot
     from pitch_occupancy.worker import run_slot
 
+    if classify is None and pipeline is None:
+        raise TypeError("run_due needs a pipeline (or, for a scripted test, a classifier)")
+
     ran: list[str] = []
     for slot in due(schedule, now):
         slot_id = slot.slot_id(now.date())
         try:
-            run = run_slot(slot_id, source_for(slot, now.date()), classify,
-                           evidence_dir=evidence_dir)
+            if pipeline is not None:
+                run = run_slot(
+                    slot_id, source_for(slot, now.date()), classify,
+                    evidence_dir=evidence_dir, pipeline=pipeline,
+                    venue=slot.venue_id, slot_key=_recording_key(slot, now.date()),
+                )
+            else:
+                run = run_slot(slot_id, source_for(slot, now.date()), classify,
+                               evidence_dir=evidence_dir)
         except Exception as exc:  # noqa: BLE001 - one bad camera must not stop the rest
             if on_slot:
                 on_slot(slot_id, exc)
@@ -229,7 +253,8 @@ def run_forever(
     schedule: Schedule,
     *,
     source_for: Callable[[ScheduledSlot, Date], object],
-    classify,
+    classify=None,
+    pipeline=None,
     connection=None,
     clock: Callable[[], datetime] = datetime.now,
     sleep: Callable[[float], None] | None = None,
@@ -259,8 +284,8 @@ def run_forever(
     count = 0
     while iterations is None or count < iterations:
         ran += run_due(schedule, clock(), source_for=source_for, classify=classify,
-                       connection=connection, model_key=model_key, on_slot=on_slot,
-                       evidence_dir=evidence_dir)
+                       pipeline=pipeline, connection=connection, model_key=model_key,
+                       on_slot=on_slot, evidence_dir=evidence_dir)
         count += 1
         if iterations is None or count < iterations:
             naps(interval_s)

@@ -44,9 +44,10 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     import numpy as np
 
 __all__ = [
-    "Polygon", "STORE", "DERIVED_STORE", "FILLS", "DEFAULT_FILL",
-    "load_all", "get", "save", "remove", "validate", "coverage", "apply",
-    "grid_weights", "outline",
+    "Polygon", "STORE", "DERIVED_STORE", "FILLS", "DEFAULT_FILL", "FILE_KEY_CAMERA",
+    "ALIASES_KEY", "load_all", "load_aliases", "get", "resolve", "resolve_with_key",
+    "save", "save_derived", "remove", "validate", "coverage", "apply", "grid_weights",
+    "outline", "derive_from_frames", "derive_from_video",
 ]
 
 #: A polygon is a list of ``[x, y]`` pairs, each a fraction of the frame in 0-1.
@@ -75,6 +76,23 @@ DEFAULT_FILL = "black"
 #: or an outline drawn round a corner flag. Refused rather than saved, because a polygon that
 #: masks 99% of the pitch produces confident nonsense rather than an obvious failure.
 MIN_COVERAGE = 0.02
+
+#: The block of `STORE` that maps a camera id *as production names it* onto the key a
+#: boundary is stored under. `_read` skips every underscored key, so this block was always
+#: legal in the file and never read; `resolve` reads it.
+ALIASES_KEY = "_aliases"
+
+#: The export's ``file0``/``file1`` keys against the corpus's ``camA``/``camB`` suffixes.
+#:
+#: `frame_source.discover_slots` is right that the ``(1)`` suffix does not name a *physical*
+#: camera - it flips between recording days (`db/seed.py` ``PHYSICAL_CAMERA``). But within one
+#: recording the frames were extracted with ``file0`` as ``camA`` and ``file1`` as ``camB``,
+#: and every derived boundary is keyed that way. Measured on 2026-09-19 by deriving a boundary
+#: from each of the four recordings and matching it against the stored ones: ``file0`` against
+#: ``camA`` scored IoU 0.85 and 0.99, ``file1`` against ``camB`` 0.93 and 0.98, on both days,
+#: and the crossed pairs 0.54-0.77. So the mapping holds per recording, which is the only
+#: scope `resolve` applies it in - it needs the recording's ``slot_key`` to use it at all.
+FILE_KEY_CAMERA = {"file0": "camA", "file1": "camB"}
 
 
 def validate(polygon: Polygon) -> Polygon:
@@ -121,16 +139,20 @@ def coverage(polygon: Polygon) -> float:
     return abs(total) / 2.0
 
 
-def _read(path: Path) -> dict[str, Polygon]:
-    """One store, or nothing. Never raises - see `load_all` for why."""
+def _raw(path: Path) -> dict:
+    """The store as JSON, or an empty dict. Never raises - see `load_all` for why."""
     if not path.exists():
         return {}
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
-    if not isinstance(raw, dict):
-        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _read(path: Path) -> dict[str, Polygon]:
+    """One store's boundaries, or nothing. Never raises - see `load_all` for why."""
+    raw = _raw(path)
     out: dict[str, Polygon] = {}
     for key, value in raw.items():
         if key.startswith("_"):  # comment keys, as in configs/cameras.example.json
@@ -156,25 +178,113 @@ def load_all() -> dict[str, Polygon]:
     return {**_read(DERIVED_STORE), **_read(STORE)}
 
 
+def load_aliases() -> dict[str, str]:
+    """Production camera ids -> stored boundary keys, from the `_aliases` block of `STORE`.
+
+    Malformed entries are dropped rather than raised on, for the same reason `load_all`
+    never raises: this is read on the live path.
+    """
+    raw = _raw(STORE).get(ALIASES_KEY, {})
+    if not isinstance(raw, dict):
+        return {}
+    return {str(k): str(v) for k, v in raw.items() if isinstance(v, str) and v}
+
+
 def get(camera: str) -> Polygon | None:
-    """The boundary for one camera, or None. None means *no boundary*, never an empty one."""
+    """The boundary stored under exactly this key, or None. None means *no boundary*.
+
+    This is the store's own vocabulary. A caller holding a camera id *as production names
+    it* wants :func:`resolve`, which knows the aliases and the export's file keys - `get`
+    on a production id is how the boundary machinery came to be applied to nothing (A36).
+    """
     return load_all().get(camera)
 
 
+def _candidates(camera: str, *, venue: str | None, slot_key: str | None) -> list[str]:
+    """The keys a production camera id might be stored under, most specific first."""
+    keys: list[str] = []
+    if slot_key:
+        keys += [f"{slot_key}/{camera}", f"{slot_key}_{camera}"]
+    if venue:
+        keys.append(f"{venue}/{camera}")
+    keys.append(camera)
+    # The export convention, scoped to one recording - see `FILE_KEY_CAMERA`.
+    if slot_key and camera in FILE_KEY_CAMERA:
+        keys.append(f"{slot_key}_{FILE_KEY_CAMERA[camera]}")
+    return keys
+
+
+def resolve_with_key(camera: str, *, venue: str | None = None,
+                     slot_key: str | None = None) -> tuple[Polygon | None, str | None]:
+    """The boundary for a camera as production names it, and the key it was found under.
+
+    Production knows a camera three ways and the store knew none of them (A36): the worker
+    replaying a recording calls it ``file0``, `configs/cameras.json` calls it ``camera_A``
+    under ``venue_01``, and the derived store keys it ``slot_20260711_1000_camA``. Each id is
+    tried at its most specific first - ``<slot>/<camera>``, ``<slot>_<camera>``,
+    ``<venue>/<camera>``, then the bare id - and each of those is also looked up through the
+    `_aliases` block, one hop. Last comes the export's ``file0 -> camA`` convention, which
+    needs a ``slot_key`` because it holds per recording and not across days.
+
+    Returns ``(None, None)`` when nothing matched, and the matching *key* otherwise, so a
+    caller can say which boundary it applied rather than only that it applied one.
+    """
+    stored = load_all()
+    aliases = load_aliases()
+    for candidate in _candidates(camera, venue=venue, slot_key=slot_key):
+        for key in (candidate, aliases.get(candidate)):
+            if key and key in stored:
+                return stored[key], key
+    return None, None
+
+
+def resolve(camera: str, *, venue: str | None = None,
+            slot_key: str | None = None) -> Polygon | None:
+    """:func:`resolve_with_key`, reduced to the boundary."""
+    polygon, _ = resolve_with_key(camera, venue=venue, slot_key=slot_key)
+    return polygon
+
+
 def save(camera: str, polygon: Polygon) -> Polygon:
-    """Validate and store one camera's boundary, preserving every other entry."""
+    """Validate and store one camera's hand-drawn boundary, preserving every other entry.
+
+    Writes `STORE` and only `STORE`. Until 2026-09-19 this merged the derived store into the
+    hand-drawn one on every save - the first outline drawn in the editor would have copied
+    all 99 derived boundaries into `roi.json` and lost the provenance split the module
+    docstring insists on. The two files stay two files.
+    """
     clean = validate(polygon)
     if not camera or not camera.strip():
         raise ValueError("a boundary needs a camera to belong to")
-    current = load_all()
+    current = _read(STORE)
     current[camera.strip()] = clean
     _write(current)
     return clean
 
 
+def save_derived(camera: str, polygon: Polygon) -> Polygon:
+    """Store a boundary *measured* from footage under `DERIVED_STORE`.
+
+    Kept apart from :func:`save` because a derived boundary is weaker evidence than a drawn
+    one and must stay visibly so: a hand-drawn outline for the same key still wins in
+    :func:`load_all`, and drawing one is how a person corrects a derivation.
+    """
+    clean = validate(polygon)
+    if not camera or not camera.strip():
+        raise ValueError("a boundary needs a camera to belong to")
+    current = _read(DERIVED_STORE)
+    current[camera.strip()] = clean
+    _write(current, path=DERIVED_STORE, comment=_DERIVED_COMMENT)
+    return clean
+
+
 def remove(camera: str) -> bool:
-    """Forget one camera's boundary. Returns whether there was one to forget."""
-    current = load_all()
+    """Forget one camera's hand-drawn boundary. Returns whether there was one to forget.
+
+    A derived boundary for the same key is left alone: it was measured, not drawn, and
+    forgetting a person's correction should reveal the measurement, not erase it too.
+    """
+    current = _read(STORE)
     if camera not in current:
         return False
     del current[camera]
@@ -182,20 +292,54 @@ def remove(camera: str) -> bool:
     return True
 
 
-def _write(polygons: dict[str, Polygon]) -> None:
-    STORE.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "_comment": [
-            "Pitch boundaries, one per camera, drawn in the editor at /roi.",
-            "Points are [x, y] as fractions of the frame (0-1), so a resolution change does",
-            "not invalidate them. Everything outside the outline is filled before the frame",
-            "reaches the model - see src/pitch_occupancy/vision/roi.py.",
-            "Committed on purpose: a boundary is geometry, not a credential, and re-drawing",
-            "one by hand after a clone is setup nobody repeats identically.",
-        ],
-        **{k: polygons[k] for k in sorted(polygons)},
-    }
-    STORE.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+_HAND_COMMENT = [
+    "Pitch boundaries, one per camera, drawn in the editor at /roi.",
+    "Points are [x, y] as fractions of the frame (0-1), so a resolution change does",
+    "not invalidate them. Everything outside the outline is filled before the frame",
+    "reaches the model - see src/pitch_occupancy/vision/roi.py.",
+    "Committed on purpose: a boundary is geometry, not a credential, and re-drawing",
+    "one by hand after a clone is setup nobody repeats identically.",
+    "`_aliases` maps a camera id as production names it (venue/camera, or the worker's",
+    "file0/file1 under a recording key) onto the key a boundary is stored under; see",
+    "roi.resolve.",
+]
+
+_DERIVED_COMMENT = [
+    "Pitch boundaries derived from the footage by scripts/derive_roi.py or",
+    "roi.derive_from_video, not drawn. One per camera, [x, y] as fractions of the frame.",
+    "Convex hull of the largest green region in a per-camera median frame - see",
+    "src/pitch_occupancy/vision/roi_derive.py for what that does and does not achieve.",
+    "A hand-drawn outline in roi.json for the same key wins over one of these.",
+]
+
+
+def _write(polygons: dict[str, Polygon], *, path: Path | None = None,
+           comment: list[str] | None = None) -> None:
+    """Write one store. The hand-drawn store's `_aliases` block survives a rewrite."""
+    path = path or STORE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload: dict[str, object] = {"_comment": comment or _HAND_COMMENT}
+    if path == STORE:
+        previous = _raw(STORE)
+        for key in (ALIASES_KEY, "_aliases_comment"):
+            if key in previous:
+                payload[key] = previous[key]
+    payload.update({k: polygons[k] for k in sorted(polygons)})
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def derive_from_frames(frames, *, hull: bool = True) -> Polygon | None:
+    """Measure a boundary from frames of one camera. See `vision/roi_derive.py`."""
+    from pitch_occupancy.vision.roi_derive import derive_from_frames as _derive
+
+    return _derive(frames, hull=hull)
+
+
+def derive_from_video(path, *, hull: bool = True) -> Polygon | None:
+    """Measure a boundary from a recording or stream. See `vision/roi_derive.py`."""
+    from pitch_occupancy.vision.roi_derive import derive_from_video as _derive
+
+    return _derive(path, hull=hull)
 
 
 def apply(image_bgr: np.ndarray, polygon: Polygon | None, *,

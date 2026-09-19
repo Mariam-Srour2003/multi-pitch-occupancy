@@ -79,8 +79,8 @@ def walk_records(path: Path, *, interval_s: float, explain_n: int,
 
     # Reported rather than assumed, as on the image route: asking for a boundary that does
     # not exist and silently analysing the whole frame gives back exactly the answers the
-    # boundary was meant to prevent.
-    polygon = roi.get(camera) if camera else None
+    # boundary was meant to prevent. `resolve` knows production's camera ids; `get` did not.
+    polygon = roi.resolve(camera) if camera else None
     classifier = _classifier()
     yield json.dumps({
         "type": "meta", "backbone": getattr(classifier, "backbone", "?"),

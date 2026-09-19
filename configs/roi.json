@@ -5,8 +5,25 @@
     "not invalidate them. Everything outside the outline is filled before the frame",
     "reaches the model - see src/pitch_occupancy/vision/roi.py.",
     "Committed on purpose: a boundary is geometry, not a credential, and re-drawing",
-    "one by hand after a clone is setup nobody repeats identically."
+    "one by hand after a clone is setup nobody repeats identically.",
+    "`_aliases` maps a camera id as production names it (venue/camera, or the worker's",
+    "file0/file1 under a recording key) onto the key a boundary is stored under; see",
+    "roi.resolve."
   ],
+  "_aliases_comment": [
+    "A36 (2026-09-19). Production knows venue_01's cameras as camera_A / camera_B",
+    "(configs/cameras.json, slots_schedule.json); the derived store knows them per",
+    "recording as slot_<date>_<time>_camA / camB. db/seed.py PHYSICAL_CAMERA says which",
+    "recording view is which physical camera. These point each production id at the",
+    "daytime recording's outline of that physical camera; confirm or redraw at /roi.",
+    "The worker's file0/file1 keys need no alias - roi.resolve maps them per recording."
+  ],
+  "_aliases": {
+    "venue_01/camera_A": "slot_20260711_1000_camA",
+    "venue_01/camera_B": "slot_20260711_1000_camB",
+    "camera_A": "slot_20260711_1000_camA",
+    "camera_B": "slot_20260711_1000_camB"
+  },
   "cam": [
     [
       0.0016034368892101037,

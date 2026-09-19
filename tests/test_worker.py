@@ -275,9 +275,12 @@ def test_it_goes_through_the_scheduler_with_the_real_classifier(tmp_path, monkey
                             "backbone": "dinov2", "n_train": 7, "__call__": lambda *a: None,
                         })())
 
-    def fake_run_due(schedule, now, *, source_for, classify, **kwargs):
+    def fake_run_due(schedule, now, *, source_for, pipeline=None, classify=None, **kwargs):
         seen["now"] = now
-        seen["classify"] = classify
+        # Since A36 the classifier travels inside the assembled pipeline, with its gates and
+        # its boundary lookup, rather than alone - the shape that let the gates go missing.
+        seen["pipeline"] = pipeline
+        seen["classify"] = pipeline.classify if pipeline is not None else classify
         seen["evidence_dir"] = kwargs.get("evidence_dir", sentinel)
         connection = kwargs.get("connection", sentinel)
         seen["connection"] = connection
@@ -296,6 +299,9 @@ def test_it_goes_through_the_scheduler_with_the_real_classifier(tmp_path, monkey
 
     assert seen["now"].hour == 10, "the clock must stand inside the slot's own window"
     assert getattr(seen["classify"], "backbone", None) == "dinov2"
+    assert seen["pipeline"] is not None, "run_due must receive the assembled pipeline (A36)"
+    assert seen["pipeline"].motion_gate is not None and seen["pipeline"].person_gate is not None
+    assert seen["pipeline"].require_boundary, "the deployed path requires a boundary"
     assert seen["evidence_dir"] is None, "evidence images are opt-in: they show real people"
 
     # `run_due` persists only when it is given a connection; without one it classifies the
@@ -340,7 +346,8 @@ def test_a_slot_that_cannot_run_is_reported_and_the_others_continue(
                             "backbone": "dinov2", "n_train": 7, "__call__": lambda *a: None,
                         })())
 
-    def fake_run_due(schedule, now, *, source_for, classify, on_slot=None, **kwargs):
+    def fake_run_due(schedule, now, *, source_for, pipeline=None, classify=None,
+                     on_slot=None, **kwargs):
         on_slot("venue_01_2026-07-11_2030", FileNotFoundError("no recording"))
         return []
 

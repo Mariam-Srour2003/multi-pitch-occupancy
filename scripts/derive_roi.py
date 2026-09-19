@@ -43,50 +43,25 @@ import numpy as np
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.vision import roi
 
+# The deployed routine lives in the package since A36 (`vision/roi_derive.py`), so the worker
+# and the review page can call it without reaching into this folder. Re-exported here under
+# the names the experiments import (`from derive_roi import turf_mask, polygon_from_mask`),
+# so nothing that reads this file as a module breaks. The two measured-and-rejected variants
+# below (A19) stay here: they are compared against, never deployed.
+from pitch_occupancy.vision.roi_derive import (  # noqa: F401 - re-exported
+    MAX_FRAMES,
+    WORK,
+    polygon_from_mask,
+    turf_mask,
+)
+from pitch_occupancy.vision.roi_derive import clean as _clean
+from pitch_occupancy.vision.roi_derive import exg as _exg
+from pitch_occupancy.vision.roi_derive import iou as _iou  # noqa: F401 - used by --identify
+from pitch_occupancy.vision.roi_derive import largest as _largest  # noqa: F401
+from pitch_occupancy.vision.roi_derive import median_of_paths as _median
+
 ROOT = Path(__file__).resolve().parents[1]
 DATASET = ROOT / "data" / "processed"
-MAX_FRAMES = 40
-WORK = (320, 180)
-
-
-def _median(paths: list[Path]) -> np.ndarray | None:
-    imgs = []
-    for p in paths[:MAX_FRAMES]:
-        im = cv2.imread(str(p))
-        if im is not None:
-            imgs.append(cv2.resize(im, WORK))
-    if not imgs:
-        return None
-    return np.median(np.stack(imgs), axis=0).astype(np.uint8)
-
-
-def _largest(m: np.ndarray) -> np.ndarray:
-    n, lab, stats, _ = cv2.connectedComponentsWithStats(m, 8)
-    if n <= 1:
-        return m
-    biggest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
-    return np.where(lab == biggest, 255, 0).astype(np.uint8)
-
-
-def _exg(bgr: np.ndarray) -> np.ndarray:
-    """Excess-green ``2G - R - B``, normalised and smoothed.
-
-    Excess-green rather than a hue mask, because floodlit artificial turf at night is closer
-    to grey than to green and a hue threshold loses it - the *relative* channel order survives
-    when saturation does not.
-    """
-    bgr = cv2.normalize(bgr, None, 0, 255, cv2.NORM_MINMAX)
-    b, g, r = (bgr[:, :, i].astype(np.int16) for i in range(3))
-    exg = np.clip(2 * g - r - b, 0, 255).astype(np.uint8)
-    return cv2.GaussianBlur(exg, (5, 5), 0)
-
-
-def _clean(m: np.ndarray) -> np.ndarray:
-    """Close a player-shaped gap, drop specks, keep the largest region."""
-    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
-    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, k, iterations=2)
-    m = cv2.morphologyEx(m, cv2.MORPH_OPEN, k, iterations=1)
-    return _largest(m)
 
 
 def flat_field(exg: np.ndarray) -> np.ndarray:
@@ -165,72 +140,6 @@ def turf_mask_grown(bgr: np.ndarray, fraction: float = GROW_FRACTION) -> np.ndar
     keep = set(np.unique(lab[strong > 0])) - {0}
     grown = np.isin(lab, list(keep)).astype(np.uint8) * 255
     return _clean(grown)
-
-
-def turf_mask(bgr: np.ndarray) -> np.ndarray:
-    """The pitch as the largest connected excess-green region.
-
-    Excess-green rather than a hue mask, because floodlit artificial turf at night is closer
-    to grey than to green and a hue threshold loses it - the *relative* channel order
-    survives when saturation does not.
-
-    A luminance fallback was written here for scenes too dark for excess-green, on the
-    strength of two boundaries that looked wrong in a rendered check. Measured afterwards, it
-    fired for **none of the 70 cameras**, and the boundaries in question turned out to be
-    correct - the dome's pitch really does occupy only the lower band of its frame. The
-    branch is gone rather than kept as an untested path that never runs, which is the defect
-    this project keeps finding in its own guards.
-
-    `normalize` stays: it changed four cameras by an IoU of 0.97-0.98, which is small but is
-    a real effect on contrast-poor medians rather than a hypothetical one.
-    """
-    _, m = cv2.threshold(_exg(bgr), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    return _clean(m)
-
-
-def polygon_from_mask(mask: np.ndarray, max_points: int = 8, *,
-                      hull: bool = True) -> list[list[float]] | None:
-    """Simplify the largest region of ``mask`` to a polygon of at most ``max_points``.
-
-    ``hull=False`` follows the region's own outline instead of its convex hull, which is
-    tighter wherever the pitch is seen at an angle - a hull spans from the far corner of the
-    pitch to the near one and swallows whatever lies between, which at venue_01 camera B is
-    the car park behind the goal. It is offered rather than assumed because a ragged mask
-    makes a ragged polygon, and `roi.validate` rejects a self-intersecting one; see A23 for
-    what it is actually worth.
-    """
-    cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not cnts:
-        return None
-    outline = max(cnts, key=cv2.contourArea)
-    if hull:
-        outline = cv2.convexHull(outline)
-    peri = cv2.arcLength(outline, True)
-    approx = outline
-    for eps in np.linspace(0.005, 0.08, 40):
-        approx = cv2.approxPolyDP(outline, eps * peri, True)
-        if len(approx) <= max_points:
-            break
-    h, w = mask.shape
-    pts = [[float(x) / w, float(y) / h] for [[x, y]] in approx]
-    if len(pts) < 3:
-        return None
-    try:
-        return roi.validate(pts)
-    except ValueError:
-        return None
-
-
-def _iou(poly_a, poly_b, size=(360, 640)) -> float:
-    def fill(p):
-        m = np.zeros(size, np.uint8)
-        pts = np.array([[int(x * size[1]), int(y * size[0])] for x, y in p], np.int32)
-        cv2.fillPoly(m, [pts], 255)
-        return m > 0
-
-    a, b = fill(poly_a), fill(poly_b)
-    union = (a | b).sum()
-    return float((a & b).sum() / union) if union else 0.0
 
 
 def main() -> int:

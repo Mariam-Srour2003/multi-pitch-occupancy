@@ -52,19 +52,17 @@ router = APIRouter(prefix="/api/v1", tags=["clip review"])
 #: without letting an unbounded body fill the disk. Enforced while streaming.
 MAX_UPLOAD_BYTES: int = 600 * 1024 * 1024
 
-#: Loaded once and reused. The first request pays ~13 s to build the probe from the feature
-#: cache; every later one pays nothing. Module-level rather than a FastAPI dependency because
-#: it is genuinely process-wide state - there is one model, not one per request.
-_CLASSIFIER = None
-
-
 def _classifier():
-    global _CLASSIFIER
-    if _CLASSIFIER is None:
-        from pitch_occupancy.vision.classifier import load_classifier
+    """The deployed classifier, from the process-wide pipeline (`pipeline.shared`, A36).
 
-        _CLASSIFIER = load_classifier()
-    return _CLASSIFIER
+    Until 2026-09-19 this loaded the probe itself, which is how the page came to run a
+    different system from the worker (A35): each surface assembled its own. Now every surface
+    asks the same seam. Kept as a function so a test can swap the classifier for a script
+    without assembling a pipeline; the first real call pays the probe fit once.
+    """
+    from pitch_occupancy.pipeline import shared
+
+    return shared().classify
 
 
 class SampleOut(BaseModel):
@@ -138,53 +136,24 @@ def _gates():
     EMPTY, because a generated test frame contains no people. Patching this returns the route
     to the probe alone, which is what such a test means by "the model said".
     """
-    from pitch_occupancy.vision.motion import MotionGate
-    from pitch_occupancy.vision.people import PersonGate
+    from pitch_occupancy.pipeline import default_gates
 
-    return MotionGate(), PersonGate()
+    return default_gates()
 
 
 def _derive_boundary(path: Path) -> list[list[float]] | None:
     """Measure a pitch outline from the clip itself, or None if it cannot be found.
 
-    A median over sampled frames removes the players, and the largest connected green region
-    of that median is the turf - the same routine `scripts/derive_roi.py` runs over the
-    corpus. It is a fallback and not a replacement: a hand-drawn or stored outline is better
-    and is preferred above. What it replaces is *no boundary at all*, which A19 measured on
-    this exact clip at 0.74 false-play against 0.38 with one.
+    `roi.derive_from_video` - the routine `scripts/derive_roi.py` runs over the corpus, now
+    in the package (A36) rather than reached through `sys.path`. It is a fallback and not a
+    replacement: a hand-drawn or stored outline is better and is preferred above. What it
+    replaces is *no boundary at all*, which A19 measured on this exact clip at 0.74
+    false-play against 0.38 with one.
 
     Failure returns None rather than raising. A clip this cannot find turf in is still worth
     classifying without an outline, and the response says which happened.
     """
-    import sys
-
-    try:
-        import cv2
-        import numpy as np
-
-        scripts = Path(__file__).resolve().parents[3] / "scripts"
-        if str(scripts) not in sys.path:
-            sys.path.insert(0, str(scripts))
-        from derive_roi import polygon_from_mask, turf_mask
-
-        capture = cv2.VideoCapture(str(path))
-        pool, i = [], 0
-        try:
-            while len(pool) < 40:
-                ok, frame = capture.read()
-                if not ok:
-                    break
-                if i % 40 == 0:
-                    pool.append(cv2.resize(frame, (320, 180)))
-                i += 1
-        finally:
-            capture.release()
-        if len(pool) < 3:
-            return None
-        median = np.median(np.stack(pool), axis=0).astype(np.uint8)
-        return polygon_from_mask(turf_mask(median))
-    except Exception:  # noqa: BLE001 - a boundary is an improvement, never a precondition
-        return None
+    return roi.derive_from_video(path)
 
 
 @router.post("/clip/analyse", response_model=ClipOut)
@@ -226,7 +195,9 @@ async def analyse(
         # frame - so the timeline, the smoothing and the segmentation stay unaware of ROI,
         # and there is one masking call rather than a second code path through them.
         classify = _classifier()
-        polygon = roi.get(camera) if camera else None
+        # `resolve`, not `get`: the camera is named the way production names it, and the
+        # store's own keys are not that (A36).
+        polygon = roi.resolve(camera) if camera else None
         derived_boundary = False
         if polygon is None:
             # An uploaded clip usually names no camera, or names one the store has never

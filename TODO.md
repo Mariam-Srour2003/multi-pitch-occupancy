@@ -2172,8 +2172,10 @@ tagged with the question it answers. Fix that first — it is what turns a build
       amended and §2.7 added (PLAYING = five or more, a requirement not a fit); unseen clip
       moved to `data/raw/venue_unseen_2026-09-15/` with tracked truth in
       `configs/unseen_clip_truth.csv`; `reproduce_all.py` paths off the Downloads folder.
-  - [ ] **WP9-T0a** File the 11 `_pending_4d/` frames under `3_people_not_playing` via
-        `scripts/ingest_synthetic.py` (three batches by conditioning venue), regenerate manifest.
+  - [x] **WP9-T0a** File the 11 `_pending_4d/` frames under `3_people_not_playing` via
+        `scripts/ingest_synthetic.py` (three batches by conditioning venue) — done 2026-09-19
+        as `syn_pending4d_{cg,dm,vb}_*`; `dinov2.npz` rebuilt over the 1,892-row manifest.
+        A13's exclusion keeps them out of every published probe table (1,578 dev frames).
   - [ ] **[H] WP9-T0b Hand counts.** `data/processed/hand_counts.csv` — 100 development frames
         stratified venue × class × lighting: `people_inside, ball_visible`. Claude does a first
         pass by eye; you verify. This is the detector's ground truth and gates WP9-T2.
@@ -2184,10 +2186,15 @@ tagged with the question it answers. Fix that first — it is what turns a build
         ≤ 4-player kickabout, groundskeeping) into `data/raw/public_<source>/` with
         `provenance.csv`. Evaluation only.
   - [ ] **[H] WP9-T0e** Confirm the unseen clip's provenance in its README.
-- [ ] **WP9-T1 The seam.** `pipeline.py` `assemble(model_key)`; `roi.resolve` with
-      `_aliases`; `roi.derive_from_frames`; worker, scheduler, `/clip`, `/images`, `/roi` all
-      route through it; boundary mandatory (none → UNCERTAIN). Exit: `run_due` provably applies
-      gates + polygon; `run_slot_on_video.py` still 13/13 through the seam.
+- [x] **WP9-T1 The seam** — done 2026-09-19. `pipeline.py` `assemble(model_key)` /
+      `shared()`; `roi.resolve` with `_aliases` and the measured `file0→camA` per-recording
+      map; `vision/roi_derive.py` (library home of `derive_roi`); `vision/rules.py`
+      (`MinuteState`, `FrameVerdict`); worker, scheduler, `/clip`, `/images`, `/roi` and
+      `run_slot_on_video.py` route through it; boundary mandatory on the deployed path (none →
+      UNCERTAIN sample, minute missed), reported on the pages. Exit met: `run_due` provably
+      hands the pipeline + slot context to `run_slot` (`tests/test_scheduler_pipeline.py`);
+      the unseen clip reads 13/13 EMPTY, 0 PLAY through the seam; the real-recordings
+      scheduler test still passes. `worker --derive-roi` measures a missing boundary.
 - [ ] **WP9-T2 Detector selection.** `vision/detector.py` registry; `pitch fetch-weights`;
       `experiments/detector_audit.py` → `results/detector_audit.csv`, `detector_latency.csv`.
       Selection rule written before running (A36).
