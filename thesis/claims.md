@@ -11,7 +11,7 @@ any draft goes out:
 uv run python -m experiments.verify_claims --check
 ```
 
-**39 claims are checked against an artefact. 0 are not, and say why.**
+**45 claims are checked against an artefact. 0 are not, and say why.**
 
 ## Checked
 
@@ -56,6 +56,12 @@ uv run python -m experiments.verify_claims --check
 | On 234 seconds of floodlit night football with nobody playing, the clock rule calls all 16 minutes ACTIVE_PLAY - false-play 1.00. | `1.0` | `results/clock_rule_on_video.csv` | `README.md`, `thesis/defence_deck.md` | ✔ |
 | The deployed path - probe, boundary, motion gate, person gate - has false-play 0.00 on the same clip, against the probe alone at 0.38. | `0.0` | `results/clock_rule_on_video.csv` | `README.md`, `thesis/defence_deck.md` | ✔ |
 | 31 generated EMPTY frames take cross-venue false-play from 0.7684 to 0.0235 while raising play-recall. | `0.0235` | `results/median_empties_as_training.csv` | — | ✔ |
+| The detector-first rule reaches 0.996 ACTIVE_PLAY recall across the seven held-out clip venues, scored one frame at a time inside one camera's boundary. | `0.9957` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
+| The rule calls none of venue_01 camera B's 243 recorded empty frames a match — 0 of 243, against the probe's 75. | `0.0` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
+| The rule reads 0.889 of those 243 empty frames as EMPTY; the remaining 11% are read as C3, which is the boundary reaching into the car park rather than the detector failing. | `0.8889` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
+| The rule's worst held-out venue is 0.970, where the probe's is 0.667 — both at clipvenue_h_teal_pitch. The probe's mean hides a fold it fails badly; the rule's does not. | `0.9702` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
+| The DINOv2 probe's worst held-out venue is 0.667 ACTIVE_PLAY recall. | `0.6667` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
+| The probe reads 0.000 of the 243 held-out empty frames as EMPTY — it never answers EMPTY at a camera it has not seen (A20), re-measured here under the same control. | `0.0` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
 
 ## Notes on individual claims
 

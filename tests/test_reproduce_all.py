@@ -25,6 +25,26 @@ sys.modules[spec.name] = reproduce_all
 spec.loader.exec_module(reproduce_all)
 STAGES = reproduce_all.STAGES
 
+#: Inputs to the pipeline that live outside `data/` and are produced by no stage.
+#:
+#: The rule below is that a requirement is either produced by an earlier stage or is external
+#: data, and "external data" used to mean "somewhere under `data/`". A36 introduced two inputs
+#: that are neither an output nor under `data/`, and both are deliberate:
+#:
+#: - `results/hand_counts.csv` is a **person's** counting of 100 frames. It sits in `results/`
+#:   rather than `data/` because `data/` is gitignored, and a truth file a clone loses is a
+#:   model selection nobody can re-derive. No stage may produce it: one that reran it would
+#:   overwrite the counts with an empty column.
+#: - `configs/rules.json` is the decision rule's frozen numbers, committed like a boundary
+#:   because a rule is part of what the deployment *is*.
+#:
+#: Named here rather than pattern-matched, so adding one stays a deliberate act - the same
+#: shape as the `machine_dependent` exemption below, and for the same reason.
+EXTERNAL_INPUTS = {
+    ROOT / "results" / "hand_counts.csv",
+    ROOT / "configs" / "rules.json",
+}
+
 
 @pytest.fixture(autouse=True)
 def _isolated_run_ledger(tmp_path, monkeypatch):
@@ -65,7 +85,7 @@ def test_requirements_are_met_by_an_earlier_stage_or_are_data() -> None:
     produced: set[Path] = set()
     for s in STAGES:
         for need in s.requires:
-            is_data = "data" in need.parts and need not in produced
+            is_data = ("data" in need.parts or need in EXTERNAL_INPUTS) and need not in produced
             later = any(need in later_stage.produces for later_stage in STAGES) and need not in produced
             assert is_data or need in produced, (
                 f"{s.name} requires {need.name}, which is produced later"
@@ -177,9 +197,17 @@ def test_the_benchmark_stage_is_marked_machine_dependent() -> None:
 
 
 def test_only_stages_that_measure_the_machine_are_exempt_from_force() -> None:
-    """The exemption weakens reproduction, so it must stay a short, deliberate list."""
+    """The exemption weakens reproduction, so it must stay a short, deliberate list.
+
+    Both members time something rather than compute it, and both were added *because* a
+    timing swept into a batch reports the load and not the hardware: `efficiency` read
+    ConvNeXtV2 at 150.9 ms mid-batch against 101.2 ms idle, which moved a ratio quoted in
+    three documents. `detector-audit` (A36) times seven detectors against a 30-second round
+    and picks one on the result, so a contended run would not merely misreport a number - it
+    could choose a different model.
+    """
     exempt = {s.name for s in STAGES if s.machine_dependent}
-    assert exempt == {"efficiency"}, exempt
+    assert exempt == {"efficiency", "detector-audit"}, exempt
 
 
 def test_a_machine_dependent_stage_still_runs_when_its_output_is_missing() -> None:

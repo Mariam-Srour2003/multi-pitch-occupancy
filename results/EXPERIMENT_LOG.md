@@ -6999,3 +6999,46 @@ duplicate is visible in the report that prompted this. The second header is now 
 cue, which is the cell the rows were missing.
 
 - 2026-09-19 | A38 review pages count on every frame | uv run python -m pytest tests/test_always_count.py | clip_page.py | PersonGate(always_count=True) reports without deciding; 24/24 frames counted on the unseen clip against ~1 before, 0 gate disagreements; the verdict is pinned identical with the flag on and off; a duplicated table header fixed
+
+- 2026-09-19 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 39 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-19 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 45 claims verified against their artefacts, 0 recorded as unsupported
+
+## WP9's results were not reachable from the reproduction runner, and its numbers were unchecked (A39)
+
+`experiments/reproduce_all.py`, `thesis/claims.toml`, `tests/test_reproduce_all.py`
+
+A pass over the repository's own audit tools, asked for rather than volunteered, and the two
+things it found were both invisible to every check that was passing.
+
+**`reproduce_all.py --check` reported "0 stages to run" while WP9's eight result files were
+reachable from nothing.** The claim that file exists to back is *"given the footage, every
+number in the thesis can be recomputed from this repository"*, and it was false for the whole
+rebuild - not because a stage had broken, but because none had been written. A runner reports
+on the stages it knows about, so a missing stage is the one failure it cannot report. Four
+stages added: `detector-audit` (machine-dependent, like `efficiency`), `rule-frame-eval`,
+`rule-pitch-pairs`, `overlay-figures`.
+
+**`results/hand_counts.csv` is deliberately not a stage.** It is a person's counting of 100
+frames, and a stage that reran it would overwrite the counts with an empty column - the one
+input here that cannot be recomputed would have been destroyed by the machinery for
+recomputing things. It is declared an external input instead.
+
+**Six claims were quoted and none were checked.** The ledger held 39 claims and not one
+touched WP9, so `recall 0.996`, `false-play 0.000`, `EMPTY 0.889` and the rest sat in TODO.md
+as prose that nothing re-derived - which is precisely the failure `claims.toml`'s own header
+lists as having *"already happened here repeatedly"*. Now 45 verified, 0 unsupported, 0
+failing, including the probe's `0.000` EMPTY accuracy, so A20's central finding is re-derived
+from a current artefact rather than cited from an old one.
+
+**Two guards fired and both were right.** `test_reproduce_all.py` refused the new stages
+because `hand_counts.csv` and `configs/rules.json` are required by a stage, produced by none,
+and not under `data/` - the test's definition of an external input. A36 created two categories
+it did not have: a human-authored truth file, and a committed rule. They are named explicitly
+rather than pattern-matched, so adding a third stays a deliberate act. The second guard holds
+the `machine_dependent` exemption to a short list; `detector-audit` belongs on it and the
+reason is now written next to it - it times seven detectors against a 30-second round and
+*picks one on the result*, so a contended run would not merely misreport a number, it could
+choose a different model.
+
+- 2026-09-19 | A39 WP9 registered with the runner and the ledger | uv run python experiments/reproduce_all.py --check | reproduce_all.py | four WP9 stages added and 0 stale; six WP9 claims added, 45 verified 0 failing; hand_counts.csv declared an external input because a stage that reran it would erase the counts

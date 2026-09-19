@@ -442,3 +442,65 @@ source = "results/median_empties_as_training.csv"
 select = { arm = "full + generated empties (31)" }
 column = "false_play"
 note = "A30: H3's folds never contained the generated frames, so A13's repair had not been checked under this protocol. It reproduces more strongly than it was reported. The 26 real-pixel median empties take the same figure to 0.9618, and A31 eliminated three explanations for why."
+
+# --- WP9: the detector-first rebuild (A36) --------------------------------------------
+#
+# `where` is TODO.md rather than a thesis chapter, and deliberately: WP9 is mid-flight. Its
+# thresholds are unfrozen (`configs/rules.json` has `frozen_at = null`) and its counting truth
+# is a first pass by eye with 47 of 100 frames marked unsure, so these numbers are not yet
+# written into the thesis. They are checked here anyway, because a number quoted in a plan is
+# a number that can go stale - and the point of this ledger is that none of them can.
+
+[[claim]]
+id = "rule-cross-venue-recall"
+statement = "The detector-first rule reaches 0.996 ACTIVE_PLAY recall across the seven held-out clip venues, scored one frame at a time inside one camera's boundary."
+value = 0.9957
+where = ["TODO.md"]
+source = "results/rule_frame_eval.csv"
+select = { arm = "detector_first" }
+column = "play_recall"
+
+[[claim]]
+id = "rule-false-play"
+statement = "The rule calls none of venue_01 camera B's 243 recorded empty frames a match — 0 of 243, against the probe's 75."
+value = 0.0
+where = ["TODO.md"]
+source = "results/rule_frame_eval.csv"
+select = { arm = "detector_first" }
+column = "false_play_rate"
+
+[[claim]]
+id = "rule-empty-accuracy"
+statement = "The rule reads 0.889 of those 243 empty frames as EMPTY; the remaining 11% are read as C3, which is the boundary reaching into the car park rather than the detector failing."
+value = 0.8889
+where = ["TODO.md"]
+source = "results/rule_frame_eval.csv"
+select = { arm = "detector_first" }
+column = "empty_accuracy"
+
+[[claim]]
+id = "rule-worst-venue"
+statement = "The rule's worst held-out venue is 0.970, where the probe's is 0.667 — both at clipvenue_h_teal_pitch. The probe's mean hides a fold it fails badly; the rule's does not."
+value = 0.9702
+where = ["TODO.md"]
+source = "results/rule_frame_eval.csv"
+select = { arm = "detector_first" }
+column = "recall_worst_venue"
+
+[[claim]]
+id = "probe-worst-venue"
+statement = "The DINOv2 probe's worst held-out venue is 0.667 ACTIVE_PLAY recall."
+value = 0.6667
+where = ["TODO.md"]
+source = "results/rule_frame_eval.csv"
+select = { arm = "dinov2" }
+column = "recall_worst_venue"
+
+[[claim]]
+id = "probe-never-says-empty"
+statement = "The probe reads 0.000 of the 243 held-out empty frames as EMPTY — it never answers EMPTY at a camera it has not seen (A20), re-measured here under the same control."
+value = 0.0
+where = ["TODO.md"]
+source = "results/rule_frame_eval.csv"
+select = { arm = "dinov2" }
+column = "empty_accuracy"

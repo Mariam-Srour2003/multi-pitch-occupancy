@@ -652,6 +652,52 @@ STAGES: list[Stage] = [
              "missing cell; needs the clip at UNSEEN_CLIP",
         minutes=4,
     ),
+    # --- WP9, the detector-first rebuild (A36) --------------------------------------------
+    #
+    # `results/hand_counts.csv` is an input to these and is produced by **a person**, not by a
+    # stage. `scripts/sample_hand_counts.py` chooses the frames and renders them; the counts
+    # are filled in by eye. It is deliberately not a stage: a stage that reran it would
+    # overwrite the truth with an empty column, and "reproducible" would have destroyed the
+    # one thing here that cannot be recomputed.
+    Stage(
+        name="detector-audit",
+        command=[*PY, "experiments/detector_audit.py"],
+        produces=[RESULTS / "detector_audit.csv", RESULTS / "detector_latency.csv",
+                  RESULTS / "detector_false_person_heights.csv"],
+        requires=[RESULTS / "hand_counts.csv", DATA / "processed" / "manifest.csv"],
+        note="WP9-T2: seven detectors against hand counts, empties and latency; the selection "
+             "rule was registered in A36 before it ran. Needs the weights - `pitch fetch-weights`",
+        minutes=13,
+        machine_dependent=True,
+    ),
+    Stage(
+        name="rule-frame-eval",
+        command=[*PY, "experiments/rule_frame_eval.py"],
+        produces=[RESULTS / "rule_frame_eval.csv", RESULTS / "rule_confusion_4class.csv"],
+        requires=[DATA / "cache" / "dinov2.npz", DATA / "processed" / "manifest.csv",
+                  ROOT / "configs" / "rules.json"],
+        note="WP9-T6: the rule against the probe, the gated probe and the clock rule, with "
+             "A20's false-play control; reproduces h3_with_false_play.csv before reporting",
+        minutes=7,
+    ),
+    Stage(
+        name="rule-pitch-pairs",
+        command=[*PY, "experiments/rule_pitch_pairs.py"],
+        produces=[RESULTS / "rule_pitch_pairs.csv"],
+        requires=[DATA / "processed" / "manifest.csv", ROOT / "configs" / "rules.json"],
+        note="WP9-T6: what summing the two cameras of one pitch is worth - play recall "
+             "0.338 -> 0.859 on 164 paired moments, EMPTY 0.892 -> 0.785",
+        minutes=3,
+    ),
+    Stage(
+        name="overlay-figures",
+        command=[*PY, "experiments/make_overlay_figures.py", "--model", "yolov8n"],
+        produces=[RESULTS / "overlay_index.csv"],
+        requires=[DATA / "processed" / "manifest.csv", ROOT / "configs" / "rules.json"],
+        note="WP9-T4: what the detector found, drawn on redacted frames - people in one "
+             "colour, the ball in another, the boundary and the rule that fired",
+        minutes=2,
+    ),
     Stage(
         name="claims-ledger",
         command=[*PY, "-m", "experiments.verify_claims"],
