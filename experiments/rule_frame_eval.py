@@ -209,6 +209,16 @@ def score(arm: str, predictions: dict[str, dict], rows) -> dict:
     fp_ci = bootstrap_ci(false_play) if false_play else None
     fp_lo, fp_hi = (fp_ci.low, fp_ci.high) if fp_ci else (float("nan"), float("nan"))
 
+    # The recall column above follows h3's protocol and measures the *held-out clip venues*.
+    # venue_01's own play frames are not in it, and they are where a per-camera count is
+    # weakest: its pitch has two cameras and each sees about half, so a count inside one
+    # camera's boundary is routinely under five on a frame whose pitch plainly holds a match
+    # (A16's 88 of 278, and the hand-count audit's 18 of 74). Reported as its own column
+    # rather than folded into the headline, because it is the cost A36 registered as accepted
+    # and `rule_slots.py`'s pitch-level sum is what is supposed to pay it back.
+    venue_01_play = [r for r in rows if r.venue == "venue_01" and r.class3 == PLAY]
+    v01 = [int(got["class3"] == PLAY) for _, got in answers(venue_01_play)]
+
     scored = set(predictions)
     abstained = sum(1 for f, got in predictions.items()
                     if got["class3"] is None and f in by_file)
@@ -227,6 +237,8 @@ def score(arm: str, predictions: dict[str, dict], rows) -> dict:
         "abstention_rate": round(abstained / len(scored), 4) if scored else None,
         "balanced": (round(recall - float(np.mean(false_play)), 4)
                      if false_play and recalls else None),
+        "n_venue_01_play": len(v01),
+        "venue_01_play_recall_one_camera": round(float(np.mean(v01)), 4) if v01 else None,
         "recall_by_venue": ";".join(f"{v}={x:.3f}" for v, x in sorted(recalls.items())),
     }
 
@@ -241,10 +253,10 @@ def confusion(arm: str, predictions: dict[str, dict], rows) -> list[dict]:
             continue
         predicted = got["state"] or {EMPTY: "1_empty", PLAY: "2_playing",
                                      C3: "3_people_not_playing"}.get(got["class3"], "UNCERTAIN")
-        counts[(row.class4, predicted)] += 1
-    for (truth, predicted), n in sorted(counts.items()):
+        counts[(row.venue, row.class4, predicted)] += 1
+    for (venue, truth, predicted), n in sorted(counts.items()):
         accepted = {truth, predicted} <= {"3_people_not_playing", "4_maintenance"}
-        out.append({"arm": arm, "truth": truth, "predicted": predicted, "n": n,
+        out.append({"arm": arm, "venue": venue, "truth": truth, "predicted": predicted, "n": n,
                     "exact": truth == predicted, "accepted_confusion": accepted})
     return out
 
@@ -302,6 +314,14 @@ def main() -> int:
     print(f"\nrecall is the mean over {len({r.venue for r in rows if r.venue != 'venue_01'})} "
           f"held-out clip venues; false-play and EMPTY accuracy are on venue_01 camera B's "
           f"{scores[0]['n_control']} recorded empty frames.")
+    print(f"\nvenue_01's own {scores[0]['n_venue_01_play']} play frames, scored one camera at "
+          f"a time - NOT in the recall column above, and the cost A36 accepted:")
+    for s in scores:
+        print(f"  {s['arm']:<16}{number(s['venue_01_play_recall_one_camera']):>8.4f}")
+    print("  venue_01's pitch has two cameras and each sees about half of it, so a count "
+          "inside\n  one camera's boundary is routinely under five on a frame whose pitch "
+          "holds a match.\n  rule_slots.py's pitch-level sum is what is supposed to pay this "
+          "back; it is not yet run.")
     print("one frame at a time, inside one camera's boundary - no burst and no pitch-level "
           "sum, which is the hardest setting for a counting rule (A16: a camera sees half a "
           "pitch). rule_slots.py and rule_on_clips.py measure the system.")

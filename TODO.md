@@ -2219,13 +2219,29 @@ tagged with the question it answers. Fix that first — it is what turns a build
       (an abstained minute is a minute not captured — one mechanism, no new threshold);
       `frame_source.read_burst` (recording seeks; stream paces on its own frame rate, one
       connection); `vision/pitch_classifier.py`; `worker.run_slot` burst path.
-- [ ] **WP9-T4 Overlay + redaction.** `vision/overlay.py` (person masks, ball, outline, trace);
-      pages show it; `experiments/make_overlay_figures.py` under the redaction sweep.
+- [~] **WP9-T4 Overlay + redaction** — module done 2026-09-19. `vision/overlay.py` (people in
+      azure, ball in amber, boundary, badge, rule trace; a detection outside the boundary
+      dimmed rather than dropped; which were counted read back from `counting.py` rather than
+      recomputed); `explain.redact_frame` shares the two-layer rule with `make_xai_figures`;
+      `experiments/make_overlay_figures.py` → 9 figures, label agrees on 7 (+1 accepted 3↔4),
+      both disagreements being frames where the walker is outside camera A's outline.
+  - [ ] **WP9-T4a** Hook the overlay into `/clip`, `/images` and `/roi` — the pages still show
+        the probe's heatmap. `clip_walkthrough.walk_records` and `image_walkthrough` emit
+        `"heat"`; they need an `"overlay"` when the pipeline is detector-first, plus the count
+        and the trace, and `clip_page`/`image_page` need the pane renamed and the trace shown.
 - [ ] **WP9-T5 Thresholds frozen.** `experiments/fit_rule_thresholds.py` on venue_01 camera A
       only → `configs/rules.json` with `frozen_at`/`frozen_commit`.
-- [ ] **WP9-T6 Evaluation.** `ball_recovery`, `rule_frame_eval` (+4-class confusion),
-      `rule_on_clips`, `rule_on_unseen_clip`, `rule_slots`, `rule_ablation`; stages in
-      `reproduce_all.py`; claims in `thesis/claims.toml`; models tab row.
+- [~] **WP9-T6 Evaluation** — `rule_frame_eval` done 2026-09-19 (+ 4-class confusion):
+      detector-first **recall 0.996, false-play 0.000, EMPTY 0.889, balanced 0.996**, worst
+      venue 0.970 against the probe's 0.667; the probe arms reproduce `h3_with_false_play.csv`
+      first. The clock rule still wins on this corpus and loses 16–0 on real footage, and both
+      belong in the thesis together.
+  - [ ] **WP9-T6a** `ball_recovery` (the audit's tiling numbers are its first measurement:
+        recall 0.43 → 0.59, and 0.17 → 0.58 at `f_outdoor_bldg`), `rule_on_clips`,
+        `rule_on_unseen_clip` (the seam already reproduces 13/13; this is the CSV),
+        `rule_slots` (pitch-level sum + burst on the 4 recordings), `rule_ablation`.
+  - [ ] **WP9-T6b** Stages in `reproduce_all.py`; claims in `thesis/claims.toml`; the
+        detector-first row on the models tab (`api/models_view.py` needs a `RULES` group).
 - [ ] **WP9-T7 Production default + docs.** `default_model_key` → detector; CODEBASE.md
       regenerated; `configs/README.md`, `docs/runbook.md`, `thesis/ethics.md` lines; dated
       corrections under A20/A26 in `EXPERIMENT_LOG.md`.

@@ -6839,3 +6839,55 @@ every venue. There is nothing in it that can have memorised a camera, which is w
 > defect in its purest form. The CSVs from that run were deleted rather than kept, the arm now
 > defaults to the detector registry's own default and **raises** if it is handed anything whose
 > `kind` is not `detector`, and the table above is from the re-run.
+
+- 2026-09-19 | WP9-T6 pitch-level sum against a single camera | uv run python experiments/rule_pitch_pairs.py | rule_pitch_pairs.csv | 164 paired moments at venue_01: one camera 0.558 correct, the pitch sum 0.829 [0.768, 0.884]; play moments median 3 inside one camera and 8 across the pitch against a threshold of 5
+
+> **Correction to the entry above, 2026-09-19.** Its table reports cross-venue recall, which
+> follows h3's protocol and therefore measures the *held-out clip venues* only. venue_01's own
+> play frames are not in it, and scored one camera at a time the detector-first path reads them
+> as PLAYING **27.5% of the time** against the probe's 100%. The headline "beats the probe at
+> frame level" is true of the protocol and false of that half of the corpus, and the entry
+> above did not say so. `rule_frame_eval.py` now reports
+> `venue_01_play_recall_one_camera` as its own column, and the finding is measured below rather
+> than left as a caveat. Recorded rather than edited away.
+
+## Summing the two cameras pays back what one camera loses, and costs a little EMPTY (A36, WP9-T6)
+
+`experiments/rule_pitch_pairs.py`, `results/rule_pitch_pairs.csv`
+
+A36 registered the cost before it was measured: *"a venue where the detector misses far-side
+players will under-count... a recall cost, taken deliberately, in exchange for EMPTY becoming
+answerable"*, and `slots/fusion.fuse_pitch` is what is supposed to pay it back. venue_01 is the
+one pitch in the corpus with two cameras, so it is the one place the payment can be checked.
+
+164 moments where both cameras of the same recording have a frame at the same second, fused by
+summing the counts and applying the table once:
+
+| label | moments | one camera alone | the pitch sum | gain |
+|---|---|---|---|---|
+| `1_empty` | 65 | 0.8923 | 0.7846 | **−0.1077** |
+| `2_playing` | 99 | 0.3384 | **0.8586** | **+0.5202** |
+| all | 164 | 0.5579 | 0.8293 [0.768, 0.884] | +0.2713 |
+
+**The mechanism, in one line: on the 99 play moments the median count is 3 inside one camera's
+boundary and 8 across the pitch, and the threshold is 5.** The facility's rule is about a
+pitch, so it has to be applied to a pitch; applied to a half it asks the wrong question, and
+A16's 88-of-278 and the hand-count audit's 18-of-74 are the same fact seen twice more.
+
+**The EMPTY cost is real and is the price of summing.** Two cameras give a false person two
+chances to appear, and one is enough to take the pitch from EMPTY to C3 - so 0.89 becomes 0.78.
+It is the same 11% floor as before, arriving twice, and it is what `min_height_at` (WP9-T5) is
+fitted against; `detector_false_person_heights.csv` holds the distribution. Note what it is
+*not*: none of these became PLAYING, so the false-play rate stays at zero.
+
+**Only 164 of venue_01's 1,296 frames are paired moments** - 963 moments have a frame from one
+camera and not the other, because the extraction sampled the two recordings independently.
+Unpaired frames are dropped rather than fused with a near neighbour, since "the two halves of
+this moment" is the claim being tested. A larger paired set needs a re-extraction on a shared
+timebase, which is cheap and is worth doing before this number is quoted as final.
+
+**This is the fusion step alone**, on labelled stills, with no burst and no temporal smoothing.
+`rule_slots.py` running the whole path over the four recordings is what measures the system,
+and it is not yet written.
+
+- 2026-09-19 | WP9-T6 pitch-level sum against a single camera | uv run python experiments/rule_pitch_pairs.py | rule_pitch_pairs.csv | 164 paired moments at venue_01: one camera 0.558 correct, the pitch sum 0.829 [0.768, 0.884]; play recall 0.338 -> 0.859, EMPTY 0.892 -> 0.785; play moments median 3 inside one camera and 8 across the pitch against a threshold of 5
