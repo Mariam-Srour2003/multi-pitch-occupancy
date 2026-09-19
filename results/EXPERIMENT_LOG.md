@@ -6729,3 +6729,46 @@ implement `read_burst` - so no motion cue was available and rows 4 and 8 could n
 in any case.
 
 - 2026-09-19 | WP9-T3 rule engine on the unseen clip | uv run python scripts/run_slot_on_video.py data/raw/venue_unseen_2026-09-15/empty_floodlit_night.mp4 --every 15 --truth-csv configs/unseen_clip_truth.csv --model yolov8n | configs/rules.json | detector-first reads 13/13 empty samples EMPTY at 0.00 false-play, matching the gated probe with no trained component; rules unfrozen
+
+- 2026-09-19 | WP9-T4 overlay figures | uv run python experiments/make_overlay_figures.py --model yolov8n | figs/overlays/ | 9 redacted overlays from yolov8n; the label agrees with the rule on 7 of them, 1 more differ only between 3 and 4; people drawn 0 and the ball in another
+
+## The detector's explanation is the objects, not a heatmap (A36, WP9-T4)
+
+`src/pitch_occupancy/vision/overlay.py`, `experiments/make_overlay_figures.py`,
+`results/figs/overlays/`
+
+The probe's explanation had to be a heatmap: a logistic regression on mean-pooled features has
+no objects in it, only positions that push the score (`vision/explain.py`). The detector-first
+path has objects, so its explanation is the objects - people in azure, the ball in amber, the
+boundary in yellow, and the state, the count and the rule that fired written on the frame. The
+two explanations of the same footage are the comparison in visual form: one shows a count a
+reader can check against the picture, the other shows a region of the image.
+
+**A detection found outside the boundary is drawn dimmed rather than dropped.** "The detector
+found six people and counted three" is the thing this footage most often needs explained -
+the hand-count audit found 18 of 74 play frames with fewer than five people inside their own
+camera's outline - and an overlay that draws only the counted three cannot explain it.
+
+**Which detections were counted is read back from `vision/counting.py`, not recomputed.** The
+first version of the overlay re-derived inside-or-outside from the polygon, and a test caught
+it drawing an outside person as a counted one. A second implementation of "is this inside"
+drifts from the first, and it drifts *silently*, because a mis-drawn overlay looks exactly like
+a correct one. This is the same defect class as the two the seam closed.
+
+**Redaction is two layers and is now shared.** `vision/explain.redact_frame` is the rule
+`make_xai_figures.py` has followed since it was written - pixelate each detected person, then
+blur the whole frame so a missed detection is still not an identifiable face - lifted out of
+that script so A36's figures use one implementation rather than a copy. The overlay is computed
+from a verdict taken on the *original* frame and drawn over the redacted copy, which has
+identical geometry, and the drawing goes on after the blur so the outline and the text stay
+sharp while the frame underneath is destroyed.
+
+Nine figures, three per folder class, spread across venue and lighting. The rule agrees with
+the folder label on seven, and one more differs only between `3` and `4`, which A36 accepts.
+**The two disagreements are both the boundary, not the detector**: two of venue_01 camera A's
+three recorded C3 frames show the person walking on the far half, *outside* that camera's
+derived outline, so the rule reads the pitch as empty and says so in the trace. The hand-count
+audit recorded the same two frames the same way. The figure shows the outline, the walker
+outside it, and the sentence "0 people inside" together, which is what makes it checkable.
+
+- 2026-09-19 | WP9-T4 overlay figures | uv run python experiments/make_overlay_figures.py --per-class 3 --model yolov8n | figs/overlays/ | 9 redacted overlays; label agrees on 7, one more differs only 3<->4; both disagreements are frames where the person is outside the camera's derived boundary

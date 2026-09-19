@@ -411,6 +411,31 @@ def pixelate_boxes(image_bgr: np.ndarray, boxes: Sequence[tuple[int, int, int, i
     return out
 
 
+#: The blur applied to the whole frame regardless of what the detector found. Chosen so a face
+#: at this dataset's scale is unrecoverable while the pitch, the lines and the crowd/turf
+#: boundary - the things an overlay is read against - stay legible.
+FLOOR_BLUR_KERNEL = 21
+
+
+def redact_frame(image_bgr: np.ndarray, boxes: Sequence[tuple[int, int, int, int]],
+                 *, blocks: int = 16, floor_kernel: int = FLOOR_BLUR_KERNEL) -> np.ndarray:
+    """Pixelate the given people, then blur the whole frame. **Both, not either.**
+
+    The rule `experiments/make_xai_figures.py` has followed since it was written, lifted here
+    so every publishing path takes the same one rather than a copy of it (A36 added a second).
+    One layer is not enough: a detector that misses a distant player leaves an identifiable
+    face, and the floor of blur is what covers the miss. See `thesis/ethics.md` §2.
+
+    Takes boxes rather than detecting again, so the redaction is about the same detections as
+    whatever measurement is drawn beside it. A caller with no boxes still gets the floor.
+    """
+    import cv2
+
+    out = pixelate_boxes(image_bgr, list(boxes or []), blocks=blocks)
+    kernel = floor_kernel if floor_kernel % 2 else floor_kernel + 1
+    return cv2.GaussianBlur(out, (kernel, kernel), 0)
+
+
 def evidence_on_people(
     evidence: np.ndarray, boxes: Sequence[tuple[int, int, int, int]],
     shape: tuple[int, int],

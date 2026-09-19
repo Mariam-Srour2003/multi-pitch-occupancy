@@ -53,8 +53,8 @@ from pitch_occupancy.vision.explain import (
     evidence_on_people,
     load_for_attention,
     overlay_heatmap,
-    pixelate_boxes,
     probe_weights,
+    redact_frame,
     spatial_features,
 )
 from pitch_occupancy.vision.heads import LinearProbe
@@ -78,11 +78,13 @@ def redact(image_bgr: np.ndarray, boxes) -> np.ndarray:
 
     Takes the boxes rather than detecting again, so the redaction and the
     evidence-on-people measurement below are guaranteed to be about the same detections.
-    """
-    import cv2
 
-    out = pixelate_boxes(image_bgr, boxes or [])
-    return cv2.GaussianBlur(out, (FLOOR_BLUR_KERNEL, FLOOR_BLUR_KERNEL), 0)
+    The two layers now live in `vision/explain.redact_frame`, so this script and A36's
+    overlay figures share one implementation rather than two copies that can drift. The
+    behaviour is unchanged, and this wrapper stays because the name is what the enforcement
+    test in `tests/test_explain.py` looks for in a frame-publishing script.
+    """
+    return redact_frame(image_bgr, boxes or [], floor_kernel=FLOOR_BLUR_KERNEL)
 
 
 def choose_frames(rows, per_class: int) -> list:
