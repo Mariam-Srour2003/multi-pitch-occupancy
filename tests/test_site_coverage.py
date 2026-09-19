@@ -36,6 +36,45 @@ OUT_OF_SCOPE = {
     "error_taxonomy.csv": "WP4-T6: one row per misclassification, too granular for the export",
     "error_taxonomy_summary.csv": "WP4-T6: the per-protocol summary and its derived findings",
     "class_balancing.csv": "method: why class weighting stays on",
+    # WP9 (A36, the detector-first rebuild). The export has no WP9 section yet - the rebuild
+    # is mid-flight, its thresholds are unfrozen and its headline numbers are provisional on
+    # the [H] hand-count verification - so these are listed here **with an expiry**: WP9-T6b
+    # renders them and deletes these entries. Listing them without saying that would turn a
+    # temporary omission into a permanent one, which is the failure this whole file exists for.
+    "detector_audit.csv": (
+        "WP9-T2: seven detectors x two tilings against hand counts, empties and latency. "
+        "Selection artefact, not a headline - rendered by WP9-T6b."
+    ),
+    "detector_latency.csv": (
+        "WP9-T2: per-detector timings. Machine-dependent like every timing here, and the "
+        "Mini-PC (WP7-T1) is what settles the deployment claim - rendered by WP9-T6b."
+    ),
+    "detector_false_person_heights.csv": (
+        "WP9-T2: the height distribution of detections found on empty pitches, which is "
+        "what min_height_at is fitted against in WP9-T5. Method, not a result."
+    ),
+    "hand_counts.csv": (
+        "WP9-T0b: the counting truth the detector audit is scored against. A first pass by "
+        "eye with 47 of 100 frames marked unsure, awaiting [H] verification - a truth file "
+        "rather than a result, and not one to publish before it is verified."
+    ),
+    "overlay_index.csv": (
+        "WP9-T4: what each overlay figure shows. An index to figures, not a measurement."
+    ),
+    "rule_frame_eval.csv": (
+        "WP9-T6: the rule against the probe, the gated probe and the clock rule at frame "
+        "level. A headline in waiting - rendered by WP9-T6b, once the thresholds are frozen "
+        "(WP9-T5) and the hand counts verified, because the arms move when either lands."
+    ),
+    "rule_confusion_4class.csv": (
+        "WP9-T6: the 4-class confusion by venue, with 3<->4 marked as the confusion A36 "
+        "accepts. Belongs beside rule_frame_eval.csv and arrives with it."
+    ),
+    "rule_pitch_pairs.csv": (
+        "WP9-T6: what summing the two cameras of one pitch is worth (play 0.338 -> 0.859, "
+        "EMPTY 0.892 -> 0.785). 164 paired moments at one venue, and the pairing is thin "
+        "until the recordings are re-extracted on a shared timebase - arrives with WP9-T6b."
+    ),
     "person_count_clip_venues.csv": (
         "Person counts at all nine clip venues, every frame ACTIVE_PLAY. Confirms the "
         "rule does not miss play; cannot confirm it does not invent it, since no clip "

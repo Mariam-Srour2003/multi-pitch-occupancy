@@ -217,7 +217,8 @@ def _stub_records(client, video: bytes, query: str = "?interval_s=2&explain_n=0"
 def test_the_stream_is_newline_delimited_json_with_a_meta_and_a_done(
     tmp_path, monkeypatch
 ) -> None:
-    monkeypatch.setattr("pitch_occupancy.api.clip_review._CLASSIFIER", _StubClassifier())
+    monkeypatch.setattr("pitch_occupancy.api.clip_review._classifier",
+                        lambda: _StubClassifier())
     records = _stub_records(TestClient(app), _video(tmp_path / "c.mp4").read_bytes())
     assert records[0]["type"] == "meta"
     assert records[-1]["type"] == "done"
@@ -233,7 +234,8 @@ def test_the_walkthrough_deletes_the_upload_after_streaming(tmp_path, monkeypatc
     import tempfile
 
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
-    monkeypatch.setattr("pitch_occupancy.api.clip_review._CLASSIFIER", _StubClassifier())
+    monkeypatch.setattr("pitch_occupancy.api.clip_review._classifier",
+                        lambda: _StubClassifier())
     video = _video(tmp_path / "src.mp4").read_bytes()
 
     records = _stub_records(TestClient(app), video)
@@ -255,7 +257,8 @@ def test_an_unreadable_upload_reports_an_error_record(tmp_path, monkeypatch) -> 
     import tempfile
 
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
-    monkeypatch.setattr("pitch_occupancy.api.clip_review._CLASSIFIER", _StubClassifier())
+    monkeypatch.setattr("pitch_occupancy.api.clip_review._classifier",
+                        lambda: _StubClassifier())
     records = _stub_records(TestClient(app), b"definitely not a video")
     assert records[-1]["type"] == "error"
     assert not [p for p in tmp_path.iterdir() if p.suffix == ".upload"]
