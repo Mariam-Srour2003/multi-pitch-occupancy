@@ -39,7 +39,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from pitch_occupancy.api.clip_review import _classifier
+from pitch_occupancy.api.clip_review import _classifier, _gates
 from pitch_occupancy.api.clip_walkthrough import _jpeg
 
 __all__ = ["router", "MAX_IMAGES", "MAX_IMAGE_BYTES", "MAX_TOTAL_BYTES"]
@@ -100,24 +100,34 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
     # ids; `get` did not (A36).
     polygon = roi.resolve(camera) if camera else None
     classifier = _classifier()
+    # The person gate, which is the one deployed overrule a still can carry: the motion gate
+    # compares a frame to the previous sample of the same camera and a folder of stills has
+    # no such thing. That absence is reported in the meta record rather than left to be
+    # inferred, because on this project's footage the motion gate is what catches most empty
+    # frames - so a still is judged with the weaker half of the deployed path.
+    _, person_gate = _gates()
     yield json.dumps({
         "type": "meta", "backbone": getattr(classifier, "backbone", "?"),
         "n_train": getattr(classifier, "n_train", 0), "redacted": redact,
         "n_submitted": len(paths), "camera": camera or None,
         "boundary": bool(polygon),
         "coverage": roi.coverage(polygon) if polygon else 1.0,
+        "gated": person_gate is not None, "motion_gate": False,
     }) + "\n"
 
     seen = 0
+    gated = 0
     for shot in walk_images(paths, classifier, explain_n=explain_n, redact=redact,
-                            polygon=polygon):
+                            polygon=polygon, person_gate=person_gate):
         seen += 1
+        gated += shot.probed is not None
         record = {
             "type": "shot", "index": shot.index,
             "name": names[shot.index] if shot.index < len(names) else shot.name,
             "predicted": shot.predicted, "confidence": shot.confidence,
             "elapsed_ms": round(shot.elapsed_ms, 1), "explained": shot.explained,
             "width": shot.width, "height": shot.height,
+            "probed": shot.probed, "n_inside": shot.n_inside, "ball": shot.ball,
         }
         if shot.explained:
             record.update({
@@ -142,7 +152,8 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
     # `n` and `n_submitted` are both reported because they can differ: a file OpenCV cannot
     # decode yields nothing rather than a guess, and a page that showed only the count it
     # managed would silently drop the difference.
-    yield json.dumps({"type": "done", "n": seen, "n_unreadable": len(paths) - seen}) + "\n"
+    yield json.dumps({"type": "done", "n": seen, "n_unreadable": len(paths) - seen,
+                      "n_gated": gated}) + "\n"
 
 
 @router.post("/images/walkthrough", include_in_schema=False)

@@ -34,7 +34,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
-from pitch_occupancy.api.clip_review import MAX_UPLOAD_BYTES, _classifier, _clock
+from pitch_occupancy.api.clip_review import MAX_UPLOAD_BYTES, _classifier, _clock, _gates
 from pitch_occupancy.clip_analysis import DEFAULT_INTERVAL_S
 
 __all__ = ["router", "JPEG_WIDTH"]
@@ -82,22 +82,36 @@ def walk_records(path: Path, *, interval_s: float, explain_n: int,
     # boundary was meant to prevent. `resolve` knows production's camera ids; `get` did not.
     polygon = roi.resolve(camera) if camera else None
     classifier = _classifier()
+    # The same two gates the Analyse tab applies, through the same factory, because two tabs
+    # showing different answers for one clip is the defect A35 was about. Until 2026-09-19
+    # this page passed none of them and streamed the probe alone - reported from use, an
+    # empty floodlit pitch stepped through as ACTIVE_PLAY at 0.999 on almost every frame
+    # while Analyse called the same footage EMPTY and said so.
+    motion_gate, person_gate = _gates()
     yield json.dumps({
         "type": "meta", "backbone": getattr(classifier, "backbone", "?"),
         "n_train": getattr(classifier, "n_train", 0), "redacted": redact,
         "camera": camera or None, "boundary": bool(polygon),
         "coverage": roi.coverage(polygon) if polygon else 1.0,
+        "gated": motion_gate is not None or person_gate is not None,
     }) + "\n"
 
     seen = 0
+    gated = 0
     for step in walk_clip(path, classifier, interval_s=interval_s,
-                          explain_n=explain_n, redact=redact, polygon=polygon):
+                          explain_n=explain_n, redact=redact, polygon=polygon,
+                          motion_gate=motion_gate, person_gate=person_gate):
         seen += 1
+        gated += step.probed is not None
         record = {
             "type": "step", "index": step.index, "t_s": step.t_s,
             "clock": _clock(step.t_s), "predicted": step.predicted,
             "confidence": step.confidence, "elapsed_ms": round(step.elapsed_ms, 1),
             "explained": step.explained,
+            # What the probe said before a gate overruled it, and what the gate saw. The
+            # page shows the correction rather than silently serving the weakened verdict.
+            "probed": step.probed, "n_inside": step.n_inside, "ball": step.ball,
+            "motion": None if step.motion is None else round(step.motion, 3),
         }
         if step.explained:
             record.update({
@@ -119,7 +133,7 @@ def walk_records(path: Path, *, interval_s: float, explain_n: int,
             })
         yield json.dumps(record) + "\n"
 
-    yield json.dumps({"type": "done", "n": seen}) + "\n"
+    yield json.dumps({"type": "done", "n": seen, "n_gated": gated}) + "\n"
 
 
 @router.post("/clip/walkthrough", include_in_schema=False)

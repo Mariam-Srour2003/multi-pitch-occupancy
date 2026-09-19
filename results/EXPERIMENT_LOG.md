@@ -6891,3 +6891,63 @@ timebase, which is cheap and is worth doing before this number is quoted as fina
 and it is not yet written.
 
 - 2026-09-19 | WP9-T6 pitch-level sum against a single camera | uv run python experiments/rule_pitch_pairs.py | rule_pitch_pairs.csv | 164 paired moments at venue_01: one camera 0.558 correct, the pitch sum 0.829 [0.768, 0.884]; play recall 0.338 -> 0.859, EMPTY 0.892 -> 0.785; play moments median 3 inside one camera and 8 across the pitch against a threshold of 5
+
+## "Watch it work" was running the probe alone, and had been since it was written (A37)
+
+`src/pitch_occupancy/vision/walkthrough.py`, `api/clip_walkthrough.py`,
+`api/image_walkthrough.py`, `api/clip_page.py`
+
+**Reported from use, which is the second time a defect of this shape has been found that
+way.** On one clip of an empty floodlit pitch, at 4-second spacing with `cam2`'s stored
+outline, the two tabs of the same page disagreed completely:
+
+| tab | verdicts | what it said about itself |
+|---|---|---|
+| Analyse | 53 EMPTY, 6 C3, 0 PLAY | *"58 verdicts were weakened by the gates"* |
+| Watch it work | `C2_ACTIVE_PLAY` at 0.999 on almost every frame | *"scored by the linear probe"* |
+
+Both had the boundary. Neither was wrong about what it was doing - the walkthrough's own
+blurb said it showed the probe, and it did. `walk_clip` took a classifier and a polygon and
+**no gates**, so it streamed the raw probe, which on an empty floodlit pitch answers
+ACTIVE_PLAY at 0.999 (A20: 0 EMPTY verdicts in 243 held-out empty frames; A26: 7 of 16
+minutes wrong on this very clip). The Analyse tab looked right only because the gates rescued
+it on nearly every frame.
+
+**A35 named this endpoint.** Its closing paragraph read: *"The worker, this page, and the
+`/images` and `/roi` walkthrough endpoints each build their own classifier call; only the
+worker and now this one have the boundary and the gates... the next report of this kind will
+come from there."* It did, from there, on the next clip a person looked at. Writing the
+prediction down did not prevent it; only closing it would have.
+
+**What changed.** `walk_clip` and `walk_images` take the gates, as `analyse_clip` has since
+A35, and for the same reason they cannot be applied by wrapping the classifier: the motion
+gate compares a frame to the *previous sample*, and only the loop sees the samples in order.
+Both streaming endpoints take theirs from `clip_review._gates`, the one factory, so what the
+system deploys reaches every page at once.
+
+**The verdict is the system's and the evidence map is still the probe's, and the page now says
+which is which.** Those are two different objects and both belong there: the map is an exact
+decomposition of the probe's score, so on an overruled frame it shows what the probe was
+reading - which is the frame most worth looking at. The pre-gate verdict is struck through
+beside the answer, with the reason the gate gave, exactly as the Analyse table shows it.
+
+**Measured after the fix, on the clip that was reported**, 59 samples at 4 s:
+
+| | Analyse | Watch it work | agree |
+|---|---|---|---|
+| verdicts | 53 EMPTY, 6 C3 | 53 EMPTY, 6 C3 | **59 / 59** |
+
+and the gates overruled the probe on **52 of those 59 frames**. `tests/test_walkthrough_gates.py`
+pins the property rather than the plumbing: the same frames through `analyse_clip` and
+`walk_clip` produce the same verdicts.
+
+**What this does not fix, stated so it is not found the same way a third time.**
+`api/roi_editor.py`'s preview calls `explain_frame` directly and still shows the probe alone -
+which is arguably correct for a boundary editor, whose job is to show what an outline does to
+the *model's* reading, but nothing on that page says so. A still can never carry the motion
+gate at all, and on this footage the motion gate is what catches most empty frames: on the
+clip above it settled the verdict before the person gate was consulted on 52 of 59 frames. So
+`/images` is judged by the weaker half of the deployed path, which its meta record now
+reports and its page does not yet display.
+
+- 2026-09-19 | A37 the walkthrough pages apply the deployed gates | uv run python -m pytest tests/test_walkthrough_gates.py | walkthrough.py | Watch it work streamed the probe alone and answered ACTIVE_PLAY 0.999 on an empty floodlit pitch while Analyse answered EMPTY on the same clip; both tabs now agree 59/59, gates overruling the probe on 52

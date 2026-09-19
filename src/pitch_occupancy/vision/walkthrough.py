@@ -91,6 +91,19 @@ class Step(_Explained):
     predicted: str
     confidence: float
     elapsed_ms: float
+    #: What the probe said before a gate overruled it, or None when none did. ``predicted``
+    #: is the verdict *after* the gates, because that is what the system answers - while the
+    #: evidence map below still decomposes the probe's own score, which is the thing it is a
+    #: decomposition of. A page showing one of those without the other is how A35 happened,
+    #: and showing the probe's verdict alone is how it happened again on this page.
+    probed: str | None = None
+    #: People inside the boundary and whether a ball was there, from the person gate's own
+    #: detector pass. None means the gate did not run - a different fact from zero.
+    n_inside: int | None = None
+    ball: bool | None = None
+    #: The motion cue against the previous sampled frame; None on the first, which has no
+    #: predecessor and therefore no cue.
+    motion: float | None = None
     #: BGR frame as decoded, redacted only if the caller asked. None once explaining stops.
     frame_bgr: np.ndarray | None = None
     #: The per-position contribution map, in score units, at the backbone's patch grid.
@@ -126,6 +139,12 @@ class Shot(_Explained):
     predicted: str
     confidence: float
     elapsed_ms: float
+    #: As on :class:`Step`. A still has no predecessor, so the motion gate cannot run here
+    #: and only the person gate speaks - stated rather than left to be inferred from a
+    #: missing number.
+    probed: str | None = None
+    n_inside: int | None = None
+    ball: bool | None = None
     width: int = 0
     height: int = 0
     frame_bgr: np.ndarray | None = None
@@ -143,6 +162,38 @@ class Shot(_Explained):
     #: The boundary this frame was analysed under, in frame fractions, for the caller that
     #: wants to draw it on something other than ``frame_bgr``.
     polygon: list[list[float]] | None = None
+
+
+def _gate(state, confidence, frame, polygon, *, previous=None,
+          motion_gate=None, person_gate=None):
+    """Apply the deployed gates to one frame's verdict. Returns what they made of it.
+
+    The same two overrules `clip_analysis.analyse_clip` applies, in the same order, for the
+    same reason: the probe alone is not the system, and a page showing the probe alone is
+    showing something nobody deploys. **This page showed exactly that until 2026-09-19** -
+    reported from use, a clip of an empty floodlit pitch stepped through as ACTIVE_PLAY at
+    confidence 0.999 on almost every frame, while the Analyse tab on the same footage and the
+    same boundary answered EMPTY and said *58 verdicts were weakened by the gates*. Two tabs,
+    one clip, opposite answers. A35 closed this on the analyse path and named the walkthrough
+    endpoints as where it would surface next; it did.
+
+    Returns ``(state, probed, n_inside, ball, motion)`` where ``probed`` is the pre-gate
+    verdict when a gate changed it and None when none did, so a caller can show the
+    correction rather than silently replacing one answer with another.
+    """
+    from pitch_occupancy.data.taxonomy import Class3
+
+    before = Class3(state)
+    state = before
+    motion = None
+    n_inside = ball = None
+    if motion_gate is not None and previous is not None:
+        state, motion = motion_gate.apply(state, previous, frame, polygon)
+    if person_gate is not None:
+        state, counted = person_gate.inspect(state, frame, polygon)
+        if counted is not None:
+            n_inside, ball = counted.people, counted.ball
+    return state, (str(before) if state is not before else None), n_inside, ball, motion
 
 
 def _classify(classifier, frame, polygon):
@@ -248,6 +299,8 @@ def walk_clip(
     max_samples: int = 360,
     polygon: list[list[float]] | None = None,
     roi_fill: str = "black",
+    motion_gate: object | None = None,
+    person_gate: object | None = None,
 ) -> Iterator[Step]:
     """Yield one :class:`Step` per sampled frame, as soon as each is computed.
 
@@ -270,6 +323,19 @@ def walk_clip(
     :func:`explain_frame` drops those positions from the pooling so the *fill* is not scored
     either. With only the first, a boundary replaced one distraction with another - a large
     uniform region the probe still averaged in and the evidence map still coloured.
+
+    ``motion_gate`` and ``person_gate`` are the deployed overrules, and passing neither
+    reproduces this function's behaviour before 2026-09-19 - which was the probe alone, and
+    was a bug on every page that called it (see :func:`_gate`). They cannot be applied by
+    wrapping ``classifier``: the motion gate compares a frame to the *previous sample*, and
+    this loop is the only thing that sees the samples in order. The same reasoning, and the
+    same parameters, as `clip_analysis.analyse_clip`.
+
+    **The step's ``predicted`` is the gated verdict and its evidence map is the probe's.**
+    Those are two different objects and both belong on the page: the map is an exact
+    decomposition of the probe's score, so it explains what the probe saw - including on a
+    frame where a gate then overruled it, which is precisely the frame worth looking at.
+    ``probed`` carries the pre-gate verdict so the page can show the correction.
     """
     import time
 
@@ -291,6 +357,7 @@ def walk_clip(
             interval_s = duration_s / max_samples
 
         index, t = 0, 0.0
+        previous = None
         while duration_s <= 0 or t < duration_s:
             capture.set(cv2.CAP_PROP_POS_MSEC, t * 1000.0)
             ok, frame = capture.read()
@@ -306,17 +373,29 @@ def walk_clip(
 
             if not explaining:
                 state, confidence = _classify(classifier, frame, polygon)
+                state, probed, n_inside, ball, motion = _gate(
+                    state, confidence, frame, polygon, previous=previous,
+                    motion_gate=motion_gate, person_gate=person_gate)
+                previous = frame
                 yield Step(index=index, t_s=t, predicted=str(state), confidence=confidence,
                            elapsed_ms=(time.perf_counter() - began) * 1000,
+                           probed=probed, n_inside=n_inside, ball=ball, motion=motion,
                            polygon=polygon)
                 index += 1
                 t += interval_s
                 continue
 
+            explained = explain_frame(frame, classifier, redact=redact, polygon=polygon)
+            state, probed, n_inside, ball, motion = _gate(
+                explained["predicted"], explained["confidence"], frame, polygon,
+                previous=previous, motion_gate=motion_gate, person_gate=person_gate)
+            previous = frame
+            explained["predicted"] = str(state)
             yield Step(
                 index=index, t_s=t,
                 elapsed_ms=(time.perf_counter() - began) * 1000,
-                **explain_frame(frame, classifier, redact=redact, polygon=polygon),
+                probed=probed, n_inside=n_inside, ball=ball, motion=motion,
+                **explained,
             )
             index += 1
             t += interval_s
@@ -335,6 +414,7 @@ def walk_images(
     max_images: int = 64,
     polygon: list[list[float]] | None = None,
     roi_fill: str = "black",
+    person_gate: object | None = None,
 ) -> Iterator[Shot]:
     """Yield one :class:`Shot` per readable image, as soon as each is computed.
 
@@ -363,6 +443,14 @@ def walk_images(
     the neighbouring pitch from the pixels, and the pooling removes the filled positions from
     the average, so what is outside the outline stops reaching the probe rather than reaching
     it as a black rectangle.
+
+    ``person_gate`` is the one deployed overrule a still can carry. **The motion gate cannot
+    run here at all**, and that is the honest limit of this page rather than an oversight:
+    it compares a frame to the previous *sample of the same camera*, and a folder of stills
+    has no such thing - the same absence that rules out neighbour smoothing. On the footage
+    this project has, the motion gate is what catches most empty frames (on one clip it
+    settled 56 of 59 before the person gate was consulted), so a still is judged with the
+    weaker half of the deployed path and the page has to say so.
     """
     import time
 
@@ -382,15 +470,24 @@ def walk_images(
         explaining = explain_n == EXPLAIN_ALL or index < explain_n
         if not explaining:
             state, confidence = _classify(classifier, frame, polygon)
+            state, probed, n_inside, ball, _ = _gate(
+                state, confidence, frame, polygon, person_gate=person_gate)
             yield Shot(
                 index=index, name=source.name, predicted=str(state),
                 confidence=confidence, width=width, height=height,
+                probed=probed, n_inside=n_inside, ball=ball,
                 elapsed_ms=(time.perf_counter() - began) * 1000, polygon=polygon,
             )
             continue
 
+        explained = explain_frame(frame, classifier, redact=redact, polygon=polygon)
+        state, probed, n_inside, ball, _ = _gate(
+            explained["predicted"], explained["confidence"], frame, polygon,
+            person_gate=person_gate)
+        explained["predicted"] = str(state)
         yield Shot(
             index=index, name=source.name, width=width, height=height,
             elapsed_ms=(time.perf_counter() - began) * 1000,
-            **explain_frame(frame, classifier, redact=redact, polygon=polygon),
+            probed=probed, n_inside=n_inside, ball=ball,
+            **explained,
         )

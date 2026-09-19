@@ -173,7 +173,11 @@ def test_a_skipped_file_is_reconcilable_from_the_done_record(tmp_path) -> None:
 
     records = [json.loads(line) for line in response.text.strip().splitlines()]
     assert records[0]["n_submitted"] == 1
-    assert records[-1] == {"type": "done", "n": 0, "n_unreadable": 1}
+    # Exact, not a subset: the done record is what a page reconciles its counts from, and a
+    # field appearing in it unannounced is a field nobody accounted for. `n_gated` arrived on
+    # 2026-09-19, when the walkthrough endpoints started applying the deployed gates - it is
+    # 0 here because nothing was readable, so there was no verdict for a gate to overrule.
+    assert records[-1] == {"type": "done", "n": 0, "n_unreadable": 1, "n_gated": 0}
 
 
 def test_a_data_url_prefix_is_accepted(tmp_path) -> None:

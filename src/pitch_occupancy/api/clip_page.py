@@ -136,6 +136,7 @@ del{color:var(--ink-3);text-decoration-color:var(--flag);margin-right:7px}
 .panes img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:var(--surface-2)}
 .panes figcaption{font:500 10.5px 'JetBrains Mono',monospace;letter-spacing:.09em;
   text-transform:uppercase;color:var(--ink-3);padding:9px 13px;border-top:1px solid var(--line)}
+.struck{text-decoration:line-through;opacity:.55}
 .verdictbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;
   background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 14px}
 .verdictbar .spacer{margin-left:auto}
@@ -198,10 +199,15 @@ editor</a>.</p>
 
 <div id="stage">
   <h2>Watching it work</h2>
-  <p class="sub2">Each frame is sampled, embedded by the frozen backbone, and scored by the
-    linear probe. The overlay is <b>not a saliency heuristic</b> — the probe is linear over
-    mean-pooled features, so the map below <i>is</i> the summands of the score, and the
-    reconstruction error beside it proves that rather than asserting it.</p>
+  <p class="sub2">Each frame is sampled, embedded by the frozen backbone, scored by the
+    linear probe, and then <b>put through the same two gates the Analyse tab applies</b> —
+    so the verdict here is the system's, not the probe's, and the two tabs agree about one
+    clip. Where a gate overruled the probe, the probe's verdict is struck through beside the
+    answer and the reason is given. The overlay is <b>not a saliency heuristic</b> — the
+    probe is linear over mean-pooled features, so the map below <i>is</i> the summands of the
+    probe's score, and the reconstruction error beside it proves that rather than asserting
+    it. It keeps explaining the <i>probe</i> even on an overruled frame, which is exactly the
+    frame worth looking at.</p>
 
   <div class="stagebar">
     <span class="stagenow" id="stage-step">waiting</span>
@@ -225,10 +231,13 @@ editor</a>.</p>
 
   <div class="verdictbar" id="verdictbar">
     <span class="pill" id="v-pred">&mdash;</span>
+    <span class="mono struck" id="v-probed"></span>
     <span class="mono" id="v-conf"></span>
     <span class="spacer"></span>
+    <span class="mono" id="v-gate"></span>
     <span class="mono" id="v-ms"></span>
   </div>
+  <p class="note" id="gatenote" style="display:none"></p>
 
   <div class="tiles" style="margin-top:14px">
     <div class="tile"><div class="k">Score from map</div>
@@ -385,7 +394,30 @@ function paint(s){
   $('stage-step').textContent='step '+s.index+'  ·  '+s.clock;
   $('v-pred').textContent=s.predicted;
   $('v-pred').className='pill '+s.predicted;
-  $('v-conf').textContent='confidence '+s.confidence.toFixed(3);
+  // The gated verdict is the headline and the probe's is struck through beside it, the way
+  // the Analyse table shows them. The confidence belongs to the probe either way - it is the
+  // probe's class probability and a gate does not produce one - so it is labelled as the
+  // probe's whenever a gate spoke, rather than reading as the system's confidence in a
+  // verdict the probe never gave.
+  $('v-probed').textContent=s.probed?s.probed:'';
+  $('v-conf').textContent=(s.probed?'probe confidence ':'confidence ')+s.confidence.toFixed(3);
+  var saw=[];
+  if(s.n_inside!==null&&s.n_inside!==undefined){
+    saw.push(s.n_inside+' inside'+(s.ball?' + ball':''));
+  }
+  if(s.motion!==null&&s.motion!==undefined){saw.push('motion '+s.motion.toFixed(2));}
+  $('v-gate').textContent=saw.join('  ·  ');
+  var note=$('gatenote');
+  if(s.probed){
+    var why=(s.n_inside===0)
+      ? 'nobody was inside the outline, and a pitch with nobody on it is not a match'
+      : (s.n_inside>0 ? 'a small group with no ball is present but not playing'
+                      : 'nothing moved between this frame and the previous sample');
+    note.style.display='';
+    note.textContent='The probe said '+s.probed+' — a gate overruled it, because '+why+
+      '. The evidence map below still decomposes the probe’s own score, so it shows what '+
+      'the probe was reading; on an overruled frame that is the thing worth looking at.';
+  }else{note.style.display='none';}
   $('v-ms').textContent=Math.round(s.elapsed_ms)+' ms'+(s.explained?' (explained)':'');
 
   if(s.explained){
