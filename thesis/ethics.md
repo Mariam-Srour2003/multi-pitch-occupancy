@@ -23,6 +23,12 @@ Consequences that follow from this, and that the thesis must honour:
    `augmentation_grid.py` had not, and had committed and served a night-match sheet with six
    unpixelated players. It now redacts, and the run prints how many boxes it found — a
    detector that finds nobody has not established that nobody was there.)*
+   *(Extended 2026-09-19, A36. The two layers — pixelate each detected person, then blur the
+   whole frame so a missed detection is still not an identifiable face — now live in one
+   place, `vision/explain.redact_frame`, rather than a copy per script. A36's detector
+   overlays draw on the redacted copy and are computed from a verdict taken on the original,
+   so drawing boxes and masks over people changes nothing about this commitment: the pixels
+   under a mask are the redacted ones.)*
    **What this does not undo:** `results/figs/venue_check/` holds five audit sheets of
    operator footage with visible players, committed in September and therefore in git
    history. `api/app.py` refuses to serve them and says why, but a repository is handed over

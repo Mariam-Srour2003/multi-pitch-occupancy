@@ -6772,3 +6772,70 @@ audit recorded the same two frames the same way. The figure shows the outline, t
 outside it, and the sentence "0 people inside" together, which is what makes it checkable.
 
 - 2026-09-19 | WP9-T4 overlay figures | uv run python experiments/make_overlay_figures.py --per-class 3 --model yolov8n | figs/overlays/ | 9 redacted overlays; label agrees on 7, one more differs only 3<->4; both disagreements are frames where the person is outside the camera's derived boundary
+
+- 2026-09-19 | WP9-T6 rule vs probe at frame level | uv run python experiments/rule_frame_eval.py | rule_frame_eval.csv | clock_rule recall 1.000 false-play 0.021 EMPTY 0.979; dinov2 recall 0.930 false-play 0.309 EMPTY 0.000; dinov2_gated recall 0.929 false-play 0.012 EMPTY 0.889; detector_first recall 0.999 false-play 0.012 EMPTY 0.988; best balanced: detector_first; one frame per camera, no burst, no pitch sum
+
+- 2026-09-19 | WP9-T6 rule vs probe at frame level | uv run python experiments/rule_frame_eval.py | rule_frame_eval.csv | clock_rule recall 1.000 false-play 0.021 EMPTY 0.979; dinov2 recall 0.930 false-play 0.309 EMPTY 0.000; dinov2_gated recall 0.929 false-play 0.012 EMPTY 0.889; detector_first recall 0.996 false-play 0.000 EMPTY 0.889; best balanced: detector_first; one frame per camera, no burst, no pitch sum
+
+## The rule beats the probe and the gated probe at frame level, and ties the clock rule the corpus flatters (A36, WP9-T6)
+
+`experiments/rule_frame_eval.py`, `results/rule_frame_eval.csv`, `rule_confusion_4class.csv`
+
+Four arms, the same recorded development frames, the controls A20 fixed: cross-venue play
+recall over the seven held-out clip venues, the false-play rate and EMPTY accuracy on
+venue_01 camera B's 243 recorded empty frames, and the abstention rate beside them. Ranked on
+`balanced = recall − false_play`. One frame at a time, inside one camera's boundary - **no
+burst and no pitch-level sum**, which is the hardest setting for a counting rule and therefore
+a floor rather than the system's answer.
+
+| arm | recall | 95% CI | worst venue | false-play | EMPTY acc | said C3 on empty | balanced |
+|---|---|---|---|---|---|---|---|
+| **detector-first** | 0.9957 | [0.965, 0.997] | **0.970** | **0.0000** | 0.8889 | 0.1111 | **0.9957** |
+| clock rule | 1.0000 | [1.000, 1.000] | 1.000 | 0.0206 | 0.9794 | 0.0000 | 0.9794 |
+| dinov2 + person gate | 0.9289 | [0.911, 0.965] | 0.667 | 0.0123 | 0.8889 | 0.0988 | 0.9165 |
+| dinov2 probe alone | 0.9297 | [0.915, 0.968] | 0.667 | 0.3086 | **0.0000** | 0.6914 | 0.6211 |
+
+**The harness reproduces the published table before it reports anything new.** The probe's
+0.9297 and 0.3086 are `h3_with_false_play.csv`'s numbers to four places, so a difference here
+is a difference in the arm and not in the measurement.
+
+**The detector-first arm never once called a held-out empty pitch a match.** Zero of 243,
+against the probe's 75. And it does it without the collapse the probe has at an unseen venue:
+its worst fold is **0.970** where the probe's is **0.667**, both at `clipvenue_h_teal_pitch`.
+The probe's recall is an average over folds one of which it fails badly; the rule's is not.
+
+**The remaining 11% of EMPTY is the floor this corpus has, and it is a boundary problem.**
+The rule calls 27 of 243 empty frames C3 - one to four people found inside the outline where
+there were none. A16 measured the same 11% from the other side: venue_01 camera B's hull
+reaches past the goal line into the car park, so goal posts, bags and parked cars are inside
+it. That is what `min_height_at` (WP9-T5) is fitted against, and
+`detector_false_person_heights.csv` already holds the height distribution it needs - the
+false detections on empty frames sit at p50 52 px where a real player at that depth is taller.
+It is *not* a false-play: none of the 27 became a match, and at slot level 27 C3 minutes in an
+hour cannot reach the USED threshold.
+
+**The clock rule's row is the one to read carefully, and it is why this table is not the
+headline.** It scores 1.000 recall and 0.9794 EMPTY accuracy here by reading the lighting and
+nothing else, because in this corpus night is 99% play and day is 98% empty (A25, A26). On
+the one piece of footage that breaks the shortcut - the floodlit pitch with nobody on it - it
+calls **16 of 16 minutes ACTIVE_PLAY and gets 0 of 13 empty minutes right**, where the
+detector-first path gets **13 of 13** (A26, and reproduced through the seam this week). So the
+corpus comparison flatters the clock rule and the real-footage comparison destroys it, and
+both belong in the thesis together. A table that showed only this one would be the same
+mistake A25 made.
+
+**What the arms are not is as important as what they score.** The probe arms are fitted per
+fold - leave-one-venue-out for recall, camera A for the control - and the detector-first arm
+is fitted on **nothing at all**: no backbone, no feature cache, no head, the same rule at
+every venue. There is nothing in it that can have memorised a camera, which is what
+`empty_recognition.csv` showed the probe's EMPTY had done.
+
+- 2026-09-19 | WP9-T6 rule vs probe at frame level | uv run python experiments/rule_frame_eval.py | rule_frame_eval.csv | detector_first recall 0.996 false-play 0.000 EMPTY 0.889 balanced 0.996; clock_rule 1.000/0.021/0.979; dinov2_gated 0.929/0.012/0.889; dinov2 0.930/0.309/0.000; probe arms reproduce h3_with_false_play.csv; one frame per camera, no burst, no pitch sum
+
+> **A correction to the first run of this script, recorded rather than edited away.** Its
+> `detector_first` arm was handed `settings.default_model_key`, which is still `dinov2` until
+> WP9-T7 - so it assembled the *probe*, measured it, and labelled the answers `detector_first`.
+> A whole arm measuring the wrong thing under the right name, which is this project's recurring
+> defect in its purest form. The CSVs from that run were deleted rather than kept, the arm now
+> defaults to the detector registry's own default and **raises** if it is handed anything whose
+> `kind` is not `detector`, and the table above is from the re-run.

@@ -23,6 +23,14 @@ runbook that does not distinguish those is a wish list.
 | 6 | confidence collapses facility-wide | nothing automatic — `review_below_confidence` is **0.0 and therefore inert** | **not implemented, deliberately** |
 | 7 | disk fills | `run_slot` checks free space **once, before the first write**, and disables evidence images for that slot rather than filling the disk mid-run — the verdict is still produced. A disk it cannot measure is written to anyway | **enforced** (`retention.has_room`, 500 MB floor) |
 | 8 | the booking export is stale or absent | a day outside the export's span reconciles to **NEEDS_REVIEW (info)**, never to an anomaly — `bookings.covers` answers whether the export reaches the date, and the check runs before anything that can return SERIOUS. An empty export covers nothing rather than everything | **enforced** (`reconcile(..., records_cover_this_day=)`) |
+| 9 | **a camera has no pitch boundary** | every minute of that camera is `UNCERTAIN` — the detector never runs and no verdict is formed for it. The other camera still decides the pitch, at **half the confidence**; if neither has one, the minutes count as not captured and row 3 makes the slot `REVIEW`. The run names the cameras (`SlotRun.uncertain_cameras`) and the startup line says so before a stream is opened | **enforced** (A36, `pipeline.require_boundary`) |
+| 10 | the detector's weights are missing or will not load | the same: `UNCERTAIN`, never EMPTY. "Not checked" and "checked, found nobody" are different values throughout (`detect` returns `None` against `[]`), so a broken install cannot report every pitch empty | **enforced** (A36, `vision/detector.py`) |
+
+**Fixing row 9.** Draw the outline at `/roi`, or let the worker measure one:
+`uv run python -m pitch_occupancy.worker --source live --derive-roi` writes a boundary derived
+from the footage to `configs/roi_derived.json` under the production camera id, and prints what
+it kept. A derived outline is a fallback and weaker than a drawn one — confirm it at `/roi`,
+where drawing over it is how you correct it.
 
 ## Why rows 3 and 6 are treated differently
 
