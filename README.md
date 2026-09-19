@@ -240,6 +240,58 @@ uv run pitch info       # show resolved config and check the expected paths exis
 uv run pytest           # run the test suite
 ```
 
+### Coming from `main` to the detector-first branch
+
+The rebuild (A36, WP9) lives on `rebuild/detector-first-occupancy`. **Nothing here is
+trained**, which is the shortest way to say what changed: the deployed path counts people
+with an off-the-shelf detector and decides with a written rule, so there is no fitting step
+to run and no checkpoint to restore.
+
+```bash
+git fetch origin
+git switch rebuild/detector-first-occupancy
+uv sync                    # ultralytics arrives here; the lockfile is committed
+uv run pitch fetch-weights # ~80 MB of YOLO weights - the one download
+uv run pitch info          # every path should read [ok]
+uv run pytest -m "not slow"
+```
+
+Three things a clone does not carry, in the order they bite:
+
+| what | why it is missing | how to get it |
+|---|---|---|
+| **detector weights** (`*.pt`, ~80 MB) | gitignored; third-party binaries | `uv run pitch fetch-weights` |
+| **`data/`** (~4.2 GB) | gitignored in full — it is footage of identifiable people | restore from the S3 or Google Drive copy (`docs/backup.md`) |
+| **`data/cache/*.npz`** | regenerable, so not worth storing | `uv run pitch cache dinov2` (~10 min) |
+
+The feature cache is needed **only for the probe comparator**, not for the detector-first
+path. To see the rebuild work, skip it.
+
+What a clone *does* carry, and should: `configs/rules.json` (the decision rule's numbers),
+`configs/roi.json` and `roi_derived.json` (the pitch boundaries) and `results/hand_counts.csv`
+(a person's count of 100 frames). A boundary and a rule are part of what a deployment *is*,
+and a truth file a clone loses is a model selection nobody can re-derive.
+
+Run it on a clip — this needs the weights and nothing else:
+
+```bash
+uv run python scripts/run_slot_on_video.py <clip.mp4> --every 15 --model yolov8n
+```
+
+Reproduce the rebuild's tables — these need `data/` as well:
+
+```bash
+uv run python experiments/reproduce_all.py --check     # what is stale; runs nothing
+uv run python experiments/rule_frame_eval.py           # the rule against the probe
+uv run python experiments/make_overlay_figures.py --model yolov8n
+```
+
+`configs/rules.json` ships with `frozen_at: null`, so the rule **refuses to be deployed**
+until WP9-T5 fits its thresholds on venue_01 camera A and freezes them. Experiments run
+against it regardless — measuring an unfrozen rule is how it gets frozen — and
+`settings.default_model_key` is still `dinov2` until then, so `--model yolov8n` is how you
+ask for the detector path today.
+
 Serve the API and dashboard:
 
 ```bash
