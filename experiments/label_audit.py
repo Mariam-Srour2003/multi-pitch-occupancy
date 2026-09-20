@@ -42,7 +42,7 @@ from pitch_occupancy.data.taxonomy import Class3
 from pitch_occupancy.evaluation.experiment_log import record
 from pitch_occupancy.vision import roi
 from pitch_occupancy.vision.counting import count_inside
-from pitch_occupancy.vision.detector import DEFAULT_DETECTOR, Detector
+from pitch_occupancy.vision.detector import DEFAULT_DETECTOR, PERSON, Detector
 from pitch_occupancy.vision.rules import RuleConfig
 
 RESULTS = settings.results_dir
@@ -69,14 +69,26 @@ def suspicion(cls: str, people: int, ball: bool, cfg: RuleConfig) -> tuple[float
     return (0.0, "")
 
 
-def contact_sheet(worst: list[dict], path) -> None:
+def contact_sheet(worst: list[dict], path, det, cfg) -> None:
+    """The flagged frames, side by side, **redacted**.
+
+    These are real frames of identifiable people at a client facility and this sheet is
+    written into `results/figs/`, so `thesis/ethics.md` applies: every person is pixelated
+    and the whole frame carries a blur floor for whoever the detector missed. A reviewer
+    judging a label needs to see *where* the people are and how many, which redaction leaves
+    intact - it is who they are that goes.
+    """
     import numpy as np
+
+    from pitch_occupancy.vision.explain import redact_frame
 
     tiles = []
     for r in worst:
         image = cv2.imread(str(settings.dataset_dir / r["file"]))
         if image is None:
             continue
+        found = det.detect(image, confidence=cfg.person_conf, imgsz=cfg.imgsz) or []
+        image = redact_frame(image, [d.box for d in found if d.cls == PERSON])
         tile = cv2.resize(image, (320, 184))
         cv2.rectangle(tile, (0, 0), (320, 16), (0, 0, 0), -1)
         cv2.putText(tile, f"{r['class3'][:2]} n={r['people_inside']} {r['file'][-24:]}",
@@ -164,7 +176,7 @@ def main() -> int:
 
     if args.contact_sheet and flagged:
         sheet = RESULTS / "figs" / "label_audit_worst.png"
-        contact_sheet(flagged[:24], sheet)
+        contact_sheet(flagged[:24], sheet, det, cfg)
         print(f"wrote {sheet}")
 
     record(

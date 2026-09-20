@@ -19,10 +19,14 @@
     "The worker's file0/file1 keys need no alias - roi.resolve maps them per recording."
   ],
   "_aliases": {
-    "venue_01/camera_A": "slot_20260711_1000_camA",
-    "venue_01/camera_B": "slot_20260711_1000_camB",
-    "camera_A": "slot_20260711_1000_camA",
-    "camera_B": "slot_20260711_1000_camB"
+    "venue_01/camera_A": "venue_01_camera_A",
+    "venue_01/camera_B": "venue_01_camera_B",
+    "camera_A": "venue_01_camera_A",
+    "camera_B": "venue_01_camera_B",
+    "slot_20260711_1000_camA": "venue_01_camera_A",
+    "slot_20260712_2030_camB": "venue_01_camera_A",
+    "slot_20260711_1000_camB": "venue_01_camera_B",
+    "slot_20260712_2030_camA": "venue_01_camera_B"
   },
   "cam": [
     [
@@ -70,6 +74,266 @@
     [
       0.004810269890536338,
       0.9950131061056046
+    ]
+  ],
+  "_venue_01_comment": [
+    "venue_01 has TWO physical cameras and FOUR slot-camera names, and until 2026-09-21 it",
+    "had four different derived boundaries - three of which disagreed with each other about",
+    "the same view. db/seed.PHYSICAL_CAMERA is the mapping: slot_20260711_1000_camA and",
+    "slot_20260712_2030_camB are both camera_A; slot_20260711_1000_camB and",
+    "slot_20260712_2030_camA are both camera_B.",
+    "",
+    "The derived ones came from scripts/derive_roi.py - the convex hull of the largest green",
+    "region in a median frame - and on floodlit night footage that finds only the bright",
+    "foreground. slot_20260712_2030_camB's derived outline covered the lower-left of the frame",
+    "and EXCLUDED the goalmouth and the right-hand third, so a frame with eleven players in it",
+    "counted zero inside the boundary and the rule answered EMPTY at confidence 1.00. That",
+    "camera is 516 frames, the largest single group in the corpus.",
+    "",
+    "These two are drawn by hand from the day frames of each physical camera, where the far",
+    "touchline is visible, and checked against the night frames of the same camera. They follow",
+    "the turf rather than the painted lines, because a player standing on the touchline is on",
+    "the pitch. camera_B's stops at x=0.95 to exclude the blue railings and the car park beyond",
+    "them; the old derived outline reached y=0.18 and took in the playground and the street."
+  ],
+  "venue_01_camera_A": [
+    [
+      0.0,
+      0.205
+    ],
+    [
+      0.1,
+      0.17
+    ],
+    [
+      0.22,
+      0.147
+    ],
+    [
+      0.34,
+      0.131
+    ],
+    [
+      0.45,
+      0.127
+    ],
+    [
+      0.55,
+      0.172
+    ],
+    [
+      0.7,
+      0.225
+    ],
+    [
+      0.8,
+      0.266
+    ],
+    [
+      0.9,
+      0.315
+    ],
+    [
+      1.0,
+      0.36
+    ],
+    [
+      1.0,
+      1.0
+    ],
+    [
+      0.0,
+      1.0
+    ]
+  ],
+  "venue_01_camera_B": [
+    [
+      0.0,
+      0.46
+    ],
+    [
+      0.35,
+      0.46
+    ],
+    [
+      0.62,
+      0.5
+    ],
+    [
+      0.85,
+      0.56
+    ],
+    [
+      0.95,
+      0.6
+    ],
+    [
+      0.95,
+      1.0
+    ],
+    [
+      0.0,
+      1.0
+    ]
+  ],
+  "slot_20260711_1000_camA": [
+    [
+      0.0,
+      0.205
+    ],
+    [
+      0.1,
+      0.17
+    ],
+    [
+      0.22,
+      0.147
+    ],
+    [
+      0.34,
+      0.131
+    ],
+    [
+      0.45,
+      0.127
+    ],
+    [
+      0.55,
+      0.172
+    ],
+    [
+      0.7,
+      0.225
+    ],
+    [
+      0.8,
+      0.266
+    ],
+    [
+      0.9,
+      0.315
+    ],
+    [
+      1.0,
+      0.36
+    ],
+    [
+      1.0,
+      1.0
+    ],
+    [
+      0.0,
+      1.0
+    ]
+  ],
+  "slot_20260712_2030_camB": [
+    [
+      0.0,
+      0.205
+    ],
+    [
+      0.1,
+      0.17
+    ],
+    [
+      0.22,
+      0.147
+    ],
+    [
+      0.34,
+      0.131
+    ],
+    [
+      0.45,
+      0.127
+    ],
+    [
+      0.55,
+      0.172
+    ],
+    [
+      0.7,
+      0.225
+    ],
+    [
+      0.8,
+      0.266
+    ],
+    [
+      0.9,
+      0.315
+    ],
+    [
+      1.0,
+      0.36
+    ],
+    [
+      1.0,
+      1.0
+    ],
+    [
+      0.0,
+      1.0
+    ]
+  ],
+  "slot_20260711_1000_camB": [
+    [
+      0.0,
+      0.46
+    ],
+    [
+      0.35,
+      0.46
+    ],
+    [
+      0.62,
+      0.5
+    ],
+    [
+      0.85,
+      0.56
+    ],
+    [
+      0.95,
+      0.6
+    ],
+    [
+      0.95,
+      1.0
+    ],
+    [
+      0.0,
+      1.0
+    ]
+  ],
+  "slot_20260712_2030_camA": [
+    [
+      0.0,
+      0.46
+    ],
+    [
+      0.35,
+      0.46
+    ],
+    [
+      0.62,
+      0.5
+    ],
+    [
+      0.85,
+      0.56
+    ],
+    [
+      0.95,
+      0.6
+    ],
+    [
+      0.95,
+      1.0
+    ],
+    [
+      0.0,
+      1.0
     ]
   ]
 }

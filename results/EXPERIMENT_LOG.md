@@ -7303,3 +7303,65 @@ And 494 frames of five scenes is a thin EMPTY dataset; five frames is not a data
 report names where the copies are and leaves the decision where it belongs.
 
 - 2026-09-21 | dataset redundancy: frames against distinct scenes | uv run python experiments/dataset_redundancy.py | dataset_redundancy.csv | 1,720 recorded frames carry 197 distinct scenes (11%); the four largest scenes hold 54% of the corpus; EMPTY is 494 frames of 5 scenes at 98.8 per scene; nothing deleted
+
+- 2026-09-20 | label audit: folders against what the detector finds | uv run python experiments/label_audit.py | label_audit.csv | 98 of 1720 recorded frames hard to reconcile with their folder; C1_EMPTY 27/494; C2_ACTIVE_PLAY 68/1210; C3_MAINTENANCE_NON_SPORTING 3/16; a queue for a person, not a verdict - a detector that misses far-side players calls a real match C3
+
+- 2026-09-20 | label audit: folders against what the detector finds | uv run python experiments/label_audit.py | label_audit.csv | 55 of 1720 recorded frames hard to reconcile with their folder; C1_EMPTY 54/494; C2_ACTIVE_PLAY 1/1210; C3_MAINTENANCE_NON_SPORTING 0/16; a queue for a person, not a verdict - a detector that misses far-side players calls a real match C3
+
+- 2026-09-20 | label audit: folders against what the detector finds | uv run python experiments/label_audit.py | label_audit.csv | 23 of 1720 recorded frames hard to reconcile with their folder; C1_EMPTY 20/494; C2_ACTIVE_PLAY 3/1210; C3_MAINTENANCE_NON_SPORTING 0/16; a queue for a person, not a verdict - a detector that misses far-side players calls a real match C3
+
+- 2026-09-20 | label audit: folders against what the detector finds | uv run python experiments/label_audit.py | label_audit.csv | 16 of 400 recorded frames hard to reconcile with their folder; C1_EMPTY 16/400; a queue for a person, not a verdict - a detector that misses far-side players calls a real match C3
+
+### 2026-09-21 — the label audit found a boundary, not a labelling problem
+
+`experiments/label_audit.py` scored every recorded frame's folder against what the detector
+finds in it. The first run flagged **98 of 1,720 (5.7%)**, and the shape of the flags gave it
+away: **67 of the 68 flagged ACTIVE_PLAY frames had people in the frame and zero inside the
+boundary**, 47 of them with ten or more people found. That is not a labelling problem.
+
+**venue_01 has two physical cameras and had four boundaries, three of which disagreed about
+the same view.** `db/seed.PHYSICAL_CAMERA` has said since WP0 that `slot_20260711_1000_camA`
+and `slot_20260712_2030_camB` are both `camera_A`, and that the other two are both
+`camera_B`; the boundary store did not know it. All four came from `scripts/derive_roi.py` -
+the convex hull of the largest green region in a median frame - and on floodlit night footage
+that finds only the bright foreground. `slot_20260712_2030_camB`'s derived outline covered
+the lower-left of the frame and excluded the goalmouth and the right-hand third, so a frame
+with **eleven players in it counted zero inside the boundary and the rule answered EMPTY at
+confidence 1.00**. That camera is 516 frames, the largest single group in the corpus.
+
+Two hand-drawn boundaries replace the four, one per physical camera, drawn from the day
+frames where the far touchline is visible and checked against the night frames of the same
+camera. They follow the turf rather than the painted lines, because a player on the touchline
+is on the pitch. The hand-drawn store overrides the derived one, which is the mechanism
+`vision/roi.py` already documents for correcting a derivation; `configs/roi_derived.json` is
+left as written.
+
+| | flagged | EMPTY | ACTIVE_PLAY |
+|---|---|---|---|
+| derived boundaries | 98 (5.7%) | 27 | 68 |
+| hand-drawn, first attempt | 55 (3.2%) | 54 | 1 |
+| hand-drawn, corrected | **23 (1.3%)** | **20** | **3** |
+
+The middle row is worth keeping. The first hand-drawn `camera_A` fixed the play frames and
+**doubled** the EMPTY flags, because it followed the turf past a dugout on the far touchline
+with people sitting in it. Zooming in settled it - they are on a bench behind the line - and
+the edge came down to follow the line rather than the grass behind it. Fitting a boundary
+until the labels agree would be circular; what settled this was looking at where the touchline
+is, with the flag count as a check afterwards.
+
+**Every published number computed through `roi.resolve` at venue_01 predates this.** The
+venue_01 one-camera play recall of 0.2588 reported on 2026-09-20 was attributed to A16's
+"a camera sees half a pitch". Part of it was a boundary drawn across the wrong half, and that
+attribution is hereby corrected. `rule_frame_eval.csv` and everything downstream of it needs
+re-running; TODO WP10-T7 carries it.
+
+**What is left is a genuine queue of 23, and it is for a person.** Twenty are `camera_B`
+daylight frames labelled EMPTY with one to three people standing on the turf at the far
+touchline - `labelling_protocol.md` §2.6 rule 3 says any person at all rules out EMPTY, so
+these look like relabels to C3. Three are labelled ACTIVE_PLAY with nobody found, two of them
+motion frames from the 10:00 slot that is otherwise entirely empty. **They are not moved
+here.** Those 494 EMPTY frames include the 243-frame false-play control that every false-play
+number in this thesis rests on, and relabelling twenty of them re-issues those tables; that is
+a decision to take deliberately and record, not a side effect of an audit.
+
+- 2026-09-21 | label audit + venue_01 boundaries redrawn | uv run python experiments/label_audit.py | label_audit.csv, configs/roi.json | 98 of 1720 flagged fell to 23 by replacing four derived venue_01 boundaries with two hand-drawn ones, one per PHYSICAL camera; the derived night outline excluded the goalmouth and right third, so an eleven-player frame counted zero inside and read EMPTY at 1.00; 23 remain as a queue for a person, 20 of them EMPTY frames with people on the turf; nothing relabelled - those frames include the false-play control

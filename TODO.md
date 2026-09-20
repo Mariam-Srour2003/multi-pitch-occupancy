@@ -2253,6 +2253,34 @@ tagged with the question it answers. Fix that first — it is what turns a build
       regenerated; `configs/README.md`, `docs/runbook.md`, `thesis/ethics.md` lines; dated
       corrections under A20/A26 in `EXPERIMENT_LOG.md`.
 - [ ] **[H] WP9-T8** Latency on the Mini-PC (WP7-T1) for the detector path.
+- [~] **WP10 The dataset, checked** — 2026-09-21, at the operator's request.
+  - [x] **WP10-T1 Three folders on disk.** `3_people_not_playing` + `4_maintenance` →
+        `3_maintenance_non_sporting`; `taxonomy.Class4` → `Label` (3 members, `parse` still
+        reads both retired names); `ManifestRow.class4` → `label`.
+        `scripts/collapse_label_folders.py` moved the frames and every sidecar that addresses
+        them by path, **including the feature caches**, which key rows by filename and would
+        have silently dropped 175 frames.
+  - [x] **WP10-T2 A manifest rebuild stops destroying rows.** It dropped all 189 generated
+        rows once, silently, with exit code 0 — `assign_scene_ids.py` had warned in a comment
+        for weeks that it would. `carry_unparseable` + two tests.
+        `scripts/rebuild_synthetic_rows.py` restored them; **`quality` is unrecoverable for
+        102 of 189** and reads `synthetic:unrecorded`.
+  - [x] **WP10-T3 The DaVinci exports ingested.** 15 clips, 28 frames, 3 held out.
+        **13 of 15 are venues the corpus already had** — see `configs/davinci_venues.csv`.
+        Real C3 goes 6 → 16 frames and 1 → 4 venues.
+  - [x] **WP10-T4 Redundancy measured.** 1,720 recorded frames = **197 distinct scenes**;
+        EMPTY is 494 frames of **5**; the four largest scenes are **54% of the corpus**.
+        Nothing deleted — `results/dataset_redundancy.csv`.
+  - [ ] **[H] WP10-T5 Work the label-audit queue.** `experiments/label_audit.py` ranks every
+        recorded frame by how hard its folder is to reconcile with what the detector finds.
+        It is a queue, not a verdict: a detector that misses far-side players calls a real
+        match C3 (A16: 88 of 278). A person has to look at the top of it.
+  - [ ] **[H] WP10-T6 The 11 `pending4d` frames.** On disk and in `labels.csv`, never in the
+        manifest or `scene_ids.csv`, so no venue can be read for them. Not restored during
+        WP10-T2 because that would mean inventing one.
+  - [ ] **WP10-T7 Re-fit and re-measure on the changed dataset.** Every probe arm was fitted
+        before the 28 new frames existed and before the caches were rewritten; the numbers in
+        `rule_frame_eval.csv` are from 1,578 development rows and there are now 1,599.
 - [~] **WP9-T9 A40: three classes, and play must be shown** — done 2026-09-20.
       `MinuteState` is `C1_EMPTY` / `C2_ACTIVE_PLAY` / `C3_MAINTENANCE_NON_SPORTING` /
       `UNCERTAIN`; the table is seven rows; ACTIVE_PLAY requires **> 4 people AND a ball AND
