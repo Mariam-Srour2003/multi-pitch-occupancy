@@ -34,7 +34,12 @@ FRAME_RE = re.compile(
 
 #: Frames extracted from highlight clips. Their filenames cannot carry venue, lighting or
 #: a recording time, so those come from the sidecar written by ``data.extract``.
-CLIP_FRAME_RE = re.compile(r"^clip_(?P<code>c[a-z]+)_(?P<clip>\d+)_t(?P<ms>\d{6})\.jpg$")
+#: The code is whatever `data/extract` and `scripts/ingest_davinci` write - two letters for
+#: the 2026-09-04 highlights (`ci`), four for the DaVinci exports (`dvcg`, `dv01`), the last
+#: of which carries digits. The sidecar is authoritative for what a code means; this only has
+#: to recognise the shape.
+CLIP_FRAME_RE = re.compile(
+    r"^clip_(?P<code>[a-z][a-z0-9]*)_(?P<clip>\d+)_t(?P<ms>\d{6})\.jpg$")
 
 #: Hours (local) from which a slot counts as floodlit rather than daylight. A crude but
 #: explicit rule - override per venue in configs/ once seasons and latitudes vary.

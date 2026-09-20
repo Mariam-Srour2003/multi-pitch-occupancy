@@ -9,11 +9,12 @@ data/
 │   ├── venue_01/                 4 slot recordings, ~60 min each, 2 cameras × 2 slots
 │   ├── highlights_2026-09-04/    66 match clips, 10–14 s each, multi-venue
 │   ├── venue_unseen_2026-09-15/  1 clip, 234 s, EMPTY floodlit pitch at night (A26/A36 eval)
+│   ├── davinci_2026-09-21/       15 operator exports, 4-9 s each, + provenance.csv
 │   └── public_<source>/          CC-licensed evaluation footage, each with provenance.csv (A36)
 ├── interim/
 │   └── frames/<camera_tag>/      extracted frames awaiting labels
 ├── processed/                    the labelled dataset
-│   ├── 1_empty/  2_playing/  3_people_not_playing/  4_maintenance/
+│   ├── 1_empty/  2_playing/  3_maintenance_non_sporting/
 │   ├── labels.csv                per-frame provenance from the labelling tool
 │   └── manifest.csv              generated — `uv run pitch manifest`
 ├── reference/                    14 annotated screenshots (labels burned into pixels)
@@ -30,10 +31,19 @@ data/
    evaluation and it cannot be recovered from filenames, so the directory *is* the record.
 3. **The class folder is the authoritative label**, not `labels.csv`. The manifest treats
    `labels.csv` as provenance only, and marks frames absent from it as `labeled_by=bulk`.
-4. **`processed/` keeps four folders, metrics report three classes.** The 4→3 collapse lives
-   in `pitch_occupancy.data.taxonomy`; keeping the finer labels costs nothing and preserves a
-   4-class ablation.
-5. **`reference/` screenshots must never be used to evaluate a vision-language model** without
+4. **`processed/` keeps three folders and metrics report three classes — the same three.**
+   ~~Four folders, collapsed 4→3 for reporting, keeping a 4-class ablation available.~~
+   *(Amended 2026-09-21.)* The ablation was never runnable: the corpus reached 1,692 recorded
+   frames holding **6 real `3_people_not_playing` and 0 real `4_maintenance`**. A40 dropped
+   the split from the prediction path; `scripts/collapse_label_folders.py` finished it on
+   disk. `taxonomy.Label.parse` still reads both retired folder names, because every artefact
+   older than that date says one of them.
+5. **A manifest rebuild carries rows it cannot name.** `build_manifest` parses filenames, and
+   generated frames (`syn_<batch>_<n>.jpg`) match no pattern. A rebuild used to report them
+   as problems and write the manifest without them — 200 rows, silently, exit code 0. `pitch
+   manifest` now passes the manifest it is replacing as `carry_unparseable`. If you call
+   `build_manifest` directly and intend to overwrite, pass it too.
+6. **`reference/` screenshots must never be used to evaluate a vision-language model** without
    inpainting first — the class label is burned into the pixels in red text, and the model can
    read it.
 
@@ -130,3 +140,33 @@ footage** - every frame is dry. Any claim about robustness to precipitation is t
 unsupported, and the weather ideas in `IDEAS.md` cannot start until such footage exists.
 Rain must arrive *crossed with occupancy* - rain-with-play and rain-without-play both
 present - or it will reproduce the day/night confound in a new variable.
+
+### `davinci_2026-09-21/` — 15 operator exports, 13 clips + 2 stills
+
+Short DaVinci Resolve exports the operator supplied on 2026-09-20 and 2026-09-21, all
+864×496 (well below the 1080p everything else was tuned on), 4–9 s each. Labelled by their
+own filenames. `provenance.csv` records which frame came from which export.
+
+**They are new moments, not new places.** Thirteen of the fifteen are venues already in the
+corpus — `playing day 3` and `not playing night` are `clipvenue_g_netting`, `playing day` is
+`clipvenue_b_floodlit_track`, `maint night` is `clipvenue_a_blue_barrier`, six are
+`venue_01`. Each identification is recorded with its evidence in `configs/davinci_venues.csv`
+and was made by looking at frames side by side, because a dHash at 8×8 cannot tell two
+five-a-side pitches apart. Filing them under new names would have put the same camera on both
+sides of a leave-one-venue-out fold. Only `davinci_j_maint_outdoor` and
+`davinci_l_city_pitch` are new.
+
+**What they are worth is C3.** Before them the class held 6 recorded frames, all at
+`venue_01`; it now holds 16 across four venues, and two of the clips are the first real
+groundskeeping footage this project has had. They also bring daylight to two venues the
+corpus only had at night.
+
+**Three clips are held out and never extracted** (`split_role=test` in the config): one
+maintenance, one people-with-a-ball, one playing still. Their frames are not written at all,
+so they cannot reach a training set by accident; the whole videos stay here.
+
+Frames are sampled **by difference, not by clock**: a candidate is kept only if its dHash is
+at least 6 bits from every frame already kept from that clip — one past the threshold at
+which `dedup.py` calls two frames the same scene. A four-second clip of people standing still
+yields one frame and a clip with a game in it yields seven. That is deliberate: sampling six
+evenly from each would have produced 90 frames and roughly 15 observations.
