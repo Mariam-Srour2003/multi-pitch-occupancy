@@ -7230,3 +7230,76 @@ the pitch, because the clips are already cropped to it. A boundary is worth draw
 and is not yet worth deriving.
 
 - 2026-09-20 | reported from use: eight operator clips | ad-hoc, see scratchpad | rule_frame_eval.csv unchanged | probe 3/8, detector count-only 7/8, shipped rule 6/8; fixed a boundary bug that deleted people whose boxes touch the bottom frame edge (C1_EMPTY at n=0 on two visible people) - no published number moves, because no corpus frame reaches the bottom edge; Maint day is 5 real groundskeepers + a real ball and the rule is correct by its own specification; motion cannot separate maintenance from play on these clips and the lowest-motion clip is a real match
+
+- 2026-09-20 | label audit: folders against what the detector finds | uv run python experiments/label_audit.py | label_audit.csv | 0 of 120 recorded frames hard to reconcile with their folder; C1_EMPTY 0/120; a queue for a person, not a verdict - a detector that misses far-side players calls a real match C3
+
+- 2026-09-20 | dataset redundancy: frames against distinct scenes | uv run python experiments/dataset_redundancy.py | dataset_redundancy.csv | 1720 recorded frames carry 197 distinct scenes (11%); the four largest scenes hold 54% of the corpus; worst class C1_EMPTY at 98.8 frames per scene; nothing deleted - pruning is a training-side tool (splits.distinct_rows) and the copies are the only EMPTY footage there is
+
+## 2026-09-21 — the dataset, checked: three folders, 15 new exports, and 11% of it is evidence
+
+Four things the operator asked for, in the order they had to happen.
+
+**1. The labelling folders are the reporting classes now.** `3_people_not_playing` and
+`4_maintenance` became `3_maintenance_non_sporting`. A40 had already dropped the split from
+the prediction path; this finishes it on disk, so a frame can only be filed where a metric can
+report it. `taxonomy.Class4` became `Label` with three members and a `parse` that still reads
+both retired names, because every artefact older than today says one of them.
+
+**A rebuild of `manifest.csv` during this destroyed 189 rows and I did not notice for several
+minutes.** `build_manifest` cannot parse `syn_<batch>_<n>.jpg`, so it reported all 200
+generated frames as "unparseable filename" and wrote the manifest without them - silently,
+exit code 0, `1692 frames indexed` printed as if that were a success.
+`scripts/assign_scene_ids.py` had carried a comment for weeks saying a regeneration would do
+exactly this. A warning in a docstring is not a guard. `build_manifest` now takes
+`carry_unparseable`, `pitch manifest` passes the manifest it is replacing, and two tests pin
+it: one that the row survives a rebuild, one that a deleted frame's row does not come back.
+`scripts/rebuild_synthetic_rows.py` restored what was lost - every field derivable from the
+frames, the folders and `scene_ids.csv` except one. **`quality` is unrecoverable for 102 of
+189 frames** and now reads `synthetic:unrecorded` rather than `synthetic:ok`, because those
+are different claims and only one is true. `results/coverage.md` still records the
+distribution that was lost: 154 plain `ok` against 35 carrying a defect.
+
+**2. Fifteen operator exports ingested - and thirteen of them are venues the corpus already
+had.** That is the finding, not a detail. `playing day 3` and `not playing night` are
+`clipvenue_g_netting` - same net across the frame, same blue "4" sign, same hillside.
+`playing day` is `clipvenue_b_floodlit_track`, the terracotta running-track border curving
+identically. `maint night` is `clipvenue_a_blue_barrier`, same advertising panel and roof
+trusses. Six are `venue_01`. Filed under new names they would have put the same camera on
+both sides of a leave-one-venue-out fold. A dHash of each clip's median frame proposed the
+candidates and a person decided from frames side by side, because at 8×8 every five-a-side
+pitch is a green rectangle; `configs/davinci_venues.csv` records the evidence per clip.
+
+Frames were sampled **by difference, not by clock** - a candidate kept only if its dHash is at
+least 6 bits from every frame already kept from that clip, one past the threshold at which
+`dedup.py` calls two frames the same scene. 28 frames from 12 clips: a static four-second
+export yields one, a clip with a game in it yields seven. Sampling six evenly from each would
+have produced 90 frames and about 15 observations. Three clips are held out and never
+extracted at all.
+
+What it is worth is C3: **6 real frames at one venue becomes 16 across four**, including the
+first real groundskeeping footage this project has had, and the first 21 frames in the
+ACTIVE_PLAY × daylight cell of the confound matrix, which was empty.
+
+**3. The redundancy the operator suspected is real and worse than suspected.**
+`experiments/dataset_redundancy.py`:
+
+| | frames | distinct scenes | per scene | redundant |
+|---|---|---|---|---|
+| **all recorded** | 1,720 | **197** | 8.7 | **89%** |
+| C2_ACTIVE_PLAY | 1,210 | 182 | 6.6 | 85% |
+| **C1_EMPTY** | **494** | **5** | **98.8** | **99%** |
+| C3_MAINTENANCE_NON_SPORTING | 16 | 10 | 1.6 | 38% |
+| venue_01 | 1,309 | 109 | 12.0 | 92% |
+| `venue_01/slot_20260711_1000_camB` | 238 | **2** | **119.0** | 99% |
+
+The four largest scenes hold **923 frames, 54% of the recorded corpus**, all four at
+venue_01. The worst single camera is the 2026-07-11 day slot: an hour of an empty pitch
+sampled every fifteen seconds is 238 files and two pictures. "1,720 frames" should not be
+written down again without "197 scenes" beside it.
+
+**Nothing was deleted, deliberately.** `splits.distinct_rows` already prunes on the training
+side and the protocol for it is settled - a pruned *test* set changes what its number means.
+And 494 frames of five scenes is a thin EMPTY dataset; five frames is not a dataset. The
+report names where the copies are and leaves the decision where it belongs.
+
+- 2026-09-21 | dataset redundancy: frames against distinct scenes | uv run python experiments/dataset_redundancy.py | dataset_redundancy.csv | 1,720 recorded frames carry 197 distinct scenes (11%); the four largest scenes hold 54% of the corpus; EMPTY is 494 frames of 5 scenes at 98.8 per scene; nothing deleted
