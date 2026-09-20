@@ -24,7 +24,7 @@ from dataclasses import asdict, dataclass, fields
 from datetime import date, time
 from pathlib import Path
 
-from pitch_occupancy.data.taxonomy import Class3, Class4, to_class3
+from pitch_occupancy.data.taxonomy import Class3, Label, to_class3
 
 __all__ = ["ManifestRow", "build_manifest", "read_manifest", "write_manifest", "cross_tab"]
 
@@ -45,7 +45,10 @@ NIGHT_UNTIL_HOUR = 7
 @dataclass(frozen=True, slots=True)
 class ManifestRow:
     file: str  # path relative to the dataset directory
-    class4: str
+    #: The folder the frame is filed in. Three of them since 2026-09-21; this column was
+    #: called `class4` and held four until the collapse, and `read_manifest` still accepts
+    #: that header so the pre-collapse backups beside this file keep parsing.
+    label: str
     class3: str
     venue: str
     camera: str  # camera tag, unique within a venue
@@ -104,11 +107,23 @@ def build_manifest(
     *,
     venue: str = "venue_01",
     sidecar: Path | None = None,
+    carry_unparseable: Path | None = None,
 ) -> tuple[list[ManifestRow], list[str]]:
     """Scan the class folders and build manifest rows.
 
     The folder a frame sits in is the authoritative label; ``labels.csv`` supplies
     provenance only. Returns the rows plus a list of problems worth a human's attention.
+
+    ``carry_unparseable`` is an existing manifest whose rows are kept for frames this scan
+    cannot name. **It exists because regenerating the manifest used to destroy data.**
+    `scripts/ingest_synthetic.py` appends rows for generated frames whose filenames
+    (``syn_<batch>_<n>.jpg``) no pattern here matches, and a rebuild reported all 200 as
+    "unparseable filename" and wrote a manifest without them - silently, with a zero exit
+    code, having printed a success line. It happened on 2026-09-21 during the folder
+    collapse, and `scripts/assign_scene_ids.py` had carried a comment warning that it would.
+    A warning in a docstring is not a guard. Pass the manifest being replaced and any row
+    whose file is still on disk survives the rebuild; the frames still get a problem line,
+    so nothing becomes invisible.
     """
     if dataset_dir is None:
         # Imported lazily so this module stays runnable with the standard library alone.
@@ -124,12 +139,15 @@ def build_manifest(
 
     rows: list[ManifestRow] = []
     problems: list[str] = []
+    carried: dict[str, ManifestRow] = {}
+    if carry_unparseable is not None and Path(carry_unparseable).exists():
+        carried = {r.file: r for r in read_manifest(Path(carry_unparseable))}
 
     for class_dir in sorted(dataset_dir.glob("[0-9]_*")):
         if not class_dir.is_dir():
             continue
         try:
-            class4 = Class4(class_dir.name)
+            label = Label.parse(class_dir.name)
         except ValueError:
             problems.append(f"unexpected class folder: {class_dir.name}")
             continue
@@ -138,13 +156,21 @@ def build_manifest(
             rel = f"{class_dir.name}/{frame.name}"
             parsed = _parse_frame_name(frame.name)
             if parsed is None:
-                problems.append(f"unparseable filename: {rel}")
+                kept = carried.get(rel)
+                if kept is not None:
+                    rows.append(kept)
+                    problems.append(f"unparseable filename, row carried over: {rel}")
+                else:
+                    problems.append(f"unparseable filename: {rel}")
                 continue
 
             recorded = labelled.get(rel)
-            if recorded is not None and recorded != class4.value:
+            # `labels.csv` predates the collapse, so a row still saying `4_maintenance`
+            # for a frame now filed under `3_maintenance_non_sporting` is history, not a
+            # mismatch. Compared after parsing, which is what makes them agree.
+            if recorded is not None and Label.parse(recorded) is not label:
                 problems.append(
-                    f"label mismatch for {rel}: folder={class4.value} labels.csv={recorded}"
+                    f"label mismatch for {rel}: folder={label.value} labels.csv={recorded}"
                 )
 
             if parsed["kind"] == "clip":
@@ -158,8 +184,8 @@ def build_manifest(
                 rows.append(
                     ManifestRow(
                         file=rel,
-                        class4=class4.value,
-                        class3=to_class3(class4).value,
+                        label=label.value,
+                        class3=to_class3(label).value,
                         venue=meta.venue,
                         # each clip is one continuous scene: its frames are correlated and
                         # must never straddle a split boundary, so the clip is the group.
@@ -190,8 +216,8 @@ def build_manifest(
             rows.append(
                 ManifestRow(
                     file=rel,
-                    class4=class4.value,
-                    class3=to_class3(class4).value,
+                    label=label.value,
+                    class3=to_class3(label).value,
                     venue=venue,
                     camera=camera_tag,
                     slot_date=str(parsed["slot_date"]),
@@ -221,11 +247,21 @@ def write_manifest(rows: list[ManifestRow], path: Path) -> Path:
 
 
 def read_manifest(path: Path) -> list[ManifestRow]:
+    """Read a manifest, including one written before the 2026-09-21 folder collapse.
+
+    Such a file has a `class4` column holding one of four folder names. It is read as
+    `label`, with `3_people_not_playing` and `4_maintenance` both becoming
+    `3_maintenance_non_sporting` - the collapse `to_class3` was already making on the
+    `class3` column beside it, so no row changes meaning. The file on disk is left alone.
+    """
     with path.open(newline="", encoding="utf-8") as fh:
-        return [
-            ManifestRow(**{**row, "t_s": int(row["t_s"])})  # type: ignore[arg-type]
-            for row in csv.DictReader(fh)
-        ]
+        rows = []
+        for row in csv.DictReader(fh):
+            row = dict(row)
+            if "label" not in row and "class4" in row:
+                row["label"] = Label.parse(row.pop("class4")).value
+            rows.append(ManifestRow(**{**row, "t_s": int(row["t_s"])}))  # type: ignore[arg-type]
+        return rows
 
 
 def cross_tab(rows: list[ManifestRow], row_key: str, col_key: str) -> str:

@@ -3,7 +3,7 @@
 Three things live here.
 
 **`MinuteState`** is what one camera, or one pitch, is in for one minute: the four folder
-classes of `data/taxonomy.Class4`, plus **UNCERTAIN** - an abstention. The four values are
+classes of `data/taxonomy.Label`, plus **UNCERTAIN** - an abstention. The values are
 the folder names, deliberately, so a state reads the same whether it came from this path or
 from a label; a test pins that the two enums agree. UNCERTAIN is not a fifth class. It is the
 state a minute is in when the system declines to say - no detector, no boundary, movement
@@ -65,12 +65,12 @@ from enum import StrEnum
 from pathlib import Path
 
 from pitch_occupancy.config import CONFIGS_DIR
-from pitch_occupancy.data.taxonomy import Class3, Class4
+from pitch_occupancy.data.taxonomy import Class3, Label
 from pitch_occupancy.vision.counting import PitchCount
 
 __all__ = [
     "MinuteState", "FrameVerdict", "RuleConfig", "RULES_PATH", "decide",
-    "from_class3", "from_class4", "to_class3",
+    "from_class3", "from_label", "to_class3",
 ]
 
 RULES_PATH = CONFIGS_DIR / "rules.json"
@@ -116,12 +116,16 @@ def from_class3(state: Class3 | str) -> MinuteState:
     return MinuteState(Class3(state).value)
 
 
-def from_class4(label: Class4 | str) -> MinuteState:
-    """A labelling folder as a state - `3_people_not_playing` and `4_maintenance` both land
-    on C3, which is the collapse `data/taxonomy.to_class3` has always made."""
+def from_label(label: Label | str) -> MinuteState:
+    """A labelling folder as a state.
+
+    One-to-one since the folders collapsed to three on 2026-09-21, and it still accepts the
+    pre-collapse `3_people_not_playing` and `4_maintenance` - both land on C3, which is the
+    collapse `data/taxonomy.to_class3` has always made.
+    """
     from pitch_occupancy.data.taxonomy import to_class3 as folder_to_class3
 
-    return MinuteState(folder_to_class3(Class4(label).value).value)
+    return MinuteState(folder_to_class3(label).value)
 
 
 @dataclass(frozen=True, slots=True)

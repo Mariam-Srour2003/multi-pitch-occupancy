@@ -26,7 +26,7 @@ FRAMES = {
         "slot_20260712_2030_camA_t000015.jpg",
         "slot_20260712_2030_camB_t000045.jpg",
     ],
-    "4_maintenance": ["slot_20260711_1000_camA_t000600.jpg"],
+    "3_maintenance_non_sporting": ["slot_20260711_1000_camA_t000600.jpg"],
 }
 
 
@@ -94,10 +94,32 @@ def test_frames_absent_from_labels_csv_are_marked_bulk(dataset: Path) -> None:
     assert all(r.labeled_by == "human" for r in rows if r.source == "regular")
 
 
-def test_four_classes_collapse_to_three(dataset: Path) -> None:
+def test_the_folders_are_the_reporting_classes(dataset: Path) -> None:
     rows, _ = build_manifest(dataset)
-    maintenance = next(r for r in rows if r.class4 == "4_maintenance")
+    maintenance = next(r for r in rows if r.label == "3_maintenance_non_sporting")
     assert maintenance.class3 == "C3_MAINTENANCE_NON_SPORTING"
+
+
+def test_a_manifest_written_before_the_collapse_still_reads(tmp_path: Path) -> None:
+    """Every manifest and backup older than 2026-09-21 has a `class4` column holding one of
+    four folder names. They are read as labels - both C3 folders becoming the one that
+    exists now - and the file on disk is not touched."""
+    old = tmp_path / "manifest_2026-09-01.csv"
+    tail = ",v,c,,,s,0,clip,human,day,unknown,"
+    old.write_text("".join(line + chr(10) for line in [
+        ("file,class4,class3,venue,camera,slot_date,slot_time,slot_id,t_s,source,"
+         "labeled_by,lighting,quality,split_role"),
+        "4_maintenance/a.jpg,4_maintenance,C3_MAINTENANCE_NON_SPORTING" + tail,
+        ("3_people_not_playing/b.jpg,3_people_not_playing,"
+         "C3_MAINTENANCE_NON_SPORTING" + tail),
+        "1_empty/c.jpg,1_empty,C1_EMPTY" + tail,
+    ]), encoding="utf-8")
+    rows = read_manifest(old)
+    assert [r.label for r in rows] == ["3_maintenance_non_sporting",
+                                       "3_maintenance_non_sporting", "1_empty"]
+    assert [r.class3 for r in rows] == ["C3_MAINTENANCE_NON_SPORTING",
+                                        "C3_MAINTENANCE_NON_SPORTING", "C1_EMPTY"]
+    assert "class4" in old.read_text(encoding="utf-8"), "the artefact is read, never rewritten"
 
 
 def test_unparseable_filename_is_reported_not_silently_dropped(dataset: Path) -> None:
@@ -112,7 +134,7 @@ def test_folder_wins_over_labels_csv_but_mismatch_is_reported(dataset: Path) -> 
         csv.writer(fh).writerow(["1_empty/slot_20260711_1000_camA_t000000.jpg", "2_playing", "x"])
     rows, problems = build_manifest(dataset)
     row = next(r for r in rows if r.file.endswith("camA_t000000.jpg"))
-    assert row.class4 == "1_empty"  # the folder is authoritative
+    assert row.label == "1_empty"  # the folder is authoritative
     assert any("label mismatch" in p for p in problems)
 
 
@@ -149,4 +171,48 @@ def test_manifest_row_is_immutable(dataset: Path) -> None:
     in memory and have later stages disagree with the CSV on disk."""
     rows, _ = build_manifest(dataset)
     with pytest.raises(AttributeError):
-        rows[0].class4 = "tampered"  # type: ignore[misc]
+        rows[0].label = "tampered"  # type: ignore[misc]
+
+def test_a_rebuild_carries_rows_it_cannot_name_instead_of_destroying_them(
+        dataset: Path, tmp_path: Path) -> None:
+    """Regenerating the manifest used to delete every generated frame from it.
+
+    `ingest_synthetic.py` appends rows for frames named `syn_<batch>_<n>.jpg`, which no
+    pattern in this module matches. A rebuild reported each as "unparseable filename" and
+    wrote a manifest without them - **200 rows, silently, with a zero exit code and a
+    success line printed.** It happened on 2026-09-21 during the folder collapse, and a
+    comment in `scripts/assign_scene_ids.py` had warned for weeks that it would. This is
+    that warning as a guard.
+    """
+    generated = dataset / "1_empty" / "syn_batch7_001.jpg"
+    generated.write_bytes(b"")
+
+    rows, problems = build_manifest(dataset)
+    assert generated.name not in {Path(r.file).name for r in rows}
+    assert any("unparseable" in p for p in problems), "still reported, never silent"
+
+    previous = tmp_path / "manifest.csv"
+    write_manifest(list(rows) + [ManifestRow(
+        file="1_empty/syn_batch7_001.jpg", label="1_empty", class3="C1_EMPTY", venue="v",
+        camera="synthetic_batch7", slot_date="", slot_time="", slot_id="synthetic_batch7",
+        t_s=1, source="synthetic", labeled_by="synthetic", lighting="unknown",
+        quality="synthetic:ok", split_role="train")], previous)
+
+    rebuilt, problems = build_manifest(dataset, carry_unparseable=previous)
+    carried = next(r for r in rebuilt if r.file.endswith("syn_batch7_001.jpg"))
+    assert carried.source == "synthetic" and carried.quality == "synthetic:ok"
+    assert any("carried over" in p for p in problems), "carried, and said so"
+
+
+def test_carrying_only_rescues_frames_that_are_still_on_disk(
+        dataset: Path, tmp_path: Path) -> None:
+    """A row for a deleted frame must not come back from the old manifest."""
+    previous = tmp_path / "manifest.csv"
+    rows, _ = build_manifest(dataset)
+    write_manifest(list(rows) + [ManifestRow(
+        file="1_empty/syn_gone_001.jpg", label="1_empty", class3="C1_EMPTY", venue="v",
+        camera="synthetic_gone", slot_date="", slot_time="", slot_id="synthetic_gone",
+        t_s=1, source="synthetic", labeled_by="synthetic", lighting="unknown",
+        quality="synthetic:ok", split_role="train")], previous)
+    rebuilt, _ = build_manifest(dataset, carry_unparseable=previous)
+    assert not any("syn_gone" in r.file for r in rebuilt)

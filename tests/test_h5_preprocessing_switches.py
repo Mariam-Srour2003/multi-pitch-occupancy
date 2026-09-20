@@ -28,7 +28,7 @@ PLAY, EMPTY, C3 = "C2_ACTIVE_PLAY", "C1_EMPTY", "C3_MAINTENANCE_NON_SPORTING"
 
 def row(name: str, *, venue="venue_01", lighting="night", cls=PLAY) -> ManifestRow:
     return ManifestRow(
-        file=name, class4="2_active_play", class3=cls, venue=venue, camera="c",
+        file=name, label="2_active_play", class3=cls, venue=venue, camera="c",
         slot_date="2026-07-12", slot_time="20:30", slot_id="s1", t_s=0, source="regular",
         labeled_by="human", lighting=lighting, quality="unknown", split_role="",
     )

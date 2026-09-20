@@ -23,7 +23,7 @@ from pitch_occupancy.vision.backbones import BACKBONES, POOLING_STAMP
 
 def row(file: str, venue: str = "v1") -> ManifestRow:
     return ManifestRow(
-        file=file, class4="2_playing", class3="C2_ACTIVE_PLAY", venue=venue,
+        file=file, label="2_playing", class3="C2_ACTIVE_PLAY", venue=venue,
         camera="c", slot_date="2026-07-11", slot_time="10:00", slot_id="s1", t_s=0,
         source="regular", labeled_by="human", lighting="day", quality="unknown",
         split_role="",

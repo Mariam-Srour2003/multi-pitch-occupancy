@@ -40,7 +40,7 @@ def row(
     date: str = "2026-07-11", source: str = "regular",
 ) -> ManifestRow:
     return ManifestRow(
-        file=file, class4="1_empty", class3=cls, venue=venue, camera=f"{slot}_camA",
+        file=file, label="1_empty", class3=cls, venue=venue, camera=f"{slot}_camA",
         slot_date=date, slot_time="10:00", slot_id=slot, t_s=0, source=source,
         labeled_by="human", lighting="day", quality="unknown", split_role="",
     )
@@ -156,7 +156,7 @@ def test_grouped_split_order_survives_a_different_hash_seed(group_key: str) -> N
         "sys.path.insert(0, 'src');"
         "from pitch_occupancy.data.manifest import ManifestRow;"
         "from pitch_occupancy.data.splits import grouped_split;"
-        "rows=[ManifestRow(file=f'f{i}.jpg', class4='1_empty', class3='C1_EMPTY',"
+        "rows=[ManifestRow(file=f'f{i}.jpg', label='1_empty', class3='C1_EMPTY',"
         " venue=f'v{i%4}', camera='c', slot_date='2026-07-11', slot_time='10:00',"
         " slot_id=f's{i%12}', t_s=i, source='regular', labeled_by='human',"
         " lighting='day', quality='unknown', split_role='') for i in range(240)];"

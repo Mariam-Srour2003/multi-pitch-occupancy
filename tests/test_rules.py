@@ -24,7 +24,7 @@ import pytest
 from pitch_occupancy.data.taxonomy import Class3
 from pitch_occupancy.vision.counting import PitchCount
 from pitch_occupancy.vision.rules import (
-    RULES_PATH, MinuteState, RuleConfig, decide, from_class3, from_class4, to_class3)
+    RULES_PATH, MinuteState, RuleConfig, decide, from_class3, from_label, to_class3)
 
 EMPTY, PLAY, C3 = (MinuteState.EMPTY, MinuteState.ACTIVE_PLAY,
                    MinuteState.MAINTENANCE_NON_SPORTING)
@@ -60,10 +60,13 @@ def test_the_rule_answers_the_three_reporting_classes_and_an_abstention() -> Non
     assert EMPTY.decided is True
 
 
-def test_both_labelling_folders_for_c3_collapse_onto_the_one_class() -> None:
-    assert from_class4("3_people_not_playing") is C3
-    assert from_class4("4_maintenance") is C3
-    assert from_class4("1_empty") is EMPTY and from_class4("2_playing") is PLAY
+def test_the_labelling_folders_map_in_and_the_two_retired_ones_still_read() -> None:
+    assert from_label("3_maintenance_non_sporting") is C3
+    # retired on 2026-09-21 when the folders collapsed; every CSV older than that says one
+    # of these, and reading an old artefact must not need editing it
+    assert from_label("3_people_not_playing") is C3
+    assert from_label("4_maintenance") is C3
+    assert from_label("1_empty") is EMPTY and from_label("2_playing") is PLAY
 
 
 # --- the rows -------------------------------------------------------------------------------

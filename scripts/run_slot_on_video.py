@@ -74,7 +74,7 @@ def _truth(args) -> set[int]:
     """Sample indices that hold a person, from ``--truth`` or a tracked truth CSV."""
     if args.truth_csv is not None:
         with Path(args.truth_csv).open(encoding="utf-8") as fh:
-            return {int(r["sample"]) for r in csv.DictReader(fh) if r["class4"] != "1_empty"}
+            return {int(r["sample"]) for r in csv.DictReader(fh) if r.get("label", r.get("class4")) != "1_empty"}
     return {int(x) for x in args.truth.split(",") if x.strip().isdigit()}
 
 

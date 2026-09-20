@@ -12,10 +12,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pitch_occupancy.data.taxonomy import Class3, Class4
+from pitch_occupancy.data.taxonomy import Class3, Label
 from pitch_occupancy.pipeline import Pipeline, assemble, default_gates, reset_shared, shared
 from pitch_occupancy.vision.rules import (
-    FrameVerdict, MinuteState, from_class3, from_class4, to_class3)
+    FrameVerdict, MinuteState, from_class3, from_label, to_class3)
 
 MIDDLE = [[0.25, 0.25], [0.75, 0.25], [0.75, 0.75], [0.25, 0.75]]
 FRAME = np.zeros((8, 8, 3), np.uint8)
@@ -55,7 +55,7 @@ class StubProbe:
 
 def test_minute_states_are_the_reporting_classes_plus_an_abstention() -> None:
     """`Sample.predicted` must read the same whether it came from a prediction or from a
-    report, so the three decided values *are* `Class3`'s values (A40). They were `Class4`'s
+    report, so the three decided values *are* `Class3`'s values (A40). They were the four labelling folders'
     until 2026-09-20; the corpus has 0 real maintenance frames, so the fourth branch could
     never be measured and left the prediction path."""
     assert {s.value for s in MinuteState} - {"UNCERTAIN"} == {c.value for c in Class3}
@@ -63,11 +63,13 @@ def test_minute_states_are_the_reporting_classes_plus_an_abstention() -> None:
     assert MinuteState.EMPTY.decided
 
 
-def test_both_c3_labelling_folders_still_map_in_and_the_abstention_maps_out() -> None:
+def test_the_labels_map_in_legacy_folders_included_and_the_abstention_maps_out() -> None:
     assert from_class3(Class3.MAINTENANCE_NON_SPORTING) is MinuteState.MAINTENANCE_NON_SPORTING
     assert from_class3(Class3.ACTIVE_PLAY) is MinuteState.ACTIVE_PLAY
-    assert from_class4(Class4.MAINTENANCE) is MinuteState.MAINTENANCE_NON_SPORTING
-    assert from_class4(Class4.PEOPLE_NOT_PLAYING) is MinuteState.MAINTENANCE_NON_SPORTING
+    assert from_label(Label.MAINTENANCE_NON_SPORTING) is MinuteState.MAINTENANCE_NON_SPORTING
+    # the two pre-collapse folder names still read, because old CSVs still say them
+    assert from_label("4_maintenance") is MinuteState.MAINTENANCE_NON_SPORTING
+    assert from_label("3_people_not_playing") is MinuteState.MAINTENANCE_NON_SPORTING
     assert to_class3(MinuteState.MAINTENANCE_NON_SPORTING) is Class3.MAINTENANCE_NON_SPORTING
     assert to_class3(MinuteState.UNCERTAIN) is None
 

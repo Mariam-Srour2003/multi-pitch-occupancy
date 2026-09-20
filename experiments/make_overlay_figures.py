@@ -54,8 +54,8 @@ def choose_frames(rows, per_class: int) -> list:
     """
     rng = np.random.default_rng(SEED)
     chosen = []
-    for cls in sorted({r.class4 for r in rows}):
-        pool = [r for r in rows if r.class4 == cls]
+    for cls in sorted({r.label for r in rows}):
+        pool = [r for r in rows if r.label == cls]
         buckets: dict[tuple[str, str], list] = {}
         for r in pool:
             buckets.setdefault((r.venue, r.lighting), []).append(r)
@@ -100,7 +100,7 @@ def main() -> int:
         if picture.shape[1] > args.width:
             height = int(picture.shape[0] * args.width / picture.shape[1])
             picture = cv2.resize(picture, (args.width, height), interpolation=cv2.INTER_AREA)
-        name = f"{row.class4}__{row.venue}__{row.file.split('/')[-1].rsplit('.', 1)[0]}.png"
+        name = f"{row.label}__{row.venue}__{row.file.split('/')[-1].rsplit('.', 1)[0]}.png"
         cv2.imwrite(str(OUT / name), picture)
 
         found = len(verdict.count.people) if verdict.count else 0
@@ -108,7 +108,7 @@ def main() -> int:
                    if verdict.count else 0)
         records.append({
             "file": row.file, "venue": row.venue, "lighting": row.lighting,
-            "label_class4": row.class4, "label": row.class3,
+            "label_folder": row.label, "label": row.class3,
             "predicted": verdict.state.value,
             "confidence": verdict.confidence, "rule": verdict.rule,
             "people_inside": verdict.people, "people_outside_boundary": outside,
@@ -116,7 +116,7 @@ def main() -> int:
             "boundary": bool(polygon), "figure": name,
             "trace": " | ".join(verdict.trace),
         })
-        print(f"{row.file[-50:]:<52}{row.class4:<22}{verdict.state.name:<22}"
+        print(f"{row.file[-50:]:<52}{row.label:<22}{verdict.state.name:<22}"
               f"{str(verdict.people):>7}{'yes' if verdict.ball else 'no':>6}"
               + ("" if found or not verdict.count else "  (nobody found - not 'verified empty')"))
 

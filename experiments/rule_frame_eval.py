@@ -277,7 +277,7 @@ def confusion(arm: str, predictions: dict[str, dict], rows) -> list[dict]:
         if got is None:
             continue
         predicted = got["state"] or got["class3"] or "UNCERTAIN"
-        counts[(row.venue, row.class3, row.class4, predicted)] += 1
+        counts[(row.venue, row.class3, row.label, predicted)] += 1
     for (venue, truth, folder, predicted), n in sorted(counts.items()):
         out.append({"arm": arm, "venue": venue, "truth": truth, "truth_folder": folder,
                     "predicted": predicted, "n": n, "exact": truth == predicted})

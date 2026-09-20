@@ -40,7 +40,7 @@ from pitch_occupancy.evaluation.experiment_log import record
 from pitch_occupancy.evaluation.stats import bootstrap_ci
 from pitch_occupancy.slots.fusion import fuse_pitch
 from pitch_occupancy.vision import roi
-from pitch_occupancy.vision.rules import from_class4
+from pitch_occupancy.vision.rules import from_label
 
 #: `2_playing/slot_20260712_2030_camA_t003476.jpg` -> recording, camera, seconds
 NAME = re.compile(r"(?P<slot>slot_\d{8}_\d{4})_(?P<cam>cam[AB])_t(?P<t>\d+)")
@@ -50,7 +50,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", default=None, help="detector key; the registry default if unset")
-    ap.add_argument("--class4", default=None, help="only this folder class")
+    ap.add_argument("--label", default=None, help="only this labelling folder")
     args = ap.parse_args()
 
     from pitch_occupancy.pipeline import assemble
@@ -64,7 +64,7 @@ def main() -> int:
 
     rows = [r for r in development_rows(read_manifest(settings.dataset_dir / "manifest.csv"))
             if r.source != "synthetic" and r.venue == "venue_01"
-            and (args.class4 is None or r.class4 == args.class4)]
+            and (args.label is None or r.label == args.label)]
 
     moments: dict[tuple[str, str, str], dict[str, object]] = defaultdict(dict)
     unmatched = 0
@@ -73,7 +73,7 @@ def main() -> int:
         if not m:
             unmatched += 1
             continue
-        moments[(m["slot"], m["t"], row.class4)][m["cam"]] = row
+        moments[(m["slot"], m["t"], row.label)][m["cam"]] = row
     pairs = {k: v for k, v in moments.items() if len(v) == 2}
     singles = len(moments) - len(pairs)
     print(f"{len(rows)} venue_01 frames -> {len(pairs)} paired moments "
@@ -98,7 +98,7 @@ def main() -> int:
         pitch = fuse_pitch(verdicts, pipeline.rules)
         # The labelling folder, collapsed onto the three classes the rule answers:
         # `3_people_not_playing` and `4_maintenance` are both C3 since A40.
-        want = from_class4(truth)
+        want = from_label(truth)
         for v in verdicts.values():
             alone_hits.append(int(v.state is want))
         fused_hits.append(int(pitch.state is want))
