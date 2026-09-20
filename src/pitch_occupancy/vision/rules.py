@@ -27,22 +27,33 @@ gets frozen.
 
 The table, first matching row wins. ``n`` is people whose feet stand inside the boundary,
 persisted over the burst and summed across the pitch's cameras (`slots/fusion.fuse_pitch`);
-``ball`` is a ball seen inside in any burst frame; ``m`` is the burst motion cue.
+``ball`` is a ball seen inside in **any** burst frame; ``m`` is the burst motion cue.
 
 | # | condition | state | note |
 |---|---|---|---|
 | 1 | detector unavailable | UNCERTAIN | a missing detector is not an empty pitch |
 | 2 | no boundary | UNCERTAIN | mandatory on the deployed path |
-| 3 | n = 0, m low or unmeasured | EMPTY | confidence lowered by what the filter dropped |
+| 3 | n = 0, m low or unmeasured | **EMPTY** | nobody and nothing moving |
 | 4 | n = 0, m high | UNCERTAIN | something moved and nobody was found |
-| 5 | vehicle inside, or hi-vis with n <= 4 | MAINTENANCE | best effort; unevaluable |
-| 6 | 1 <= n <= 4 | PEOPLE_NOT_PLAYING | with or without a ball |
-| 7 | n >= 5, ball | PLAYING | highest confidence |
-| 8 | n >= 5, no ball, still, clustered | PEOPLE_NOT_PLAYING | only if `row8_enabled` |
-| 9 | n >= 5, no ball | PLAYING | lower confidence; absence of a ball is not evidence (A17) |
+| 5 | 1 <= n <= 4 | **C3** | too few for a game, ball or no ball |
+| 6 | n > 4, **and** a ball, **and** motion | **C2 ACTIVE_PLAY** | the only way into play |
+| 7 | n > 4, otherwise | **C3** | a crowd that is not playing |
 
-Rows 4 and 8 read the motion cue and rows 5 and 8 read cues that have no fitted threshold
-yet; each is skipped, not guessed, while its threshold is ``null``.
+**Rows 6 and 7 are the change of 2026-09-20**, and they invert what A36 registered. A36 made
+play the default above the head count and let the ball raise confidence only, because A17
+measured cross-venue ball recall at 0.40 and reasoned that absence of a ball is not evidence
+of absence of play. The facility's rule is the opposite: a game has a ball in it and people
+moving, and a crowd standing on a pitch with no ball is not a booking being used. So play now
+has to be **shown**, not assumed - which is a stricter claim and costs recall exactly where
+the detector cannot see the ball. That cost is measured rather than argued about; see the
+amendment and `results/rule_frame_eval.csv`.
+
+**A required cue that cannot be evaluated is reported, never assumed.** If `require_ball` is
+on, the ball is checked and that is that. If `require_motion` is on but the cue was not
+measured (a still image has no predecessor) or its threshold is unfitted (`motion_play_min`
+is null until WP9-T5), the clause is **skipped and the trace says so** - because the
+alternative is a requirement that silently never fires, which is the shape of every guard
+this project has found not guarding.
 """
 
 from __future__ import annotations
@@ -66,12 +77,25 @@ RULES_PATH = CONFIGS_DIR / "rules.json"
 
 
 class MinuteState(StrEnum):
-    """One minute's state for one camera or one pitch. Values are the folder names."""
+    """One minute's state for one camera or one pitch: **the three reporting classes, plus
+    an abstention**.
 
-    EMPTY = "1_empty"
-    PLAYING = "2_playing"
-    PEOPLE_NOT_PLAYING = "3_people_not_playing"
-    MAINTENANCE = "4_maintenance"
+    It used to carry the four *folder* classes, so the rule could answer `4_maintenance`
+    separately from `3_people_not_playing`. That distinction is gone from the prediction path
+    (2026-09-20) and the values are now `Class3`'s own, so a stored state and a reported class
+    are the same string and no mapping can drift between them.
+
+    **Why it went.** The corpus holds **6 real `3_people_not_playing` frames and 0 real
+    `4_maintenance` frames**, so nothing could ever measure the split - `make_overlay_figures`
+    reported it as the confusion A36 pre-accepted, which is a polite way of saying it was
+    never checked. A branch the data cannot evaluate is a branch that should not be in the
+    deployed path, and the labelling folders keep the finer distinction for whenever the data
+    arrives (`data/taxonomy.to_class3` still collapses them).
+    """
+
+    EMPTY = "C1_EMPTY"
+    ACTIVE_PLAY = "C2_ACTIVE_PLAY"
+    MAINTENANCE_NON_SPORTING = "C3_MAINTENANCE_NON_SPORTING"
     #: The system declined to say. See the module docstring for what that is not.
     UNCERTAIN = "UNCERTAIN"
 
@@ -80,37 +104,24 @@ class MinuteState(StrEnum):
         return self is not MinuteState.UNCERTAIN
 
 
-#: The three-class collapse the whole thesis reports in. UNCERTAIN has no Class3: it is the
-#: absence of one, and a caller asking for it gets None rather than a guess.
-_TO_CLASS3 = {
-    MinuteState.EMPTY: Class3.EMPTY,
-    MinuteState.PLAYING: Class3.ACTIVE_PLAY,
-    MinuteState.PEOPLE_NOT_PLAYING: Class3.MAINTENANCE_NON_SPORTING,
-    MinuteState.MAINTENANCE: Class3.MAINTENANCE_NON_SPORTING,
-}
-
-#: The probe cannot tell `3_people_not_playing` from `4_maintenance` - it was trained on
-#: three classes - so its C3 lands on the folder that has real frames. Six of them.
-_FROM_CLASS3 = {
-    Class3.EMPTY: MinuteState.EMPTY,
-    Class3.ACTIVE_PLAY: MinuteState.PLAYING,
-    Class3.MAINTENANCE_NON_SPORTING: MinuteState.PEOPLE_NOT_PLAYING,
-}
-
-
 def to_class3(state: MinuteState | str) -> Class3 | None:
     """The reporting class of a state, or None for UNCERTAIN."""
-    return _TO_CLASS3.get(MinuteState(state))
+    state = MinuteState(state)
+    return None if state is MinuteState.UNCERTAIN else Class3(state.value)
 
 
 def from_class3(state: Class3 | str) -> MinuteState:
-    """The state a three-class verdict maps to. See `_FROM_CLASS3` for where C3 lands."""
-    return _FROM_CLASS3[Class3(state)]
+    """A three-class verdict as a state. One-to-one now, and kept as a function so the
+    call sites read the same as they did when it was a mapping."""
+    return MinuteState(Class3(state).value)
 
 
 def from_class4(label: Class4 | str) -> MinuteState:
-    """A folder label as a state; the values coincide, and this says so in one place."""
-    return MinuteState(Class4(label).value)
+    """A labelling folder as a state - `3_people_not_playing` and `4_maintenance` both land
+    on C3, which is the collapse `data/taxonomy.to_class3` has always made."""
+    from pitch_occupancy.data.taxonomy import to_class3 as folder_to_class3
+
+    return MinuteState(folder_to_class3(Class4(label).value).value)
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,8 +129,8 @@ class FrameVerdict:
     """What one classification found, and how it got there.
 
     ``trace`` is the rule path in order - "boundary slot_..._camA keeps 49% of the frame",
-    "5 people persisted over 3 frames, ball seen 0.31", "row 7 -> PLAYING 0.80". It is the
-    first thing an operator disputing a verdict asks for and was, until A36, reconstructed
+    "5 people persisted over 3 frames, ball seen 0.31", "row 6 -> ACTIVE_PLAY 0.80". It is
+    the first thing an operator disputing a verdict asks for and was, until A36, rebuilt
     by hand from four fields on three pages.
 
     ``people``, ``ball`` and ``motion`` are None when the corresponding step did not run,
@@ -193,9 +204,22 @@ class RuleConfig:
     motion_lo: float | None = None
     motion_hi: float | None = None
     #: Mean pairwise foot distance over the boundary diagonal below which a group is
-    #: "clustered" (row 8).
+    #: "clustered" - a third signal that a crowd is standing rather than playing. Optional:
+    #: rows 6 and 7 already turn a ball-less or motionless crowd into C3 without it.
     cluster_max: float | None = None
-    row8_enabled: bool = False
+    #: **A game has a ball in it.** With this on, ACTIVE_PLAY requires one seen inside the
+    #: boundary in at least one burst frame. It is the facility's rule and it is strict: A17
+    #: measured cross-venue ball recall at 0.40, 0.06-0.89 by venue, so the venues where the
+    #: detector cannot see the ball lose genuine matches. The switch exists because that cost
+    #: is a decision, and whoever turns it off should be able to.
+    require_ball: bool = True
+    #: **And people moving.** Checked only when the cue was measured *and* `motion_play_min`
+    #: is fitted; otherwise the clause is skipped and the verdict's trace records that it was.
+    require_motion: bool = True
+    #: The burst motion cue at or above which there is enough movement for a game. Fitted on
+    #: venue_01 camera A (WP9-T5); null until then, which leaves `require_motion` inert and
+    #: visibly so.
+    motion_play_min: float | None = None
     hi_vis_min_fraction: float | None = None
     burst_frames: int = 3
     burst_spacing_s: float = 1.0
@@ -272,33 +296,56 @@ def decide(
                             ball=ball, ball_confidence=count.ball_confidence, motion=motion,
                             model_key=key, count=count, rule=rule)
 
+    # --- nobody on the pitch ------------------------------------------------------------
     if n == 0:
         if motion is not None and cfg.motion_hi is not None and motion >= cfg.motion_hi:
             return verdict(MinuteState.UNCERTAIN, 0.0, 4,
                            f"nobody found but motion {motion:.3f} >= {cfg.motion_hi:.3f}")
         return verdict(MinuteState.EMPTY, _clip(1.0 - 0.15 * count.raw_inside, 0.6, 1.0), 3,
-                       "nobody standing inside the boundary")
+                       "nobody standing inside the boundary and nothing moving")
 
-    if count.vehicles_inside >= 1 or (count.hi_vis_people >= 1 and n <= cfg.small_group_max):
-        why = (f"{count.vehicles_inside} vehicle(s) inside" if count.vehicles_inside
-               else f"{count.hi_vis_people} hi-vis in a group of {n}")
-        return verdict(MinuteState.MAINTENANCE, 0.5, 5, why + " (best effort, unevaluated)")
-
+    # --- too few for a game -------------------------------------------------------------
     if n <= cfg.small_group_max:
         confidence = min(0.9, 0.5 + 0.1 * (cfg.play_min - n)) - (0.2 if ball else 0.0)
-        return verdict(MinuteState.PEOPLE_NOT_PLAYING, confidence, 6,
-                       f"{n} <= {cfg.small_group_max} people" + (", ball or not" if ball else ""))
+        why = f"{n} <= {cfg.small_group_max} people" + (", ball or not" if ball else "")
+        if count.vehicles_inside or count.hi_vis_people:
+            why += (f" ({count.vehicles_inside} vehicle(s), {count.hi_vis_people} hi-vis "
+                    f"- maintenance, though C3 does not distinguish it)")
+            confidence = max(confidence, 0.6)
+        return verdict(MinuteState.MAINTENANCE_NON_SPORTING, confidence, 5, why)
 
-    if ball:
-        return verdict(MinuteState.PLAYING, min(1.0, 0.8 + 0.05 * (n - cfg.play_min)), 7,
-                       f"{n} >= {cfg.play_min} people and a ball")
+    # --- more than four: a game has to be shown, not assumed ----------------------------
+    #
+    # Each required cue is examined in turn and its verdict recorded, so a frame that fails
+    # says *which* clause failed, and a clause that could not be checked says that instead
+    # of passing silently.
+    missing: list[str] = []
+    if cfg.require_ball and not ball:
+        missing.append("no ball seen inside the boundary")
+    still = None
+    if cfg.require_motion:
+        if motion is None:
+            trace.append("motion required but not measured on this frame - clause skipped")
+        elif cfg.motion_play_min is None:
+            trace.append("motion required but `motion_play_min` is unfitted (WP9-T5) "
+                         "- clause skipped")
+        elif motion < cfg.motion_play_min:
+            still = motion
+            missing.append(f"motion {motion:.3f} < {cfg.motion_play_min:.3f}")
+    if (still is None and count.spread is not None and cfg.cluster_max is not None
+            and count.spread < cfg.cluster_max):
+        missing.append(f"clustered, spread {count.spread:.3f} < {cfg.cluster_max:.3f}")
 
-    if (cfg.row8_enabled and motion is not None and cfg.motion_lo is not None
-            and motion < cfg.motion_lo and count.spread is not None
-            and cfg.cluster_max is not None and count.spread < cfg.cluster_max):
-        return verdict(MinuteState.PEOPLE_NOT_PLAYING, 0.5, 8,
-                       f"{n} people, no ball, motion {motion:.3f} < {cfg.motion_lo:.3f}, "
-                       f"spread {count.spread:.3f} < {cfg.cluster_max:.3f}")
+    if missing:
+        # A crowd on a pitch that is not playing on it: a team talk, a queue, a group
+        # standing about, groundskeeping. C3 covers all of it and the corpus cannot tell
+        # them apart, which is why the four-class split left the prediction path.
+        return verdict(MinuteState.MAINTENANCE_NON_SPORTING, 0.6, 7,
+                       f"{n} > {cfg.small_group_max} people but " + "; ".join(missing))
 
-    return verdict(MinuteState.PLAYING, min(0.85, 0.6 + 0.05 * (n - cfg.play_min)), 9,
-                   f"{n} >= {cfg.play_min} people, no ball seen (ball recall is low)")
+    shown = ["a ball"] if ball else []
+    if motion is not None and cfg.motion_play_min is not None:
+        shown.append(f"motion {motion:.3f}")
+    return verdict(MinuteState.ACTIVE_PLAY, min(1.0, 0.8 + 0.05 * (n - cfg.play_min)), 6,
+                   f"{n} > {cfg.small_group_max} people"
+                   + (" with " + " and ".join(shown) if shown else ""))

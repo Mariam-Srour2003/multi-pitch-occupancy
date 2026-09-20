@@ -443,22 +443,47 @@ select = { arm = "full + generated empties (31)" }
 column = "false_play"
 note = "A30: H3's folds never contained the generated frames, so A13's repair had not been checked under this protocol. It reproduces more strongly than it was reported. The 26 real-pixel median empties take the same figure to 0.9618, and A31 eliminated three explanations for why."
 
-# --- WP9: the detector-first rebuild (A36) --------------------------------------------
+# --- WP9: the detector-first rebuild (A36, amended A40) --------------------------------
 #
 # `where` is TODO.md rather than a thesis chapter, and deliberately: WP9 is mid-flight. Its
 # thresholds are unfrozen (`configs/rules.json` has `frozen_at = null`) and its counting truth
 # is a first pass by eye with 47 of 100 frames marked unsure, so these numbers are not yet
 # written into the thesis. They are checked here anyway, because a number quoted in a plan is
 # a number that can go stale - and the point of this ledger is that none of them can.
+#
+# **2026-09-20: two of these claims went stale in exactly the way this file exists to catch.**
+# A40 made ACTIVE_PLAY require a ball, and `rule-cross-venue-recall` fell from 0.9957 to
+# 0.3110 while `rule-worst-venue` fell from 0.9702 to 0.1111. The ledger failed, the prose was
+# corrected, and both the old and the new value are stated below rather than one quietly
+# replacing the other. The pair `rule-cross-venue-recall` / `rule-cross-venue-recall-no-ball`
+# is now the measurement of what the facility's rule costs.
 
 [[claim]]
 id = "rule-cross-venue-recall"
-statement = "The detector-first rule reaches 0.996 ACTIVE_PLAY recall across the seven held-out clip venues, scored one frame at a time inside one camera's boundary."
-value = 0.9957
+statement = "With A40's ball requirement on, the detector-first rule reaches only 0.311 ACTIVE_PLAY recall across the seven held-out clip venues, scored one frame at a time inside one camera's boundary. It was 0.996 before the requirement (2026-09-19); the requirement, not the detector, is what changed."
+value = 0.311
 where = ["TODO.md"]
 source = "results/rule_frame_eval.csv"
 select = { arm = "detector_first" }
 column = "play_recall"
+
+[[claim]]
+id = "rule-cross-venue-recall-no-ball"
+statement = "The identical rule with require_ball off reaches 0.996 recall on the same frames — so the 0.685 gap is the cost of the facility's ball rule and not a property of the detector or the counting."
+value = 0.9957
+where = ["TODO.md"]
+source = "results/rule_frame_eval.csv"
+select = { arm = "detector_first_no_ball" }
+column = "play_recall"
+
+[[claim]]
+id = "rule-ball-requirement-worst-venue"
+statement = "At clipvenue_i_outdoor_trees the ball requirement leaves 0.111 play recall — the detector sees a ball in 11% of that venue's genuine play frames, so the rule reports 16 of 18 real matches as C3."
+value = 0.1111
+where = ["TODO.md"]
+source = "results/rule_frame_eval.csv"
+select = { arm = "detector_first" }
+column = "recall_worst_venue"
 
 [[claim]]
 id = "rule-false-play"
@@ -480,11 +505,11 @@ column = "empty_accuracy"
 
 [[claim]]
 id = "rule-worst-venue"
-statement = "The rule's worst held-out venue is 0.970, where the probe's is 0.667 — both at clipvenue_h_teal_pitch. The probe's mean hides a fold it fails badly; the rule's does not."
+statement = "Without the ball requirement the rule's worst held-out venue is 0.970, where the probe's is 0.667. The probe's mean hides a fold it fails badly; the counting rule's does not — until A40's ball requirement is applied, which opens a worse fold of its own (see rule-ball-requirement-worst-venue)."
 value = 0.9702
 where = ["TODO.md"]
 source = "results/rule_frame_eval.csv"
-select = { arm = "detector_first" }
+select = { arm = "detector_first_no_ball" }
 column = "recall_worst_venue"
 
 [[claim]]

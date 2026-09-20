@@ -2213,7 +2213,9 @@ tagged with the question it answers. Fix that first — it is what turns a build
       question the rule actually asks does not discriminate between them.
 - [x] **WP9-T3 Counting, rules, fusion, bursts** — done 2026-09-19. `vision/counting.py`
       (foot-point, ball-centre, min-height filter, 2-of-3 persistence, hi-vis, spread);
-      `vision/rules.py` (`MinuteState`, `FrameVerdict`, `RuleConfig`, `decide` = A36's table);
+      `vision/rules.py` (`MinuteState`, `FrameVerdict`, `RuleConfig`, `decide` — A36's
+      nine-row table, ~~four folder classes~~ **three reporting classes and a seven-row table
+      since A40**);
       `configs/rules.json` (unfrozen until WP9-T5); `slots/fusion.fuse_pitch` (counts summed,
       table applied once, half-blind pitch at half confidence); UNCERTAIN in `aggregate_slot`
       (an abstained minute is a minute not captured — one mechanism, no new threshold);
@@ -2231,11 +2233,16 @@ tagged with the question it answers. Fix that first — it is what turns a build
         and the trace, and `clip_page`/`image_page` need the pane renamed and the trace shown.
 - [ ] **WP9-T5 Thresholds frozen.** `experiments/fit_rule_thresholds.py` on venue_01 camera A
       only → `configs/rules.json` with `frozen_at`/`frozen_commit`.
-- [~] **WP9-T6 Evaluation** — `rule_frame_eval` done 2026-09-19 (+ 4-class confusion):
-      detector-first **recall 0.996, false-play 0.000, EMPTY 0.889, balanced 0.996**, worst
-      venue 0.970 against the probe's 0.667; the probe arms reproduce `h3_with_false_play.csv`
-      first. The clock rule still wins on this corpus and loses 16–0 on real footage, and both
-      belong in the thesis together.
+- [~] **WP9-T6 Evaluation** — `rule_frame_eval` re-run 2026-09-20 under A40 (+ 3-class
+      confusion). ~~detector-first recall 0.996 … balanced 0.996, worst venue 0.970~~ — those
+      are now the **`detector_first_no_ball`** arm. With A40's ball requirement on:
+      **recall 0.311, worst venue 0.111**, false-play 0.000, EMPTY 0.889, balanced 0.311.
+      200 of 1,078 recorded play frames flip to C3, and recall *equals the ball-detection rate
+      venue by venue* — above the head count the rule has become a ball detector. Frame level
+      only: no burst, no pitch-level sum, so **0.311 is a floor and 0.996 is the ceiling**, and
+      WP9-T6a is what closes the gap between them. The probe arms still reproduce
+      `h3_with_false_play.csv` first; the clock rule still wins on this corpus and loses 16–0
+      on real footage, and both belong in the thesis together.
   - [ ] **WP9-T6a** `ball_recovery` (the audit's tiling numbers are its first measurement:
         recall 0.43 → 0.59, and 0.17 → 0.58 at `f_outdoor_bldg`), `rule_on_clips`,
         `rule_on_unseen_clip` (the seam already reproduces 13/13; this is the CSV),
@@ -2246,6 +2253,31 @@ tagged with the question it answers. Fix that first — it is what turns a build
       regenerated; `configs/README.md`, `docs/runbook.md`, `thesis/ethics.md` lines; dated
       corrections under A20/A26 in `EXPERIMENT_LOG.md`.
 - [ ] **[H] WP9-T8** Latency on the Mini-PC (WP7-T1) for the detector path.
+- [~] **WP9-T9 A40: three classes, and play must be shown** — done 2026-09-20.
+      `MinuteState` is `C1_EMPTY` / `C2_ACTIVE_PLAY` / `C3_MAINTENANCE_NON_SPORTING` /
+      `UNCERTAIN`; the table is seven rows; ACTIVE_PLAY requires **> 4 people AND a ball AND
+      motion**; `require_ball`, `require_motion` and `motion_play_min` are in
+      `configs/rules.json`; A40 in the preregistration, §2.8 in the labelling protocol
+      (the ball requirement is deliberately **not** carried into the truth — defining the
+      label by what the detector can see would make the cost unmeasurable by construction).
+  - [ ] **[H] WP9-T9a Decide whether to keep `require_ball` on.** The measurement is in:
+        0.996 → 0.311 cross-venue play recall at frame level, 200 of 1,078 play frames
+        flipped, worst venue 0.111. **But the cost is entirely a one-camera, one-frame cost** —
+        `rule_pitch_pairs.csv` is unchanged under A40 (0.338 → 0.859) because a ball is seen on
+        99/99 paired venue_01 play moments once two cameras are ORed, and 187 of the 200 lost
+        frames are at the single-camera clip venues. It is the facility's rule and it is
+        implemented; whether they want to pay that is theirs to say, and the switch is one line
+        of `configs/rules.json`. **Do not flip it silently either way** — whichever it ends as,
+        the other arm stays published beside it.
+        What would actually settle it is **WP9-T6a `rule_on_clips`**: the burst ORs the ball
+        across three frames, and nothing has measured what that recovers on a single camera.
+  - [ ] **WP9-T9b** `motion_play_min` is null, so `require_motion` cannot fire; `decide`
+        writes "clause skipped" into every trace instead of passing silently. Fitting it is
+        part of WP9-T5, and until then the motion half of the facility's rule is **not in
+        force** — which is stated on every verdict rather than left to be discovered.
+  - [ ] **WP9-T9c** The review pages still default to `dinov2` (`config.default_model_key`),
+        so A40's rule does not govern `/clip`, `/images` or `/roi`. That flip is WP9-T7 and it
+        should not happen while WP9-T9a is open, because it would deploy the 0.311 arm.
 
 Struck through by WP9, not deleted: ~~WP5-B fusion head as the deployed decision layer~~ and
 ~~WP6 items that assume the probe is the deployed model~~ — both remain as comparators.

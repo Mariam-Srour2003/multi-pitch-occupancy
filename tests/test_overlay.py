@@ -95,16 +95,17 @@ def test_a_mask_is_filled_and_a_box_is_only_outlined() -> None:
 
 
 def test_the_badge_names_the_state_and_the_count_and_the_state_sets_its_colour() -> None:
-    playing = verdict_for([person(10 + 20 * i, 100, 25 + 20 * i, 180) for i in range(6)])
-    assert playing.state is MinuteState.PLAYING
+    playing = verdict_for([person(10 + 20 * i, 100, 25 + 20 * i, 180) for i in range(6)]
+                          + [ball(60, 120)])
+    assert playing.state is MinuteState.ACTIVE_PLAY
     drawn = overlay.draw_verdict(frame(), playing)
     corner = {tuple(int(c) for c in px) for px in drawn[0:3, 0:3].reshape(-1, 3)}
-    assert overlay.STATE_COLOURS[MinuteState.PLAYING] in corner
+    assert overlay.STATE_COLOURS[MinuteState.ACTIVE_PLAY] in corner
 
     empty = overlay.draw_verdict(frame(), verdict_for([]))
     corner = {tuple(int(c) for c in px) for px in empty[0:3, 0:3].reshape(-1, 3)}
     assert overlay.STATE_COLOURS[MinuteState.EMPTY] in corner
-    assert overlay.STATE_COLOURS[MinuteState.PLAYING] != overlay.STATE_COLOURS[MinuteState.EMPTY]
+    assert overlay.STATE_COLOURS[MinuteState.ACTIVE_PLAY] != overlay.STATE_COLOURS[MinuteState.EMPTY]
 
 
 def test_an_uncertain_verdict_still_draws_and_is_its_own_colour() -> None:

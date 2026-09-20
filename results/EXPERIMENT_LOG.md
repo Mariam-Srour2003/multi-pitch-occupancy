@@ -7042,3 +7042,115 @@ reason is now written next to it - it times seven detectors against a 30-second 
 choose a different model.
 
 - 2026-09-19 | A39 WP9 registered with the runner and the ledger | uv run python experiments/reproduce_all.py --check | reproduce_all.py | four WP9 stages added and 0 stale; six WP9 claims added, 45 verified 0 failing; hand_counts.csv declared an external input because a stage that reran it would erase the counts
+
+- 2026-09-20 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
+
+- 2026-09-20 | WP9-T6 rule vs probe at frame level | uv run python experiments/rule_frame_eval.py | rule_frame_eval.csv | clock_rule recall 1.000 false-play 0.021 EMPTY 0.979; dinov2 recall 0.930 false-play 0.309 EMPTY 0.000; dinov2_gated recall 0.929 false-play 0.012 EMPTY 0.889; detector_first recall 0.311 false-play 0.000 EMPTY 0.889; detector_first_no_ball recall 0.996 false-play 0.000 EMPTY 0.889; best balanced: detector_first_no_ball; one frame per camera, no burst, no pitch sum
+
+- 2026-09-20 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 43 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-20 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 47 claims verified against their artefacts, 0 recorded as unsupported
+
+## 2026-09-20 — A40: requiring a ball costs two thirds of the frame-level play recall
+
+The facility restated its rule on 2026-09-20: a booking is in use when more than four people
+are on the pitch, a ball is visible, and people are moving. `vision/rules.py` now enforces it,
+the prediction path answers three classes instead of four, and `configs/rules.json` carries
+`require_ball` and `require_motion` as switches. The preregistration amendment is A40 and it
+was written before this run, including the sentence about what it was likely to cost.
+
+**It cost more than that sentence guessed.** Same detector, same weights, same boundaries,
+same 1,578 frames; one switch:
+
+| arm | recall | worst venue | false-play | EMPTY acc | balanced |
+|---|---|---|---|---|---|
+| `detector_first_no_ball` | 0.9957 | 0.970 | 0.0000 | 0.8889 | **0.9957** |
+| `detector_first` (ball required) | **0.3110** | **0.111** | 0.0000 | 0.8889 | 0.3110 |
+| clock_rule | 1.0000 | 1.000 | 0.0206 | 0.9794 | 0.9794 |
+| dinov2_gated | 0.9289 | 0.667 | 0.0123 | 0.8889 | 0.9165 |
+| dinov2 | 0.9297 | 0.667 | 0.3086 | 0.0000 | 0.6211 |
+
+Cross-venue play recall falls **0.9957 → 0.3110**; the worst fold falls **0.970 → 0.111**.
+200 of 1,078 recorded play frames are ACTIVE_PLAY with the switch off and C3 with it. The
+per-venue table is the explanation and it is A17's 0.40 arriving as a bill:
+
+| venue | play frames | ball seen | recall on | recall off | lost |
+|---|---|---|---|---|---|
+| clipvenue_a_blue_barrier | 168 | 0.345 | 0.321 | 0.970 | 109 |
+| clipvenue_d_indoor_dome | 18 | 0.222 | 0.222 | 1.000 | 14 |
+| clipvenue_e_pink_boards | 18 | 0.889 | 0.889 | 1.000 | 2 |
+| clipvenue_f_outdoor_bldg | 12 | 0.167 | 0.167 | 1.000 | 10 |
+| clipvenue_g_netting | 30 | 0.300 | 0.300 | 1.000 | 21 |
+| clipvenue_h_teal_pitch | 18 | 0.167 | 0.167 | 1.000 | 15 |
+| clipvenue_i_outdoor_trees | 18 | 0.111 | 0.111 | 1.000 | 16 |
+| venue_01 | 796 | 0.446 | 0.259 | 0.275 | 13 |
+
+Recall with the ball required is, venue by venue, **the ball-detection rate**. That is the
+whole finding: above the head count the rule is no longer a counting rule, it is a ball
+detector, and YOLOv8n's ball detector on this footage is the 0.06-0.89 instrument A17
+measured. `clipvenue_e_pink_boards` keeps 0.889 because its ball is visible; `outdoor_trees`
+keeps 0.111 because its ball is not. Nothing about the *pitch* distinguishes them.
+
+**What this number is not.** It is one frame at a time, inside one camera's boundary, with no
+burst and no pitch-level sum - the hardest setting there is for a rule that now depends on a
+small fast object being visible at one instant. The deployed path reads a burst of three
+frames a second apart and ORs the ball across them, and then ORs again across the pitch's
+cameras, so the deployed recall is higher than 0.311 by an amount this table cannot state.
+`rule_on_clips.py` and `rule_slots.py` are what would state it and neither has been run. Until
+they have, **0.311 is a floor and 0.996 is the ceiling**, and quoting either one alone would
+be the kind of half-truth this log exists to prevent. A17's own arms suggest the burst is
+worth a lot here - `ball_detection_rule.csv` found tiling alone took `f_outdoor_bldg` from
+0.17 to 0.58 - but "suggests" is not "measured" and this line is not a result.
+
+**What it is, though, is a decision that now has a price on it.** The facility asked for a
+rule; the rule is implemented exactly as asked; the cost of asking is 200 real matches in this
+corpus reported as non-sporting use, concentrated at six of the seven venues the system has
+never seen. `require_ball` is a switch in `configs/rules.json` with this number written beside
+it, so turning it off is a decision somebody can take with the evidence in hand. The ledger
+caught the two stale claims on the first run (`rule-cross-venue-recall` 0.9957 → 0.3110,
+`rule-worst-venue` 0.9702 → 0.1111); both are restated rather than edited, and the counterfactual
+arm is now its own claim so the gap cannot be quoted without its comparator.
+
+Two smaller changes ride along. `MinuteState` dropped the four folder classes for the three
+reporting ones: the corpus holds 6 real `3_people_not_playing` frames and 0 real
+`4_maintenance` frames, so the split was never measurable, and `make_overlay_figures` had been
+forgiving that cell as "the confusion A36 accepts" - a cell forgiven in advance is not a
+measurement. It now compares against the three-class label and forgives nothing.
+`rule_confusion_4class.csv` becomes `rule_confusion_3class.csv` with a `truth_folder` column;
+the A39 entry above naming the old filename is left as written.
+
+- 2026-09-20 | A40 ball requirement costs 0.685 cross-venue play recall | uv run python experiments/rule_frame_eval.py | rule_frame_eval.csv | detector_first recall 0.311 worst venue 0.111 against the identical rule without require_ball at 0.996/0.970; 200 of 1078 play frames flipped to C3; recall with the ball required equals the ball-detection rate venue by venue; frame level only, no burst and no pitch sum, so this is a floor
+
+- 2026-09-20 | WP9-T6 pitch-level sum against a single camera | uv run python experiments/rule_pitch_pairs.py | rule_pitch_pairs.csv | 164 paired moments at venue_01: one camera 0.558 correct, the pitch sum 0.829 [0.768, 0.884]; play moments median 3 inside one camera and 8 across the pitch against a threshold of 5
+
+- 2026-09-20 | WP9-T4 overlay figures | uv run python experiments/make_overlay_figures.py --model yolov8n | figs/overlays/ | 9 redacted overlays from yolov8n; the three-class label agrees with the rule on 5 of them (A40: nothing forgiven, where the 3<->4 cell used to be); 2 play frame(s) not called play, 2 of those with no ball seen; people drawn in one colour and the ball in another
+
+### 2026-09-20 — and where the ball requirement costs nothing: two cameras
+
+`rule_pitch_pairs.py` was re-run under A40 because `reproduce_all --check` flagged it stale
+against the new `configs/rules.json`. Its headline did not move at all - play recall
+**0.338 one camera → 0.859 summed**, EMPTY 0.892 → 0.785, the same numbers as before the ball
+requirement existed. The reason is in the CSV: on all **99 of 99** paired venue_01 play
+moments a ball is seen once the two cameras are ORed. `require_ball` cost nothing there.
+
+That is the other half of the number above, and it says what the 0.311 is actually made of.
+The ball requirement is not expensive because balls are hard to see; it is expensive **when
+there is only one chance to see one**. A pitch with two cameras gets two chances at the same
+instant, and at venue_01 that was enough every time. The seven clip venues are single-camera
+66-second clips scored one frame at a time, which is one chance, and that is where all 187 of
+the 200 lost frames are.
+
+Two things follow, and neither is a result yet. The deployed path also gets three chances per
+camera per minute (the burst ORs the ball across frames), and no table here measures that -
+`rule_on_clips.py` would. And a single-camera single-frame venue is the *worst* case for this
+rule by construction, so a facility deploying one camera per pitch should expect something
+closer to 0.311 than to 0.859 until the burst is measured. The 13 paired play moments that
+were still C3 with a ball present are the other failure mode entirely: the summed count was
+four or fewer, which is A16's under-count and has nothing to do with the ball.
+
+The `overlay-figures` sheet was re-run for the same reason and is now scored against the
+three-class label with nothing forgiven: 5 of 9 agree, 2 play frames are not called play, and
+both of those have no ball seen. It used to report "7 of 9 (+1 accepted 3↔4)" against the
+folder, which was a friendlier number about a weaker question.
+
+- 2026-09-20 | A40 re-run of the stale stages | uv run python experiments/rule_pitch_pairs.py; experiments/make_overlay_figures.py --model yolov8n | rule_pitch_pairs.csv, overlay_index.csv | pitch-sum play recall unchanged at 0.338 -> 0.859 because a ball is seen on 99/99 paired play moments once two cameras are ORed - require_ball costs nothing with two cameras and costs almost everything with one; overlay sheet 5/9 against the three-class label, nothing forgiven

@@ -673,7 +673,7 @@ STAGES: list[Stage] = [
     Stage(
         name="rule-frame-eval",
         command=[*PY, "experiments/rule_frame_eval.py"],
-        produces=[RESULTS / "rule_frame_eval.csv", RESULTS / "rule_confusion_4class.csv"],
+        produces=[RESULTS / "rule_frame_eval.csv", RESULTS / "rule_confusion_3class.csv"],
         requires=[DATA / "cache" / "dinov2.npz", DATA / "processed" / "manifest.csv",
                   ROOT / "configs" / "rules.json"],
         note="WP9-T6: the rule against the probe, the gated probe and the clock rule, with "

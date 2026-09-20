@@ -4,6 +4,10 @@ The worker reads a burst per camera-minute, the pipeline counts each camera insi
 boundary, and the pitch is decided from the *sum* - so two halves showing three people each
 make a match, the per-camera samples say what each half saw, and an abstained minute counts
 against the capture floor rather than toward any verdict.
+
+Since A40 the ball is part of that sum: ACTIVE_PLAY needs more than four people **and** a
+ball, and the ball ORs across the halves, so the scripted detector below puts one on the
+pitch whenever anybody is playing on it.
 """
 
 from __future__ import annotations
@@ -56,13 +60,14 @@ class BurstSource(FrameSource):
 
 
 def counting_detector() -> Detector:
-    """Reads the person count off the frame's first pixel; a ball when the count is >= 5."""
+    """Reads the person count off the frame's first pixel; a ball once anybody is on the
+    pitch (>= 3), since A40 makes the ball a requirement rather than a flourish."""
     det = Detector(DETECTORS["yolov8n"])
 
     def detect(image_bgr, **kwargs):
         n = int(image_bgr[0, 0, 0])
         out = [Detection(PERSON, (2 + 8 * i, 5, 8 + 8 * i, 30), 0.9) for i in range(n)]
-        if n >= 5:
+        if n >= 3:
             out.append(Detection(SPORTS_BALL, (60, 20, 64, 24), 0.4))
         return out
 
@@ -81,9 +86,9 @@ def test_two_halves_of_three_make_a_match_the_worker_records_as_used() -> None:
     source = BurstSource({"camA": [3] * 4, "camB": [3] * 4})
     run = run_slot("s", source, None, pipeline=pipeline())
     assert run.verdict.status is SlotStatus.USED
-    assert run.minute_states == ("2_playing",) * 4
+    assert run.minute_states == ("C2_ACTIVE_PLAY",) * 4
     assert run.people_counts == (6, 6, 6, 6), "the pitch count is the sum"
-    assert run.ball_minutes == (), "three and three: neither half saw a ball"
+    assert run.ball_minutes == (0, 1, 2, 3), "the ball ORs across the halves"
     # what each half saw is kept, in the three-class value the dashboard reads
     assert {s.predicted for s in run.samples} == {Class3.MAINTENANCE_NON_SPORTING.value}
     assert source.bursts_asked and all(n == 3 for _, _, n in source.bursts_asked)
@@ -93,7 +98,7 @@ def test_an_empty_pitch_with_a_ball_in_the_other_half_is_used_only_if_people_are
     source = BurstSource({"camA": [0] * 4, "camB": [0] * 4})
     run = run_slot("s", source, None, pipeline=pipeline())
     assert run.verdict.status is SlotStatus.NOTUSED
-    assert run.minute_states == ("1_empty",) * 4
+    assert run.minute_states == ("C1_EMPTY",) * 4
     assert run.people_counts == (0, 0, 0, 0)
 
 
@@ -122,7 +127,7 @@ def test_the_ball_is_recorded_per_minute_and_the_confidence_reflects_it() -> Non
     run = run_slot("s", source, None, pipeline=pipeline())
     assert run.ball_minutes == (0, 1, 2)
     assert run.verdict.status is SlotStatus.USED
-    assert run.verdict.mean_confidence > 0.8, "row 7"
+    assert run.verdict.mean_confidence > 0.8, "row 6"
 
 
 def test_a_single_frame_burst_is_still_a_burst_of_one() -> None:

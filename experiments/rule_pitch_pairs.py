@@ -40,7 +40,7 @@ from pitch_occupancy.evaluation.experiment_log import record
 from pitch_occupancy.evaluation.stats import bootstrap_ci
 from pitch_occupancy.slots.fusion import fuse_pitch
 from pitch_occupancy.vision import roi
-from pitch_occupancy.vision.rules import MinuteState
+from pitch_occupancy.vision.rules import from_class4
 
 #: `2_playing/slot_20260712_2030_camA_t003476.jpg` -> recording, camera, seconds
 NAME = re.compile(r"(?P<slot>slot_\d{8}_\d{4})_(?P<cam>cam[AB])_t(?P<t>\d+)")
@@ -96,7 +96,9 @@ def main() -> int:
         if len(verdicts) != 2:
             continue
         pitch = fuse_pitch(verdicts, pipeline.rules)
-        want = MinuteState(truth)
+        # The labelling folder, collapsed onto the three classes the rule answers:
+        # `3_people_not_playing` and `4_maintenance` are both C3 since A40.
+        want = from_class4(truth)
         for v in verdicts.values():
             alone_hits.append(int(v.state is want))
         fused_hits.append(int(pitch.state is want))

@@ -1094,3 +1094,79 @@ the system has never seen. The relabelling under the new threshold changes every
 PLAY count; those tables are re-issued, not edited. And the method now rests on a detector
 whose training data this project did not choose, which is stated as a threat to validity in the
 same words the backbones already carry.
+
+---
+
+### 2026-09-20 — A40: the rule answers three classes, and ACTIVE_PLAY must be shown
+
+**What changes.** Two things, both at the client's instruction, both narrowing what the
+system is allowed to claim.
+
+**1. The prediction path answers three classes, not four.** `vision/rules.MinuteState` now
+carries `C1_EMPTY`, `C2_ACTIVE_PLAY`, `C3_MAINTENANCE_NON_SPORTING` and `UNCERTAIN`. A36 gave
+it the four *folder* values so that row 5 could answer `4_maintenance` separately from
+`3_people_not_playing`. That distinction was never measurable: the corpus holds **6 real
+`3_people_not_playing` frames and 0 real `4_maintenance` frames**, which is why A36 itself had
+to write "the 4-class confusion is reported with `3 ↔ 4` marked as the accepted confusion,
+since the client accepts it and the data cannot measure it". A cell that is forgiven in
+advance is not a measurement, and a branch the data cannot evaluate does not belong in the
+deployed path. The labelling folders are untouched - `data/taxonomy.to_class3` still collapses
+them, `from_class4` still maps either onto C3 - so if maintenance footage ever arrives the
+finer label is still on disk and the split can be re-opened as its own amendment.
+
+Row 5 of A36 (vehicle inside, or hi-vis person) therefore stops producing a class of its own.
+The cue is not deleted: a vehicle or a hi-vis person inside the boundary is recorded in the
+verdict's trace and in `PitchCount`, so it is available to a later amendment and visible to an
+operator reading a verdict. It simply no longer decides anything, because there is nothing to
+check it against.
+
+**2. ACTIVE_PLAY requires more than four people *and* a ball *and* movement.** A36's rows 7-9
+made play the default above the head count: five or more people were PLAYING, a ball only
+raised the confidence, and row 8 (still and clustered, no ball) was the sole escape and
+disabled by default. The client's rule is the opposite and was stated plainly: a match has a
+ball in it and people moving; a crowd standing on a pitch is not a booking being used. So the
+burden of proof moves onto play. The table is now seven rows:
+
+| # | condition | state | note |
+|---|---|---|---|
+| 1 | detector unavailable | UNCERTAIN | a missing detector is not an empty pitch |
+| 2 | no boundary for this camera | UNCERTAIN | mandatory on the deployed path |
+| 3 | `n = 0`, motion low or unmeasured | **C1 EMPTY** | nobody, and nothing moving |
+| 4 | `n = 0`, motion high | UNCERTAIN | something moved and nobody was found |
+| 5 | `1 ≤ n ≤ 4` | **C3** | too few for a game, ball or no ball |
+| 6 | `n > 4` **and** a ball **and** motion | **C2 ACTIVE_PLAY** | the only way into play |
+| 7 | `n > 4`, otherwise | **C3** | a crowd that is not playing |
+
+`n` is still the count summed across the pitch's cameras (A36), and the ball still ORs across
+them and across the burst - which matters more now than it did, because a pitch whose ball is
+only ever visible to one camera would otherwise be scored C3 on both halves.
+
+**A required cue that cannot be checked is reported, never assumed.** `require_motion` is on,
+but `motion_play_min` is null until the WP9-T5 fit. Rather than let a requirement silently
+never fire, `decide` skips the clause and writes *which* clause it skipped into the verdict's
+trace, on every frame. The same holds for a still image, which has no burst and therefore no
+motion cue. This repo has now found three guards that were not guarding (`scheduler.run_due`
+passing no gates, no ROI key matching a production camera, the walkthrough page running the
+probe alone); a fourth that announces itself is the cheapest available insurance.
+
+**Both requirements are switches in `configs/rules.json`,** because turning them off is a
+decision somebody should be able to take and to see taken.
+
+**Risk this amendment accepts.** A17 measured cross-venue ball recall at **0.40, ranging
+0.06-0.89 by venue** - 0.13 at `outdoor_trees`, 0.17 at `outdoor_bldg`. `require_ball` turns
+every one of those misses into a genuine match reported as C3. On the venues where the
+detector cannot see the ball this will cost the majority of real play minutes, and those slots
+will read NOTUSED or REVIEW rather than USED. That is a much larger recall cost than A36's,
+and it is taken at the facility's instruction rather than because a measurement supports it.
+What this amendment commits to is measuring it rather than arguing about it: `rule_frame_eval`
+is re-run with `require_ball` on and off, both arms published in `results/rule_frame_eval.csv`
+with per-venue play recall and bootstrap intervals, so the cost of the facility's rule is a
+number in the thesis and not a footnote. If that number is unacceptable the switch is where to
+turn, and the switch is in the config with its reasoning beside it.
+
+Two smaller risks come with it. Dropping the fourth class means the system can no longer even
+*claim* to distinguish groundskeeping from a group standing about - previously it claimed to
+and could not be checked, so this is a loss of a claim rather than of a capability, but it is
+a narrowing of scope and is stated as one. And `results/rule_confusion_4class.csv` becomes
+`rule_confusion_3class.csv` with a `truth_folder` column; the earlier log entry naming the old
+filename is left as written, with a dated correction appended beside it.

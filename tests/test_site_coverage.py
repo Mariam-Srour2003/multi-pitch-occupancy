@@ -63,12 +63,15 @@ OUT_OF_SCOPE = {
     ),
     "rule_frame_eval.csv": (
         "WP9-T6: the rule against the probe, the gated probe and the clock rule at frame "
-        "level. A headline in waiting - rendered by WP9-T6b, once the thresholds are frozen "
+        "level, plus a `detector_first_no_ball` arm that is the same rule with A40's ball "
+        "requirement switched off - the gap between the two is what that requirement costs. "
+        "A headline in waiting - rendered by WP9-T6b, once the thresholds are frozen "
         "(WP9-T5) and the hand counts verified, because the arms move when either lands."
     ),
-    "rule_confusion_4class.csv": (
-        "WP9-T6: the 4-class confusion by venue, with 3<->4 marked as the confusion A36 "
-        "accepts. Belongs beside rule_frame_eval.csv and arrives with it."
+    "rule_confusion_3class.csv": (
+        "WP9-T6: the confusion by venue over the three classes the rule answers (A40). It "
+        "was a 4-class table whose 3<->4 cell was marked as accepted; nothing was measured "
+        "there. Belongs beside rule_frame_eval.csv and arrives with it."
     ),
     "rule_pitch_pairs.csv": (
         "WP9-T6: what summing the two cameras of one pitch is worth (play 0.338 -> 0.859, "

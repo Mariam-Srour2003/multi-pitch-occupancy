@@ -54,9 +54,8 @@ COLOURS = {
 #: The badge's background, by state. Read at a glance across a contact sheet.
 STATE_COLOURS = {
     MinuteState.EMPTY: (90, 90, 90),
-    MinuteState.PLAYING: (40, 160, 40),
-    MinuteState.PEOPLE_NOT_PLAYING: (30, 140, 200),
-    MinuteState.MAINTENANCE: (150, 60, 160),
+    MinuteState.ACTIVE_PLAY: (40, 160, 40),
+    MinuteState.MAINTENANCE_NON_SPORTING: (30, 140, 200),
     MinuteState.UNCERTAIN: (60, 60, 160),
 }
 

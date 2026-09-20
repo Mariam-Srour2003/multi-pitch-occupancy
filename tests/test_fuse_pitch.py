@@ -3,6 +3,11 @@
 A16 measured "one to four people means not playing" per camera as wrong on 88 of 278 real
 matches, because a camera sees half a pitch. The hand-count audit found 18 of 74 play frames
 with fewer than five people inside their own camera's boundary. So `fuse_pitch` sums.
+
+The ball ORs across the halves for the same reason, and since A40 that matters more: play has
+to be *shown* now (more than four people **and** a ball), so a pitch whose ball is only ever
+visible to one camera would be scored C3 on both halves and ACTIVE_PLAY on the pitch. That is
+the fusion earning its place, and it is what the first two tests check.
 """
 
 from __future__ import annotations
@@ -28,10 +33,11 @@ def seen(n: int, *, ball: bool = False, motion: float | None = None, raw: int | 
 
 
 def test_three_and_three_is_a_match_even_though_neither_half_is() -> None:
-    a, b = seen(3), seen(3)
-    assert a.state is MinuteState.PEOPLE_NOT_PLAYING and b.state is MinuteState.PEOPLE_NOT_PLAYING
+    a, b = seen(3, ball=True), seen(3)
+    assert a.state is MinuteState.MAINTENANCE_NON_SPORTING, "three with a ball is still three"
+    assert b.state is MinuteState.MAINTENANCE_NON_SPORTING
     pitch = fuse_pitch({"camA": a, "camB": b}, CFG)
-    assert pitch.state is MinuteState.PLAYING and pitch.class3 is Class3.ACTIVE_PLAY
+    assert pitch.state is MinuteState.ACTIVE_PLAY and pitch.class3 is Class3.ACTIVE_PLAY
     assert pitch.people_inside == 6 and pitch.n_scored == 2
     assert not pitch.disagreed, "the halves agreed with each other, and the pitch overruled both"
     assert pitch.winning_camera in {"camA", "camB"}
@@ -40,8 +46,8 @@ def test_three_and_three_is_a_match_even_though_neither_half_is() -> None:
 
 def test_a_ball_seen_by_either_camera_is_seen_by_the_pitch() -> None:
     pitch = fuse_pitch({"camA": seen(4), "camB": seen(2, ball=True)}, CFG)
-    assert pitch.ball_seen is True and pitch.state is MinuteState.PLAYING
-    assert pitch.confidence == pytest.approx(0.85), "row 7 with six people"
+    assert pitch.ball_seen is True and pitch.state is MinuteState.ACTIVE_PLAY
+    assert pitch.confidence == pytest.approx(0.85), "row 6 with six people"
 
 
 def test_nobody_on_either_half_is_empty_and_the_height_filter_carries_over() -> None:
@@ -55,7 +61,7 @@ def test_a_camera_without_a_count_is_reported_and_halves_the_confidence() -> Non
     is decided from the other half at half the confidence, and says so."""
     unavailable = decide(None, motion=None, cfg=CFG)
     pitch = fuse_pitch({"camA": seen(6, ball=True), "camB": unavailable}, CFG)
-    assert pitch.state is MinuteState.PLAYING and pitch.n_scored == 1
+    assert pitch.state is MinuteState.ACTIVE_PLAY and pitch.n_scored == 1
     assert pitch.confidence == pytest.approx(0.85 * 0.5)
     assert any("could not be scored" in step for step in pitch.trace)
     whole_frame = decide(count(20, bounded=False), motion=None, cfg=CFG)
@@ -79,9 +85,9 @@ def test_a_row_4_abstention_is_still_summed_and_its_motion_is_read_again() -> No
     cfg = RuleConfig(motion_hi=2.0)
     moving_empty = decide(count(0), motion=3.0, cfg=cfg)
     assert moving_empty.rule == 4
-    with_people = decide(count(6), motion=0.5, cfg=cfg)
+    with_people = decide(count(6, ball=True), motion=0.5, cfg=cfg)
     pitch = fuse_pitch({"camA": moving_empty, "camB": with_people}, cfg)
-    assert pitch.state is MinuteState.PLAYING and pitch.n_scored == 2
+    assert pitch.state is MinuteState.ACTIVE_PLAY and pitch.n_scored == 2
     assert pitch.motion == 3.0
     both_empty = fuse_pitch({"camA": moving_empty, "camB": decide(count(0), motion=0.1, cfg=cfg)},
                             cfg)
@@ -90,7 +96,7 @@ def test_a_row_4_abstention_is_still_summed_and_its_motion_is_read_again() -> No
 
 def test_disagreement_is_between_the_halves_that_were_scored() -> None:
     pitch = fuse_pitch({"camA": seen(0), "camB": seen(7, ball=True)}, CFG)
-    assert pitch.disagreed and pitch.state is MinuteState.PLAYING
+    assert pitch.disagreed and pitch.state is MinuteState.ACTIVE_PLAY
     assert pitch.winning_camera == "camB"
 
 
@@ -102,4 +108,4 @@ def test_no_observations_is_an_error_not_an_empty_pitch() -> None:
 def test_the_verdict_is_a_plain_record() -> None:
     pitch = fuse_pitch({"camA": seen(5, ball=True)}, CFG)
     assert isinstance(pitch, PitchVerdict)
-    assert pitch.per_camera == (("camA", MinuteState.PLAYING, pitch.per_camera[0][2]),)
+    assert pitch.per_camera == (("camA", MinuteState.ACTIVE_PLAY, pitch.per_camera[0][2]),)
