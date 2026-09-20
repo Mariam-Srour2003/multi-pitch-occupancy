@@ -2278,6 +2278,28 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [ ] **WP9-T9c** The review pages still default to `dinov2` (`config.default_model_key`),
         so A40's rule does not govern `/clip`, `/images` or `/roi`. That flip is WP9-T7 and it
         should not happen while WP9-T9a is open, because it would deploy the 0.311 arm.
+        **Reported from use 2026-09-20**: on eight operator clips the probe scores **3/8** and
+        answers ACTIVE_PLAY at 1.00 on both maintenance clips, where the detector counting
+        alone scores 7/8. This is now the most visible defect in the product.
+  - [x] **WP9-T9d** A person whose box the frame cuts off was counted as nobody the moment a
+        boundary existed — `foot_y == frame_height`, and `counting.inside` tested `y < height`,
+        so the point was outside *every* polygon including a whole-frame one. Read two people
+        standing in plain view as C1_EMPTY at n=0. Fixed by clamping onto the last visible row;
+        `overlay.py` held a second copy of the test and the same bug. `rule_frame_eval` re-run:
+        **every value byte-identical**, because no frame in the corpus reaches the bottom edge.
+  - [ ] **[H] WP9-T9e Maintenance has real footage now.** A40 dropped the fourth class because
+        the corpus held **0 real `4_maintenance` frames**. The operator supplied two clips of
+        real groundskeeping on 2026-09-20, and one of them (`Maint day`: five workers, a mower,
+        a bag, and a ball lying on the pitch) is read ACTIVE_PLAY — correctly, by the rule's own
+        specification. Every available cue was checked and none fires: **hi-vis 0.000**, no COCO
+        vehicle (a push mower is not a class), and **motion cannot separate** — the lowest-motion
+        clip of the eight is a *real match* (1.71 against `Maint day`'s 2.58). Two clips are not
+        a corpus, but the reason for closing the branch no longer holds. Whatever re-opens it
+        needs a cue for mowers and bags, not for trucks and hi-vis.
+  - [ ] **WP9-T9f** `roi.derive_from_video` is worse than no boundary on the operator's clips
+        (4/8 against 7/8): it clipped the far end of one pitch, putting two people outside its
+        top edge, and stopped at y=0.99 on another, missing the edge the foreground people stand
+        on. Worth drawing by hand in `/roi`; not yet worth deriving.
 
 Struck through by WP9, not deleted: ~~WP5-B fusion head as the deployed decision layer~~ and
 ~~WP6 items that assume the probe is the deployed model~~ — both remain as comparators.

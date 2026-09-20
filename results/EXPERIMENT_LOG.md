@@ -7154,3 +7154,79 @@ both of those have no ball seen. It used to report "7 of 9 (+1 accepted 3↔4)" 
 folder, which was a friendlier number about a weaker question.
 
 - 2026-09-20 | A40 re-run of the stale stages | uv run python experiments/rule_pitch_pairs.py; experiments/make_overlay_figures.py --model yolov8n | rule_pitch_pairs.csv, overlay_index.csv | pitch-sum play recall unchanged at 0.338 -> 0.859 because a ball is seen on 99/99 paired play moments once two cameras are ORed - require_ball costs nothing with two cameras and costs almost everything with one; overlay sheet 5/9 against the three-class label, nothing forgiven
+
+## 2026-09-20 — reported from use: eight clips, and a boundary that deleted the foreground
+
+The operator ran eight short clips of their own (`Maint day`, `maint night`, three
+not-playing, three playing; 864x496, 4-8 s each) through the system and reported wrong
+answers. Three separate things were wrong, and only one of them was a defect.
+
+**1. The pages are still the probe, and the probe gets 3 of 8.** `config.default_model_key`
+is `dinov2` until WP9-T7, so `/clip`, `/images` and the walkthrough all assemble the probe.
+It answered **ACTIVE_PLAY at confidence 1.00 on both maintenance clips** and EMPTY on a real
+ten-person match. The detector-first path on the same clips, counting only, gets 7 of 8. This
+is A20 again on the operator's own footage, and it is the single largest factor in what they
+saw:
+
+| arm | correct |
+|---|---|
+| dinov2 probe (what the pages run) | 3/8 |
+| detector-first, ball required (shipped rule) | 6/8 |
+| detector-first, count only | **7/8** |
+| detector-first with `ball_conf` raised to 0.35 | 6/8 |
+| detector-first with an auto-derived boundary | 4/8 |
+
+**2. A person the frame cuts off was counted as nobody, and only once a boundary existed.**
+`Detection.foot` is the bottom-centre of the box, so somebody close enough to the camera for
+the frame to truncate them has `foot_y == frame_height` - one past the last row. `inside()`
+tested `0 <= y < height` and answered False, which put that person outside **every** polygon,
+including one covering the whole frame. Counting with no boundary found them; counting with a
+boundary found none. On `not playing day` that read two people standing in plain view as
+**C1_EMPTY at zero people** - the one class this project promises not to miss, failing
+silently, in the direction that matters. Fixed by clamping the point onto the last visible
+row: the frame stops, the pitch does not. `vision/overlay.py` held a second copy of the same
+test with the same bug and now calls `counting.inside`.
+
+**The fix moves no published number.** `rule_frame_eval` was re-run against it and every value
+in `rule_frame_eval.csv` is byte-identical, on all five arms. That is not vacuous - all 1,578
+development frames resolve a boundary - it means the recorded corpus has no person whose box
+reaches the bottom edge, which is what high-mounted 1080p CCTV looks like. The bug needed
+footage like the operator's: cropped, zoomed, with somebody in the foreground. Every
+measurement in this log was blind to it for that reason, which is the argument for footage
+from outside the corpus rather than more of it.
+
+**3. `Maint day` is the specification, not a defect.** Five groundskeepers - one pushing a
+mower, one with a bag, two by the goal, one kneeling on the line - and a real ball lying on
+the pitch. More than four people, a ball, and movement: A40's rule says ACTIVE_PLAY, and it is
+right that it does, given what it was told. Every cue that might have rescued it was checked
+and none fires:
+
+- **hi-vis fraction 0.000 on all five.** They are in ordinary shirts.
+- **no vehicle.** A push mower is not a COCO class; nothing above 0.11 in the whole frame.
+- **motion does not separate, and fitting it would make things worse.** Median burst motion:
+  `Maint day` 2.58, `maint night` 1.70, `not playing day` 8.03 - against the playing clips'
+  1.71, 4.44 and 17.05. The lowest motion of all eight clips belongs to a **real match**
+  (`playing day 2`, 1.71). A `motion_play_min` fitted to exclude `Maint day` would exclude a
+  genuine game first. This is worth recording before WP9-T5 fits that threshold on venue_01
+  camera A and discovers it does not transfer.
+
+So the separating cue for maintenance does not exist in the current feature set. A40 removed
+that branch on the grounds that the corpus held **0 real maintenance frames** and it could
+therefore never be evaluated. **That premise has just changed**: there are now two real
+maintenance clips, and they are exactly the case the branch existed for. Two clips are not a
+corpus and nothing is re-opened on this entry, but the reason for closing it no longer holds,
+and whatever re-opens it will need a cue that works on mowers and bags rather than on COCO
+trucks and hi-vis.
+
+**4. `playing day 3` is the measured cost of `require_ball`, arriving in person.** Ten people
+counted correctly, camera behind a goal net, players 38 px tall at the far end, and the ball
+found at 0.27 on 1 frame of 13. C3 with the requirement, ACTIVE_PLAY without it.
+
+One more thing the clips settled: **auto-derived boundaries are worse than none here** (4/8
+against 7/8). `roi.derive_from_video` clipped the far end of the pitch on `notplaying day`,
+putting two people just outside its top edge, and stopped at y=0.99 on `not playing day`,
+missing the bottom edge the foreground people stand on. On this footage the whole frame *is*
+the pitch, because the clips are already cropped to it. A boundary is worth drawing by hand
+and is not yet worth deriving.
+
+- 2026-09-20 | reported from use: eight operator clips | ad-hoc, see scratchpad | rule_frame_eval.csv unchanged | probe 3/8, detector count-only 7/8, shipped rule 6/8; fixed a boundary bug that deleted people whose boxes touch the bottom frame edge (C1_EMPTY at n=0 on two visible people) - no published number moves, because no corpus frame reaches the bottom edge; Maint day is 5 real groundskeepers + a real ball and the rule is correct by its own specification; motion cannot separate maintenance from play on these clips and the lowest-motion clip is a real match

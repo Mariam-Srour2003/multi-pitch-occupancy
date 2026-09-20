@@ -92,12 +92,29 @@ def polygon_mask(polygon: Sequence[Sequence[float]] | None,
 
 
 def inside(mask: np.ndarray | None, point: tuple[int, int]) -> bool:
-    """Whether ``point`` ``(x, y)`` lies inside the mask. No mask means everything is inside."""
+    """Whether ``point`` ``(x, y)`` lies inside the mask. No mask means everything is inside.
+
+    **A point on the frame's edge is read at the last row or column, not discarded.** A
+    person close enough to the camera for the frame to cut their feet off has
+    ``foot_y == frame_height`` - one past the last row - because `Detection.foot` is the
+    bottom of a box the frame itself truncated. This used to test ``y < height`` and answer
+    False, which put that person outside *every* polygon including one covering the whole
+    frame: counting with no boundary found them and counting with a boundary found none.
+
+    Reported from use on 2026-09-20 - two people standing in the foreground of a clip read as
+    C1_EMPTY at zero people once a boundary was drawn. Clamping is the honest reading: the
+    frame stops, the pitch does not, and the lowest row the camera can see is where a
+    truncated box stands. What the clamp cannot do is move anyone across a boundary, because
+    it only ever moves a point that was already off the edge onto the edge, and a polygon
+    that does not reach the edge still excludes it (`tests/test_detector.py`).
+    """
     if mask is None:
         return True
     x, y = point
     height, width = mask.shape[:2]
-    return 0 <= y < height and 0 <= x < width and bool(mask[y, x])
+    if not (0 <= y <= height and 0 <= x <= width):
+        return False
+    return bool(mask[min(y, height - 1), min(x, width - 1)])
 
 
 def hi_vis_fraction(frame_bgr: np.ndarray, det: Detection) -> float:

@@ -33,7 +33,7 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from pitch_occupancy.vision import roi
+from pitch_occupancy.vision import counting, roi
 from pitch_occupancy.vision.detector import PERSON, SPORTS_BALL, VEHICLES, Detection
 from pitch_occupancy.vision.rules import FrameVerdict, MinuteState
 
@@ -133,14 +133,13 @@ def draw_verdict(
         if verdict.count is not None:
             return (det.cls, det.box) in counted
         # No count at all (a verdict that never reached the rule): fall back to the polygon,
-        # and to "everything" when there is not even one.
+        # and to "everything" when there is not even one. Through `counting`, so the drawing
+        # and the counting agree about the frame edge - this had its own copy of the
+        # membership test and its own copy of the bug fixed there on 2026-09-20.
         if not polygon:
             return True
-        mask = np.zeros((height, width), np.uint8)
-        pts = np.array([[int(x * width), int(y * height)] for x, y in polygon], np.int32)
-        cv2.fillPoly(mask, [pts], 1)
-        x, y = det.centre if det.cls == SPORTS_BALL else det.foot
-        return 0 <= y < height and 0 <= x < width and bool(mask[y, x])
+        point = det.centre if det.cls == SPORTS_BALL else det.foot
+        return counting.inside(counting.polygon_mask(polygon, (height, width)), point)
 
     for det in drawn:
         if det.cls == SPORTS_BALL:

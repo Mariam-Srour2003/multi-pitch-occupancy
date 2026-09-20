@@ -197,6 +197,43 @@ def test_vehicles_inside_are_counted_by_their_feet() -> None:
     assert count.vehicles_inside == 1
 
 
+def test_a_person_whose_feet_the_frame_cuts_off_is_still_standing_on_the_pitch() -> None:
+    """A detection touching the bottom edge used to vanish the moment a boundary existed.
+
+    `Detection.foot` is the bottom-centre of the box, so a person close enough to the camera
+    for the frame to cut their feet off gets ``foot_y == frame_height`` - one row past the
+    last row there is. :func:`counting.inside` tested ``0 <= y < height``, so that point fell
+    outside *every* polygon, including one covering the whole frame: counting with no boundary
+    found them and counting with a boundary found none, which is the wrong way round.
+
+    Reported from use on 2026-09-20. Two people standing in the foreground of a clip the
+    operator had labelled `not playing` were read as **C1_EMPTY at zero people**. EMPTY is the
+    one class this project promises not to miss; the failure was silent; and it only appears
+    once a boundary exists, so every measurement taken without one had been blind to it.
+    """
+    shape = (496, 864)
+    whole_frame = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]
+    cut_off = [person(532, 331, 630, 496, conf=0.94), person(782, 312, 863, 496, conf=0.87)]
+
+    assert cut_off[0].foot == (581, 496), "one row past the last row of a 496-row frame"
+    bounded = counting.count_inside(cut_off, whole_frame, shape)
+    assert bounded.people_inside == 2, "a boundary must not delete the foreground"
+    assert bounded.people_inside == counting.count_inside(cut_off, None, shape).people_inside
+
+
+def test_the_edge_clamp_does_not_move_anybody_onto_the_pitch() -> None:
+    """It pulls a point onto the last visible row. It does not pull anyone over a line."""
+    top_half = [[0.0, 0.0], [1.0, 0.0], [1.0, 0.5], [0.0, 0.5]]
+    on_the_edge = person(20, 60, 40, 100)     # feet cut off, in the bottom half
+    well_inside = person(20, 10, 40, 40)      # feet at y=40, in the top half
+    count = counting.count_inside([on_the_edge, well_inside], top_half, SHAPE)
+    assert count.people_inside == 1, "the edge person stands at the bottom, outside the polygon"
+    assert count.people_total == 2
+    # and the same clamp on the x axis, for a box the frame cuts off at the right
+    right_edge = person(180, 10, 200, 40)
+    assert counting.count_inside([right_edge], SQUARE, SHAPE).people_inside == 1
+
+
 def test_spread_is_relative_to_the_boundary() -> None:
     a, b = person(0, 0, 10, 99), person(190, 0, 200, 99)  # feet at x=5 and x=195, y=99
     count = counting.count_inside([a, b], SQUARE, SHAPE)
