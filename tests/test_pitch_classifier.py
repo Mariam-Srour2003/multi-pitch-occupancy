@@ -21,10 +21,12 @@ SQUARE = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]
 FRAME = np.zeros((100, 200, 3), np.uint8)
 
 
-def people(n: int, *, ball: bool = False) -> list[Detection]:
+def people(n: int, *, ball: bool = False, ball_x: int = 150) -> list[Detection]:
+    """``n`` people, optionally a ball at ``ball_x``. The ball's position is a parameter
+    because a burst now has to show it *moving* to call it in play (`vision/ball.py`)."""
     out = [Detection(PERSON, (10 + 15 * i, 10, 20 + 15 * i, 60), 0.9) for i in range(n)]
     if ball:
-        out.append(Detection(SPORTS_BALL, (150, 40, 158, 48), 0.35))
+        out.append(Detection(SPORTS_BALL, (ball_x, 40, ball_x + 8, 48), 0.35))
     return out
 
 
@@ -44,15 +46,18 @@ def scripted(*per_frame):
 
 
 def test_a_burst_is_counted_frame_by_frame_and_the_median_persists() -> None:
-    clf = DetectorFirstClassifier(scripted(people(6), people(5), people(6, ball=True)),
-                                  RuleConfig())
+    # The ball recurs and moves across the burst, which is what it now takes to be a ball
+    # in play rather than a flicker on a stud - reported from use, 2026-09-21.
+    clf = DetectorFirstClassifier(
+        scripted(people(6, ball=True, ball_x=150), people(5), people(6, ball=True, ball_x=190)),
+        RuleConfig())
     obs = clf.observe("camA", [FRAME, FRAME, FRAME], SQUARE)
     assert obs.verdict.state is MinuteState.ACTIVE_PLAY and obs.verdict.rule == 6
     assert obs.verdict.people == 6 and obs.verdict.ball is True
     assert obs.frames == 3 and obs.evidence_index == 0, "the first frame with the median count"
     assert obs.motion_burst is not None and obs.motion_minute is None
     assert obs.verdict.polygon == SQUARE
-    assert len(obs.instances) == 6 + 0, "the counted people of the evidence frame; no ball there"
+    assert obs.verdict.count.ball_frames == 2 and obs.verdict.count.ball_in_play is True
 
 
 def test_a_shadow_in_one_frame_of_three_does_not_survive() -> None:
@@ -128,3 +133,26 @@ def test_the_pipeline_abstains_without_a_boundary_on_the_deployed_path() -> None
     verdict = pipe.classify_frame(FRAME, camera_id="camZ")
     assert verdict.state is MinuteState.ACTIVE_PLAY
     assert any("whole frame" in step for step in verdict.trace)
+
+
+def test_a_ball_that_flickers_once_across_a_burst_does_not_make_it_a_match() -> None:
+    """Reported from use: "sometimes tracking a ball and it is not there". Measured on the
+    operator's clips, a false ball fires in one frame of six and a real one recurs."""
+    clf = DetectorFirstClassifier(scripted(people(6), people(6, ball=True), people(6)),
+                                  RuleConfig())
+    obs = clf.observe("camA", [FRAME, FRAME, FRAME], SQUARE)
+    assert obs.verdict.count.ball_frames == 1
+    assert obs.verdict.ball is False, "seen once, so not a ball the rule will act on"
+    assert obs.verdict.state is MinuteState.MAINTENANCE_NON_SPORTING
+
+
+def test_a_ball_that_never_moves_across_a_burst_is_not_in_play() -> None:
+    """`maint night`: a real ball, six sightings of six, lying on the grass while three
+    people work around it. §2.3 - an unattended ball does not make a pitch occupied."""
+    still = scripted(*(people(6, ball=True, ball_x=150) for _ in range(3)))
+    obs = DetectorFirstClassifier(still, RuleConfig()).observe(
+        "camA", [FRAME, FRAME, FRAME], SQUARE)
+    assert obs.verdict.count.ball_frames == 3, "it is genuinely there"
+    assert obs.verdict.count.ball_in_play is False, "and it has not moved"
+    assert obs.verdict.state is MinuteState.MAINTENANCE_NON_SPORTING
+    assert any("not moved" in step for step in obs.verdict.trace)

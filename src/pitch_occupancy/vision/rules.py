@@ -211,6 +211,14 @@ class RuleConfig:
     #: "clustered" - a third signal that a crowd is standing rather than playing. Optional:
     #: rows 6 and 7 already turn a ball-less or motionless crowd into C3 without it.
     cluster_max: float | None = None
+    #: **And it has to be in play, not lying on the grass.** With this on, a ball that
+    #: persisted across the burst but moved less than its own width does not satisfy
+    #: `require_ball`. Reported from use on 2026-09-21: the operator's one clip with a
+    #: rock-solid ball - six sightings of six at 0.30 - is a maintenance clip, and the ball
+    #: is furniture beside three people working. `labelling_protocol.md` §2.3 has always
+    #: said an unattended ball does not make a pitch occupied. Inert on a single frame,
+    #: which cannot tell movement from stillness, and the trace says so.
+    require_ball_in_play: bool = True
     #: **A game has a ball in it.** With this on, ACTIVE_PLAY requires one seen inside the
     #: boundary in at least one burst frame. It is the facility's rule and it is strict: A17
     #: measured cross-venue ball recall at 0.40, 0.06-0.89 by venue, so the venues where the
@@ -291,7 +299,9 @@ def decide(
     trace.append(
         f"{n} people inside" + (f" ({count.raw_inside} before the height filter)"
                                 if count.raw_inside != n else "")
-        + (f", ball seen {count.ball_confidence:.2f}" if ball else ", no ball seen")
+        + (f", ball seen {count.ball_confidence:.2f}"
+           + (f" in {count.ball_frames} of the burst" if count.ball_frames > 1 else "")
+           if ball else ", no ball seen")
         + (f", motion {motion:.3f}" if motion is not None else ", motion unmeasured"))
 
     def verdict(state: MinuteState, confidence: float, rule: int, why: str) -> FrameVerdict:
@@ -326,6 +336,17 @@ def decide(
     missing: list[str] = []
     if cfg.require_ball and not ball:
         missing.append("no ball seen inside the boundary")
+    elif cfg.require_ball and cfg.require_ball_in_play:
+        # A ball that persisted across the burst but never moved is not one being played
+        # with. None means the burst was too short to tell, which is skipped and said.
+        if count.ball_in_play is None:
+            trace.append("a ball is there, but one frame cannot show whether it moved "
+                         "- in-play clause skipped")
+        elif not count.ball_in_play:
+            missing.append("a ball, but it has not moved between burst frames")
+    if ball and count.balls_at_once > 1:
+        trace.append(f"{count.balls_at_once} balls detected at once - the burst matched the "
+                     f"most confident one, which may not be the same ball each frame")
     still = None
     if cfg.require_motion:
         if motion is None:

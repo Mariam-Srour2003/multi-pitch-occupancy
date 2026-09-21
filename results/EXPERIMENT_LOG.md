@@ -7599,3 +7599,69 @@ changing it moves every probe number in the thesis - that is WP10-T9 and it is a
 a measurement under it now rather than a guess.
 
 - 2026-09-21 | what training on four videos costs | uv run python experiments/video_concentration_cost.py | video_concentration_cost.csv | capping training rows at 12 per source video takes cross-venue false-play 0.3086 -> 0.0123 while RAISING play recall 0.9556 -> 0.9966 and worst venue 0.806 -> 0.976, fitting on 351 rows instead of 1599 - unlike every earlier pruning result this is not a trade; EMPTY accuracy stays ~0 in every arm, so it stops the probe saying PLAY without teaching it EMPTY (A20 unmoved); nothing switched over
+
+### 2026-09-21 — reported from use: the ball detector fires when there is no ball, and a ball nobody touches
+
+Three complaints, and they needed three different answers.
+
+**1. "sometimes tracking a ball and it is not there."** `counting.persist` set `ball_seen` if
+**any** frame of the burst held a detection, so one 0.17 hit on a stud satisfied the rule that
+decides whether a pitch is in use. Measured over six frames half a second apart on the
+operator's clips, that shape is unmistakable:
+
+| clip | truth | frames with a ball | best conf | movement |
+|---|---|---|---|---|
+| `maint night` | C3 | **6 of 6** | 0.30 | **0.0000** |
+| `Maint day` | C3 | 1 of 6 | 0.17 | - |
+| `not playing day` | C3 | 1 of 6 | 0.23 | - |
+| `playing day` | C2 | 5 of 6 | 0.84 | 0.0429 |
+| `playing day 4` | C2 | 3 of 6 | 0.56 | 0.0098 |
+| `playing` | C2 | 2 of 6 | 0.71 | 0.0333 |
+
+A false ball fires **once**; a real one recurs. `vision/ball.assess` now requires two
+sightings in the burst. That is a requirement in the sense `play_min` is, not a fitted
+threshold - twice is what distinguishes a thing from a flicker.
+
+**2. "if the ball is not changing its place for multiple images then it is not being used."**
+The operator is right and the protocol already agreed with them: `labelling_protocol.md` §2.3
+says an unattended ball does not make a pitch occupied. `maint night` is the single clip in
+the set with a rock-solid ball - six of six at 0.30, genuinely there, plainly visible on the
+turf - and it has not moved by a pixel in two seconds because three people are working around
+it. Movement is measured **in ball diameters**, so the number is scale-free across a 7-pixel
+ball at the touchline and a 40-pixel one in the foreground.
+
+**The first threshold was wrong and the evidence said so immediately.** One whole diameter
+looked principled - "further than it is wide" - and it landed *between* two genuine matches:
+`playing day 4`'s ball travels 0.50 diameters, so a real match became C3 and the clip set went
+10 of 13 correct to 9. The stationary ball is not slow, it is **exactly 0.00** - the same blob
+in the same place. `MOVED_DIAMETERS` is 0.25, which asks "did it move at all, past detector
+jitter" rather than "did it move far". Three clips is not a calibration and it is written down
+as a floor to re-check at WP9-T5.
+
+**3. "if there is multiple balls and so on."** Sightings are matched by taking the most
+confident ball per frame, which is wrong the moment two are genuinely in play. Rather than
+pretend otherwise, `most_at_once` is recorded and the verdict's trace says *"N balls detected
+at once - the burst matched the most confident one, which may not be the same ball each
+frame"*. No clip in this set had two at the shipped confidence floor.
+
+**What it does to the answers**, five frames half a second apart through the burst path:
+
+| | correct |
+|---|---|
+| ball required, persistence only | **10 / 13** |
+| ball required, persistence + movement | **10 / 13** |
+| no ball required | 9 / 13 |
+
+**And here the ball requirement is worth something, which cuts against the frame-level
+result.** `rule_frame_eval` says `require_ball` costs 0.9957 -> 0.3078 of play recall, and it
+does. But that measurement is **play recall only**, and on these clips the ball requirement
+fixes four C3 clips the head count alone calls ACTIVE_PLAY - crowds with no game - while
+costing three genuine matches whose ball the detector never finds. Net +1. The frame-level
+`balanced` score cannot see the C3 gain because its false-play control is EMPTY frames.
+
+That does not overturn the cross-venue number; thirteen clips is not a corpus and the two
+measurements answer different questions. It does mean **the `require_ball` decision is not
+the one-sided call the frame table makes it look**, and WP9-T6a (`rule_on_clips`, the burst
+at scale) is where it gets settled rather than argued.
+
+- 2026-09-21 | reported from use: false balls and a ball nobody touches | ad-hoc on the operator's clips | vision/ball.py | a false ball fires in 1 frame of 6 and a real one recurs, so persist now needs 2 sightings; a ball that moved 0.00 diameters across 2s is furniture (maint night, 6/6 at 0.30) so movement is required in ball diameters; the first threshold of 1.0 diameter turned a real match into C3 (10/13 -> 9/13) and 0.25 is a jitter floor not a fit; multiple simultaneous balls are recorded and traced rather than silently matched; on 13 clips through the burst, ball-required 10/13 against no-ball 9/13 - the opposite sign to the frame-level result, because that one measures play recall only

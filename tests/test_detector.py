@@ -257,9 +257,16 @@ def test_hi_vis_reads_saturated_yellow_and_orange_pixels() -> None:
     assert off.hi_vis_people == 0, "off unless asked, since it is unevaluated"
 
 
-def test_persist_is_the_median_count_and_any_ball() -> None:
+def test_persist_is_the_median_count_and_a_ball_that_recurs() -> None:
     """A detection in one frame of three does not survive; a person missed in one of three
-    does; a ball seen once counts."""
+    does; **a ball seen once does not count**.
+
+    It used to. `ball_seen` was "any frame in the burst had one", so a single 0.17 detection
+    on a stud or a bin lid satisfied the rule that decides whether a pitch is in use - and
+    the operator reported exactly that, balls tracked where there is no ball. Measured on
+    their clips, a false ball fires once in six frames and a real one recurs
+    (`vision/ball.py`).
+    """
     one_shadow = [counting.count_inside([person(20, 10, 40, 60)], SQUARE, SHAPE),
                   counting.count_inside([], SQUARE, SHAPE),
                   counting.count_inside([], SQUARE, SHAPE)]
@@ -273,8 +280,17 @@ def test_persist_is_the_median_count_and_any_ball() -> None:
                                           ball(90, 40, 100, 50)], SQUARE, SHAPE)]
     persisted = counting.persist(missed_once)
     assert persisted.people_inside == 2
-    assert persisted.ball_seen and persisted.ball_confidence == pytest.approx(0.3)
+    assert not persisted.ball_seen, "one sighting in three is a flicker, not a ball"
+    assert persisted.ball_frames == 1, "and what was seen is still recorded"
     assert len(persisted.people) == 2, "the frame the verdict rests on"
+
+    twice = [counting.count_inside([ball(90, 40, 100, 50)], SQUARE, SHAPE),
+             counting.count_inside([], SQUARE, SHAPE),
+             counting.count_inside([ball(60, 40, 70, 50)], SQUARE, SHAPE)]
+    recurred = counting.persist(twice)
+    assert recurred.ball_seen and recurred.ball_frames == 2
+    assert recurred.ball_confidence == pytest.approx(0.3)
+    assert recurred.ball_in_play is True, "it moved three times its own width"
 
     with pytest.raises(ValueError):
         counting.persist([])
