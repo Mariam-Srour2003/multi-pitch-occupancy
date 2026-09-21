@@ -1,19 +1,49 @@
 # Speaker script — 25 minutes
 
-**Read this out loud three times before the defence.** The wording is a starting point, not a
-cage: rewrite any sentence that does not sound like you, because phrasing you did not choose
-collapses on the first follow-up question.
+**This script follows the site**, not the PowerPoint. Start the server, open
+<http://127.0.0.1:8000>, and page with `→`. Slide numbers are cumulative across all eleven
+tabs, and each heading repeats the slide's own title so you always know where you are.
 
-Timings are cumulative. `[SLIDE]` markers match the tabs on the site (`uv run pitch serve`)
-and the slides in `Thesis_Defence_25min.pptx`.
+```bash
+uv run pitch serve
+```
 
-Things that are still yours to fill in are marked **[LIKE THIS]**.
+Press **`N`** to show the notes on screen if you lose your place.
+
+**Read only the plain paragraphs aloud.** Blockquoted boxes are prepared answers for
+pushback, not part of the talk. Passages marked **⟨cut if short⟩** can go if you are running
+over — they are depth, not structure.
+
+Read it aloud three times before the day, and rewrite anything that does not sound like you.
+Phrasing you did not choose collapses on the first follow-up question.
+
+Things still yours to fill in are marked **[LIKE THIS]**.
+
+| Tab | Slides | Starts | Runs |
+|---|---|---|---|
+| Start | 1–3 | 0:00 | 1:05 |
+| Purpose | 4–6 | 1:05 | 1:50 |
+| How it works | 7–12 | 2:55 | 2:55 |
+| The problem | 13–21 | 5:50 | 4:20 |
+| Data | 22–28 | 10:10 | 3:45 |
+| Models | 29–31 | 13:55 | 2:00 |
+| Rules | 32–34 | 15:55 | 2:20 |
+| Searches | 35–38 | 18:15 | 1:35 |
+| Augmentation | 39–43 | 19:50 | 2:00 |
+| Solution | 44–47 | 21:50 | 2:20 |
+| Summary | 48–51 | 24:10 | 2:00 |
+
+**Measured, not guessed.** Read straight through at 140 words a minute with the
+**⟨cut if short⟩** passages dropped, this is **26 minutes**; at 150 it is **24½**. Reading
+every word including the optional passages adds 90 seconds. Time yourself once and adjust —
+if you run slower than 140, drop slides 17, 26 and 43 as well: they are pictures that work
+without commentary.
 
 ---
 
-## 0:00 — Start
+# Tab 1 — Start · 0:00
 
-> **[SLIDE: Start — title]**
+### Slide 1 · "Who actually used the pitch?"
 
 Good morning, distinguished examiners, professors and colleagues.
 
@@ -21,22 +51,30 @@ My name is Mariam Srour, and I am a Master's student in **[PROGRAMME]** at
 **[INSTITUTION]**.
 
 The title of my research is *Multi-Pitch Occupancy and Booking Verification from Existing
-Cameras*. Through the talk I will use the shorter version: **who actually used the pitch?**
+Cameras*. I will use the shorter version on the screen: **who actually used the pitch?**
 
-> **[SLIDE: Roadmap]**
+### Slide 2 · "Where we are going"
 
-In this presentation I will briefly take you through the purpose of the research; how the
-research works, with a short scenario; what problem it tackles; the data and the models;
-the experiments; and I will conclude with a summary.
+I will take you through the purpose of the research; how it works, with a short scenario;
+the problem it tackles; the data and the models; the experiments; and a summary.
 
-Two things I will spend real time on, because they are where the method contribution sits:
-the two configuration searches, and the augmentation experiment.
+Two things I will spend real time on: the configuration searches, and the augmentation
+experiment.
+
+### Slide 3 · "A system that checks every booked minute, and never gets bored"
+
+The scale, once. Sixteen hundred labelled frames, three classes, **one frame per camera per
+minute**, and no GPU anywhere in the design.
+
+That sampling rate is what everything rests on: roughly a **99% cut in network traffic**
+against decoding twenty or thirty live streams, which is what lets the whole facility run on
+one small computer.
 
 ---
 
-## 1:30 — Purpose, and who it helps
+# Tab 2 — Purpose · 1:05
 
-> **[SLIDE: Purpose — the statement]**
+### Slide 4 · "Find out which booked hours were really used"
 
 The purpose of this study is to find out **which booked pitch hours were actually used**,
 using the cameras a facility already owns.
@@ -44,583 +82,580 @@ using the cameras a facility already owns.
 Three constraints shape everything: no new hardware, no GPU, and a person decides every
 case.
 
-> **[SLIDE: Purpose — what the owner gets]**
+### Slide 5 · "What the owner gets"
 
-Let me say plainly why anyone would want this, because it is easy to lose in the
-methodology.
+Let me say plainly why anyone would want this.
 
-A facility rents out twenty or thirty pitches by the hour. Staff write down which slots were
-used. Nobody verifies that. And **nobody can**: one manager physically cannot watch twenty
-pitches at once. So they spot-check, they trust the sheet, and the sheet is unverified.
+A facility rents twenty or thirty pitches by the hour. Staff write down which slots were
+used, nobody verifies it — and **nobody can**. One manager cannot watch twenty pitches at
+once. So they spot-check, and they trust the sheet.
 
-This system gives the owner three things.
+This gives the owner three things.
 
-**First, time.** It checks every booked minute on every pitch, and shows the manager only
-the bookings where the record and the camera disagree. The manager's attention goes where it
-is worth something instead of on a walk-round.
+**Time.** It checks every booked minute on every pitch, and shows the manager only the
+bookings where the record and the camera disagree.
 
-**Second, consistency.** It applies the same rule at eight in the morning and at eleven at
-night. It does not get tired, it does not rush the last pitch, and it does not skip the one
-at the far end because it is raining. A person samples; this does not.
+**Consistency.** It applies the same rule at eight in the morning and eleven at night. It
+does not get tired, and it does not skip the far pitch because it is raining. A person
+samples; this does not.
 
-**Third, evidence.** Every flag arrives with three photographs. So the conversation with a
-customer is about a picture on a screen, not about somebody's memory of Tuesday.
+**Evidence.** Every flag arrives with three photographs. The conversation with a customer is
+about a picture on a screen, not somebody's memory of Tuesday.
 
-That is also why I would say it is **more trustworthy than a manual check** — not because it
-is cleverer than a person, but because it is consistent, it covers everything, and it shows
-you what it decided on. A person can be argued with; a photograph is harder to argue with.
+That is why I call it **more trustworthy than a manual check** — not cleverer than a person,
+but consistent, complete, and able to show you what it decided on.
 
-> *If an examiner pushes on "more trustworthy than a person" — and they might — do not
-> defend the strong version. Say this:* "To be precise: it is more **consistent** and more
-> **auditable** than a manual check, and it covers every minute rather than a sample. I am
-> not claiming it is more accurate than a human looking at the same photograph. I have no
-> inter-annotator figure, and that is a real gap in this work. Accuracy stays a person's
-> job — which is exactly why the system only ever advises."
+> **If pushed on "more trustworthy than a person" — do not defend the strong version:**
+>
+> "To be precise: it is more **consistent** and more **auditable** than a manual check, and
+> it covers every minute rather than a sample. I am not claiming it is more accurate than a
+> human looking at the same photograph. I have no inter-annotator figure, and that is a real
+> gap in this work. Accuracy stays a person's job — which is exactly why the system only ever
+> advises."
 
-> **[SLIDE: Purpose — one rule carried everywhere]**
+### Slide 6 · "One rule carried everywhere"
 
-One design rule carried through the whole system: **the vision path must never see the
-booking record as an input.** A model that has read the booking flag cannot give you
-evidence that is independent of the record it is auditing. That is the difference between an
-audit and a rubber stamp.
+One design rule ran through all of it: **the vision path must never see the booking record as
+an input.** A model that has read the booking flag cannot give evidence independent of the
+record it audits. That is the difference between an audit and a rubber stamp.
 
 ---
 
-## 4:30 — How it works
+# Tab 3 — How it works · 2:55
 
-> **[SLIDE: How it works — five stages]**
+### Slide 7 · "Five stages, one frame a minute"
 
-To achieve this, I built a five-stage system and then evaluated it.
+Five stages.
 
-**Stage one, sample.** One frame per camera per minute. Not a video stream — a single still
-image. That is roughly a **99% cut in network traffic**, and it is what lets the whole
-facility run on one small computer with no graphics card.
+**Sample** — one frame per camera per minute. A still image, not a stream.
 
-**Stage two, classify.** Each frame is labelled empty, active play, or maintenance.
-Maintenance is there so that a mower is not billed as a football match.
+**Classify** — empty, active play, or maintenance. Maintenance exists so a mower is not
+billed as a match.
 
-**Stage three, check.** Cheap rules look at the same frame: is anyone inside the pitch
-boundary, did anything move, are there enough people, is there a ball. These rules can
-**overrule** the neural network. I will come back to that, because it turns out to matter
-more than the choice of network.
+**Check** — cheap rules on the same frame: is anyone inside the pitch boundary, did anything
+move, are there enough people, is there a ball. These rules can **overrule** the neural
+network. Remember that — it matters more than the choice of network.
 
-**Stage four, aggregate.** About sixty predictions become one verdict for the booked hour:
-used, not used, or review.
+**Aggregate** — about sixty predictions become one verdict for the hour: used, not used, or
+review.
 
-**Stage five, compare.** That verdict is checked against the booking record, and
-disagreements are flagged with their evidence.
+**Compare** — that verdict is checked against the booking, and disagreements are flagged
+with their evidence.
 
-> **[SLIDE: How it works — pipeline diagram]**
+### Slide 8 · "Tuesday, 20:00 — Pitch 3"
 
-The thing to notice in this diagram is that every stage can **refuse** rather than guess.
-That is what makes "review" a real outcome instead of a low-confidence "used" — and it is
-why a camera that drops out cannot silently become an empty pitch.
+Concretely. The booking says pitch three was sold for an hour and staff marked it used. The
+cameras sampled sixteen frames, and **thirteen show an empty pitch under floodlights**.
 
-> **[SLIDE: How it works — the scenario]**
+The system does not cancel the charge. It raises one advisory with three photographs, and a
+manager decides.
 
-Let me make it concrete.
+In the code that is structural, not a promise: the only thing the decision layer can return
+is an *Advisory*, and there is no code path that acts.
 
-It is Tuesday evening, eight o'clock, pitch three. The booking system says the pitch was
-sold for an hour, and a member of staff marked it used. The cameras sampled sixteen frames
-across that hour, and thirteen of them show an empty pitch under floodlights.
+### Slide 9 · "Where a verdict can be refused"
 
-The system does **not** cancel the charge. It raises one advisory with three photographs,
-and a manager decides.
+*(Pause — let them read the diagram.)*
 
-In the code that is structural rather than a promise: the only thing the decision layer can
-return is an *Advisory*, human confirmation is a property rather than a setting, and there
-is no code path that acts on a verdict.
+Every stage can **refuse** rather than guess. That is what makes "review" a real outcome
+instead of a low-confidence "used", and why a camera that drops out cannot silently become an
+empty pitch.
 
-> **[SLIDE: How it works — what gets stored, then the two method slides]**
+### Slide 10 · "What gets stored"
 
-On method: the data are frames from fixed CCTV cameras at nine venues, sampled every fifteen
-seconds and hand-labelled against a protocol written before the runs.
+One row per camera per minute is the only thing observed; everything above it is derived.
 
-They are analysed with frozen vision backbones and a small trained head, under splits
-grouped by venue, with four trivial baselines running alongside in every protocol, and every
-comparison reported with the smallest p-value the design could have produced.
+A verdict and its evidence are written in **one transaction**, so no verdict can exist
+without its evidence. And a dropped minute is stored **as a gap** rather than filled —
+because no footage is not evidence that a pitch was unused.
 
-That last part matters, and I will show you why.
+### Slide 11 · "How the data were collected"
+
+Fixed CCTV at nine venues, sampled every fifteen seconds, hand-labelled against a protocol
+written before the runs.
+
+The line at the bottom is what matters: because the cameras are fixed and the interval is
+short, **98.5% of frames have a near-duplicate**. That single property invalidated my own
+pilot.
+
+### Slide 12 · "How the data were analysed"
+
+Frozen backbones with a small trained head, under splits grouped by venue.
+
+Two choices here are the method contribution. **Four trivial baselines run in every
+protocol** — a clock rule, a colour histogram, a constant predictor, a random one. If a
+trivial baseline wins, that is information about the protocol, not a curiosity to leave out.
+
+And I report the **resolution** of every test. Over seven folds the smallest possible p-value
+is 0.0156 — so "not significant" and "the design could not have produced significance" are
+different statements, and I say which applies.
 
 ---
 
-## 8:00 — The problem, and the gap
+# Tab 4 — The problem · 5:50
 
-> **[SLIDE: The problem]**
+### Slide 13 · "A facility sells hours. Nobody checks which ones were used."
 
-This research addresses the problem that a facility sells hours and has no verified record
-of which ones were used. Three kinds of error follow: no-shows, unbooked usage, and plain
-data-entry mistakes.
+The problem is that a facility sells hours with no verified record of which were used. Three
+errors follow: no-shows, unbooked usage, and data-entry mistakes.
 
-Let me concede the obvious objection first. A twenty-euro motion sensor is more robust than
-a camera in fog, in darkness, and against a dirty lens. But a sensor answers *did something
-move*. An audit needs *was this booking used, and here is the picture* — and it has to tell
-a five-a-side match from a groundsman on a mower.
+Let me concede the obvious objection first. A twenty-euro motion sensor is more robust in
+fog, darkness and against a dirty lens. But a sensor answers *did something move*. An audit
+needs *was this booking used, and here is the picture* — and it has to tell a five-a-side
+match from a groundsman on a mower.
 
-> **[SLIDE: The gap — what is known]**
+### Slide 14 · "What is known — and what is missing"
 
-A great deal is already known about frozen vision backbones and about occupancy from CCTV.
-The gap is that almost all of it is evaluated on frames drawn from the **same scenes** as
-training. So the reported score measures memory of a place rather than recognition of an
-activity.
+Much is known about frozen backbones and about occupancy from CCTV. The gap is that almost
+all of it is evaluated on frames from the **same scenes** as training — so the score measures
+memory of a place, not recognition of an activity.
 
-That matters here because the facility's money rests entirely on one class. Getting
-"playing" right is easy and worth nothing. If the system cannot reliably recognise an
-**empty** pitch, it cannot flag a single unused booking.
+That matters because the money rests on one class. Getting "playing" right is easy and worth
+nothing. If the system cannot recognise an **empty** pitch, it cannot flag a single unused
+booking.
 
-> **[SLIDE: Honest splitting halves the score]**
+### Slide 15 · "Honest splitting halves the score"
 
-Here is the first consequence, measured. Under a random split, 37% of near-duplicate frame
-pairs land on opposite sides of the train/test line. Group the split by venue and slot, and
-that drops below 1%.
+Under a random split, **37% of near-duplicate pairs** land on opposite sides of the
+train/test line. Grouped by venue and slot, **below 1%**.
 
 The price of that honesty is severe — ConvNeXtV2's score roughly halves.
 
-But I checked my own result, and only about **two thirds** of that fall is leakage. A model
-that never trains cannot leak, so scoring a zero-shot model on the same test sets isolates
-the rest: 0.183 of it is simply the test set getting harder. Reporting the bigger number
-would have made my story stronger, and it would have been wrong.
+⟨cut if short⟩ But only about **two thirds** of that fall is leakage. A model that never
+trains cannot leak, so scoring a zero-shot model on the same test sets isolates the rest:
+0.183 is simply the test set getting harder. Reporting the bigger number would have made my
+story stronger, and it would have been wrong.
 
-> **[SLIDE: The confound — slow down here]**
+### Slide 16 · "In this data, the time of day is the answer"
 
-And now the real gap, which is the most important slide in this talk.
+**Slow down. This is the most important slide in the talk.**
 
-Across my recorded data, **98% of daylight frames are an empty pitch, and 99% of night
-frames are a match**. Which means the sentence "night means play, day means not-play" is
-correct on **99.1%** of my corpus — without looking at a single pixel.
+Across my data, **98% of daylight frames are an empty pitch, and 99% of night frames are a
+match**. So "night means play, day means not-play" is correct on **99.1%** of my corpus —
+without looking at a single pixel.
 
-The consequence is that nothing measured on this data can separate a model that recognises
-an empty pitch from a model that recognises the time of day. The two cells that would break
-the tie hold **nine frames** and **six frames**.
+Which means nothing measured on this data can separate a model that recognises an empty pitch
+from one that recognises the time of day.
 
-I want to be precise about what kind of claim that is. It is a statement about the
-**dataset**, not about the models. And identifying it, rather than reporting around it, is
-the contribution of this thesis.
+The two cells that would break the tie hold **nine frames** and **six frames**.
 
-> **[SLIDE: The clock rule beats the models]**
+That is a statement about the **dataset**, not the models. And identifying it, rather than
+reporting around it, is the contribution of this thesis.
 
-Here is what that does to a benchmark. A rule that reads only the clock and never looks at
-the image beats all three modern backbones across unseen venues — on finding the match, and
-on false alarms, at the same time.
+### Slide 17 · "The same model, judged two ways"
 
-Expect the question: *so are your models worthless?* No. They are indistinguishable from a
-light meter **on this dataset**.
+Identical model, identical data. Two ways of drawing the train/test line — and the answer
+changes.
 
-I should volunteer one thing here. An earlier version of this slide said the opposite. That
-number came from a label error — a brightness threshold had filed 216 frames of floodlit
-night football as daylight. Corrected, the rule wins and the finding reversed.
+### Slide 18 · "A rule that never looks at the image wins"
 
-> **[SLIDE: The clip that reversed the ranking]**
+Here is what that does to a benchmark. A rule reading only the clock **beats all three
+backbones** across unseen venues — on finding the match and on false alarms, at the same
+time.
 
-So I went and got the missing case: about four minutes of a floodlit pitch at night with
-nobody on it, scored minute by minute.
+Expect: *so are your models worthless?* No. They are indistinguishable from a light meter
+**on this dataset**.
 
-The clock rule calls all sixteen minutes active play — wrong on every single one. The neural
-model on its own sits at 0.38. The full deployed system is at **zero**, and gets all thirteen
-empty minutes right.
+⟨cut if short⟩ And I should volunteer one thing: an earlier version of this slide said the
+opposite. That number came from a label error — a brightness threshold had filed 216 frames
+of floodlit night football as daylight. Corrected, the rule wins.
 
-The point: the benchmark had 1,692 frames and the clip had a few hundred. **The clip won,
-because it contained the case the benchmark was missing.** More data of the same kind would
-not have found this. I think that is the most useful sentence in the thesis.
+### Slide 19 · "Then one clip reversed the ranking"
 
-> **[SLIDE: Two more things the protocol was hiding]**
+So I went and got the missing case: four minutes of a floodlit pitch at night with nobody on
+it, scored minute by minute.
 
-Two more, quickly, and the pattern is the point — each was found by checking rather than by
-theorising.
+The clock rule calls **all sixteen minutes** active play — wrong on every one. The model
+alone sits at 0.38. The full deployed system is at **zero**, and gets all thirteen empty
+minutes right.
 
-A **constant predictor** that always answers "playing" scores a perfect macro-F1 on the
-cross-venue protocol, ahead of every backbone, because every held-out venue is 100% active
-play. That is stronger than saying the protocol changes the ranking — there is no ranking.
+The benchmark had sixteen hundred frames; the clip had a few hundred. **The clip won, because
+it contained the case the benchmark was missing.** More data of the same kind would not have
+found this.
 
-And a low false-alarm rate is **not** accuracy. On 243 held-out empty frames, DINOv2 answers
-"playing" 75 times and "maintenance" 168 times. It is correct **zero** times. The published
-numbers stand; the inference drawn from them does not.
+### Slide 20 · "What a low false-play rate is actually measuring"
+
+This is the strongest result in the work, and it came from adding one column.
+
+The false-alarm rate had been quoted as how well a model recognises an empty pitch. So I
+asked what the models answer **instead**. On 243 held-out empty frames, DINOv2 answers
+"playing" 75 times and "maintenance" 168 times. It is correct **zero** times.
+
+The protocol trains on camera A and tests on camera B — a **camera-transfer test**, not a
+specificity test. The published numbers stand; the inference drawn from them does not.
+
+### Slide 21 · "Two more things the protocol was hiding"
+
+One more, because the pattern is the point. A **constant predictor** that always answers
+"playing" scores a perfect macro-F1 cross-venue, ahead of every backbone, because every
+held-out venue is 100% active play. There is no ranking to change.
+
+Both were found the same way: by checking whether a number meant what it said.
 
 ---
 
-## 13:00 — The data: why it is small, and what we made
+# Tab 5 — Data · 10:10
 
-> **[SLIDE: Data — what we have]**
+### Slide 22 · "What we have"
 
-Now the data, because everything I have just shown you is a consequence of it.
+Sixteen hundred and ninety-two labelled frames. Three classes. Every empty pitch in the
+corpus comes from **one venue**, and maintenance has too few frames to evaluate at all.
 
-1,692 labelled frames. Three classes. Every empty pitch in the corpus comes from **one
-venue**, and maintenance has too few frames to be a class you can evaluate at all.
+### Slide 23 · "Why this data is hard to get"
 
-> **[SLIDE: Data — why this data is hard to get]**
+The obvious question: why not collect more?
 
-The obvious question is: why not just collect more?
+Because this is **footage of identifiable people** — players, staff, sometimes children. That
+is sensitive personal data. Every additional venue is a consent and data-protection
+conversation with a facility, not a dataset download. The bottleneck is **permission**, not
+storage and not labelling effort.
 
-Because this is **footage of identifiable people** on a pitch — players, staff, and
-sometimes children. That is sensitive personal data. Every additional venue is a consent and
-data-protection conversation with a facility, not a dataset download. The bottleneck is
-**permission**, not storage and not labelling effort.
-
-And note what the task needs. It needs **variety** — many venues, many lighting conditions,
-many camera angles, many weathers. It does not need volume of the same scene. Ten thousand
-more frames of the same pitch on the same evening would add nothing, because they are
+And the task needs **variety** — many venues, lightings, angles, weathers — not volume. Ten
+thousand more frames of the same pitch on the same evening add nothing, because they are
 near-duplicates of what I already have.
 
-> **[SLIDE: Data — so we made some]**
+### Slide 24 · "So we made some, starting from something real"
 
-So I generated some data, and I want to be careful about how I describe that.
+So I generated some data, and I want to be careful how I describe it.
 
-I did not generate a dataset from text prompts. **Every generated item starts from a real
+I did **not** generate a dataset from text prompts. **Every generated item starts from a real
 anchor** — a real frame of a real pitch — and the generation changes one thing about it.
 
-For images, I used **Gemini** and **ChatGPT**'s image models, to produce the scene the
-corpus does not contain: an empty pitch under floodlights at night.
+For images I used **Gemini** and **ChatGPT**, to produce the scene the corpus does not
+contain: an empty pitch under floodlights at night.
 
-For video, I took still frames and animated them — adding motion to a still image, so that
+For video I took still frames and **animated them** — adding motion to a still image, so
 there is movement for the motion check to read. That used two AI video tools:
 **[VIDEO TOOL 1]** and **[VIDEO TOOL 2]**.
 
-The result: **31 generated empty frames** took cross-venue false alarms from **0.768 down to
-0.024** — and play-recall went *up*, not down, which is the sign that it added signal rather
-than noise.
+The result: **31 generated empty frames** took cross-venue false alarms from **0.768 to
+0.024** — and play-recall went *up*, which is the sign it added signal rather than noise.
 
-> **[SLIDE: Data — and we are honest about what generated data is]**
+### Slide 25 · "And we are honest about what generated data is"
 
-Generated data is a legitimate tool and a very easy way to fool yourself, so the guards are
-on the slide.
+Generated data is a legitimate tool and an easy way to fool yourself, so the guards are on
+the slide.
 
-They are **excluded from every corpus count** in this thesis. Counting them would make a gap
-look filled that is not. They are a training aid, not evidence that the system works on real
-footage of that case. And I checked the effect against 26 real frames, so it is not an
-artefact of the generator.
+They are **excluded from every corpus count**; counting them would make a gap look filled
+that is not. They are a training aid, not evidence the system works on real footage of that
+case. And I checked the effect against 26 real frames, so it is not an artefact of the
+generator.
 
 One line I did not cross: **I did not generate rain.** There is no wet footage in this
-dataset at all, so synthetic rain could only ever be validated against synthetic rain — and
-that tests the generator, not the weather.
+dataset, so synthetic rain could only be validated against synthetic rain — and that tests
+the generator, not the weather.
 
-> **[SLIDE: Data — the confound as a picture, then what it blocks]**
+### Slide 26 · "The confound, as a picture"
 
-This diagram is read straight off the manifest, so it cannot drift from the corpus. The two
-nearly-empty cells are the whole problem — and the next diagram shows that one missing cell
-propagating into **four separate research questions** that no amount of further engineering
-can reach.
+Read straight off the manifest, so it cannot drift from the corpus. The two nearly-empty
+cells are the whole problem.
 
-> **[SLIDE: Data — small data has a specific danger]**
+### Slide 27 · "One missing cell, four unanswerable questions"
 
-And here is the danger with a dataset this size, stated precisely.
+And this is why that gap is not a footnote in a limitations chapter. One absent cell
+propagates into **four separate research questions**. They are blocked on data, not on work.
 
-The risk is **not** that the numbers come out low. It is that they come out **high for the
-wrong reason** — the model memorises these specific pitches, and that looks like success.
-That is overfitting, and the opposite of what we need, which is **generalisation** to a venue
-the system has never seen.
+### Slide 28 · "Small data has a specific danger"
 
-The evidence that this is real and not theoretical is in the middle of the slide: label
-efficiency here is **not monotone**. Every backbone peaks at one to three hundred labels and
-then gets **worse** at 671, because the extra labels are near-duplicates that add redundancy
-rather than information.
+The risk with a dataset this size is **not** that the numbers come out low. It is that they
+come out **high for the wrong reason** — the model memorises these pitches, and that looks
+like success. That is overfitting, and the opposite of what we need, which is
+**generalisation** to a venue it has never seen.
+
+The evidence this is real and not theoretical: label efficiency here is **not monotone**.
+Every backbone peaks at one to three hundred labels and gets **worse** at 671, because the
+extra labels are near-duplicates that add redundancy rather than information.
 
 That is the whole reason the evaluation is built the way it is.
 
 ---
 
-## 17:00 — Models, and why we trained nothing
+# Tab 6 — Models · 13:55
 
-> **[SLIDE: Models — we did not train the models]**
+### Slide 29 · "We did not train the models"
 
-Which brings me to the models, and to a question I expect: why did you not fine-tune
-anything?
+Which brings me to a question I expect: why did you not fine-tune anything?
 
-The honest answer is on the slide. **Two hundred million frozen parameters, and about eleven
-thousand trained ones.** The three backbones — DINOv2, ConvNeXtV2 and ViT — never saw this
-data during training. They are fixed feature extractors. The only thing that learns is a
-classifier small enough to read on one screen.
+**Two hundred million frozen parameters, and about eleven thousand trained ones.** The three
+backbones never saw this data during training. The only thing that learns is a classifier
+small enough to read on one screen.
 
-> **[SLIDE: Models — why not]**
+### Slide 30 · "Why not — and it is the data, not the compute"
 
-And that was a decision, not a shortcut.
+That was a decision, not a shortcut.
 
-Fine-tuning a two-hundred-million-parameter network on roughly **150 distinct scenes** does
-not teach it football. It teaches it *these pitches*, under *these floodlights*, from *these
-camera angles*. Then either the cross-venue number collapses — or, far worse, it does not
-collapse and I believe it.
+Fine-tuning two hundred million parameters on roughly **150 distinct scenes** does not teach
+it football. It teaches it *these pitches*, under *these floodlights*, from *these angles*.
+Then either the cross-venue number collapses — or, far worse, it does not collapse and I
+believe it.
 
-I could not collect my way out of that, for the reason I gave: the data is sensitive and the
+And I could not collect my way out, for the reason I gave: the data is sensitive and the
 bottleneck is permission.
 
-So **freezing the backbones is a defence against overfitting first**, and an efficiency win
-second. The efficiency is real and very welcome — embed each frame once, reuse it forever,
-which is how seventy-five experiments fit into one thesis — but it is the second reason, not
-the first.
+So **freezing is a defence against overfitting first**, and an efficiency win second. Embed
+each frame once and reuse it forever — which is how seventy-five experiments fit into one
+thesis — but that is the second reason, not the first.
 
-> **[SLIDE: Models — two novel modules]**
+### Slide 31 · "Two novel modules, reported as they came out"
 
-The thesis proposed two novel modules, and I report both the way they came out.
+The thesis proposed two novel modules, and I report both as they came out.
 
-The **gated fusion head** is a negative result. Routing between backbones is worth minus
-0.024 cross-venue recall against the same head with the gate switched off. The gate puts
-about 70% of its weight on DINOv2 in every single fold — it is a learned constant wearing a
-router's costume. It *can* route: on a test fixture where the useful backbone flips, it
-scores 1.000 against 0.671. So the null result is about the data, not the code.
+The **gated fusion head** is a negative result: routing is worth minus 0.024 cross-venue
+recall against the gate switched off. It puts about 70% of its weight on DINOv2 in every
+fold — a learned constant in a router's costume. It *can* route, on a fixture where the
+useful backbone flips. So the null is about the data, not the code.
 
-**STAN**, the temporal model, scores a perfect 1.000 — and I am going to argue against my own
-number. The composed labels are a deterministic function of five templates, so any model that
-reads contiguity recovers the generating process. That is an exhausted test set, not a win.
-The real test set is **two slots**, and the thirty-slot threshold raises an exception in code
-rather than sitting in a footnote.
+**STAN** scores a perfect 1.000 — and I will argue against my own number. The composed labels
+are a deterministic function of five templates, so any model reading contiguity recovers the
+generating process. That is an exhausted test set, not a win. The real test set is **two
+slots**.
 
-One more thing worth saying: the proposal named ConvNeXtV2. Measured without leakage, DINOv2
-leads. The decision was made on a measurement taken after the proposal — that is the process
-working.
+⟨cut if short⟩ One more thing: the proposal named ConvNeXtV2. Measured without leakage,
+DINOv2 leads. The decision was made on a measurement taken after the proposal — that is the
+process working.
 
 ---
 
-## 19:30 — Rules and preprocessing
+# Tab 7 — Rules · 15:55
 
-> **[SLIDE: Rules — the decision table]**
+### Slide 32 · "A table, not a black box"
 
 The deployed decision layer is deliberately a table a facility manager can read and argue
 with. First matching row wins.
 
-1. **Detector unavailable** → uncertain. A missing detector is not an empty pitch.
-2. **No pitch boundary** → uncertain. Mandatory on the deployed path.
-3. **Nobody, and nothing moving** → **empty**.
-4. **Nobody, but something moved** → uncertain.
-5. **One to four people** → not a game. Too few, ball or no ball.
-6. **More than four people, and a ball, and motion** → **active play**. The only way in.
-7. **More than four people, otherwise** → not a game. A crowd standing on a pitch.
+No detector or no boundary gives **uncertain** — a missing detector is not an empty pitch.
+Nobody and nothing moving is **empty**. One to four people is **not a game**. More than four
+people **with a ball and motion** is active play — the only way in. More than four people
+otherwise is a crowd standing on a pitch, which is not a booking being used.
 
-Two numbers in that table are the **facility's rule**, not something I fitted: five people
-make a game, four or fewer do not. The rest are fitted on one camera and frozen along with
-the commit that froze them.
+Two of those numbers are the **facility's rule**, not something I fitted: five people make a
+game, four or fewer do not.
 
-Rows six and seven changed late, and they invert what I pre-registered. Originally play was
-the default above the head count. The facility's rule is the opposite — a game has a ball in
-it and people moving, and a crowd standing on a pitch is not a booking being used. So play
-now has to be **shown**, not assumed.
+The last two rows changed late, and they invert what I pre-registered. Play now has to be
+**shown**, not assumed.
 
-> **[SLIDE: Rules — every switch, and what it costs]**
+### Slide 33 · "Every switch, and what it costs"
 
-Each switch exists because its cost is a decision somebody should be able to take
-deliberately.
+Each switch exists because its cost is a decision somebody should take deliberately.
 
 The **ball requirement** is the clearest case. Cross-venue ball recall is 0.40, and between
-0.06 and 0.89 depending on the venue. Turning it on drops play recall from 0.996 to 0.308 at
-the worst venues. That is expensive, it is the facility's rule, and whoever switches it off
-should be able to see exactly what they are buying.
+0.06 and 0.89 by venue. Turning it on drops play recall from 0.996 to 0.308 at the worst
+venues. That is expensive, it is the facility's rule, and whoever switches it off should see
+exactly what they are buying.
 
-And there is a rule about rules at the bottom: **a cue that cannot be measured is reported,
-never assumed.** If motion cannot be computed, the clause is skipped and the trace says so —
-because a requirement that silently never fires is the shape of every safeguard this project
-found not working.
+And a rule about rules: **a cue that cannot be measured is reported, never assumed.** A
+requirement that silently never fires is the shape of every safeguard this project found not
+working.
 
-> **[SLIDE: Preprocessing]**
+### Slide 34 · "What happens to a frame before the model sees it"
 
-Before any of that, a frame goes through preprocessing, and this is the list:
-
-- **Letterbox** to 224×224 — pad rather than squash.
-- **Undistort** — take the barrel out of a wide CCTV lens.
-- **Crop** — centre or top, to drop sky and car park.
-- **Per-image standardise** — normalise each frame to its own statistics.
-- **CLAHE** — local contrast, for floodlight glare.
-- **Gamma and saturation** — brightness curve, and colour down to grayscale.
-- **Denoise and sharpen**.
-- **Blur** — in there as a *control*, not a candidate.
+Before any of that: letterbox, undistort, crop, standardise, CLAHE, gamma and saturation,
+denoise and sharpen, and blur.
 
 Two to point at. **CLAHE** is the switch the proposal predicted would fix floodlight glare;
-measured honestly, it **costs** 0.27 macro-F1. And **blur** is a control because at high
-strength it removes the people — and seeing what that does to the score tells you what the
-score is actually reading.
+measured honestly, it **costs** 0.27 macro-F1. And **blur** is a *control*, not a candidate —
+at high strength it removes the people, and seeing what that does to the score tells you what
+the score is reading.
 
-The experiments and the live system share **one** preprocessing module. That is not
-tidiness: the pilot had two, they drifted, and the numbers stopped meaning the same thing.
+The experiments and the live system share **one** preprocessing module. The pilot had two,
+they drifted, and the numbers stopped meaning the same thing.
 
 ---
 
-## 21:00 — The searches, and augmentation
+# Tab 8 — Searches · 18:15
 
-> **[SLIDE: The searches]**
+### Slide 35 · "We tuned hard. Twice."
 
-Two configuration searches, with opposite costs. Prompts are cheap, so that search is
-exhaustive — 375 sets. Preprocessing is expensive, because every candidate re-embeds the
-whole dataset, so that one is greedy — 88 runs.
+Two searches with opposite costs. Prompts are cheap, so that one is **exhaustive** — 375
+sets. Preprocessing re-embeds the whole dataset per candidate, so that one is **greedy** — 88
+runs.
 
-Both are guarded the same way: every cross-venue fold is 100% active play, so recall alone
-can be bought by saying "playing" more often. Everything is ranked on recall minus false
-alarms instead.
+Both guarded the same way: every cross-venue fold is 100% active play, so recall alone can be
+bought by saying "playing" more often. Everything is ranked on recall minus false alarms.
 
-> **[SLIDE: Search 1, then the resolution floor]**
+### Slide 36 · "The winner sits inside the noise"
 
 The preprocessing search found a clear winner with a perfect score. Then I measured the
 resolution of the search itself.
 
+### Slide 37 · "The search is finer than the data"
+
 **One frame** moving in the smallest venue fold shifts the headline by 0.0119. The confidence
-band at the median setting is 0.092 wide. Almost every difference the search ranked on is
-**smaller than its own error bar**.
+band at the median setting is 0.092 wide.
 
-So the ranking is real arithmetic on unreal precision. The search is not wrong — it is
-finer-grained than the evidence underneath it, and saying so is more useful than announcing a
-winner.
+Almost every difference the search ranked on is **smaller than its own error bar**. The
+ranking is real arithmetic on unreal precision.
 
-> **[SLIDE: Search 2 — prompts]**
+### Slide 38 · "Wording moved the score nine times more than the model did"
 
 The prompt search gave me the number I find genuinely uncomfortable.
 
-The span from the worst wording to the best is **0.726** macro-F1. Choosing between the three
-trained backbones — the decision the entire model chapter is about — moves the score by
-**0.082**. How you write the sentence matters about **nine times more** than which model you
-pick.
+Worst wording to best is **0.726** macro-F1. Choosing between the three backbones — the
+decision the entire model chapter is about — moves it by **0.082**. Wording matters about
+**nine times more** than architecture.
 
-Two guards, and I state both before anyone else does. Only 22.9% of prompt sets beat the
-trained probe and the median one loses — so "zero-shot works" is only true if you already
-know which wording to use, and knowing that requires labels. And the winner's lead of 0.447 is
-measured on the very folds it was selected from. That is disclosed in the pre-registration as
-an undeclared search family.
+Two guards, and I state both first. Only 22.9% of prompt sets beat the trained probe and the
+median loses — so "zero-shot works" is only true if you already know the wording, which needs
+labels. And the winner's lead of 0.447 is measured on the folds it was selected from.
 
-> **[SLIDE: Augmentation — the question]**
+---
 
-Now augmentation, which is the experiment I most want to tell you about.
+# Tab 9 — Augmentation · 19:50
 
-The question is the deployment question. A model trained on camera A scores 0.441 on camera
-B, which watches the same pitch from a different angle. One labelled frame of camera B takes
-it to 0.99. **Can augmentation close that gap for free** — by varying brightness, gamma and
-sensor noise during training, with no labels from B at all?
+### Slide 39 · "A good question, cheaply asked"
 
-> **[SLIDE: Augmentation — it worked]**
+Now augmentation — the experiment I most want to tell you about.
+
+A model trained on camera A scores 0.441 on camera B, watching the same pitch from a
+different angle. One labelled frame of B takes it to 0.99. **Can augmentation close that gap
+for free**, with no labels from B at all?
+
+### Slide 40 · "It worked. We wrote it up."
 
 The first answer was yes. One draw of the brightness-and-gamma preset took empty-pitch recall
-on the unseen camera from zero to **0.687**, with no labels from it. Macro-F1 0.855.
+on the unseen camera from zero to **0.687**. Macro-F1 0.855.
 
 It went into the write-up as a finding, with one note attached: *only one draw has been
 taken.*
 
+*(Pause.)*
+
 That note turned out to be the finding.
 
-> **[SLIDE: Augmentation — five draws]**
+### Slide 41 · "Then we ran it four more times"
 
-I ran the identical experiment four more times. Same frames, same preset, same probe seed,
-same test set. **Only the random draw changed.**
+Same frames, same preset, same probe seed, same test set. **Only the random draw changed.**
 
 0.414. 0.351. 0.350. 0.348.
 
 The published 0.855 was the **maximum of five**. The standard deviation is 0.221 on a metric
-that only runs from zero to one. And four of the five draws are **worse than using no
+bounded between zero and one. And four of the five draws are **worse than using no
 augmentation at all**.
 
-One detail explains the shape: three draws score exactly 0.3479, which is the score of
-answering "active play" to every single test frame. What moves between draws is whether the
-fitted boundary reaches camera B's empty pitch at all. It does not degrade gracefully — it is
+⟨cut if short⟩ One detail explains the shape: three draws score exactly 0.3479, which is the
+score of answering "active play" to every test frame. It does not degrade gracefully — it is
 either a working classifier or the trivial one.
 
-> **[SLIDE: Augmentation — the lesson]**
+### Slide 42 · "The number reproduced perfectly. The result did not."
 
 So the headline was retracted, and I want to be precise about what was retracted.
 
 The row in the results file is **unchanged and still reproduces exactly**. What was withdrawn
-is the claim about the *method*. It is now restated as a claim about that one draw, and only
-ever quoted beside the spread.
+is the claim about the *method*.
 
-And the transferable lesson is this: a unit test that pinned the published value would have
-passed forever, because the artefact was reproducible. **Reproducibility checked the wrong
-thing.** Only re-drawing the randomness caught it.
+The transferable lesson: a unit test pinning the published value would have passed forever,
+because the artefact was reproducible. **Reproducibility checked the wrong thing.** Only
+re-drawing the randomness caught it.
 
-That is now standing practice, and I ran it on my own strongest result — the temporal model —
-and volunteered the spread before anybody asked for it.
+That is now standing practice — and I ran it on my own strongest result before anybody asked.
+
+### Slide 43 · "Why the pictures are the argument"
+
+Augmentation code **fails silently**. A preset that does nothing, a crop that removes the
+goalmouth — all of them pass a shape and type check. The only reliable check is a person
+looking.
+
+⟨cut if short⟩ On the first run these sheets caught rain streaks written in absolute pixels:
+at low resolution they were white poles a tenth of the frame wide. No assertion could have
+found that.
 
 ---
 
-## 23:00 — The solution, and the limits
+# Tab 10 — Solution · 21:50
 
-> **[SLIDE: Solution — the fix was never a bigger model]**
+### Slide 44 · "The fix was never a bigger model."
 
-So what did I do about all of this? Three things — and none of them is a bigger neural
-network.
+So what did I do about all this? Three things — and **not one of them is a bigger neural
+network.**
 
-**One: put cheap rules in front of the model.** False alarms on empty pitches fall from 0.617
-to 0.012.
+### Slide 45 · "Three fixes, all cheap"
 
-**Two: generate the missing case.** Thirty-one synthetic empty-pitch frames take cross-venue
-false alarms from 0.768 to 0.024, while play-recall goes up.
+**Cheap rules in front of the model** — false alarms on empty pitches fall from 0.617 to
+0.012.
 
-**Three: label a handful of frames per camera.** One labelled frame of a new camera takes
-every backbone to about 0.99. And the control that reframes it: from five frames, training on
-those five **alone** matches training on those five plus 775 frames from the old camera. The
-old data stops contributing.
+**Generate the missing case** — thirty-one synthetic empty frames take cross-venue false
+alarms from 0.768 to 0.024, while play-recall goes up.
 
-So I state the weaker claim, because it is the true one: what buys the accuracy is having
-**any** labels from the new camera — not a large corpus from an old one. That is the
-onboarding recipe I would hand to the facility.
+**Label a handful of frames per camera** — one labelled frame takes every backbone to about
+0.99. And the control that reframes it: from five frames, training on those five **alone**
+matches training on those five plus 775 from the old camera.
 
-> **[SLIDE: Solution — every guard is verified by breaking it]**
+So I state the weaker claim, because it is the true one: what buys the accuracy is **any**
+labels from the new camera, not a large corpus from an old one. That is the onboarding recipe
+I would hand to the facility.
 
-One slide on method, because I think this is the part that transfers beyond football pitches.
+### Slide 46 · "Every guard is verified by breaking it"
 
-**Six safeguards in this project were doing nothing at all.** A test-set lock resolved against
-the wrong directory. A confidence threshold set to zero, which can never fire. A criterion
-that searched for a word instead of running the verifier. Evidence selection that recorded a
-file path of *None* for every frame it chose.
+One slide on method, because this is the part that transfers beyond football pitches.
 
-Every one of them passed whatever test existed. So each new safeguard is now verified by
-**deliberately breaking the thing it guards** and confirming it fires. That practice found
-half the results in this talk.
+**Six safeguards in this project were doing nothing at all** — a lock resolved against the
+wrong directory, a threshold set to zero that can never fire, a criterion that searched for a
+word instead of running the verifier.
 
-The root of it is one observation from early on: **a wrong result that looks plausible is
-invisible.**
+Every one passed whatever test existed. So each new safeguard is now verified by
+**deliberately breaking the thing it guards**. That practice found half the results in this
+talk.
 
-> **[SLIDE: Solution — what it will not do]**
+The root of it: **a wrong result that looks plausible is invisible.**
 
-And one slide on what the system deliberately will not do, because auditing how a facility's
-pitches are used is close to auditing the people who work there.
+### Slide 47 · "What it will not do"
 
-It never bills and never acts. Anomalies are reported per **field**, never per person.
-And review never becomes an anomaly — if the model is unsure, that uncertainty belongs to the
-model. Turning it into a flag against a member of staff would be laundering the system's own
+And one slide on what the system deliberately will not do, because auditing how pitches are
+used is close to auditing the people who work there.
+
+It **never bills and never acts** — structurally, not as a policy sentence. Anomalies are
+reported per **field**, never per person. Faces are redacted.
+
+And **review never becomes an anomaly**. If the model is unsure, that uncertainty belongs to
+the model. Turning it into a flag against a member of staff would launder the system's own
 weakness into someone else's record.
 
-> **[SLIDE: Limits]**
+---
 
-Three limits, named first, because you will find them anyway.
+# Tab 11 — Summary · 24:10
 
-Empty pitches exist at **one venue only**, so a three-class cross-venue evaluation cannot be
-run on this corpus. The 243 held-out empty frames are **three distinct scenes** — six
-comparisons stopped being significant when I recounted them that way. And **nothing has run
-on the target hardware**; every speed number is from a laptop.
+### Slide 48 · "What this study cannot claim"
 
-There is also no human ceiling. No inter-annotator figure exists. That is a real gap, and I
+Three limits, named first because you will find them anyway.
+
+Empty pitches exist at **one venue only**. The 243 held-out empty frames are **three distinct
+scenes** — six comparisons stopped being significant when I recounted them that way. And
+**nothing has run on the target hardware**.
+
+There is also no human ceiling — no inter-annotator figure exists. That is a real gap, and I
 would rather say so than have it found.
 
-> **[SLIDE: What would change this]**
+### Slide 49 · "What would actually change this"
 
-And here is what would fix them, ordered by value rather than effort.
+What would fix them, ordered by value rather than effort.
 
-Twenty to thirty minutes of **empty-pitch footage at a second venue** — that one half-hour
+Twenty to thirty minutes of **empty-pitch footage at a second venue** — that half-hour
 resolves the confound, the external-validity limit and the scope reduction at once. About
-**thirty real labelled slots**, which is one conversation with the facility. And **five
-labelled frames per camera**, which is already measured.
+**thirty real labelled slots**. And **five labelled frames per camera**, already measured.
 
 The limitations of this thesis are mostly a **data-access problem with a known and
 inexpensive solution** — not a methodological one.
 
----
+### Slide 50 · "In summary"
 
-## 24:30 — Summary and close
-
-> **[SLIDE: Summary]**
-
-In summary.
-
-This study **investigated** whether the cameras a facility already owns can verify which
-booked hours were actually used — on ordinary hardware, with a human deciding every case.
+This study **investigated** whether cameras a facility already owns can verify which booked
+hours were actually used — on ordinary hardware, with a human deciding every case.
 
 The findings **indicate** that the system works end to end, and that the evaluation is the
-real result. Lighting and occupancy are confounded so tightly in this data that a rule
-reading only the clock outperforms three modern backbones — and one short clip containing the
-missing case reverses that ranking completely.
+real result. Lighting and occupancy are confounded so tightly that a rule reading only the
+clock outperforms three modern backbones — and one short clip reverses that ranking
+completely.
 
-These findings **contribute** a set of evaluation practices that apply well beyond this
-problem: run trivial baselines in every protocol, group your splits, re-draw randomness
-rather than re-running it, and verify every safeguard by breaking the thing it guards. And
-for the facility, they give a concrete and inexpensive recipe for onboarding a new camera.
+These findings **contribute** a set of evaluation practices: trivial baselines in every
+protocol, grouped splits, re-drawing randomness rather than re-running it, and every safeguard
+verified by breaking what it guards. And for the facility, a concrete recipe for onboarding a
+new camera.
 
-*(pause)*
+*(Pause.)*
 
 **No protocol compensates for a case the data never contains.**
 
-> **[SLIDE: Thank you]**
+### Slide 51 · "Questions, comments and suggestions welcome."
 
 Thank you for your time and attention. I welcome any questions, comments, suggestions or
 feedback you may have.
@@ -632,17 +667,23 @@ feedback you may have.
 - **Practise saying "we do not know" three times**: the human ceiling, the target hardware,
   and whether any of this transfers to a second venue. An examiner trusts a candidate who has
   bounded their ignorance more than one who has not noticed it.
-- **Time the problem section with a clock.** It is the one you will want to over-run and the
-  one worth protecting.
+- **Time Tab 4 with a clock.** It is the section you will want to over-run and the one worth
+  protecting.
 - **Your strongest sentence** is a version of *"we measured that, and here is how large it
   is."* Where that is not available — the three limits — the second strongest is *"that is a
   real limitation, and here is exactly what it costs."*
-- Speak slowly on the confound slide and on the closing line. Everything else can move.
+- **Slow down on slides 16, 19 and 50.** Everything else can move.
+- **Running over?** Drop every **⟨cut if short⟩** passage first — about 90 seconds — then
+  slides 17, 26 and 43, which are pictures that work without commentary.
+- The four questions on the closing slide carry their own short answers. The fifth — the
+  human ceiling — has no number, and the right answer is to say so plainly.
 
 ## Before the day
 
-- [ ] Fill in **[PROGRAMME]**, **[INSTITUTION]**, and the supervisor's name.
-- [ ] Fill in **[VIDEO TOOL 1]** and **[VIDEO TOOL 2]**.
-- [ ] Re-read [`thesis/claims.md`](../claims.md) — every number above comes from it, and it
-      is regenerated from the result artefacts. If a result moved, this script is stale.
-- [ ] Rewrite at least the purpose and summary sections in your own words.
+- [ ] Fill in **[PROGRAMME]**, **[INSTITUTION]**, and the supervisor's name (slide 1).
+- [ ] Fill in **[VIDEO TOOL 1]** and **[VIDEO TOOL 2]** (slide 24).
+- [ ] Re-read [`thesis/claims.md`](../claims.md) — every number above comes from it, and it is
+      regenerated from the result artefacts. If a result moved, this script is stale.
+- [ ] Rewrite at least Tab 2 and Tab 11 in your own words.
+- [ ] Run `uv run pitch serve` on the machine you will present from, and check the Data and
+      Augmentation tabs render their figures.
