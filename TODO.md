@@ -2227,10 +2227,14 @@ tagged with the question it answers. Fix that first — it is what turns a build
       recomputed); `explain.redact_frame` shares the two-layer rule with `make_xai_figures`;
       `experiments/make_overlay_figures.py` → 9 figures, label agrees on 7 (+1 accepted 3↔4),
       both disagreements being frames where the walker is outside camera A's outline.
-  - [ ] **WP9-T4a** Hook the overlay into `/clip`, `/images` and `/roi` — the pages still show
-        the probe's heatmap. `clip_walkthrough.walk_records` and `image_walkthrough` emit
-        `"heat"`; they need an `"overlay"` when the pipeline is detector-first, plus the count
-        and the trace, and `clip_page`/`image_page` need the pane renamed and the trace shown.
+  - [x] **WP9-T4a** Overlay hooked into `/clip` and `/images` — done 2026-09-21.
+        `overlay.detector_pane` runs the detector on each explained frame and both pages carry
+        a third pane, **"What the detector found"**, beside the probe's heatmap: a box round
+        each person separately, a ring round the ball, anything outside the boundary dimmed
+        rather than dropped, and the rule row that fired written underneath. Both models on
+        one frame, which is what makes "it is reading the floodlights" and "it found six
+        people and a ball" distinguishable at a glance (A35).
+  - [ ] **WP9-T4b** `/roi` still previews with the probe alone. Same helper, one call.
 - [ ] **WP9-T5 Thresholds frozen.** `experiments/fit_rule_thresholds.py` on venue_01 camera A
       only → `configs/rules.json` with `frozen_at`/`frozen_commit`.
 - [~] **WP9-T6 Evaluation** — `rule_frame_eval` re-run 2026-09-20 under A40 (+ 3-class
@@ -2278,6 +2282,18 @@ tagged with the question it answers. Fix that first — it is what turns a build
   - [ ] **[H] WP10-T6 The 11 `pending4d` frames.** On disk and in `labels.csv`, never in the
         manifest or `scene_ids.csv`, so no venue can be read for them. Not restored during
         WP10-T2 because that would mean inventing one.
+  - [x] **WP10-T8 Per-video concentration measured and capped.** **Four source videos are
+        75% of every recorded frame** (`slot_20260712_2030_camB` alone is 516 of 1,720); the
+        median video contributes six. `splits.balanced_rows(per_video=N)` bounds what one
+        recording can be worth, spending its budget on distinct scenes before second frames.
+        **There is no free value for N** and the report says so: the four videos carrying the
+        bias are also the only EMPTY footage there is, so cap 12 leaves 21 empty frames and
+        cap 40 leaves 81 while letting four videos back to a quarter of the weight.
+        Training-side only; the test side is never capped.
+  - [ ] **[H] WP10-T9 Choose the cap.** Nothing uses `balanced_rows` yet — the arms still fit
+        on everything. Picking N is a decision with the EMPTY count on one side and the
+        single-camera vote on the other; `experiments/dataset_redundancy.py` re-derives the
+        table against current numbers.
   - [ ] **WP10-T7 Re-fit and re-measure on the changed dataset.** Every probe arm was fitted
         before the 28 new frames existed and before the caches were rewritten; the numbers in
         `rule_frame_eval.csv` are from 1,578 development rows and there are now 1,599.

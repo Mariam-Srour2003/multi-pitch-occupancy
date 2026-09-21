@@ -99,3 +99,9 @@ camera,venue_01/slot_20260711_1000_camA,259,6,43.2,0.977
 camera,venue_01/slot_20260711_1000_camB,238,2,119.0,0.992
 camera,venue_01/slot_20260712_2030_camA,283,14,20.2,0.951
 camera,venue_01/slot_20260712_2030_camB,516,81,6.4,0.843
+cap,all recorded,1720,82,75.3,0.753
+cap,distinct scenes,197,57,52.8,0.528
+cap,cap 6/video,447,82,5.4,0.054
+cap,cap 12/video,472,82,10.2,0.102
+cap,cap 20/video,504,82,15.9,0.159
+cap,cap 40/video,584,82,27.4,0.274

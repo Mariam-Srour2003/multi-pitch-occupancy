@@ -37,7 +37,8 @@ from pitch_occupancy.vision import counting, roi
 from pitch_occupancy.vision.detector import PERSON, SPORTS_BALL, VEHICLES, Detection
 from pitch_occupancy.vision.rules import FrameVerdict, MinuteState
 
-__all__ = ["COLOURS", "STATE_COLOURS", "draw_verdict", "publishable", "legend"]
+__all__ = ["COLOURS", "STATE_COLOURS", "draw_verdict", "publishable", "legend",
+           "detector_pane"]
 
 #: BGR. Person and ball are deliberately far apart in hue and both far from turf green, so a
 #: reader can tell them apart on a floodlit night frame and on a daylight one.
@@ -234,3 +235,77 @@ def legend() -> list[tuple[str, tuple[int, int, int]]]:
         ("vehicle (maintenance cue)", COLOURS["vehicle"]),
         ("pitch boundary", COLOURS["boundary"]),
     ]
+
+
+def detector_pane(
+    image_bgr: np.ndarray,
+    *,
+    polygon: Sequence[Sequence[float]] | None = None,
+    model_key: str | None = None,
+    redact: bool = False,
+    trace: bool = True,
+) -> tuple[np.ndarray, dict]:
+    """One frame through the detector, drawn, with the numbers behind the picture.
+
+    This is what the review pages put **beside** the probe's heatmap, so a reader can see
+    the two models answering the same frame at once. They explain themselves in different
+    currencies and that is the point: a logistic probe on pooled features has no objects in
+    it, only regions that push a score, so its explanation can only ever be a heatmap; the
+    detector has objects, so its explanation is **a box round each person, one at a time,
+    and a ring round the ball**. Put side by side, "the model is reading the floodlights"
+    and "the model found six people and a ball" are distinguishable at a glance, which was
+    the whole complaint that started A35.
+
+    **Every person is boxed separately, on purpose.** A single region covering a group
+    would show the same picture for six players and for one player standing near a bag, and
+    the rule the page is explaining thresholds on the *count*. Detections whose feet fall
+    outside ``polygon`` are drawn dimmed rather than dropped, because "found six, counted
+    three" is the thing a reader most often needs explained.
+
+    The detector runs **once** here and the verdict is built from that pass through
+    `counting.count_inside` and `rules.decide` - the same public functions `pipeline`
+    calls. Going through `Pipeline.classify_frame` instead would mean a second detector pass
+    per frame purely to recover the instances it does not return, and this page already
+    costs a probe pass and a heatmap.
+
+    Returns the drawn frame and a summary a page can render as text.
+    """
+    from pitch_occupancy.config import settings
+    from pitch_occupancy.vision.counting import count_inside
+    from pitch_occupancy.vision.detector import DEFAULT_DETECTOR, Detector
+    from pitch_occupancy.vision.rules import RuleConfig, decide
+
+    cfg = RuleConfig.load(settings.rules_path)
+    key = model_key or DEFAULT_DETECTOR
+    found = Detector.load(key).detect(
+        image_bgr, confidence=min(cfg.person_conf, cfg.ball_conf),
+        imgsz=cfg.imgsz, tiles=cfg.tiles)
+    if found is None:
+        # None is "not checked", which is not "nothing there" - the distinction this
+        # project keeps having to restate (`vision/explain.py`). The pane says so.
+        verdict = decide(None, motion=None, cfg=cfg)
+        canvas = image_bgr.copy()
+    else:
+        count = count_inside(found, polygon, image_bgr.shape[:2],
+                             person_conf=cfg.person_conf, ball_conf=cfg.ball_conf)
+        # A still has no predecessor, so there is no motion cue to give it. The rule reports
+        # that as "motion unmeasured" rather than as stillness.
+        verdict = decide(count, motion=None, cfg=cfg, require_boundary=False)
+        draw = publishable if redact else draw_verdict
+        canvas = draw(image_bgr, verdict, instances=found, polygon=polygon, trace=trace)
+
+    outside = 0 if verdict.count is None else (
+        verdict.count.people_total - verdict.count.raw_inside)
+    return canvas, {
+        "model": key,
+        "state": verdict.state.value,
+        "confidence": verdict.confidence,
+        "rule": verdict.rule,
+        "people_inside": verdict.people,
+        "people_outside_boundary": outside,
+        "ball": verdict.ball,
+        "ball_confidence": round(verdict.ball_confidence, 3),
+        "bounded": bool(polygon),
+        "trace": list(verdict.trace),
+        "checked": found is not None,
+    }

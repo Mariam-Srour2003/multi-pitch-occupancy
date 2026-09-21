@@ -320,3 +320,60 @@ def test_the_uploads_are_still_deleted_when_the_stream_fails(tmp_path, monkeypat
     TestClient(app).post("/api/v1/images/walkthrough", json=body)
 
     assert set(glob.glob(os.path.join(tempfile.gettempdir(), "shots-*"))) == before
+
+
+# --- both models on the same frame (WP9-T4a) -------------------------------------------------
+
+
+@pytest.mark.slow
+def test_an_explained_image_carries_the_detectors_boxes_beside_the_probes_heatmap(
+        tmp_path) -> None:
+    """The complaint that started A35 was two pages giving opposite answers on one clip.
+
+    The fix was to show the deployed path rather than the probe alone; this is the other
+    half of it. A heatmap can only say *where* a score came from, so "the model is reading
+    the floodlights" and "the model found six people and a ball" look alike on it. The
+    detector's pane says which, in its own currency: a box per person, a ring round the
+    ball, and the rule row that fired.
+    """
+    client = TestClient(app)
+    body = {"images": [{"name": "a.jpg", "data": _b64(_image(tmp_path / "a.jpg"))}]}
+    response = client.post("/api/v1/images/walkthrough?explain_n=1", json=body)
+    assert response.status_code == 200
+
+    shots = [json.loads(line) for line in response.text.strip().splitlines()
+             if json.loads(line)["type"] == "shot"]
+    explained = [s for s in shots if s["explained"]]
+    assert explained, "nothing was explained, so there is nothing to check"
+    for shot in explained:
+        assert shot["boxes"].startswith("data:image/jpeg;base64,"), "a picture, not a promise"
+        assert shot["boxes"] != shot["heat"], "two models, two different explanations"
+        found = shot["detector"]
+        assert found["model"] and found["state"]
+        assert found["rule"] >= 1, "which row of the table fired, so the state is checkable"
+        assert isinstance(found["people_inside"], int)
+        assert found["trace"], "the steps that led to the state, in words"
+    for shot in shots:
+        if not shot["explained"]:
+            assert "boxes" not in shot, (
+                "a detector pass costs what a heatmap costs; both are bounded by explain_n")
+
+
+def test_the_detector_pane_says_not_checked_rather_than_nobody(monkeypatch) -> None:
+    """`None` from a detector means it did not run. It has never meant an empty pitch, and
+    this pane is the newest place that distinction could be lost (`vision/explain.py`)."""
+    import numpy as np
+
+    from pitch_occupancy.vision import detector, overlay
+
+    class Unavailable:
+        def detect(self, *_args, **_kwargs):
+            return None
+
+    monkeypatch.setattr(detector.Detector, "load", staticmethod(lambda *a, **k: Unavailable()))
+    frame = np.zeros((90, 160, 3), np.uint8)
+    canvas, found = overlay.detector_pane(frame)
+    assert found["checked"] is False
+    assert found["state"] == "UNCERTAIN" and found["rule"] == 1
+    assert canvas.shape == frame.shape
+    assert np.array_equal(canvas, frame), "nothing found is not something to draw"

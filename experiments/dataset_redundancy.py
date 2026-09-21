@@ -105,6 +105,41 @@ def main() -> int:
     print("\nthe ten most repeated cameras:")
     table("", sorted(by_camera, key=lambda r: -r["frames"])[:10])
 
+    # --- the per-video concentration, which is the bias a fit would actually learn -------
+    from pitch_occupancy.data.splits import balanced_rows, distinct_rows
+
+    per_video = Counter(r.camera for r in rows)
+    top4 = sum(n for _, n in per_video.most_common(4))
+    print(f"\n{len(per_video)} source videos. The four largest are {top4} frames, "
+          f"{top4 / max(len(rows), 1):.0%} of every recorded frame:")
+    for cam, n in per_video.most_common(6):
+        example = next(r for r in rows if r.camera == cam)
+        print(f"  {n:>6}  {n / len(rows):>6.1%}  {cam[:40]:<42}"
+              f"{example.venue} {example.class3[:2]}")
+    median = sorted(per_video.values())[len(per_video) // 2]
+    print(f"  the median source video contributes {median}")
+
+    print("\nwhat a per-video cap costs and buys (splits.balanced_rows):")
+    print(f"{'arm':<24}{'frames':>8}{'videos':>8}{'top 4':>8}   by class")
+    arms = [("all recorded", rows), ("distinct scenes", distinct_rows(rows))]
+    arms += [(f"cap {cap}/video", balanced_rows(rows, per_video=cap))
+             for cap in (6, 12, 20, 40)]
+    caps = []
+    for name, subset in arms:
+        counts = Counter(r.camera for r in subset)
+        share = sum(n for _, n in counts.most_common(4)) / max(len(subset), 1)
+        by_cls = Counter(r.class3 for r in subset)
+        print(f"{name:<24}{len(subset):>8}{len(counts):>8}{share:>8.0%}   "
+              + "  ".join(f"{k[:2]}={v}" for k, v in sorted(by_cls.items())))
+        caps.append({"axis": "cap", "group": name, "frames": len(subset),
+                     "scenes": len(counts), "frames_per_scene": round(share * 100, 1),
+                     "redundancy": round(share, 3)})
+    print("  `frames_per_scene` on the cap rows is the top-four share as a percentage, and")
+    print("  `scenes` is the number of source videos - the columns carry the analogous thing.")
+    print("\nThere is no free value. The four videos carrying the bias are also the only")
+    print("EMPTY footage there is, so a hard cap trades one problem for the other. This is a")
+    print("training-side knob and the test side is never capped.")
+
     RESULTS.mkdir(exist_ok=True)
     path = RESULTS / "dataset_redundancy.csv"
     with path.open("w", newline="", encoding="utf-8") as fh:
@@ -115,6 +150,7 @@ def main() -> int:
                             ("source", by_source), ("camera", by_camera)):
             for r in group:
                 writer.writerow({"axis": axis, **r})
+        writer.writerows(caps)
     print(f"\nwrote {path}")
     print("nothing was deleted - see the module docstring for why")
 

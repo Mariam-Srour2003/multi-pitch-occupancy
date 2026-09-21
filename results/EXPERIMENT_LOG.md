@@ -7365,3 +7365,75 @@ number in this thesis rests on, and relabelling twenty of them re-issues those t
 a decision to take deliberately and record, not a side effect of an audit.
 
 - 2026-09-21 | label audit + venue_01 boundaries redrawn | uv run python experiments/label_audit.py | label_audit.csv, configs/roi.json | 98 of 1720 flagged fell to 23 by replacing four derived venue_01 boundaries with two hand-drawn ones, one per PHYSICAL camera; the derived night outline excluded the goalmouth and right third, so an eleven-player frame counted zero inside and read EMPTY at 1.00; 23 remain as a queue for a person, 20 of them EMPTY frames with people on the turf; nothing relabelled - those frames include the false-play control
+
+- 2026-09-21 | dataset redundancy: frames against distinct scenes | uv run python experiments/dataset_redundancy.py | dataset_redundancy.csv | 1720 recorded frames carry 197 distinct scenes (11%); the four largest scenes hold 54% of the corpus; worst class C1_EMPTY at 98.8 frames per scene; nothing deleted - pruning is a training-side tool (splits.distinct_rows) and the copies are the only EMPTY footage there is
+
+- 2026-09-21 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
+
+### 2026-09-21 — both models on one frame, and four videos that are 75% of the corpus
+
+**The XAI pages now show the detector beside the probe (WP9-T4a).** `overlay.detector_pane`
+runs the detector on each explained frame and `/clip` and `/images` carry a third pane - a box
+round **each person separately**, a ring round the ball, anything found outside the boundary
+dimmed rather than dropped, and the rule row that fired written underneath.
+
+The two explanations are in different currencies and that is the point. A logistic probe on
+pooled features has no objects in it, so its explanation can only ever be a heatmap - and on a
+frame of a real match at `venue_01` that heatmap is a wash of red across the whole pitch,
+which looks the same whether the model is reading players or floodlights. The detector's pane
+on the same frame reads **19 people boxed individually, ball at 0.56, row 6 -> ACTIVE_PLAY
+1.00**. A35's complaint was two pages giving opposite answers on one clip; showing both
+answers with their reasons is the end of that thread.
+
+Every person is boxed separately on purpose: the rule thresholds on the *count*, and one
+region drawn round a group would show the same picture for six players and for one player
+standing next to a bag.
+
+**Four source videos are 75% of every recorded frame.** The operator asked whether a long
+video could bias the model toward its own characteristics. It can, and it has:
+
+| frames | share | source video |
+|---|---|---|
+| 516 | 30.0% | `slot_20260712_2030_camB` |
+| 283 | 16.5% | `slot_20260712_2030_camA` |
+| 259 | 15.1% | `slot_20260711_1000_camA` |
+| 238 | 13.8% | `slot_20260711_1000_camB` |
+| 7 | 0.4% | the next largest |
+
+The median source video contributes **six frames**. `distinct_rows` does not close this on its
+own: it takes the corpus to 197 scenes but 103 of those come from the same four recordings, so
+venue_01 keeps half the weight. `splits.balanced_rows(per_video=N)` caps what one recording can
+be worth, spending its budget on distinct scenes before it takes a second frame of one.
+
+| arm | frames | videos | top 4 | C1 | C2 | C3 |
+|---|---|---|---|---|---|---|
+| all recorded | 1,720 | 82 | **75%** | 494 | 1,210 | 16 |
+| distinct scenes | 197 | 57 | 53% | 5 | 182 | 10 |
+| cap 12/video | 472 | 82 | 10% | 21 | 438 | 13 |
+| cap 20/video | 504 | 82 | 16% | 41 | 450 | 13 |
+| cap 40/video | 584 | 82 | 27% | 81 | 490 | 13 |
+
+**There is no free value for the cap, and the reason is worth stating.** The four videos
+carrying the bias are also the only EMPTY footage this project has. Capping at twelve nearly
+removes the single-camera vote and leaves 21 empty frames; forty keeps 81 and lets four videos
+back to a quarter of the weight. That is a decision with the EMPTY count on one side and the
+concentration on the other, so `balanced_rows` ships as a knob with the table beside it and
+**nothing uses it yet** - the arms still fit on everything, and switching them over is its own
+change with its own before-and-after.
+
+- 2026-09-21 | both models on the XAI pages; per-video concentration measured | uv run python experiments/dataset_redundancy.py | dataset_redundancy.csv | /clip and /images carry a detector pane beside the probe heatmap - a box per person, a ring round the ball, the rule row that fired; four source videos are 75% of all 1,720 recorded frames and the median video is 6, so splits.balanced_rows caps a recording's weight - no free value for the cap, since those four videos are also the only EMPTY footage
+
+**Two housekeeping notes from the same day.** `reproduce_all --check` flags `detector-audit`
+as possibly stale against `results/hand_counts.csv`. The only change to that file was the
+folder prefix in its `file` column (`3_people_not_playing/` -> `3_maintenance_non_sporting/`);
+every count, every `unsure` flag and every note is byte-identical, so the audit's inputs are
+unchanged in substance and it is **not** re-run here - it is a `machine_dependent` stage that
+times seven detectors and *picks one* on the result, and re-running it on a contended machine
+would risk choosing a different model for no reason.
+
+More usefully: several of those hand-count notes reason about the boundary, and they were
+written on 2026-09-19 against the derived venue_01 outlines that were replaced today.
+"the person carrying the frame is on the far half OUTSIDE camA's boundary" and "person in red
+walking on the far half just above the boundary's top edge" describe a boundary that no longer
+exists. The counts themselves are counts of people and stand; the in/out judgements in the
+notes need re-reading when the [H] verification pass happens, and that is now part of it.

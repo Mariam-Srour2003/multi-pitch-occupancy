@@ -75,6 +75,7 @@ def walk_records(path: Path, *, interval_s: float, explain_n: int,
     """
     from pitch_occupancy.vision import roi
     from pitch_occupancy.vision.explain import overlay_heatmap
+    from pitch_occupancy.vision.overlay import detector_pane
     from pitch_occupancy.vision.walkthrough import walk_clip
 
     # Reported rather than assumed, as on the image route: asking for a boundary that does
@@ -131,6 +132,13 @@ def walk_records(path: Path, *, interval_s: float, explain_n: int,
                 # the model reading past the outline.
                 "evidence_outside": step.evidence_outside,
             })
+            # The other model, on the same frame - a box round each person and a ring
+            # round the ball, beside the probe's heatmap. See image_walkthrough for why
+            # both are on the page.
+            boxes, found = detector_pane(step.frame_bgr, polygon=step.polygon,
+                                         redact=redact)
+            record["boxes"] = _jpeg(boxes)
+            record["detector"] = found
         yield json.dumps(record) + "\n"
 
     yield json.dumps({"type": "done", "n": seen, "n_gated": gated}) + "\n"

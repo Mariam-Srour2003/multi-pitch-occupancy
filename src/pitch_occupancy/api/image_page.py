@@ -222,7 +222,10 @@ reading are deleted as soon as the batch finishes.</p>
       <figcaption>The image</figcaption></figure>
     <figure><img id="img-heat" alt="Evidence map over the image: where the score came from">
       <figcaption>Where the score came from</figcaption></figure>
+    <figure><img id="img-boxes" alt="What the detector found: a box round each person, a ring round the ball">
+      <figcaption>What the detector found</figcaption></figure>
   </div>
+  <p class="note" id="detnote" style="margin-top:8px">Two models, one frame. The probe scores pooled features, so its explanation can only be a heatmap; the detector finds objects, so its explanation is a box round <b>each person separately</b> and a ring round the ball. Anything found outside the boundary is dimmed, not dropped.</p>
 
   <div class="verdictbar">
     <span class="pill" id="v-pred">&mdash;</span>
@@ -351,6 +354,20 @@ function paint(s){
 
   if(s.explained){
     $('img-raw').src=s.frame;$('img-heat').src=s.heat;
+    // The detector's pane. It is served with the same record, so a frame that has a
+    // heatmap has boxes too; if it ever does not, the pane is blanked rather than left
+    // showing the previous frame's answer next to this frame's heatmap.
+    $('img-boxes').src=s.boxes||'';
+    const d=s.detector;
+    $('detnote').innerHTML=!d?'The detector did not run on this frame.'
+      :(!d.checked?'The detector was not available for this frame — which is not the '+
+        'same as finding nobody.'
+      :('<b>'+d.state.split('_').slice(1).join(' ')+'</b> at '+d.confidence.toFixed(2)+
+        ' by row '+d.rule+' — '+d.people_inside+' inside'+
+        (d.people_outside_boundary?', '+d.people_outside_boundary+' outside the boundary':'')+
+        ', ball '+(d.ball?d.ball_confidence.toFixed(2):'none')+
+        '. The probe scores pooled features and can only answer with a heatmap; the '+
+        'detector answers with a box round each person and a ring round the ball.'));
     $('x-map').textContent=s.score_from_map.toFixed(3);
     $('x-dir').textContent=s.score_direct.toFixed(3);
     $('x-err').textContent=s.reconstruction_error.toExponential(1);
