@@ -21,6 +21,14 @@ and not in the harness. The detector-first arm is fitted on nothing at all: it h
 set, so every recorded frame is evaluation data for it and the same rule runs at every venue.
 That asymmetry is what the comparison is about.
 
+**Two detector arms, because A40 added a switch worth a number.** The shipped rule requires
+a ball inside the boundary before it will say ACTIVE_PLAY - the facility's rule, adopted on
+2026-09-20 - and A17 measured cross-venue ball recall at 0.40, 0.06-0.89 by venue. So
+`detector_first` runs with `require_ball` on and `detector_first_no_ball` runs the identical
+rule with it off, and the gap between them is what the facility's rule costs in real matches,
+printed per venue. It is a switch in `configs/rules.json` precisely so that cost is somebody's
+decision rather than an assumption.
+
 **Frame level, one frame, no burst, no pitch-level sum.** Each frame is scored on its own,
 inside its own camera's boundary, which is the hardest setting for the detector-first arm:
 A16 measured that a camera sees half a pitch, so a per-frame count under five is common on
@@ -37,6 +45,7 @@ from __future__ import annotations
 import argparse
 import csv
 from collections import Counter, defaultdict
+from dataclasses import replace
 
 import cv2
 import numpy as np
@@ -53,6 +62,9 @@ from pitch_occupancy.vision import roi
 RESULTS = settings.results_dir
 EMPTY, PLAY = Class3.EMPTY.value, Class3.ACTIVE_PLAY.value
 C3 = Class3.MAINTENANCE_NON_SPORTING.value
+#: Play frames a venue needs before its recall joins the mean over venues. Every
+#: venue in the corpus except one has at least 13; see `score`.
+MIN_VENUE_PLAY = 5
 PUBLISHED = RESULTS / "h3_with_false_play.csv"
 CACHE = {"dinov2": "dinov2.npz"}
 
@@ -64,7 +76,8 @@ def physical(row) -> str:
 # --- the detector-first arm, which trains on nothing --------------------------------------
 
 
-def detector_predictions(rows, model_key: str | None, *, gates_note: str) -> dict[str, dict]:
+def detector_predictions(rows, model_key: str | None, *, gates_note: str,
+                         require_ball: bool = True) -> dict[str, dict]:
     """``file -> {state, class3, people, ball, rule}`` for every row, one frame at a time.
 
     **The key defaults to the detector registry's default, not `settings.default_model_key`.**
@@ -72,11 +85,18 @@ def detector_predictions(rows, model_key: str | None, *, gates_note: str) -> dic
     probe and labelled its answers `detector_first` - a whole arm measuring the wrong thing
     and saying the right name, which is this project's recurring defect and was caught on the
     first run of this script. The assertion below is what stops it recurring silently.
+
+    ``require_ball`` is the A40 switch, and the reason there are two detector arms on this
+    table: the shipped rule demands a ball before it will say ACTIVE_PLAY, and the gap between
+    the two arms *is* what that demand costs, per venue, on this corpus. Nothing else differs
+    between them - same detector, same weights, same boundary, same frames.
     """
     from pitch_occupancy.pipeline import assemble
     from pitch_occupancy.vision.detector import DEFAULT_DETECTOR, DETECTORS
+    from pitch_occupancy.vision.rules import RuleConfig
 
-    pipeline = assemble(model_key or DEFAULT_DETECTOR, require_boundary=False)
+    rules = replace(RuleConfig.load(settings.rules_path), require_ball=require_ball)
+    pipeline = assemble(model_key or DEFAULT_DETECTOR, require_boundary=False, rules=rules)
     if pipeline.kind != "detector":
         raise SystemExit(
             f"the detector_first arm was handed {pipeline.model_key!r}, which is a "
@@ -196,7 +216,18 @@ def score(arm: str, predictions: dict[str, dict], rows) -> dict:
     per_venue: dict[str, list[int]] = defaultdict(list)
     for row, got in answers(play_rows):
         per_venue[row.venue].append(int(got["class3"] == PLAY))
-    recalls = {v: float(np.mean(hits)) for v, hits in per_venue.items() if hits}
+    # The headline averages the *per-venue* recalls, so each venue is one vote however many
+    # frames it has - which is right when every venue carries a real estimate, and wrong the
+    # moment one does not. `davinci_l_city_pitch` arrived on 2026-09-21 with a single play
+    # frame (its sibling still is the holdout), and that one frame took the clock rule from
+    # 1.000 to 0.861 and DINOv2 from 0.930 to 0.836 by being worth an eighth of the headline.
+    # A recall estimated from one frame can only be 0.000 or 1.000; it is not an estimate.
+    # So a venue enters the mean only above MIN_VENUE_PLAY, and the ones below it are
+    # reported with their counts rather than dropped quietly.
+    recalls = {v: float(np.mean(hits)) for v, hits in per_venue.items()
+               if len(hits) >= MIN_VENUE_PLAY}
+    thin = {v: (float(np.mean(hits)), len(hits)) for v, hits in per_venue.items()
+            if 0 < len(hits) < MIN_VENUE_PLAY}
     recall = float(np.mean(list(recalls.values()))) if recalls else float("nan")
     play_flat = [hit for hits in per_venue.values() for hit in hits]
     ci = bootstrap_ci(play_flat) if play_flat else None
@@ -240,32 +271,84 @@ def score(arm: str, predictions: dict[str, dict], rows) -> dict:
         "n_venue_01_play": len(v01),
         "venue_01_play_recall_one_camera": round(float(np.mean(v01)), 4) if v01 else None,
         "recall_by_venue": ";".join(f"{v}={x:.3f}" for v, x in sorted(recalls.items())),
+        "n_venues_in_mean": len(recalls),
+        # Named, with their frame counts, so "excluded" is never mistaken for "absent".
+        "venues_below_min": ";".join(f"{v}={x:.3f}(n={n})" for v, (x, n) in sorted(thin.items())),
     }
 
 
 def confusion(arm: str, predictions: dict[str, dict], rows) -> list[dict]:
-    """The 4-class confusion, with 3<->4 marked as the confusion A36 accepts."""
+    """The three-class confusion by venue, with the labelling folder kept beside the truth.
+
+    It was a four-class table until A40, carrying an `accepted_confusion` column for
+    `3_people_not_playing` <-> `4_maintenance`. That column was never anything but True,
+    because the corpus holds 6 real `3_people_not_playing` frames and 0 real `4_maintenance`
+    ones - so nothing was ever measured there, and the split left the prediction path. This
+    reports what the rule actually answers. ``truth_folder`` stays so a later relabelling
+    pass, or a venue that finally records maintenance, can be read out of the same file.
+    """
     out = []
     counts: Counter = Counter()
     for row in rows:
         got = predictions.get(row.file)
         if got is None:
             continue
-        predicted = got["state"] or {EMPTY: "1_empty", PLAY: "2_playing",
-                                     C3: "3_people_not_playing"}.get(got["class3"], "UNCERTAIN")
-        counts[(row.venue, row.class4, predicted)] += 1
-    for (venue, truth, predicted), n in sorted(counts.items()):
-        accepted = {truth, predicted} <= {"3_people_not_playing", "4_maintenance"}
-        out.append({"arm": arm, "venue": venue, "truth": truth, "predicted": predicted, "n": n,
-                    "exact": truth == predicted, "accepted_confusion": accepted})
+        predicted = got["state"] or got["class3"] or "UNCERTAIN"
+        counts[(row.venue, row.class3, row.label, predicted)] += 1
+    for (venue, truth, folder, predicted), n in sorted(counts.items()):
+        out.append({"arm": arm, "venue": venue, "truth": truth, "truth_folder": folder,
+                    "predicted": predicted, "n": n, "exact": truth == predicted})
     return out
+
+
+def ball_cost(all_predictions: dict[str, dict], rows) -> None:
+    """What A40's ball requirement costs, per venue, on real play frames.
+
+    The two detector arms differ in one switch, so every play frame the strict arm loses and
+    the lenient arm keeps is a match the facility's rule turns into C3. This prints it rather
+    than leaving it to be inferred from two recall columns, because "recall fell" and "the
+    detector could not see the ball on 87% of this venue's matches" are different sentences
+    and only the second says what to do about it.
+    """
+    strict = all_predictions.get("detector_first")
+    lenient = all_predictions.get("detector_first_no_ball")
+    if not strict or not lenient:
+        return
+    print("\nwhat requiring a ball costs, on real ACTIVE_PLAY frames (A40):")
+    print(f"{'venue':<18}{'play frames':>12}{'ball seen':>11}{'recall on':>11}"
+          f"{'recall off':>12}{'lost':>7}")
+    play = [r for r in rows if r.class3 == PLAY]
+    per_venue: dict[str, list] = defaultdict(list)
+    for row in play:
+        if row.file in strict and row.file in lenient:
+            per_venue[row.venue].append(row)
+    totals = [0, 0, 0, 0]
+    for venue, group in sorted(per_venue.items()):
+        on = [int(strict[r.file]["class3"] == PLAY) for r in group]
+        off = [int(lenient[r.file]["class3"] == PLAY) for r in group]
+        balls = [int(bool(strict[r.file]["ball"])) for r in group]
+        lost = sum(1 for a, b in zip(on, off, strict=True) if b and not a)
+        totals = [totals[0] + len(group), totals[1] + sum(balls),
+                  totals[2] + sum(on), totals[3] + sum(off)]
+        print(f"{venue:<18}{len(group):>12}{float(np.mean(balls)):>11.3f}"
+              f"{float(np.mean(on)):>11.3f}{float(np.mean(off)):>12.3f}{lost:>7}")
+    n, balls, on, off = totals
+    if n:
+        print(f"{'ALL':<18}{n:>12}{balls / n:>11.3f}{on / n:>11.3f}{off / n:>12.3f}"
+              f"{off - on:>7}")
+        print(f"  {off - on} of {n} recorded play frames are ACTIVE_PLAY without the ball "
+              f"requirement and C3 with it.")
+        print("  A17 measured cross-venue ball recall at 0.40 (0.06-0.89 by venue); this is "
+              "that\n  number arriving as a recall cost. `require_ball` in configs/rules.json "
+              "is the switch.")
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--arms", nargs="*",
-                    default=["clock_rule", "dinov2", "dinov2_gated", "detector_first"])
+                    default=["clock_rule", "dinov2", "dinov2_gated",
+                             "detector_first", "detector_first_no_ball"])
     ap.add_argument("--model", default=None, help="detector key for the detector-first arm")
     args = ap.parse_args()
 
@@ -277,10 +360,13 @@ def main() -> int:
     scores, confusions, all_predictions = [], [], {}
     for arm in args.arms:
         print(f"{arm}:")
-        if arm == "detector_first":
+        if arm.startswith("detector_first"):
+            wants_ball = arm != "detector_first_no_ball"
             predictions = detector_predictions(
-                rows, args.model,
-                gates_note="no training set: the same rule runs at every venue")
+                rows, args.model, require_ball=wants_ball,
+                gates_note="no training set: the same rule runs at every venue; "
+                           + ("a ball is required for ACTIVE_PLAY (A40)" if wants_ball
+                              else "the A40 ball requirement is OFF - the counterfactual"))
         elif arm == "clock_rule":
             predictions = probe_predictions(arm, rows, np.zeros((len(rows), 1), np.float32))
             print(f"    {len(predictions)}/{len(rows)} scored (reads lighting, not pixels)")
@@ -311,9 +397,13 @@ def main() -> int:
               f"{number(s['abstention_rate']):>9.4f}"
               f"{number(s['balanced']):>10.4f}")
 
-    print(f"\nrecall is the mean over {len({r.venue for r in rows if r.venue != 'venue_01'})} "
-          f"held-out clip venues; false-play and EMPTY accuracy are on venue_01 camera B's "
-          f"{scores[0]['n_control']} recorded empty frames.")
+    print(f"\nrecall is the mean over the {scores[0]['n_venues_in_mean']} held-out clip venues "
+          f"with at least {MIN_VENUE_PLAY} play frames; false-play and EMPTY accuracy are on "
+          f"venue_01 camera B's {scores[0]['n_control']} recorded empty frames.")
+    if scores[0]["venues_below_min"]:
+        print(f"  below that floor and NOT in the mean: {scores[0]['venues_below_min']}")
+        print("  a recall measured on one frame can only be 0.000 or 1.000 - it is not an "
+              "estimate, and\n  a mean over venues would give it the same vote as 168 frames.")
     print(f"\nvenue_01's own {scores[0]['n_venue_01_play']} play frames, scored one camera at "
           f"a time - NOT in the recall column above, and the cost A36 accepted:")
     for s in scores:
@@ -322,6 +412,8 @@ def main() -> int:
           "inside\n  one camera's boundary is routinely under five on a frame whose pitch "
           "holds a match.\n  rule_slots.py's pitch-level sum is what is supposed to pay this "
           "back; it is not yet run.")
+    ball_cost(all_predictions, rows)
+
     print("one frame at a time, inside one camera's boundary - no burst and no pitch-level "
           "sum, which is the hardest setting for a counting rule (A16: a camera sees half a "
           "pitch). rule_slots.py and rule_on_clips.py measure the system.")
@@ -332,7 +424,7 @@ def main() -> int:
         writer = csv.DictWriter(fh, fieldnames=list(scores[0]))
         writer.writeheader()
         writer.writerows(scores)
-    conf_path = RESULTS / "rule_confusion_4class.csv"
+    conf_path = RESULTS / "rule_confusion_3class.csv"
     with conf_path.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=list(confusions[0]))
         writer.writeheader()

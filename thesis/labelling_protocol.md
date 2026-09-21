@@ -157,6 +157,34 @@ in a group of four or fewer) is a *prediction* rule and does not change §2.5, w
 labelling test. With zero recorded maintenance frames the prediction rule is unevaluated, and
 is marked best-effort wherever it appears.
 
+### 2.8 The ball requirement is a prediction rule, not a labelling rule *(added 2026-09-20, A40)*
+
+On 2026-09-20 the facility restated its rule for the system: a booking is in use when **more
+than four people are on the pitch, a ball is visible, and people are moving**. `vision/rules.py`
+now enforces exactly that - a crowd with no ball seen, or a crowd standing still, is predicted
+`C3_MAINTENANCE_NON_SPORTING` rather than ACTIVE_PLAY (preregistration A40).
+
+**That rule is not carried into this protocol, and the reason is worth stating.** An annotator
+labels what is happening on the pitch; the detector predicts from what it can see. If the label
+also required a visible ball, the truth would be defined by the model's own limitation and the
+ball requirement could never be shown to cost anything - every miss would relabel itself into
+a correct answer. §2.2 therefore stands unchanged: **five or more people in athletic activity
+is ACTIVE_PLAY whether or not a ball is visible in the frame**, and the bullet in §2.7 saying
+so ("the ball does not condemn a large group") remains the annotator's instruction.
+
+The consequence is deliberate. At venues where `results/ball_detection_rule.csv` found a ball
+in 13-17% of genuine play frames, the system will disagree with the label on most real
+matches. That disagreement is the *measured cost of the facility's rule*, reported per venue
+in `results/rule_frame_eval.csv` with `require_ball` on and off, and it is a number rather
+than an annotator error. `configs/rules.json` carries `require_ball` and `require_motion` as
+switches so that cost stays somebody's decision.
+
+**`3_people_not_playing` and `4_maintenance` keep their separate folders** even though the
+prediction path stopped distinguishing them on 2026-09-20 (A40). §2.4 and §2.5 are unchanged,
+and the finer label goes on disk as before: the split left the *prediction* path because the
+corpus has 6 real frames in one folder and none in the other, and the only way that ever
+changes is if annotators keep filing them apart.
+
 ---
 
 ## 3. Slot-level rules

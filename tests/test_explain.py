@@ -33,7 +33,7 @@ def rows_and_features(n: int = 80, dim: int = 12, seed: int = 0):
     labels = ["C1_EMPTY" if v < 0 else "C2_ACTIVE_PLAY" for v in X[:, 0]]
     rows = [
         ManifestRow(
-            file=f"f{i}.jpg", class4="x", class3=labels[i], venue="v", camera="c",
+            file=f"f{i}.jpg", label="x", class3=labels[i], venue="v", camera="c",
             slot_date="2026-07-11", slot_time="10:00", slot_id="s", t_s=i,
             source="regular", labeled_by="human", lighting="day", quality="ok",
             split_role="",

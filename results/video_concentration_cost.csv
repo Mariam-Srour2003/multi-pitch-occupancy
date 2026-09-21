@@ -1,0 +1,6 @@
+training_rows,n_fit,play_recall,recall_worst_venue,false_play_rate,empty_accuracy,balanced,n_venues_in_mean
+everything (deployed),1599,0.9556,0.8065,0.3086,0.0,0.647,7
+distinct scenes,180,0.9534,0.7097,0.0,0.0206,0.9534,7
+capped 12/video,351,0.9966,0.9762,0.0123,0.0041,0.9843,7
+capped 20/video,383,0.9831,0.9231,0.0082,0.0041,0.9748,7
+capped 40/video,463,0.9886,0.9524,0.0165,0.0,0.9721,7

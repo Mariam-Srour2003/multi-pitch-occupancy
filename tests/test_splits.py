@@ -40,7 +40,7 @@ def row(
     date: str = "2026-07-11", source: str = "regular",
 ) -> ManifestRow:
     return ManifestRow(
-        file=file, class4="1_empty", class3=cls, venue=venue, camera=f"{slot}_camA",
+        file=file, label="1_empty", class3=cls, venue=venue, camera=f"{slot}_camA",
         slot_date=date, slot_time="10:00", slot_id=slot, t_s=0, source=source,
         labeled_by="human", lighting="day", quality="unknown", split_role="",
     )
@@ -156,7 +156,7 @@ def test_grouped_split_order_survives_a_different_hash_seed(group_key: str) -> N
         "sys.path.insert(0, 'src');"
         "from pitch_occupancy.data.manifest import ManifestRow;"
         "from pitch_occupancy.data.splits import grouped_split;"
-        "rows=[ManifestRow(file=f'f{i}.jpg', class4='1_empty', class3='C1_EMPTY',"
+        "rows=[ManifestRow(file=f'f{i}.jpg', label='1_empty', class3='C1_EMPTY',"
         " venue=f'v{i%4}', camera='c', slot_date='2026-07-11', slot_time='10:00',"
         " slot_id=f's{i%12}', t_s=i, source='regular', labeled_by='human',"
         " lighting='day', quality='unknown', split_role='') for i in range(240)];"
@@ -662,3 +662,105 @@ def test_a_frame_the_sidecar_does_not_know_is_kept_not_dropped(tmp_path):
         w.writerow({"file": "known.jpg", "scene_id": "s1"})
 
     assert [r.file for r in distinct_rows(rows, path=p)] == ["known.jpg", "brand_new.jpg"]
+
+
+# --- the per-video cap (2026-09-21) ----------------------------------------------------------
+
+
+def _scenes(tmp_path, mapping: dict[str, str]):
+    import csv as _csv
+
+    p = tmp_path / "scene_ids.csv"
+    with p.open("w", newline="", encoding="utf-8") as fh:
+        w = _csv.DictWriter(fh, fieldnames=["file", "scene_id"])
+        w.writeheader()
+        for f, s in mapping.items():
+            w.writerow({"file": f, "scene_id": s})
+    return p
+
+
+def test_the_cap_bounds_what_one_recording_can_be_worth(tmp_path):
+    """Four videos are 75% of every recorded frame; the median video contributes six.
+
+    A fit on that is a fit on four afternoons at one facility. `distinct_rows` alone does
+    not close it - 103 of the 197 scenes come from those same four recordings.
+    """
+    from pitch_occupancy.data.splits import balanced_rows
+
+    big = [row(f"big{i}.jpg", slot="big") for i in range(20)]
+    small = [row(f"small{i}.jpg", slot="small") for i in range(3)]
+    scenes = _scenes(tmp_path, {**{r.file: f"b{i}" for i, r in enumerate(big)},
+                                **{r.file: f"s{i}" for i, r in enumerate(small)}})
+
+    kept = balanced_rows(big + small, per_video=5, path=scenes)
+    assert sum(1 for r in kept if r.camera == "big_camA") == 5
+    assert sum(1 for r in kept if r.camera == "small_camA") == 3, "a small video is untouched"
+    assert [r.file for r in kept] == [f"big{i}.jpg" for i in range(5)] + [
+        f"small{i}.jpg" for i in range(3)], "input order is preserved, so no seed is needed"
+
+
+def test_the_cap_spends_its_budget_on_scenes_before_second_frames(tmp_path):
+    """Fifteen frames of one moment and fifteen different moments are not the same
+    fifteen, and taking the first N in order would often pick the former."""
+    from pitch_occupancy.data.splits import balanced_rows
+
+    rows = [row(f"f{i}.jpg", slot="one") for i in range(6)]
+    # f0..f3 are all the same moment; f4 and f5 are two others
+    scenes = _scenes(tmp_path, dict(zip([r.file for r in rows],
+                                        ["s1", "s1", "s1", "s1", "s2", "s3"])))
+    kept = [r.file for r in balanced_rows(rows, per_video=3, path=scenes)]
+    assert kept == ["f0.jpg", "f4.jpg", "f5.jpg"], "one per scene first, then seconds"
+
+
+def test_the_cap_falls_back_to_more_of_a_scene_once_every_scene_has_one(tmp_path):
+    from pitch_occupancy.data.splits import balanced_rows
+
+    rows = [row(f"f{i}.jpg", slot="one") for i in range(4)]
+    scenes = _scenes(tmp_path, dict(zip([r.file for r in rows], ["s1", "s1", "s1", "s2"])))
+    kept = [r.file for r in balanced_rows(rows, per_video=3, path=scenes)]
+    assert kept == ["f0.jpg", "f1.jpg", "f3.jpg"], "s1's second frame beats nothing"
+
+
+def test_the_cap_refuses_a_nonsense_budget_and_a_missing_sidecar(tmp_path):
+    import pytest as _pytest
+
+    from pitch_occupancy.data.splits import balanced_rows
+
+    rows = [row("f0.jpg")]
+    scenes = _scenes(tmp_path, {"f0.jpg": "s1"})
+    with _pytest.raises(ValueError, match="at least 1"):
+        balanced_rows(rows, per_video=0, path=scenes)
+    with _pytest.raises(FileNotFoundError):
+        balanced_rows(rows, per_video=5, path=tmp_path / "absent.csv")
+
+
+def test_no_ingested_frame_ever_lands_in_a_locked_venue() -> None:
+    """The locked venues are opened once, at the end, on footage nobody has looked at.
+
+    Seven frames of `playing day.mp4` went into the labelled set on 2026-09-21 - *after* the
+    clip had been rendered, gridded and compared frame by frame against
+    `clipvenue_b_floodlit_track` to establish that it came from there. The locked set went
+    114 -> 121. `development_rows` kept them out of training, which is why nothing failed;
+    what it cannot do is un-look at them. A test set you have inspected is not a test set.
+
+    This asserts on the real dataset because that is where the mistake happened. Frames still
+    reach locked venues legitimately - the 114 were put there deliberately - so the rule is
+    narrower than "nothing new in a locked venue": nothing *this project extracted from a
+    clip it was choosing venues for*. The `dv` prefix is that provenance.
+    """
+    from pitch_occupancy.config import settings
+    from pitch_occupancy.data.manifest import read_manifest
+    from pitch_occupancy.data.splits import load_final_venues
+
+    manifest = settings.dataset_dir / "manifest.csv"
+    if not manifest.exists():
+        pytest.skip("manifest not present")
+    locked = load_final_venues()
+    assert locked, "there are supposed to be locked venues"
+    intruders = [r.file for r in read_manifest(manifest)
+                 if r.venue in locked and r.camera.startswith("dv")]
+    assert not intruders, (
+        f"{len(intruders)} DaVinci frame(s) reached a locked final-test venue: "
+        f"{intruders[:3]}. scripts/ingest_davinci.py refuses these; if they are on disk, "
+        f"they predate the guard and must be removed rather than left."
+    )

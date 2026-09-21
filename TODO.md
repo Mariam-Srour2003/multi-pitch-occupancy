@@ -2213,7 +2213,9 @@ tagged with the question it answers. Fix that first — it is what turns a build
       question the rule actually asks does not discriminate between them.
 - [x] **WP9-T3 Counting, rules, fusion, bursts** — done 2026-09-19. `vision/counting.py`
       (foot-point, ball-centre, min-height filter, 2-of-3 persistence, hi-vis, spread);
-      `vision/rules.py` (`MinuteState`, `FrameVerdict`, `RuleConfig`, `decide` = A36's table);
+      `vision/rules.py` (`MinuteState`, `FrameVerdict`, `RuleConfig`, `decide` — A36's
+      nine-row table, ~~four folder classes~~ **three reporting classes and a seven-row table
+      since A40**);
       `configs/rules.json` (unfrozen until WP9-T5); `slots/fusion.fuse_pitch` (counts summed,
       table applied once, half-blind pitch at half confidence); UNCERTAIN in `aggregate_slot`
       (an abstained minute is a minute not captured — one mechanism, no new threshold);
@@ -2225,17 +2227,30 @@ tagged with the question it answers. Fix that first — it is what turns a build
       recomputed); `explain.redact_frame` shares the two-layer rule with `make_xai_figures`;
       `experiments/make_overlay_figures.py` → 9 figures, label agrees on 7 (+1 accepted 3↔4),
       both disagreements being frames where the walker is outside camera A's outline.
-  - [ ] **WP9-T4a** Hook the overlay into `/clip`, `/images` and `/roi` — the pages still show
-        the probe's heatmap. `clip_walkthrough.walk_records` and `image_walkthrough` emit
-        `"heat"`; they need an `"overlay"` when the pipeline is detector-first, plus the count
-        and the trace, and `clip_page`/`image_page` need the pane renamed and the trace shown.
+  - [x] **WP9-T4a** Overlay hooked into `/clip` and `/images` — done 2026-09-21.
+        `overlay.detector_pane` runs the detector on each explained frame and both pages carry
+        a third pane, **"What the detector found"**, beside the probe's heatmap: a box round
+        each person separately, a ring round the ball, anything outside the boundary dimmed
+        rather than dropped, and the rule row that fired written underneath. Both models on
+        one frame, which is what makes "it is reading the floodlights" and "it found six
+        people and a ball" distinguishable at a glance (A35).
+  - [ ] **WP9-T4b** `/roi` still previews with the probe alone. Same helper, one call.
 - [ ] **WP9-T5 Thresholds frozen.** `experiments/fit_rule_thresholds.py` on venue_01 camera A
       only → `configs/rules.json` with `frozen_at`/`frozen_commit`.
-- [~] **WP9-T6 Evaluation** — `rule_frame_eval` done 2026-09-19 (+ 4-class confusion):
-      detector-first **recall 0.996, false-play 0.000, EMPTY 0.889, balanced 0.996**, worst
-      venue 0.970 against the probe's 0.667; the probe arms reproduce `h3_with_false_play.csv`
-      first. The clock rule still wins on this corpus and loses 16–0 on real footage, and both
-      belong in the thesis together.
+- [~] **WP9-T6 Evaluation** — `rule_frame_eval` re-run 2026-09-20 under A40 (+ 3-class
+      confusion). ~~detector-first recall 0.996 … balanced 0.996, worst venue 0.970~~ — those
+      are now the **`detector_first_no_ball`** arm. Re-run 2026-09-21 on the corrected
+      venue_01 boundaries and the 28 new frames. With A40's ball requirement on:
+      **recall 0.3078, worst venue 0.111**, false-play 0.000, EMPTY 0.9259, balanced 0.3078;
+      without it, 0.9957 / 0.970. **501 of 1,089** recorded play frames flip to C3 — up from
+      200, because venue_01 alone contributes 312 now that a correct boundary lets it see its
+      own players. Recall *equals the ball-detection rate venue by venue*: above the head
+      count the rule has become a ball detector. The boundary fix moved this arm by 0.003, so
+      **the ball cost is not a boundary artefact**. Frame level only: no burst, no pitch-level
+      sum, so **0.3078 is a floor and 0.9957 is the ceiling**, and WP9-T6a closes the gap.
+      Probe arms: DINOv2 0.9556 (worst venue **0.8065**), gated 0.9548, clock rule 0.9844.
+      `davinci_l_city_pitch` has one play frame and is excluded from the venue-mean by
+      `MIN_VENUE_PLAY` — reported with its count, never dropped quietly.
   - [ ] **WP9-T6a** `ball_recovery` (the audit's tiling numbers are its first measurement:
         recall 0.43 → 0.59, and 0.17 → 0.58 at `f_outdoor_bldg`), `rule_on_clips`,
         `rule_on_unseen_clip` (the seam already reproduces 13/13; this is the CSV),
@@ -2246,6 +2261,93 @@ tagged with the question it answers. Fix that first — it is what turns a build
       regenerated; `configs/README.md`, `docs/runbook.md`, `thesis/ethics.md` lines; dated
       corrections under A20/A26 in `EXPERIMENT_LOG.md`.
 - [ ] **[H] WP9-T8** Latency on the Mini-PC (WP7-T1) for the detector path.
+- [~] **WP10 The dataset, checked** — 2026-09-21, at the operator's request.
+  - [x] **WP10-T1 Three folders on disk.** `3_people_not_playing` + `4_maintenance` →
+        `3_maintenance_non_sporting`; `taxonomy.Class4` → `Label` (3 members, `parse` still
+        reads both retired names); `ManifestRow.class4` → `label`.
+        `scripts/collapse_label_folders.py` moved the frames and every sidecar that addresses
+        them by path, **including the feature caches**, which key rows by filename and would
+        have silently dropped 175 frames.
+  - [x] **WP10-T2 A manifest rebuild stops destroying rows.** It dropped all 189 generated
+        rows once, silently, with exit code 0 — `assign_scene_ids.py` had warned in a comment
+        for weeks that it would. `carry_unparseable` + two tests.
+        `scripts/rebuild_synthetic_rows.py` restored them; **`quality` is unrecoverable for
+        102 of 189** and reads `synthetic:unrecorded`.
+  - [x] **WP10-T3 The DaVinci exports ingested.** 15 clips, 28 frames, 3 held out.
+        **13 of 15 are venues the corpus already had** — see `configs/davinci_venues.csv`.
+        Real C3 goes 6 → 16 frames and 1 → 4 venues.
+  - [x] **WP10-T4 Redundancy measured.** 1,720 recorded frames = **197 distinct scenes**;
+        EMPTY is 494 frames of **5**; the four largest scenes are **54% of the corpus**.
+        Nothing deleted — `results/dataset_redundancy.csv`.
+  - [ ] **[H] WP10-T5 Work the label-audit queue.** `experiments/label_audit.py` ranks every
+        recorded frame by how hard its folder is to reconcile with what the detector finds.
+        It is a queue, not a verdict: a detector that misses far-side players calls a real
+        match C3 (A16: 88 of 278). A person has to look at the top of it.
+  - [ ] **[H] WP10-T6 The 11 `pending4d` frames.** On disk and in `labels.csv`, never in the
+        manifest or `scene_ids.csv`, so no venue can be read for them. Not restored during
+        WP10-T2 because that would mean inventing one.
+  - [x] **WP10-T8 Per-video concentration measured and capped.** **Four source videos are
+        75% of every recorded frame** (`slot_20260712_2030_camB` alone is 516 of 1,720); the
+        median video contributes six. `splits.balanced_rows(per_video=N)` bounds what one
+        recording can be worth, spending its budget on distinct scenes before second frames.
+        **There is no free value for N** and the report says so: the four videos carrying the
+        bias are also the only EMPTY footage there is, so cap 12 leaves 21 empty frames and
+        cap 40 leaves 81 while letting four videos back to a quarter of the weight.
+        Training-side only; the test side is never capped.
+  - [ ] **[H] WP10-T9 Choose the cap.** Nothing uses `balanced_rows` yet — the arms still fit
+        on everything. Picking N is a decision with the EMPTY count on one side and the
+        single-camera vote on the other; `experiments/dataset_redundancy.py` re-derives the
+        table against current numbers.
+  - [ ] **WP10-T7 Re-fit and re-measure on the changed dataset.** Every probe arm was fitted
+        before the 28 new frames existed and before the caches were rewritten; the numbers in
+        `rule_frame_eval.csv` are from 1,578 development rows and there are now 1,599.
+- [~] **WP9-T9 A40: three classes, and play must be shown** — done 2026-09-20.
+      `MinuteState` is `C1_EMPTY` / `C2_ACTIVE_PLAY` / `C3_MAINTENANCE_NON_SPORTING` /
+      `UNCERTAIN`; the table is seven rows; ACTIVE_PLAY requires **> 4 people AND a ball AND
+      motion**; `require_ball`, `require_motion` and `motion_play_min` are in
+      `configs/rules.json`; A40 in the preregistration, §2.8 in the labelling protocol
+      (the ball requirement is deliberately **not** carried into the truth — defining the
+      label by what the detector can see would make the cost unmeasurable by construction).
+  - [ ] **[H] WP9-T9a Decide whether to keep `require_ball` on.** The measurement is in:
+        0.9957 → 0.3078 cross-venue play recall at frame level, **501 of 1,089** play frames
+        flipped, worst venue 0.111. **But the cost is entirely a one-camera, one-frame cost** —
+        `rule_pitch_pairs.csv` is unchanged under A40 (0.338 → 0.859) because a ball is seen on
+        99/99 paired venue_01 play moments once two cameras are ORed, and 187 of the 200 lost
+        frames are at the single-camera clip venues. It is the facility's rule and it is
+        implemented; whether they want to pay that is theirs to say, and the switch is one line
+        of `configs/rules.json`. **Do not flip it silently either way** — whichever it ends as,
+        the other arm stays published beside it.
+        What would actually settle it is **WP9-T6a `rule_on_clips`**: the burst ORs the ball
+        across three frames, and nothing has measured what that recovers on a single camera.
+  - [ ] **WP9-T9b** `motion_play_min` is null, so `require_motion` cannot fire; `decide`
+        writes "clause skipped" into every trace instead of passing silently. Fitting it is
+        part of WP9-T5, and until then the motion half of the facility's rule is **not in
+        force** — which is stated on every verdict rather than left to be discovered.
+  - [ ] **WP9-T9c** The review pages still default to `dinov2` (`config.default_model_key`),
+        so A40's rule does not govern `/clip`, `/images` or `/roi`. That flip is WP9-T7 and it
+        should not happen while WP9-T9a is open, because it would deploy the 0.3078 arm.
+        **Reported from use 2026-09-20**: on eight operator clips the probe scores **3/8** and
+        answers ACTIVE_PLAY at 1.00 on both maintenance clips, where the detector counting
+        alone scores 7/8. This is now the most visible defect in the product.
+  - [x] **WP9-T9d** A person whose box the frame cuts off was counted as nobody the moment a
+        boundary existed — `foot_y == frame_height`, and `counting.inside` tested `y < height`,
+        so the point was outside *every* polygon including a whole-frame one. Read two people
+        standing in plain view as C1_EMPTY at n=0. Fixed by clamping onto the last visible row;
+        `overlay.py` held a second copy of the test and the same bug. `rule_frame_eval` re-run:
+        **every value byte-identical**, because no frame in the corpus reaches the bottom edge.
+  - [ ] **[H] WP9-T9e Maintenance has real footage now.** A40 dropped the fourth class because
+        the corpus held **0 real `4_maintenance` frames**. The operator supplied two clips of
+        real groundskeeping on 2026-09-20, and one of them (`Maint day`: five workers, a mower,
+        a bag, and a ball lying on the pitch) is read ACTIVE_PLAY — correctly, by the rule's own
+        specification. Every available cue was checked and none fires: **hi-vis 0.000**, no COCO
+        vehicle (a push mower is not a class), and **motion cannot separate** — the lowest-motion
+        clip of the eight is a *real match* (1.71 against `Maint day`'s 2.58). Two clips are not
+        a corpus, but the reason for closing the branch no longer holds. Whatever re-opens it
+        needs a cue for mowers and bags, not for trucks and hi-vis.
+  - [ ] **WP9-T9f** `roi.derive_from_video` is worse than no boundary on the operator's clips
+        (4/8 against 7/8): it clipped the far end of one pitch, putting two people outside its
+        top edge, and stopped at y=0.99 on another, missing the edge the foreground people stand
+        on. Worth drawing by hand in `/roi`; not yet worth deriving.
 
 Struck through by WP9, not deleted: ~~WP5-B fusion head as the deployed decision layer~~ and
 ~~WP6 items that assume the probe is the deployed model~~ — both remain as comparators.

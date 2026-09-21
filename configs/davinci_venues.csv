@@ -1,0 +1,30 @@
+# Venue assignment for the operator's DaVinci exports (2026-09-20 and 2026-09-21).
+#
+# Venue is the grouping key for leave-one-venue-out, so a clip filed under a new name that is
+# really an existing pitch puts the same camera on both sides of a fold. Every row below was
+# decided by eye from frames rendered side by side against a representative frame of each
+# existing venue, after a dHash of each clip's median frame proposed candidates. The hash is
+# a weak discriminator here - at 8x8 every five-a-side pitch is a green rectangle - so it
+# chose what to look at and a person chose the answer.
+#
+# THIRTEEN OF FIFTEEN CLIPS ARE VENUES THE CORPUS ALREADY HAS. That is the headline: these
+# are new *moments*, not new *places*, and they must not be counted as cross-venue evidence.
+# The evidence for each identification is in the `why` column.
+#
+# clip,venue,class3,split_role,why
+clip,venue,class3,split_role,why
+Maint day.mp4,davinci_j_maint_outdoor,C3_MAINTENANCE_NON_SPORTING,dev,"no existing venue matches - daylight, blue-and-white boards, white goal at top right, buildings behind; nearest hash was clipvenue_b at 17 and they are plainly different pitches"
+maint night.mp4,clipvenue_a_blue_barrier,C3_MAINTENANCE_NON_SPORTING,test,"same covered pitch: identical yellow-and-blue advertising panel on the blue barrier, same roof trusses and light bars, same blue pillars. Different camera position around the same hall"
+not playing day.mp4,clipvenue_h_teal_pitch,C3_MAINTENANCE_NON_SPORTING,dev,"same camera: teal-and-blue boards, same goal placement, same white line geometry"
+not playing night.mp4,clipvenue_g_netting,C3_MAINTENANCE_NON_SPORTING,dev,"same camera: goal netting across the right of frame, same blue '4' sign, same yellow posts"
+notplaying day.mp4,venue_01,C3_MAINTENANCE_NON_SPORTING,dev,"same camera as the venue_01 night slot: same blue boards and white signage panels, same pitch"
+playing day 2.mp4,clipvenue_f_outdoor_bldg,C2_ACTIVE_PLAY,dev,"same camera: identical beige building, floodlight pole and fence, same XbotGo watermark. Daylight where the corpus has night - a genuinely new lighting condition at a known venue"
+playing day 3.mp4,clipvenue_g_netting,C2_ACTIVE_PLAY,dev,"same camera as not playing night.mp4 and as the corpus clip: netting, '4' sign, hillside"
+playing day.mp4,clipvenue_b_floodlit_track,C2_ACTIVE_PLAY,locked,"same camera: the terracotta running-track border curves identically, same centre circle and diagonal. Daylight where the corpus has night -- NOT EXTRACTED: clipvenue_b is a locked final-test venue, and this clip was inspected in detail while deciding that. Inspected footage cannot be held-out test data."
+"main, not playing day.mp4",venue_01,C3_MAINTENANCE_NON_SPORTING,dev,"venue_01 blue boards and white signage, same camera family as the night slot"
+not playing sitting.mp4,venue_01,C3_MAINTENANCE_NON_SPORTING,dev,"venue_01; median-frame hash 2 from not playing with ball, 7 from playing day 4"
+not playing with ball .mp4,venue_01,C3_MAINTENANCE_NON_SPORTING,test,"venue_01; the held-out C3 clip - people on the pitch with a ball and no game, the case the head-count rule exists for"
+playing day 4.mp4,venue_01,C2_ACTIVE_PLAY,dev,"venue_01; same boards and signage"
+playing.mp4,venue_01,C2_ACTIVE_PLAY,dev,"venue_01; same boards and signage"
+playing day pic.png,davinci_l_city_pitch,C2_ACTIVE_PLAY,test,"no existing venue matches - a large daylight pitch with city buildings behind and two kitted teams; the held-out C2 still"
+playing day pic 2 .png,davinci_l_city_pitch,C2_ACTIVE_PLAY,dev,"same pitch and camera as playing day pic.png (median-frame hash 7)"

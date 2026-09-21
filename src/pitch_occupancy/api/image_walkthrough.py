@@ -91,6 +91,7 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
     """
     from pitch_occupancy.vision import roi
     from pitch_occupancy.vision.explain import overlay_heatmap
+    from pitch_occupancy.vision.overlay import detector_pane
     from pitch_occupancy.vision.walkthrough import walk_images
 
     # Whether a boundary was actually found is reported rather than assumed. Asking for one
@@ -147,6 +148,15 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
                 # the model reading past the outline.
                 "evidence_outside": shot.evidence_outside,
             })
+            # The other model, on the same frame. The probe explains itself as a heatmap
+            # because a logistic fit on pooled features has no objects in it; the detector
+            # explains itself as a box round each person and a ring round the ball. Both
+            # go on the page, because "it is reading the floodlights" and "it found six
+            # people and a ball" are only distinguishable side by side (A35, WP9-T4a).
+            boxes, found = detector_pane(shot.frame_bgr, polygon=shot.polygon,
+                                         redact=redact)
+            record["boxes"] = _jpeg(boxes)
+            record["detector"] = found
         yield json.dumps(record) + "\n"
 
     # `n` and `n_submitted` are both reported because they can differ: a file OpenCV cannot

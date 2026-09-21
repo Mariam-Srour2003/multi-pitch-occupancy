@@ -86,7 +86,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--src", required=True, type=Path, help="folder of generated images")
     ap.add_argument("--batch", required=True, help="batch id, e.g. gemini01")
-    ap.add_argument("--class4", default="4_maintenance")
+    ap.add_argument("--label", default="3_maintenance_non_sporting")
     ap.add_argument("--class3", default="C3_MAINTENANCE_NON_SPORTING")
     ap.add_argument("--venue", default="venue_01",
                     help="venue of the CONDITIONING frame. A13 forbids inventing a new one.")
@@ -101,7 +101,7 @@ def main() -> int:
         return 1
 
     defects = load_defects(args.defects)
-    dest_dir = PROCESSED / args.class4
+    dest_dir = PROCESSED / args.label
     rows, clean, flagged = [], 0, 0
 
     for i, src in enumerate(files, 1):
@@ -114,8 +114,8 @@ def main() -> int:
         else:
             clean += 1
         rows.append({
-            "file": f"{args.class4}/{name}",
-            "class4": args.class4,
+            "file": f"{args.label}/{name}",
+            "label": args.label,
             "class3": args.class3,
             "venue": args.venue,
             "camera": f"synthetic_{args.batch}",
@@ -153,7 +153,7 @@ def main() -> int:
     with LABELS.open("a", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
         for r in rows:
-            w.writerow([r["file"], r["class4"], "2026-09-13T00:00:00"])
+            w.writerow([r["file"], r["label"], "2026-09-13T00:00:00"])
     print(f"\nwrote {len(rows)} rows to {MANIFEST.name} and {LABELS.name}")
     print(f"copied images to {dest_dir}")
     return 0

@@ -303,8 +303,15 @@ def test_confound_diagram_reads_the_real_manifest() -> None:
     assert ">9<" in svg  # empty, floodlit - the near-absent cell
     # 970 until A25 relabelled 216 clip frames from `day` to `night`: a brightness threshold
     # had filed floodlit night football as daylight. The correction makes the confound worse,
-    # which is the point of the diagram.
-    assert ">1186<" in svg  # active play, floodlit
+    # which is the point of the diagram. 1,186 -> 1,189 on 2026-09-21 when the operator's
+    # DaVinci exports were ingested, which also put the first 21 frames in the
+    # ACTIVE_PLAY x daylight cell - the confound is still overwhelming, and now visibly
+    # dented rather than absolute.
+    assert ">1189<" in svg  # active play, floodlit
+    # 21 on the day of the ingest; 14 once the seven frames that had landed in the locked
+    # clipvenue_b were removed from the labelled set (they were daylight play at a night
+    # venue, which is what made them worth having and what made losing them a real cost).
+    assert ">14<" in svg  # active play, daylight - empty until 2026-09-21
 
 
 def test_confound_diagram_degrades_when_there_is_no_manifest(monkeypatch, tmp_path) -> None:

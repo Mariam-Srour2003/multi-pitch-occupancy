@@ -70,6 +70,7 @@ __all__ = [
     "SCENE_IDS",
     "scene_ids",
     "distinct_rows",
+    "balanced_rows",
     "DEFAULT_SPLIT_DIR",
     "write_split",
     "read_split",
@@ -150,6 +151,70 @@ def distinct_rows(rows: list[ManifestRow], *, path: Path | None = None) -> list[
             seen.add(scene)
             out.append(r)
     return out
+
+
+def balanced_rows(rows: list[ManifestRow], *, per_video: int = 12,
+                  path: Path | None = None) -> list[ManifestRow]:
+    """At most ``per_video`` frames from any one source recording, the most distinct first.
+
+    **Four videos are 75% of every recorded frame.** `slot_20260712_2030_camB` alone is 516
+    of 1,720, and the four venue_01 slot recordings together are 1,296; the median source
+    video contributes six. A fit on that is a fit on four afternoons at one facility, and it
+    will learn what those four afternoons look like - which is A20's finding arriving from a
+    different direction.
+
+    `distinct_rows` is not enough on its own here. It takes the corpus to 197 scenes, but 103
+    of those still come from the same four recordings, so venue_01 keeps half the weight. The
+    cap is what bounds a single camera's vote.
+
+    **Scenes first, then frames.** Within a video the first frame of each scene is taken in
+    order, and only once every scene has one are second frames taken - so a video with
+    fifteen scenes contributes fifteen different moments rather than fifteen frames of its
+    first. Order is preserved within a video, so the result is reproducible without a seed.
+
+    **Training-side only**, for the reason `distinct_rows` gives: a capped test set would
+    change what its number means.
+
+    **The cap is a knob and there is no free value**, which is why it is a knob. The four
+    videos that carry the bias are also the only EMPTY footage there is, so capping trades
+    one problem for the other - measured on the 2026-09-21 corpus:
+
+    ===============  ======  ======  =======  =======
+    arm              frames  top 4   C1_EMPTY  C2
+    ===============  ======  ======  =======  =======
+    all recorded      1,720     75%      494    1,210
+    distinct scenes     197     53%        5      182
+    cap 12              472     10%       21      438
+    cap 20              504     16%       41      450
+    cap 40              584     27%       81      490
+    ===============  ======  ======  =======  =======
+
+    Twelve nearly removes the single-camera vote and leaves 21 empty frames; forty keeps 81
+    and lets four videos back to a quarter of the weight. `experiments/dataset_redundancy.py`
+    re-derives this table, so the choice is made against current numbers rather than these.
+    """
+    if per_video < 1:
+        raise ValueError(f"per_video must be at least 1, got {per_video}")
+    mapping = scene_ids(path)
+    if not mapping:
+        raise FileNotFoundError(
+            f"no scene ids at {path or SCENE_IDS}; run scripts/assign_scene_ids.py"
+        )
+    by_video: dict[str, list[ManifestRow]] = {}
+    for row in rows:
+        by_video.setdefault(row.camera, []).append(row)
+
+    keep: set[str] = set()
+    for group in by_video.values():
+        seen: set[str] = set()
+        first_of_scene: list[ManifestRow] = []
+        rest: list[ManifestRow] = []
+        for row in group:
+            scene = mapping.get(row.file, row.file)
+            (rest if scene in seen else first_of_scene).append(row)
+            seen.add(scene)
+        keep.update(r.file for r in (first_of_scene + rest)[:per_video])
+    return [r for r in rows if r.file in keep]
 
 
 def _training_only(rows: list[ManifestRow], include_synthetic: bool) -> list[ManifestRow]:

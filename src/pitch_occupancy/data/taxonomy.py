@@ -1,16 +1,24 @@
 """Class taxonomy and the mapping between labelling and reporting.
 
-Frames are *labelled* into four folders because the finer distinction costs nothing at
-labelling time and keeps a 4-class ablation available later. Every thesis metric is
-*reported* over three classes, because that is what the slot decision actually needs.
+Frames are labelled into **three folders** and every metric reports **three classes**, and
+since 2026-09-21 those are the same three:
 
-    1_empty                -> C1 EMPTY                     -> NOTUSED
-    2_playing              -> C2 ACTIVE_PLAY               -> USED
-    3_people_not_playing   -> C3 MAINTENANCE_NON_SPORTING  -> NOTUSED / REVIEW
-    4_maintenance          -> C3 MAINTENANCE_NON_SPORTING  -> NOTUSED / REVIEW
+    1_empty                      -> C1 EMPTY                     -> NOTUSED
+    2_playing                    -> C2 ACTIVE_PLAY               -> USED
+    3_maintenance_non_sporting   -> C3 MAINTENANCE_NON_SPORTING  -> NOTUSED / REVIEW
 
-Never report a macro-F1 improvement on the 4-class view while C3 support is near zero;
-fix the data first. See TODO.md WP2-T11 for the C3 contingency plan.
+**It was four folders until then**, splitting `3_people_not_playing` from `4_maintenance` on
+the reasoning that the finer distinction cost nothing at labelling time and kept a four-class
+ablation available later. It cost something in the end. The corpus reached 1,692 recorded
+frames holding **6 real `3_people_not_playing` frames and 0 real `4_maintenance` frames** -
+the ablation was never runnable, the prediction path dropped the split in A40 because nothing
+could measure it, and two folders that no measurement could tell apart were still being
+maintained, documented and reported on. `LEGACY_FOLDERS` keeps the old names readable so
+every CSV written before the collapse still parses; nothing writes them any more.
+
+The old warning stands in its new form: **never report a macro-F1 gain driven by C3 while its
+support is near zero.** The operator's 2026-09-21 footage is the first real C3 data this
+project has had; before it the class was almost entirely generated.
 """
 
 from __future__ import annotations
@@ -18,23 +26,43 @@ from __future__ import annotations
 from enum import StrEnum
 
 __all__ = [
-    "Class4",
+    "Label",
     "Class3",
     "SlotStatus",
     "to_class3",
-    "CLASS4_ORDER",
+    "LABEL_ORDER",
     "CLASS3_ORDER",
     "DISPLAY_NAMES",
+    "LEGACY_FOLDERS",
 ]
 
 
-class Class4(StrEnum):
-    """The four folders frames are labelled into on disk."""
+class Label(StrEnum):
+    """The three folders frames are labelled into on disk."""
 
     EMPTY = "1_empty"
     PLAYING = "2_playing"
-    PEOPLE_NOT_PLAYING = "3_people_not_playing"
-    MAINTENANCE = "4_maintenance"
+    MAINTENANCE_NON_SPORTING = "3_maintenance_non_sporting"
+
+    @classmethod
+    def parse(cls, value: Label | str) -> Label:
+        """A folder name as a label, accepting the two pre-2026-09-21 names.
+
+        Old manifests, old `labels.csv` backups and every results CSV written before the
+        collapse carry `3_people_not_playing` or `4_maintenance`. They are read, not
+        rewritten - editing an artefact to match today's vocabulary is how a record stops
+        being a record.
+        """
+        if isinstance(value, cls):
+            return value
+        text = str(value)
+        if text in LEGACY_FOLDERS:
+            return LEGACY_FOLDERS[text]
+        try:
+            return cls(text)
+        except ValueError as exc:
+            known = ", ".join(c.value for c in LABEL_ORDER)
+            raise ValueError(f"unknown label {value!r}; expected one of: {known}") from exc
 
 
 class Class3(StrEnum):
@@ -53,11 +81,18 @@ class SlotStatus(StrEnum):
     REVIEW = "REVIEW"
 
 
-CLASS4_ORDER: tuple[Class4, ...] = (
-    Class4.EMPTY,
-    Class4.PLAYING,
-    Class4.PEOPLE_NOT_PLAYING,
-    Class4.MAINTENANCE,
+#: The folder names this project wrote before 2026-09-21, and where they land now. Both
+#: mapped to C3 even then (`to_class3` has always collapsed them), so nothing is lost by
+#: reading them here - only the name of the folder they were filed in.
+LEGACY_FOLDERS: dict[str, Label] = {
+    "3_people_not_playing": Label.MAINTENANCE_NON_SPORTING,
+    "4_maintenance": Label.MAINTENANCE_NON_SPORTING,
+}
+
+LABEL_ORDER: tuple[Label, ...] = (
+    Label.EMPTY,
+    Label.PLAYING,
+    Label.MAINTENANCE_NON_SPORTING,
 )
 
 CLASS3_ORDER: tuple[Class3, ...] = (
@@ -66,11 +101,10 @@ CLASS3_ORDER: tuple[Class3, ...] = (
     Class3.MAINTENANCE_NON_SPORTING,
 )
 
-_CLASS4_TO_CLASS3: dict[Class4, Class3] = {
-    Class4.EMPTY: Class3.EMPTY,
-    Class4.PLAYING: Class3.ACTIVE_PLAY,
-    Class4.PEOPLE_NOT_PLAYING: Class3.MAINTENANCE_NON_SPORTING,
-    Class4.MAINTENANCE: Class3.MAINTENANCE_NON_SPORTING,
+_LABEL_TO_CLASS3: dict[Label, Class3] = {
+    Label.EMPTY: Class3.EMPTY,
+    Label.PLAYING: Class3.ACTIVE_PLAY,
+    Label.MAINTENANCE_NON_SPORTING: Class3.MAINTENANCE_NON_SPORTING,
 }
 
 DISPLAY_NAMES: dict[Class3, str] = {
@@ -80,14 +114,14 @@ DISPLAY_NAMES: dict[Class3, str] = {
 }
 
 
-def to_class3(label: Class4 | str) -> Class3:
-    """Map a 4-class label (enum or folder name) onto its reporting class.
+def to_class3(label: Label | str) -> Class3:
+    """Map a labelling folder (enum or folder name, current or legacy) onto its class.
+
+    One-to-one since the collapse, and kept as a function because the call sites read the
+    same as they did when it was a four-to-three mapping - and because the legacy names
+    still have to come through it.
 
     Raises:
-        ValueError: if the label is not one of the four known folder names.
+        ValueError: if the label is not a known folder name.
     """
-    try:
-        return _CLASS4_TO_CLASS3[Class4(label)]
-    except ValueError as exc:
-        known = ", ".join(c.value for c in CLASS4_ORDER)
-        raise ValueError(f"unknown label {label!r}; expected one of: {known}") from exc
+    return _LABEL_TO_CLASS3[Label.parse(label)]

@@ -95,7 +95,7 @@ def test_a_multi_class_venue_is_usable() -> None:
     assert oc.venue_feasibility(rows)[0]["usable_as_target"] is True
 
 
-def test_the_real_dataset_has_exactly_one_usable_venue() -> None:
+def test_the_real_dataset_venues_that_hold_more_than_one_class() -> None:
     """If this ever changes, WP4-T3 becomes runnable as written and the proxy should be
     replaced rather than kept. That is the point of asserting it."""
     if not (ROOT / "data" / "processed" / "manifest.csv").exists():
@@ -105,9 +105,19 @@ def test_the_real_dataset_has_exactly_one_usable_venue() -> None:
     from pitch_occupancy.data.splits import development_rows
 
     rows = development_rows(read_manifest(settings.dataset_dir / "manifest.csv"))
-    usable = [v for v in oc.venue_feasibility(rows) if v["usable_as_target"]]
-    assert len(usable) == 1, [v["venue"] for v in usable]
-    assert usable[0]["venue"] == "venue_01"
+    usable = {v["venue"]: v for v in oc.venue_feasibility(rows) if v["usable_as_target"]}
+    # It WAS exactly one, and this assertion existed to notice when that stopped being true.
+    # It stopped on 2026-09-21: the operator's DaVinci exports put C3 frames at
+    # clipvenue_g_netting and clipvenue_h_teal_pitch, so three venues now hold more than one
+    # class. Two of them hold two classes and a handful of frames - 32 and 21 - so WP4-T3 is
+    # still not runnable as written and the proxy stays; what changed is that it is now a
+    # question of *how few frames*, not of whether any second venue exists at all.
+    assert set(usable) == {"venue_01", "clipvenue_g_netting", "clipvenue_h_teal_pitch"}
+    assert usable["venue_01"]["n_classes"] == 3
+    assert all(usable[v]["n_classes"] == 2 for v in usable if v != "venue_01")
+    assert all(usable[v]["n_frames"] < 100 for v in usable if v != "venue_01"), (
+        "if a second venue ever reaches a real frame count, replace the proxy rather than "
+        "keep it - see this test's docstring")
 
 
 # --- the published curve --------------------------------------------------------------------

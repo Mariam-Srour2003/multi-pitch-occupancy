@@ -7042,3 +7042,626 @@ reason is now written next to it - it times seven detectors against a 30-second 
 choose a different model.
 
 - 2026-09-19 | A39 WP9 registered with the runner and the ledger | uv run python experiments/reproduce_all.py --check | reproduce_all.py | four WP9 stages added and 0 stale; six WP9 claims added, 45 verified 0 failing; hand_counts.csv declared an external input because a stage that reran it would erase the counts
+
+- 2026-09-20 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
+
+- 2026-09-20 | WP9-T6 rule vs probe at frame level | uv run python experiments/rule_frame_eval.py | rule_frame_eval.csv | clock_rule recall 1.000 false-play 0.021 EMPTY 0.979; dinov2 recall 0.930 false-play 0.309 EMPTY 0.000; dinov2_gated recall 0.929 false-play 0.012 EMPTY 0.889; detector_first recall 0.311 false-play 0.000 EMPTY 0.889; detector_first_no_ball recall 0.996 false-play 0.000 EMPTY 0.889; best balanced: detector_first_no_ball; one frame per camera, no burst, no pitch sum
+
+- 2026-09-20 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 43 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-20 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 47 claims verified against their artefacts, 0 recorded as unsupported
+
+## 2026-09-20 — A40: requiring a ball costs two thirds of the frame-level play recall
+
+The facility restated its rule on 2026-09-20: a booking is in use when more than four people
+are on the pitch, a ball is visible, and people are moving. `vision/rules.py` now enforces it,
+the prediction path answers three classes instead of four, and `configs/rules.json` carries
+`require_ball` and `require_motion` as switches. The preregistration amendment is A40 and it
+was written before this run, including the sentence about what it was likely to cost.
+
+**It cost more than that sentence guessed.** Same detector, same weights, same boundaries,
+same 1,578 frames; one switch:
+
+| arm | recall | worst venue | false-play | EMPTY acc | balanced |
+|---|---|---|---|---|---|
+| `detector_first_no_ball` | 0.9957 | 0.970 | 0.0000 | 0.8889 | **0.9957** |
+| `detector_first` (ball required) | **0.3110** | **0.111** | 0.0000 | 0.8889 | 0.3110 |
+| clock_rule | 1.0000 | 1.000 | 0.0206 | 0.9794 | 0.9794 |
+| dinov2_gated | 0.9289 | 0.667 | 0.0123 | 0.8889 | 0.9165 |
+| dinov2 | 0.9297 | 0.667 | 0.3086 | 0.0000 | 0.6211 |
+
+Cross-venue play recall falls **0.9957 → 0.3110**; the worst fold falls **0.970 → 0.111**.
+200 of 1,078 recorded play frames are ACTIVE_PLAY with the switch off and C3 with it. The
+per-venue table is the explanation and it is A17's 0.40 arriving as a bill:
+
+| venue | play frames | ball seen | recall on | recall off | lost |
+|---|---|---|---|---|---|
+| clipvenue_a_blue_barrier | 168 | 0.345 | 0.321 | 0.970 | 109 |
+| clipvenue_d_indoor_dome | 18 | 0.222 | 0.222 | 1.000 | 14 |
+| clipvenue_e_pink_boards | 18 | 0.889 | 0.889 | 1.000 | 2 |
+| clipvenue_f_outdoor_bldg | 12 | 0.167 | 0.167 | 1.000 | 10 |
+| clipvenue_g_netting | 30 | 0.300 | 0.300 | 1.000 | 21 |
+| clipvenue_h_teal_pitch | 18 | 0.167 | 0.167 | 1.000 | 15 |
+| clipvenue_i_outdoor_trees | 18 | 0.111 | 0.111 | 1.000 | 16 |
+| venue_01 | 796 | 0.446 | 0.259 | 0.275 | 13 |
+
+Recall with the ball required is, venue by venue, **the ball-detection rate**. That is the
+whole finding: above the head count the rule is no longer a counting rule, it is a ball
+detector, and YOLOv8n's ball detector on this footage is the 0.06-0.89 instrument A17
+measured. `clipvenue_e_pink_boards` keeps 0.889 because its ball is visible; `outdoor_trees`
+keeps 0.111 because its ball is not. Nothing about the *pitch* distinguishes them.
+
+**What this number is not.** It is one frame at a time, inside one camera's boundary, with no
+burst and no pitch-level sum - the hardest setting there is for a rule that now depends on a
+small fast object being visible at one instant. The deployed path reads a burst of three
+frames a second apart and ORs the ball across them, and then ORs again across the pitch's
+cameras, so the deployed recall is higher than 0.311 by an amount this table cannot state.
+`rule_on_clips.py` and `rule_slots.py` are what would state it and neither has been run. Until
+they have, **0.311 is a floor and 0.996 is the ceiling**, and quoting either one alone would
+be the kind of half-truth this log exists to prevent. A17's own arms suggest the burst is
+worth a lot here - `ball_detection_rule.csv` found tiling alone took `f_outdoor_bldg` from
+0.17 to 0.58 - but "suggests" is not "measured" and this line is not a result.
+
+**What it is, though, is a decision that now has a price on it.** The facility asked for a
+rule; the rule is implemented exactly as asked; the cost of asking is 200 real matches in this
+corpus reported as non-sporting use, concentrated at six of the seven venues the system has
+never seen. `require_ball` is a switch in `configs/rules.json` with this number written beside
+it, so turning it off is a decision somebody can take with the evidence in hand. The ledger
+caught the two stale claims on the first run (`rule-cross-venue-recall` 0.9957 → 0.3110,
+`rule-worst-venue` 0.9702 → 0.1111); both are restated rather than edited, and the counterfactual
+arm is now its own claim so the gap cannot be quoted without its comparator.
+
+Two smaller changes ride along. `MinuteState` dropped the four folder classes for the three
+reporting ones: the corpus holds 6 real `3_people_not_playing` frames and 0 real
+`4_maintenance` frames, so the split was never measurable, and `make_overlay_figures` had been
+forgiving that cell as "the confusion A36 accepts" - a cell forgiven in advance is not a
+measurement. It now compares against the three-class label and forgives nothing.
+`rule_confusion_4class.csv` becomes `rule_confusion_3class.csv` with a `truth_folder` column;
+the A39 entry above naming the old filename is left as written.
+
+- 2026-09-20 | A40 ball requirement costs 0.685 cross-venue play recall | uv run python experiments/rule_frame_eval.py | rule_frame_eval.csv | detector_first recall 0.311 worst venue 0.111 against the identical rule without require_ball at 0.996/0.970; 200 of 1078 play frames flipped to C3; recall with the ball required equals the ball-detection rate venue by venue; frame level only, no burst and no pitch sum, so this is a floor
+
+- 2026-09-20 | WP9-T6 pitch-level sum against a single camera | uv run python experiments/rule_pitch_pairs.py | rule_pitch_pairs.csv | 164 paired moments at venue_01: one camera 0.558 correct, the pitch sum 0.829 [0.768, 0.884]; play moments median 3 inside one camera and 8 across the pitch against a threshold of 5
+
+- 2026-09-20 | WP9-T4 overlay figures | uv run python experiments/make_overlay_figures.py --model yolov8n | figs/overlays/ | 9 redacted overlays from yolov8n; the three-class label agrees with the rule on 5 of them (A40: nothing forgiven, where the 3<->4 cell used to be); 2 play frame(s) not called play, 2 of those with no ball seen; people drawn in one colour and the ball in another
+
+### 2026-09-20 — and where the ball requirement costs nothing: two cameras
+
+`rule_pitch_pairs.py` was re-run under A40 because `reproduce_all --check` flagged it stale
+against the new `configs/rules.json`. Its headline did not move at all - play recall
+**0.338 one camera → 0.859 summed**, EMPTY 0.892 → 0.785, the same numbers as before the ball
+requirement existed. The reason is in the CSV: on all **99 of 99** paired venue_01 play
+moments a ball is seen once the two cameras are ORed. `require_ball` cost nothing there.
+
+That is the other half of the number above, and it says what the 0.311 is actually made of.
+The ball requirement is not expensive because balls are hard to see; it is expensive **when
+there is only one chance to see one**. A pitch with two cameras gets two chances at the same
+instant, and at venue_01 that was enough every time. The seven clip venues are single-camera
+66-second clips scored one frame at a time, which is one chance, and that is where all 187 of
+the 200 lost frames are.
+
+Two things follow, and neither is a result yet. The deployed path also gets three chances per
+camera per minute (the burst ORs the ball across frames), and no table here measures that -
+`rule_on_clips.py` would. And a single-camera single-frame venue is the *worst* case for this
+rule by construction, so a facility deploying one camera per pitch should expect something
+closer to 0.311 than to 0.859 until the burst is measured. The 13 paired play moments that
+were still C3 with a ball present are the other failure mode entirely: the summed count was
+four or fewer, which is A16's under-count and has nothing to do with the ball.
+
+The `overlay-figures` sheet was re-run for the same reason and is now scored against the
+three-class label with nothing forgiven: 5 of 9 agree, 2 play frames are not called play, and
+both of those have no ball seen. It used to report "7 of 9 (+1 accepted 3↔4)" against the
+folder, which was a friendlier number about a weaker question.
+
+- 2026-09-20 | A40 re-run of the stale stages | uv run python experiments/rule_pitch_pairs.py; experiments/make_overlay_figures.py --model yolov8n | rule_pitch_pairs.csv, overlay_index.csv | pitch-sum play recall unchanged at 0.338 -> 0.859 because a ball is seen on 99/99 paired play moments once two cameras are ORed - require_ball costs nothing with two cameras and costs almost everything with one; overlay sheet 5/9 against the three-class label, nothing forgiven
+
+## 2026-09-20 — reported from use: eight clips, and a boundary that deleted the foreground
+
+The operator ran eight short clips of their own (`Maint day`, `maint night`, three
+not-playing, three playing; 864x496, 4-8 s each) through the system and reported wrong
+answers. Three separate things were wrong, and only one of them was a defect.
+
+**1. The pages are still the probe, and the probe gets 3 of 8.** `config.default_model_key`
+is `dinov2` until WP9-T7, so `/clip`, `/images` and the walkthrough all assemble the probe.
+It answered **ACTIVE_PLAY at confidence 1.00 on both maintenance clips** and EMPTY on a real
+ten-person match. The detector-first path on the same clips, counting only, gets 7 of 8. This
+is A20 again on the operator's own footage, and it is the single largest factor in what they
+saw:
+
+| arm | correct |
+|---|---|
+| dinov2 probe (what the pages run) | 3/8 |
+| detector-first, ball required (shipped rule) | 6/8 |
+| detector-first, count only | **7/8** |
+| detector-first with `ball_conf` raised to 0.35 | 6/8 |
+| detector-first with an auto-derived boundary | 4/8 |
+
+**2. A person the frame cuts off was counted as nobody, and only once a boundary existed.**
+`Detection.foot` is the bottom-centre of the box, so somebody close enough to the camera for
+the frame to truncate them has `foot_y == frame_height` - one past the last row. `inside()`
+tested `0 <= y < height` and answered False, which put that person outside **every** polygon,
+including one covering the whole frame. Counting with no boundary found them; counting with a
+boundary found none. On `not playing day` that read two people standing in plain view as
+**C1_EMPTY at zero people** - the one class this project promises not to miss, failing
+silently, in the direction that matters. Fixed by clamping the point onto the last visible
+row: the frame stops, the pitch does not. `vision/overlay.py` held a second copy of the same
+test with the same bug and now calls `counting.inside`.
+
+**The fix moves no published number.** `rule_frame_eval` was re-run against it and every value
+in `rule_frame_eval.csv` is byte-identical, on all five arms. That is not vacuous - all 1,578
+development frames resolve a boundary - it means the recorded corpus has no person whose box
+reaches the bottom edge, which is what high-mounted 1080p CCTV looks like. The bug needed
+footage like the operator's: cropped, zoomed, with somebody in the foreground. Every
+measurement in this log was blind to it for that reason, which is the argument for footage
+from outside the corpus rather than more of it.
+
+**3. `Maint day` is the specification, not a defect.** Five groundskeepers - one pushing a
+mower, one with a bag, two by the goal, one kneeling on the line - and a real ball lying on
+the pitch. More than four people, a ball, and movement: A40's rule says ACTIVE_PLAY, and it is
+right that it does, given what it was told. Every cue that might have rescued it was checked
+and none fires:
+
+- **hi-vis fraction 0.000 on all five.** They are in ordinary shirts.
+- **no vehicle.** A push mower is not a COCO class; nothing above 0.11 in the whole frame.
+- **motion does not separate, and fitting it would make things worse.** Median burst motion:
+  `Maint day` 2.58, `maint night` 1.70, `not playing day` 8.03 - against the playing clips'
+  1.71, 4.44 and 17.05. The lowest motion of all eight clips belongs to a **real match**
+  (`playing day 2`, 1.71). A `motion_play_min` fitted to exclude `Maint day` would exclude a
+  genuine game first. This is worth recording before WP9-T5 fits that threshold on venue_01
+  camera A and discovers it does not transfer.
+
+So the separating cue for maintenance does not exist in the current feature set. A40 removed
+that branch on the grounds that the corpus held **0 real maintenance frames** and it could
+therefore never be evaluated. **That premise has just changed**: there are now two real
+maintenance clips, and they are exactly the case the branch existed for. Two clips are not a
+corpus and nothing is re-opened on this entry, but the reason for closing it no longer holds,
+and whatever re-opens it will need a cue that works on mowers and bags rather than on COCO
+trucks and hi-vis.
+
+**4. `playing day 3` is the measured cost of `require_ball`, arriving in person.** Ten people
+counted correctly, camera behind a goal net, players 38 px tall at the far end, and the ball
+found at 0.27 on 1 frame of 13. C3 with the requirement, ACTIVE_PLAY without it.
+
+One more thing the clips settled: **auto-derived boundaries are worse than none here** (4/8
+against 7/8). `roi.derive_from_video` clipped the far end of the pitch on `notplaying day`,
+putting two people just outside its top edge, and stopped at y=0.99 on `not playing day`,
+missing the bottom edge the foreground people stand on. On this footage the whole frame *is*
+the pitch, because the clips are already cropped to it. A boundary is worth drawing by hand
+and is not yet worth deriving.
+
+- 2026-09-20 | reported from use: eight operator clips | ad-hoc, see scratchpad | rule_frame_eval.csv unchanged | probe 3/8, detector count-only 7/8, shipped rule 6/8; fixed a boundary bug that deleted people whose boxes touch the bottom frame edge (C1_EMPTY at n=0 on two visible people) - no published number moves, because no corpus frame reaches the bottom edge; Maint day is 5 real groundskeepers + a real ball and the rule is correct by its own specification; motion cannot separate maintenance from play on these clips and the lowest-motion clip is a real match
+
+- 2026-09-20 | label audit: folders against what the detector finds | uv run python experiments/label_audit.py | label_audit.csv | 0 of 120 recorded frames hard to reconcile with their folder; C1_EMPTY 0/120; a queue for a person, not a verdict - a detector that misses far-side players calls a real match C3
+
+- 2026-09-20 | dataset redundancy: frames against distinct scenes | uv run python experiments/dataset_redundancy.py | dataset_redundancy.csv | 1720 recorded frames carry 197 distinct scenes (11%); the four largest scenes hold 54% of the corpus; worst class C1_EMPTY at 98.8 frames per scene; nothing deleted - pruning is a training-side tool (splits.distinct_rows) and the copies are the only EMPTY footage there is
+
+## 2026-09-21 — the dataset, checked: three folders, 15 new exports, and 11% of it is evidence
+
+Four things the operator asked for, in the order they had to happen.
+
+**1. The labelling folders are the reporting classes now.** `3_people_not_playing` and
+`4_maintenance` became `3_maintenance_non_sporting`. A40 had already dropped the split from
+the prediction path; this finishes it on disk, so a frame can only be filed where a metric can
+report it. `taxonomy.Class4` became `Label` with three members and a `parse` that still reads
+both retired names, because every artefact older than today says one of them.
+
+**A rebuild of `manifest.csv` during this destroyed 189 rows and I did not notice for several
+minutes.** `build_manifest` cannot parse `syn_<batch>_<n>.jpg`, so it reported all 200
+generated frames as "unparseable filename" and wrote the manifest without them - silently,
+exit code 0, `1692 frames indexed` printed as if that were a success.
+`scripts/assign_scene_ids.py` had carried a comment for weeks saying a regeneration would do
+exactly this. A warning in a docstring is not a guard. `build_manifest` now takes
+`carry_unparseable`, `pitch manifest` passes the manifest it is replacing, and two tests pin
+it: one that the row survives a rebuild, one that a deleted frame's row does not come back.
+`scripts/rebuild_synthetic_rows.py` restored what was lost - every field derivable from the
+frames, the folders and `scene_ids.csv` except one. **`quality` is unrecoverable for 102 of
+189 frames** and now reads `synthetic:unrecorded` rather than `synthetic:ok`, because those
+are different claims and only one is true. `results/coverage.md` still records the
+distribution that was lost: 154 plain `ok` against 35 carrying a defect.
+
+**2. Fifteen operator exports ingested - and thirteen of them are venues the corpus already
+had.** That is the finding, not a detail. `playing day 3` and `not playing night` are
+`clipvenue_g_netting` - same net across the frame, same blue "4" sign, same hillside.
+`playing day` is `clipvenue_b_floodlit_track`, the terracotta running-track border curving
+identically. `maint night` is `clipvenue_a_blue_barrier`, same advertising panel and roof
+trusses. Six are `venue_01`. Filed under new names they would have put the same camera on
+both sides of a leave-one-venue-out fold. A dHash of each clip's median frame proposed the
+candidates and a person decided from frames side by side, because at 8×8 every five-a-side
+pitch is a green rectangle; `configs/davinci_venues.csv` records the evidence per clip.
+
+Frames were sampled **by difference, not by clock** - a candidate kept only if its dHash is at
+least 6 bits from every frame already kept from that clip, one past the threshold at which
+`dedup.py` calls two frames the same scene. 28 frames from 12 clips: a static four-second
+export yields one, a clip with a game in it yields seven. Sampling six evenly from each would
+have produced 90 frames and about 15 observations. Three clips are held out and never
+extracted at all.
+
+What it is worth is C3: **6 real frames at one venue becomes 16 across four**, including the
+first real groundskeeping footage this project has had, and the first 21 frames in the
+ACTIVE_PLAY × daylight cell of the confound matrix, which was empty.
+
+**3. The redundancy the operator suspected is real and worse than suspected.**
+`experiments/dataset_redundancy.py`:
+
+| | frames | distinct scenes | per scene | redundant |
+|---|---|---|---|---|
+| **all recorded** | 1,720 | **197** | 8.7 | **89%** |
+| C2_ACTIVE_PLAY | 1,210 | 182 | 6.6 | 85% |
+| **C1_EMPTY** | **494** | **5** | **98.8** | **99%** |
+| C3_MAINTENANCE_NON_SPORTING | 16 | 10 | 1.6 | 38% |
+| venue_01 | 1,309 | 109 | 12.0 | 92% |
+| `venue_01/slot_20260711_1000_camB` | 238 | **2** | **119.0** | 99% |
+
+The four largest scenes hold **923 frames, 54% of the recorded corpus**, all four at
+venue_01. The worst single camera is the 2026-07-11 day slot: an hour of an empty pitch
+sampled every fifteen seconds is 238 files and two pictures. "1,720 frames" should not be
+written down again without "197 scenes" beside it.
+
+**Nothing was deleted, deliberately.** `splits.distinct_rows` already prunes on the training
+side and the protocol for it is settled - a pruned *test* set changes what its number means.
+And 494 frames of five scenes is a thin EMPTY dataset; five frames is not a dataset. The
+report names where the copies are and leaves the decision where it belongs.
+
+- 2026-09-21 | dataset redundancy: frames against distinct scenes | uv run python experiments/dataset_redundancy.py | dataset_redundancy.csv | 1,720 recorded frames carry 197 distinct scenes (11%); the four largest scenes hold 54% of the corpus; EMPTY is 494 frames of 5 scenes at 98.8 per scene; nothing deleted
+
+- 2026-09-20 | label audit: folders against what the detector finds | uv run python experiments/label_audit.py | label_audit.csv | 98 of 1720 recorded frames hard to reconcile with their folder; C1_EMPTY 27/494; C2_ACTIVE_PLAY 68/1210; C3_MAINTENANCE_NON_SPORTING 3/16; a queue for a person, not a verdict - a detector that misses far-side players calls a real match C3
+
+- 2026-09-20 | label audit: folders against what the detector finds | uv run python experiments/label_audit.py | label_audit.csv | 55 of 1720 recorded frames hard to reconcile with their folder; C1_EMPTY 54/494; C2_ACTIVE_PLAY 1/1210; C3_MAINTENANCE_NON_SPORTING 0/16; a queue for a person, not a verdict - a detector that misses far-side players calls a real match C3
+
+- 2026-09-20 | label audit: folders against what the detector finds | uv run python experiments/label_audit.py | label_audit.csv | 23 of 1720 recorded frames hard to reconcile with their folder; C1_EMPTY 20/494; C2_ACTIVE_PLAY 3/1210; C3_MAINTENANCE_NON_SPORTING 0/16; a queue for a person, not a verdict - a detector that misses far-side players calls a real match C3
+
+- 2026-09-20 | label audit: folders against what the detector finds | uv run python experiments/label_audit.py | label_audit.csv | 16 of 400 recorded frames hard to reconcile with their folder; C1_EMPTY 16/400; a queue for a person, not a verdict - a detector that misses far-side players calls a real match C3
+
+### 2026-09-21 — the label audit found a boundary, not a labelling problem
+
+`experiments/label_audit.py` scored every recorded frame's folder against what the detector
+finds in it. The first run flagged **98 of 1,720 (5.7%)**, and the shape of the flags gave it
+away: **67 of the 68 flagged ACTIVE_PLAY frames had people in the frame and zero inside the
+boundary**, 47 of them with ten or more people found. That is not a labelling problem.
+
+**venue_01 has two physical cameras and had four boundaries, three of which disagreed about
+the same view.** `db/seed.PHYSICAL_CAMERA` has said since WP0 that `slot_20260711_1000_camA`
+and `slot_20260712_2030_camB` are both `camera_A`, and that the other two are both
+`camera_B`; the boundary store did not know it. All four came from `scripts/derive_roi.py` -
+the convex hull of the largest green region in a median frame - and on floodlit night footage
+that finds only the bright foreground. `slot_20260712_2030_camB`'s derived outline covered
+the lower-left of the frame and excluded the goalmouth and the right-hand third, so a frame
+with **eleven players in it counted zero inside the boundary and the rule answered EMPTY at
+confidence 1.00**. That camera is 516 frames, the largest single group in the corpus.
+
+Two hand-drawn boundaries replace the four, one per physical camera, drawn from the day
+frames where the far touchline is visible and checked against the night frames of the same
+camera. They follow the turf rather than the painted lines, because a player on the touchline
+is on the pitch. The hand-drawn store overrides the derived one, which is the mechanism
+`vision/roi.py` already documents for correcting a derivation; `configs/roi_derived.json` is
+left as written.
+
+| | flagged | EMPTY | ACTIVE_PLAY |
+|---|---|---|---|
+| derived boundaries | 98 (5.7%) | 27 | 68 |
+| hand-drawn, first attempt | 55 (3.2%) | 54 | 1 |
+| hand-drawn, corrected | **23 (1.3%)** | **20** | **3** |
+
+The middle row is worth keeping. The first hand-drawn `camera_A` fixed the play frames and
+**doubled** the EMPTY flags, because it followed the turf past a dugout on the far touchline
+with people sitting in it. Zooming in settled it - they are on a bench behind the line - and
+the edge came down to follow the line rather than the grass behind it. Fitting a boundary
+until the labels agree would be circular; what settled this was looking at where the touchline
+is, with the flag count as a check afterwards.
+
+**Every published number computed through `roi.resolve` at venue_01 predates this.** The
+venue_01 one-camera play recall of 0.2588 reported on 2026-09-20 was attributed to A16's
+"a camera sees half a pitch". Part of it was a boundary drawn across the wrong half, and that
+attribution is hereby corrected. `rule_frame_eval.csv` and everything downstream of it needs
+re-running; TODO WP10-T7 carries it.
+
+**What is left is a genuine queue of 23, and it is for a person.** Twenty are `camera_B`
+daylight frames labelled EMPTY with one to three people standing on the turf at the far
+touchline - `labelling_protocol.md` §2.6 rule 3 says any person at all rules out EMPTY, so
+these look like relabels to C3. Three are labelled ACTIVE_PLAY with nobody found, two of them
+motion frames from the 10:00 slot that is otherwise entirely empty. **They are not moved
+here.** Those 494 EMPTY frames include the 243-frame false-play control that every false-play
+number in this thesis rests on, and relabelling twenty of them re-issues those tables; that is
+a decision to take deliberately and record, not a side effect of an audit.
+
+- 2026-09-21 | label audit + venue_01 boundaries redrawn | uv run python experiments/label_audit.py | label_audit.csv, configs/roi.json | 98 of 1720 flagged fell to 23 by replacing four derived venue_01 boundaries with two hand-drawn ones, one per PHYSICAL camera; the derived night outline excluded the goalmouth and right third, so an eleven-player frame counted zero inside and read EMPTY at 1.00; 23 remain as a queue for a person, 20 of them EMPTY frames with people on the turf; nothing relabelled - those frames include the false-play control
+
+- 2026-09-21 | dataset redundancy: frames against distinct scenes | uv run python experiments/dataset_redundancy.py | dataset_redundancy.csv | 1720 recorded frames carry 197 distinct scenes (11%); the four largest scenes hold 54% of the corpus; worst class C1_EMPTY at 98.8 frames per scene; nothing deleted - pruning is a training-side tool (splits.distinct_rows) and the copies are the only EMPTY footage there is
+
+- 2026-09-21 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
+
+### 2026-09-21 — both models on one frame, and four videos that are 75% of the corpus
+
+**The XAI pages now show the detector beside the probe (WP9-T4a).** `overlay.detector_pane`
+runs the detector on each explained frame and `/clip` and `/images` carry a third pane - a box
+round **each person separately**, a ring round the ball, anything found outside the boundary
+dimmed rather than dropped, and the rule row that fired written underneath.
+
+The two explanations are in different currencies and that is the point. A logistic probe on
+pooled features has no objects in it, so its explanation can only ever be a heatmap - and on a
+frame of a real match at `venue_01` that heatmap is a wash of red across the whole pitch,
+which looks the same whether the model is reading players or floodlights. The detector's pane
+on the same frame reads **19 people boxed individually, ball at 0.56, row 6 -> ACTIVE_PLAY
+1.00**. A35's complaint was two pages giving opposite answers on one clip; showing both
+answers with their reasons is the end of that thread.
+
+Every person is boxed separately on purpose: the rule thresholds on the *count*, and one
+region drawn round a group would show the same picture for six players and for one player
+standing next to a bag.
+
+**Four source videos are 75% of every recorded frame.** The operator asked whether a long
+video could bias the model toward its own characteristics. It can, and it has:
+
+| frames | share | source video |
+|---|---|---|
+| 516 | 30.0% | `slot_20260712_2030_camB` |
+| 283 | 16.5% | `slot_20260712_2030_camA` |
+| 259 | 15.1% | `slot_20260711_1000_camA` |
+| 238 | 13.8% | `slot_20260711_1000_camB` |
+| 7 | 0.4% | the next largest |
+
+The median source video contributes **six frames**. `distinct_rows` does not close this on its
+own: it takes the corpus to 197 scenes but 103 of those come from the same four recordings, so
+venue_01 keeps half the weight. `splits.balanced_rows(per_video=N)` caps what one recording can
+be worth, spending its budget on distinct scenes before it takes a second frame of one.
+
+| arm | frames | videos | top 4 | C1 | C2 | C3 |
+|---|---|---|---|---|---|---|
+| all recorded | 1,720 | 82 | **75%** | 494 | 1,210 | 16 |
+| distinct scenes | 197 | 57 | 53% | 5 | 182 | 10 |
+| cap 12/video | 472 | 82 | 10% | 21 | 438 | 13 |
+| cap 20/video | 504 | 82 | 16% | 41 | 450 | 13 |
+| cap 40/video | 584 | 82 | 27% | 81 | 490 | 13 |
+
+**There is no free value for the cap, and the reason is worth stating.** The four videos
+carrying the bias are also the only EMPTY footage this project has. Capping at twelve nearly
+removes the single-camera vote and leaves 21 empty frames; forty keeps 81 and lets four videos
+back to a quarter of the weight. That is a decision with the EMPTY count on one side and the
+concentration on the other, so `balanced_rows` ships as a knob with the table beside it and
+**nothing uses it yet** - the arms still fit on everything, and switching them over is its own
+change with its own before-and-after.
+
+- 2026-09-21 | both models on the XAI pages; per-video concentration measured | uv run python experiments/dataset_redundancy.py | dataset_redundancy.csv | /clip and /images carry a detector pane beside the probe heatmap - a box per person, a ring round the ball, the rule row that fired; four source videos are 75% of all 1,720 recorded frames and the median video is 6, so splits.balanced_rows caps a recording's weight - no free value for the cap, since those four videos are also the only EMPTY footage
+
+**Two housekeeping notes from the same day.** `reproduce_all --check` flags `detector-audit`
+as possibly stale against `results/hand_counts.csv`. The only change to that file was the
+folder prefix in its `file` column (`3_people_not_playing/` -> `3_maintenance_non_sporting/`);
+every count, every `unsure` flag and every note is byte-identical, so the audit's inputs are
+unchanged in substance and it is **not** re-run here - it is a `machine_dependent` stage that
+times seven detectors and *picks one* on the result, and re-running it on a contended machine
+would risk choosing a different model for no reason.
+
+More usefully: several of those hand-count notes reason about the boundary, and they were
+written on 2026-09-19 against the derived venue_01 outlines that were replaced today.
+"the person carrying the frame is on the far half OUTSIDE camA's boundary" and "person in red
+walking on the far half just above the boundary's top edge" describe a boundary that no longer
+exists. The counts themselves are counts of people and stand; the in/out judgements in the
+notes need re-reading when the [H] verification pass happens, and that is now part of it.
+
+- 2026-09-21 | WP9-T6 rule vs probe at frame level | uv run python experiments/rule_frame_eval.py | rule_frame_eval.csv | clock_rule recall 0.861 false-play 0.021 EMPTY 0.979; dinov2 recall 0.836 false-play 0.309 EMPTY 0.000; dinov2_gated recall 0.835 false-play 0.012 EMPTY 0.926; detector_first recall 0.394 false-play 0.000 EMPTY 0.926; detector_first_no_ball recall 0.996 false-play 0.000 EMPTY 0.926; best balanced: detector_first_no_ball; one frame per camera, no burst, no pitch sum
+
+- 2026-09-21 | WP9-T6 rule vs probe at frame level | uv run python experiments/rule_frame_eval.py | rule_frame_eval.csv | clock_rule recall 0.984 false-play 0.021 EMPTY 0.979; dinov2 recall 0.956 false-play 0.309 EMPTY 0.000; dinov2_gated recall 0.955 false-play 0.012 EMPTY 0.926; detector_first recall 0.308 false-play 0.000 EMPTY 0.926; detector_first_no_ball recall 0.996 false-play 0.000 EMPTY 0.926; best balanced: detector_first_no_ball; one frame per camera, no burst, no pitch sum
+
+- 2026-09-21 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 44 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-21 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 45 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-21 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 47 claims verified against their artefacts, 0 recorded as unsupported
+
+### 2026-09-21 — the corrected boundaries, measured; and a one-frame venue that moved a headline
+
+`rule_frame_eval` re-run on the corrected venue_01 boundaries and the 28 ingested frames -
+1,599 development rows where there were 1,578.
+
+**What the boundary fix bought, and it is the number this branch was missing.**
+
+| | before | after |
+|---|---|---|
+| venue_01 one-camera play recall, `detector_first_no_ball` | 0.2751 | **0.8346** |
+| venue_01 one-camera play recall, `detector_first` | 0.2588 | 0.4465 |
+| EMPTY accuracy on the 243-frame control | 0.8889 | **0.9259** |
+
+On 2026-09-20 the 0.2751 was reported and attributed to A16's "a camera sees half a pitch".
+On 2026-09-21 that was corrected to "partly a boundary across the wrong half". The number now
+says **mostly**: 804 play frames, so this is not a small-sample wobble. The EMPTY gain is
+literally the car park - camera_B's derived outline reached past the touchline into it, and a
+hand-drawn one does not.
+
+**A one-frame venue moved three headlines and none of it was real.** The first re-run showed
+the clock rule falling 1.000 -> 0.8614 and DINOv2 0.9297 -> 0.8362. The headline averages
+*per-venue* recalls, one vote each, and `davinci_l_city_pitch` arrived with exactly **one**
+play frame - its sibling still is the holdout. That frame was worth an eighth of the headline.
+
+A recall measured on one frame can only be 0.000 or 1.000. It is not an estimate, and giving
+it the same vote as clipvenue_a's 168 frames is not a conservative choice, it is a wrong one.
+`score` now takes a venue into the mean only at `MIN_VENUE_PLAY = 5` and prints the ones below
+it **with their counts**, so excluded never reads as absent. This was introduced by the ingest
+the day before, caught on the first run after it, and is recorded here rather than quietly
+fixed - the corpus had no venue under 13 play frames until 2026-09-21, so the metric had never
+had to say what it does with one.
+
+**The corrected table**, mean over the 7 clip venues that clear the floor:
+
+| arm | recall | worst venue | false-play | EMPTY | balanced |
+|---|---|---|---|---|---|
+| `detector_first_no_ball` | **0.9957** | 0.970 | 0.0000 | 0.9259 | **0.9957** |
+| clock_rule | 0.9844 | 0.923 | 0.0206 | 0.9794 | 0.9638 |
+| dinov2 | 0.9556 | 0.806 | 0.3086 | 0.0000 | 0.6470 |
+| dinov2_gated | 0.9548 | 0.806 | 0.0123 | 0.9259 | 0.9424 |
+| `detector_first` | 0.3078 | 0.111 | 0.0000 | 0.9259 | 0.3078 |
+
+**`require_ball` survived the boundary fix, and got more expensive.** The strict arm moved
+0.3110 -> 0.3078 - three thousandths - so the cost is not a boundary artefact and the A40
+finding stands unchanged. But the frames it discards went **200 -> 501 of 1,089**, because
+venue_01 contributes 312 of them now: with a correct boundary that camera finally detects its
+own players, and then the ball requirement throws them away. Fixing the boundary made the
+ball rule cost more, not less.
+
+The probe arms improved slightly (0.9297 -> 0.9556) and the probe's worst venue moved from
+0.667 at `clipvenue_h_teal_pitch` to 0.806 at `clipvenue_g_netting`, both of which gained
+daylight frames in the ingest. Three claims went stale and were restated: cross-venue recall,
+EMPTY accuracy, and the probe's worst venue. 47 verified, 0 failing.
+
+- 2026-09-21 | rule_frame_eval on corrected boundaries | uv run python experiments/rule_frame_eval.py | rule_frame_eval.csv | venue_01 one-camera play recall 0.2751 -> 0.8346 on the counting rule and EMPTY accuracy 0.8889 -> 0.9259, both from replacing four derived boundaries with two hand-drawn ones; require_ball moved only 0.3110 -> 0.3078 so its cost is not a boundary artefact, but the frames it discards went 200 -> 501 of 1089; MIN_VENUE_PLAY added after a one-frame venue took the clock rule from 1.000 to 0.861 by being worth an eighth of a mean-over-venues
+
+### 2026-09-21 — seven frames reached a locked venue, and the guard that now refuses them
+
+Asked whether the model had been retrained and how the data is split, checking rather than
+recalling turned up a mistake in the 2026-09-21 ingest.
+
+`configs/davinci_venues.csv` assigns `playing day.mp4` to `clipvenue_b_floodlit_track` -
+correctly; the terracotta running-track border curves identically and it is plainly the same
+camera. **`clipvenue_b_floodlit_track` is one of the two locked final-test venues.** Seven
+frames were extracted into the labelled set, taking the locked set from **114 to 121**.
+
+Nothing failed, and that is the part worth dwelling on. `development_rows` drops locked venues,
+so the frames never reached a fit; `load_classifier` has a belt-and-braces check for locked
+venues in the training rows and it passed, because the frames were correctly excluded from
+training. Every guard in the project is about **contaminating the training set**, and this was
+the opposite direction: contaminating the *test* set.
+
+And contaminated is the right word. Those frames were extracted **after** the clip had been
+rendered, gridded, and compared frame by frame against `clipvenue_b` in order to decide that
+it came from there. The lock exists so the final number is computed on footage nobody has
+looked at. `development_rows` keeping it out of training does not un-look at it.
+
+The seven frames are removed from `data/processed/` and from the clip sidecar; the source
+video stays in `data/raw/davinci_2026-09-21/`, where raw footage belongs. `ingest_davinci.py`
+now reads `load_final_venues()` and refuses to extract into one, printing `LOCKED` beside the
+clip so the refusal is visible rather than silent. `tests/test_splits.py` asserts on the real
+manifest that no `dv`-prefixed frame sits in a locked venue.
+
+**No measurement changes.** Development rows are 1,599 before and after, because those seven
+were never among them; the corrected `rule_frame_eval` table stands. The labelled set goes
+1,909 -> 1,902 and the ingest yields 21 frames rather than 28. What is lost is real and small:
+those were daylight play frames at a venue the corpus only has at night, which is exactly why
+they were worth having - the ACTIVE_PLAY x daylight cell of the confound matrix goes 21 -> 14.
+
+**For the record, since the question was asked plainly.** The probe is refit from the feature
+cache on every load - `load_classifier` fits a fresh `LinearProbe` on all 1,599 development
+rows - so the DaVinci frames are in the deployed fit, the cache having been regenerated over
+all 1,902. The detector is never trained: frozen COCO weights, which is the entire argument
+for the detector-first path. And the fit uses **every** development row: neither
+`distinct_rows` nor `balanced_rows` is applied, so the 75% concentration measured earlier is
+fully present in the deployed probe.
+
+- 2026-09-21 | seven frames had reached a locked final-test venue | uv run python scripts/ingest_davinci.py | configs/davinci_venues.csv | playing day.mp4 is clipvenue_b_floodlit_track, a locked venue; 7 frames were extracted after the clip had been inspected in detail to establish that, taking the locked set 114 -> 121; removed, and ingest_davinci now refuses locked venues with a printed LOCKED line plus a test on the real manifest; no measurement changes since development_rows never included them
+
+- 2026-09-21 | what training on four videos costs | uv run python experiments/video_concentration_cost.py | video_concentration_cost.csv | everything (deployed) n=1599 recall 0.9556 false-play 0.3086 EMPTY 0.0000; distinct scenes n=180 recall 0.9534 false-play 0.0000 EMPTY 0.0206; capped 12/video n=351 recall 0.9966 false-play 0.0123 EMPTY 0.0041; capped 20/video n=383 recall 0.9831 false-play 0.0082 EMPTY 0.0041; capped 40/video n=463 recall 0.9886 false-play 0.0165 EMPTY 0.0000; identical held-out sides, only the training rows differ; EMPTY accuracy stays ~0 in every arm, so capping stops the probe saying PLAY without teaching it to say EMPTY
+
+### 2026-09-21 — what training on four videos costs: false-play 0.309 -> 0.012, recall UP
+
+Asked whether the models had been retrained on the new data, the literal answer is that the
+probe has no saved artefact at all - `load_classifier` refits a `LinearProbe` from the feature
+cache on every load, so it is retrained on every call and currently on **1,599 development
+rows including 21 DaVinci frames**. The detector is never trained: frozen COCO weights, which
+is the whole argument for the detector-first path.
+
+The more useful answer is what it is being retrained *on*. The deployed fit uses **every**
+development row, and four source videos are 75% of them. `experiments/video_concentration_cost.py`
+measures what that costs, with identical held-out sides - leave-one-venue-out for recall,
+venue_01 camera B for the control - and only the training rows differing:
+
+| training rows are | n fit | recall | worst venue | false-play | EMPTY acc | balanced |
+|---|---|---|---|---|---|---|
+| everything (deployed) | 1,599 | 0.9556 | 0.806 | **0.3086** | 0.0000 | 0.6470 |
+| distinct scenes | 180 | 0.9534 | 0.710 | 0.0000 | 0.0206 | 0.9534 |
+| **capped 12/video** | 351 | **0.9966** | **0.976** | 0.0123 | 0.0041 | **0.9843** |
+| capped 20/video | 383 | 0.9831 | 0.923 | 0.0082 | 0.0041 | 0.9748 |
+| capped 40/video | 463 | 0.9886 | 0.952 | 0.0165 | 0.0000 | 0.9721 |
+
+**Capping is not a trade here, which is the surprise.** Every earlier pruning result in this
+log bought false-play with recall: A30's distinct-scenes arm took false-play 0.31 -> 0.00
+against 0.10 of macro-F1, and the row above reproduces that shape - 0.9534 recall, worst venue
+0.710. The cap does not. At twelve frames per video the probe fits on **351 rows instead of
+1,599** and is better on both axes at once: recall 0.9556 -> 0.9966, worst venue 0.806 ->
+0.976, false-play 0.3086 -> 0.0123. 1,248 training rows were not merely redundant, they were
+**costing** something.
+
+The mechanism is the obvious one. Four recordings carry three quarters of the corpus and two
+of them are an empty pitch in daylight; a fit weighted that way learns those afternoons, and
+`ClockRule` already showed that reading the time of day scores 0.984 here. Bounding each
+video's vote is what stops the fit from being able to.
+
+**Read the EMPTY column before celebrating.** It is ~0.00 in every arm. Capping does not teach
+the probe to say EMPTY at a camera it has not seen - it stops it saying PLAY, and it does that
+by saying C3 instead. That is A20's finding exactly, unmoved: the complement of a false-play
+rate is not correctness. The probe remains a model that cannot answer the question the
+facility is actually asking, and the detector-first path remains the one that can (0.9259
+EMPTY accuracy on the same control).
+
+**The ordering among the caps is within noise** at these sample sizes; 12 beating 20 and 40 is
+not evidence that twelve is right. What is outside noise is that all three beat the deployed
+fit on recall and false-play simultaneously.
+
+Nothing is switched over on this entry. `load_classifier` still fits on everything, and
+changing it moves every probe number in the thesis - that is WP10-T9 and it is a decision with
+a measurement under it now rather than a guess.
+
+- 2026-09-21 | what training on four videos costs | uv run python experiments/video_concentration_cost.py | video_concentration_cost.csv | capping training rows at 12 per source video takes cross-venue false-play 0.3086 -> 0.0123 while RAISING play recall 0.9556 -> 0.9966 and worst venue 0.806 -> 0.976, fitting on 351 rows instead of 1599 - unlike every earlier pruning result this is not a trade; EMPTY accuracy stays ~0 in every arm, so it stops the probe saying PLAY without teaching it EMPTY (A20 unmoved); nothing switched over
+
+### 2026-09-21 — reported from use: the ball detector fires when there is no ball, and a ball nobody touches
+
+Three complaints, and they needed three different answers.
+
+**1. "sometimes tracking a ball and it is not there."** `counting.persist` set `ball_seen` if
+**any** frame of the burst held a detection, so one 0.17 hit on a stud satisfied the rule that
+decides whether a pitch is in use. Measured over six frames half a second apart on the
+operator's clips, that shape is unmistakable:
+
+| clip | truth | frames with a ball | best conf | movement |
+|---|---|---|---|---|
+| `maint night` | C3 | **6 of 6** | 0.30 | **0.0000** |
+| `Maint day` | C3 | 1 of 6 | 0.17 | - |
+| `not playing day` | C3 | 1 of 6 | 0.23 | - |
+| `playing day` | C2 | 5 of 6 | 0.84 | 0.0429 |
+| `playing day 4` | C2 | 3 of 6 | 0.56 | 0.0098 |
+| `playing` | C2 | 2 of 6 | 0.71 | 0.0333 |
+
+A false ball fires **once**; a real one recurs. `vision/ball.assess` now requires two
+sightings in the burst. That is a requirement in the sense `play_min` is, not a fitted
+threshold - twice is what distinguishes a thing from a flicker.
+
+**2. "if the ball is not changing its place for multiple images then it is not being used."**
+The operator is right and the protocol already agreed with them: `labelling_protocol.md` §2.3
+says an unattended ball does not make a pitch occupied. `maint night` is the single clip in
+the set with a rock-solid ball - six of six at 0.30, genuinely there, plainly visible on the
+turf - and it has not moved by a pixel in two seconds because three people are working around
+it. Movement is measured **in ball diameters**, so the number is scale-free across a 7-pixel
+ball at the touchline and a 40-pixel one in the foreground.
+
+**The first threshold was wrong and the evidence said so immediately.** One whole diameter
+looked principled - "further than it is wide" - and it landed *between* two genuine matches:
+`playing day 4`'s ball travels 0.50 diameters, so a real match became C3 and the clip set went
+10 of 13 correct to 9. The stationary ball is not slow, it is **exactly 0.00** - the same blob
+in the same place. `MOVED_DIAMETERS` is 0.25, which asks "did it move at all, past detector
+jitter" rather than "did it move far". Three clips is not a calibration and it is written down
+as a floor to re-check at WP9-T5.
+
+**3. "if there is multiple balls and so on."** Sightings are matched by taking the most
+confident ball per frame, which is wrong the moment two are genuinely in play. Rather than
+pretend otherwise, `most_at_once` is recorded and the verdict's trace says *"N balls detected
+at once - the burst matched the most confident one, which may not be the same ball each
+frame"*. No clip in this set had two at the shipped confidence floor.
+
+**What it does to the answers**, five frames half a second apart through the burst path:
+
+| | correct |
+|---|---|
+| ball required, persistence only | **10 / 13** |
+| ball required, persistence + movement | **10 / 13** |
+| no ball required | 9 / 13 |
+
+**And here the ball requirement is worth something, which cuts against the frame-level
+result.** `rule_frame_eval` says `require_ball` costs 0.9957 -> 0.3078 of play recall, and it
+does. But that measurement is **play recall only**, and on these clips the ball requirement
+fixes four C3 clips the head count alone calls ACTIVE_PLAY - crowds with no game - while
+costing three genuine matches whose ball the detector never finds. Net +1. The frame-level
+`balanced` score cannot see the C3 gain because its false-play control is EMPTY frames.
+
+That does not overturn the cross-venue number; thirteen clips is not a corpus and the two
+measurements answer different questions. It does mean **the `require_ball` decision is not
+the one-sided call the frame table makes it look**, and WP9-T6a (`rule_on_clips`, the burst
+at scale) is where it gets settled rather than argued.
+
+- 2026-09-21 | reported from use: false balls and a ball nobody touches | ad-hoc on the operator's clips | vision/ball.py | a false ball fires in 1 frame of 6 and a real one recurs, so persist now needs 2 sightings; a ball that moved 0.00 diameters across 2s is furniture (maint night, 6/6 at 0.30) so movement is required in ball diameters; the first threshold of 1.0 diameter turned a real match into C3 (10/13 -> 9/13) and 0.25 is a jitter floor not a fit; multiple simultaneous balls are recorded and traced rather than silently matched; on 13 clips through the burst, ball-required 10/13 against no-ball 9/13 - the opposite sign to the frame-level result, because that one measures play recall only

@@ -19,7 +19,7 @@ published, and carry identifiable people - they stay under the scratch folder gi
 
 The output CSV has the frame list with the truth columns **empty**, for a person to fill:
 
-    file, venue, class4, lighting, camera, people_inside, ball_visible, counter, date, note
+    file, venue, label, lighting, camera, people_inside, ball_visible, counter, date, note
 
     uv run python scripts/sample_hand_counts.py --out results/hand_counts.csv --render <folder>
 """
@@ -50,7 +50,7 @@ SEED = 42
 QUOTA = {
     ("venue_01", "1_empty"): 20,
     ("venue_01", "2_playing"): 24,
-    ("venue_01", "3_people_not_playing"): 6,
+    ("venue_01", "3_maintenance_non_sporting"): 6,
     ("clip", "2_playing"): 50,
 }
 
@@ -115,24 +115,24 @@ def main() -> int:
     v01 = [r for r in rows if r.venue == "venue_01"]
     clips = [r for r in rows if r.venue != "venue_01"]
     chosen: list = []
-    chosen += _spread([r for r in v01 if r.class4 == "1_empty"],
+    chosen += _spread([r for r in v01 if r.label == "1_empty"],
                       QUOTA[("venue_01", "1_empty")], scenes, rng, by=cam)
-    chosen += _spread([r for r in v01 if r.class4 == "3_people_not_playing"],
-                      QUOTA[("venue_01", "3_people_not_playing")], scenes, rng)
-    chosen += _spread([r for r in clips if r.class4 == "2_playing"],
+    chosen += _spread([r for r in v01 if r.label == "3_maintenance_non_sporting"],
+                      QUOTA[("venue_01", "3_maintenance_non_sporting")], scenes, rng)
+    chosen += _spread([r for r in clips if r.label == "2_playing"],
                       QUOTA[("clip", "2_playing")], scenes, rng, by=lambda r: r.venue)
     remaining = args.total - len(chosen)
-    chosen += _spread([r for r in v01 if r.class4 == "2_playing"], remaining, scenes, rng,
+    chosen += _spread([r for r in v01 if r.label == "2_playing"], remaining, scenes, rng,
                       by=cam)
 
     if args.render is not None:
         args.render.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
-        w.writerow(["file", "venue", "class4", "lighting", "camera",
+        w.writerow(["file", "venue", "label", "lighting", "camera",
                     "people_inside", "ball_visible", "counter", "date", "note"])
         for i, r in enumerate(chosen, 1):
-            w.writerow([r.file, r.venue, r.class4, r.lighting, cam(r), "", "", "", "", ""])
+            w.writerow([r.file, r.venue, r.label, r.lighting, cam(r), "", "", "", "", ""])
             if args.render is not None:
                 frame = cv2.imread(str(DATASET / r.file))
                 if frame is None:
@@ -150,7 +150,7 @@ def main() -> int:
 
     counts = defaultdict(int)
     for r in chosen:
-        counts[(r.venue, r.class4, r.lighting)] += 1
+        counts[(r.venue, r.label, r.lighting)] += 1
     print(f"{len(chosen)} frames -> {args.out}")
     for (venue, cls, light), n in sorted(counts.items()):
         print(f"  {venue:<28} {cls:<22} {light:<8} {n:>3}")

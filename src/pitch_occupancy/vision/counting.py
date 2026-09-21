@@ -75,6 +75,15 @@ class PitchCount:
     #: Whether a boundary was applied at all. Without one everything counts, which is the
     #: pre-boundary behaviour, and the caller reports it rather than pretends otherwise.
     bounded: bool = True
+    #: How many frames of the burst held a ball, and whether it was being played with.
+    #: `ball_in_play` is None when the burst is too short to tell movement from stillness -
+    #: which is not False, and `vision/ball.py` explains why the difference matters. Set by
+    #: `persist`; a single frame leaves them at their defaults.
+    ball_frames: int = 0
+    ball_in_play: bool | None = None
+    #: The most balls seen at once in any frame of the burst. Above one, the burst's
+    #: frame-to-frame matching is guesswork and the trace says so.
+    balls_at_once: int = 0
 
 
 def polygon_mask(polygon: Sequence[Sequence[float]] | None,
@@ -92,12 +101,29 @@ def polygon_mask(polygon: Sequence[Sequence[float]] | None,
 
 
 def inside(mask: np.ndarray | None, point: tuple[int, int]) -> bool:
-    """Whether ``point`` ``(x, y)`` lies inside the mask. No mask means everything is inside."""
+    """Whether ``point`` ``(x, y)`` lies inside the mask. No mask means everything is inside.
+
+    **A point on the frame's edge is read at the last row or column, not discarded.** A
+    person close enough to the camera for the frame to cut their feet off has
+    ``foot_y == frame_height`` - one past the last row - because `Detection.foot` is the
+    bottom of a box the frame itself truncated. This used to test ``y < height`` and answer
+    False, which put that person outside *every* polygon including one covering the whole
+    frame: counting with no boundary found them and counting with a boundary found none.
+
+    Reported from use on 2026-09-20 - two people standing in the foreground of a clip read as
+    C1_EMPTY at zero people once a boundary was drawn. Clamping is the honest reading: the
+    frame stops, the pitch does not, and the lowest row the camera can see is where a
+    truncated box stands. What the clamp cannot do is move anyone across a boundary, because
+    it only ever moves a point that was already off the edge onto the edge, and a polygon
+    that does not reach the edge still excludes it (`tests/test_detector.py`).
+    """
     if mask is None:
         return True
     x, y = point
     height, width = mask.shape[:2]
-    return 0 <= y < height and 0 <= x < width and bool(mask[y, x])
+    if not (0 <= y <= height and 0 <= x <= width):
+        return False
+    return bool(mask[min(y, height - 1), min(x, width - 1)])
 
 
 def hi_vis_fraction(frame_bgr: np.ndarray, det: Detection) -> float:
@@ -208,6 +234,10 @@ def count_inside(
         people=tuple(people),
         balls=tuple(balls),
         bounded=mask is not None,
+        ball_frames=1 if balls else 0,
+        # One frame cannot tell a ball being played with from one lying on the grass.
+        ball_in_play=None,
+        balls_at_once=len(balls),
     )
 
 
@@ -222,15 +252,22 @@ def persist(counts: Sequence[PitchCount]) -> PitchCount:
         raise ValueError("a burst needs at least one frame")
     if len(counts) == 1:
         return counts[0]
+    from pitch_occupancy.vision.ball import assess
+
     persisted = int(median(c.people_inside for c in counts))
     representative = next((c for c in counts if c.people_inside == persisted), counts[0])
     balls = [c for c in counts if c.ball_seen]
     best = max(balls, key=lambda c: c.ball_confidence, default=None)
+    # `ball_seen` was "any frame had one", so a single 0.17 flash on a bin lid satisfied the
+    # rule that decides whether a pitch is in use. It is now "seen often enough to be a ball",
+    # with movement reported beside it - see `vision/ball.py` for the measurements that
+    # prompted both (2026-09-21, reported from use).
+    evidence = assess(counts)
     return PitchCount(
         people_inside=persisted,
         people_total=max(c.people_total for c in counts),
         raw_inside=max(c.raw_inside for c in counts),
-        ball_seen=best is not None,
+        ball_seen=evidence.persisted,
         ball_confidence=best.ball_confidence if best else 0.0,
         ball_area_px=best.ball_area_px if best else 0,
         vehicles_inside=int(median(c.vehicles_inside for c in counts)),
@@ -239,4 +276,7 @@ def persist(counts: Sequence[PitchCount]) -> PitchCount:
         people=representative.people,
         balls=best.balls if best else (),
         bounded=all(c.bounded for c in counts),
+        ball_frames=evidence.frames_seen,
+        ball_in_play=evidence.in_play,
+        balls_at_once=evidence.most_at_once,
     )

@@ -12,9 +12,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pitch_occupancy.data.taxonomy import Class3, Class4
+from pitch_occupancy.data.taxonomy import Class3, Label
 from pitch_occupancy.pipeline import Pipeline, assemble, default_gates, reset_shared, shared
-from pitch_occupancy.vision.rules import FrameVerdict, MinuteState, from_class3, to_class3
+from pitch_occupancy.vision.rules import (
+    FrameVerdict, MinuteState, from_class3, from_label, to_class3)
 
 MIDDLE = [[0.25, 0.25], [0.75, 0.25], [0.75, 0.75], [0.25, 0.75]]
 FRAME = np.zeros((8, 8, 3), np.uint8)
@@ -52,18 +53,24 @@ class StubProbe:
 # --- the vocabulary -----------------------------------------------------------------------
 
 
-def test_minute_states_are_the_folder_names_plus_an_abstention() -> None:
-    """`Sample.predicted` must read the same whether it came from a label or from this
-    path, so the four decided values *are* `Class4`'s values."""
-    assert {s.value for s in MinuteState} - {"UNCERTAIN"} == {c.value for c in Class4}
+def test_minute_states_are_the_reporting_classes_plus_an_abstention() -> None:
+    """`Sample.predicted` must read the same whether it came from a prediction or from a
+    report, so the three decided values *are* `Class3`'s values (A40). They were the four labelling folders'
+    until 2026-09-20; the corpus has 0 real maintenance frames, so the fourth branch could
+    never be measured and left the prediction path."""
+    assert {s.value for s in MinuteState} - {"UNCERTAIN"} == {c.value for c in Class3}
     assert not MinuteState.UNCERTAIN.decided
     assert MinuteState.EMPTY.decided
 
 
-def test_the_three_class_mapping_lands_c3_on_the_folder_with_real_frames() -> None:
-    assert from_class3(Class3.MAINTENANCE_NON_SPORTING) is MinuteState.PEOPLE_NOT_PLAYING
-    assert from_class3(Class3.ACTIVE_PLAY) is MinuteState.PLAYING
-    assert to_class3(MinuteState.MAINTENANCE) is Class3.MAINTENANCE_NON_SPORTING
+def test_the_labels_map_in_legacy_folders_included_and_the_abstention_maps_out() -> None:
+    assert from_class3(Class3.MAINTENANCE_NON_SPORTING) is MinuteState.MAINTENANCE_NON_SPORTING
+    assert from_class3(Class3.ACTIVE_PLAY) is MinuteState.ACTIVE_PLAY
+    assert from_label(Label.MAINTENANCE_NON_SPORTING) is MinuteState.MAINTENANCE_NON_SPORTING
+    # the two pre-collapse folder names still read, because old CSVs still say them
+    assert from_label("4_maintenance") is MinuteState.MAINTENANCE_NON_SPORTING
+    assert from_label("3_people_not_playing") is MinuteState.MAINTENANCE_NON_SPORTING
+    assert to_class3(MinuteState.MAINTENANCE_NON_SPORTING) is Class3.MAINTENANCE_NON_SPORTING
     assert to_class3(MinuteState.UNCERTAIN) is None
 
 
@@ -74,7 +81,7 @@ def test_an_uncertain_verdict_has_no_two_value_form() -> None:
     assert verdict.class3 is None and not verdict.decided
     with pytest.raises(ValueError, match="UNCERTAIN"):
         verdict.as_pair()
-    assert FrameVerdict(MinuteState.PLAYING, 0.7).as_pair() == (Class3.ACTIVE_PLAY, 0.7)
+    assert FrameVerdict(MinuteState.ACTIVE_PLAY, 0.7).as_pair() == (Class3.ACTIVE_PLAY, 0.7)
 
 
 # --- assemble -----------------------------------------------------------------------------
@@ -163,7 +170,7 @@ def test_classify_frame_passes_the_resolved_boundary_and_records_which_it_was() 
     classify = scripted()
     pipeline = Pipeline("m", "probe", classify, boundaries=found(MIDDLE, "slot_x_camA"))
     verdict = pipeline.classify_frame(FRAME, camera_id="file0")
-    assert verdict.state is MinuteState.PLAYING
+    assert verdict.state is MinuteState.ACTIVE_PLAY
     assert verdict.probed is Class3.ACTIVE_PLAY and not verdict.gated
     assert classify.calls == [MIDDLE]
     assert verdict.boundary_key == "slot_x_camA" and verdict.polygon == MIDDLE
@@ -197,7 +204,7 @@ def test_without_a_boundary_the_interactive_path_scores_the_whole_frame_and_says
     classify = scripted()
     pipeline = Pipeline("m", "probe", classify, boundaries=found(None), require_boundary=False)
     verdict = pipeline.classify_frame(FRAME, camera_id="cam9")
-    assert verdict.state is MinuteState.PLAYING
+    assert verdict.state is MinuteState.ACTIVE_PLAY
     assert classify.calls == [None]
     assert verdict.boundary_key is None
     assert any("whole frame" in step for step in verdict.trace), verdict.trace

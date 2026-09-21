@@ -174,7 +174,10 @@ def build_manifest_cmd(
         write_manifest,
     )
 
-    rows, problems = build_manifest(settings.dataset_dir, venue=venue)
+    # Carry rows this scan cannot name (generated frames) from the manifest being
+    # replaced, rather than dropping them - see build_manifest.__doc__.
+    rows, problems = build_manifest(settings.dataset_dir, venue=venue,
+                                    carry_unparseable=settings.dataset_dir / "manifest.csv")
     if not rows:
         typer.secho(f"no frames found under {settings.dataset_dir}", fg=typer.colors.RED)
         raise typer.Exit(1)

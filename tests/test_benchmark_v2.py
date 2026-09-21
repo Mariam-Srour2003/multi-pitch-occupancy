@@ -29,7 +29,7 @@ PLAY, EMPTY, C3 = "C2_ACTIVE_PLAY", "C1_EMPTY", "C3_MAINTENANCE_NON_SPORTING"
 
 def row(name: str, *, venue="v1", slot="s1", cls=EMPTY, date="2026-07-11") -> ManifestRow:
     return ManifestRow(
-        file=name, class4="1_empty", class3=cls, venue=venue, camera=f"{slot}_camA",
+        file=name, label="1_empty", class3=cls, venue=venue, camera=f"{slot}_camA",
         slot_date=date, slot_time="10:00", slot_id=slot, t_s=0, source="regular",
         labeled_by="human", lighting="day", quality="unknown", split_role="",
     )

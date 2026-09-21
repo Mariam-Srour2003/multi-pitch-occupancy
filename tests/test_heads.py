@@ -17,7 +17,7 @@ EMPTY, PLAY = "C1_EMPTY", "C2_ACTIVE_PLAY"
 
 def row(cls: str, lighting: str, i: int = 0) -> ManifestRow:
     return ManifestRow(
-        file=f"{cls}/{lighting}{i}.jpg", class4="1_empty", class3=cls, venue="v1",
+        file=f"{cls}/{lighting}{i}.jpg", label="1_empty", class3=cls, venue="v1",
         camera="c", slot_date="2026-07-11", slot_time="10:00", slot_id="s1", t_s=i,
         source="regular", labeled_by="human", lighting=lighting, quality="unknown",
         split_role="",

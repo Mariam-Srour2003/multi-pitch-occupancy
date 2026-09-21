@@ -182,7 +182,7 @@ def test_physical_camera_resolves_the_mislabelled_tag() -> None:
     from pitch_occupancy.data.manifest import ManifestRow
 
     row = ManifestRow(
-        file="f.jpg", class4="1_empty", class3="C1_EMPTY", venue="venue_01",
+        file="f.jpg", label="1_empty", class3="C1_EMPTY", venue="venue_01",
         camera="slot_20260712_2030_camB", slot_date="2026-07-12", slot_time="20:30",
         slot_id="venue_01_2026-07-12_2030", t_s=0, source="regular", labeled_by="human",
         lighting="night", quality="unknown", split_role="",
@@ -195,7 +195,7 @@ def test_camera_slot_cells_counts_camera_and_slot_together() -> None:
 
     def row(camera: str, slot: str) -> ManifestRow:
         return ManifestRow(
-            file=f"{camera}_{slot}.jpg", class4="1_empty", class3="C1_EMPTY",
+            file=f"{camera}_{slot}.jpg", label="1_empty", class3="C1_EMPTY",
             venue="venue_01", camera=camera, slot_date="2026-07-11", slot_time="10:00",
             slot_id=slot, t_s=0, source="regular", labeled_by="human", lighting="day",
             quality="unknown", split_role="",

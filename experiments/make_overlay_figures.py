@@ -54,8 +54,8 @@ def choose_frames(rows, per_class: int) -> list:
     """
     rng = np.random.default_rng(SEED)
     chosen = []
-    for cls in sorted({r.class4 for r in rows}):
-        pool = [r for r in rows if r.class4 == cls]
+    for cls in sorted({r.label for r in rows}):
+        pool = [r for r in rows if r.label == cls]
         buckets: dict[tuple[str, str], list] = {}
         for r in pool:
             buckets.setdefault((r.venue, r.lighting), []).append(r)
@@ -100,7 +100,7 @@ def main() -> int:
         if picture.shape[1] > args.width:
             height = int(picture.shape[0] * args.width / picture.shape[1])
             picture = cv2.resize(picture, (args.width, height), interpolation=cv2.INTER_AREA)
-        name = f"{row.class4}__{row.venue}__{row.file.split('/')[-1].rsplit('.', 1)[0]}.png"
+        name = f"{row.label}__{row.venue}__{row.file.split('/')[-1].rsplit('.', 1)[0]}.png"
         cv2.imwrite(str(OUT / name), picture)
 
         found = len(verdict.count.people) if verdict.count else 0
@@ -108,14 +108,15 @@ def main() -> int:
                    if verdict.count else 0)
         records.append({
             "file": row.file, "venue": row.venue, "lighting": row.lighting,
-            "label_class4": row.class4, "predicted": verdict.state.value,
+            "label_folder": row.label, "label": row.class3,
+            "predicted": verdict.state.value,
             "confidence": verdict.confidence, "rule": verdict.rule,
             "people_inside": verdict.people, "people_outside_boundary": outside,
             "ball": verdict.ball, "ball_confidence": round(verdict.ball_confidence, 3),
             "boundary": bool(polygon), "figure": name,
             "trace": " | ".join(verdict.trace),
         })
-        print(f"{row.file[-50:]:<52}{row.class4:<22}{verdict.state.name:<22}"
+        print(f"{row.file[-50:]:<52}{row.label:<22}{verdict.state.name:<22}"
               f"{str(verdict.people):>7}{'yes' if verdict.ball else 'no':>6}"
               + ("" if found or not verdict.count else "  (nobody found - not 'verified empty')"))
 
@@ -129,15 +130,21 @@ def main() -> int:
         writer.writeheader()
         writer.writerows(records)
 
-    agree = sum(1 for r in records if r["predicted"] == r["label_class4"])
-    # 3 <-> 4 is the confusion the client accepts and the corpus cannot measure (A36).
-    accepted = sum(1 for r in records
-                   if {r["predicted"], r["label_class4"]} <= {"3_people_not_playing",
-                                                              "4_maintenance"})
+    # Until A40 this compared the state against the *folder* and then forgave every
+    # `3_people_not_playing` <-> `4_maintenance` mismatch as "the confusion A36 accepts",
+    # which flattered the figure sheet: the corpus has 6 real frames in one of those folders
+    # and none in the other, so the forgiven cell was never measured. The rule answers three
+    # classes now and this compares against the three-class label, forgiving nothing.
+    agree = sum(1 for r in records if r["predicted"] == r["label"])
+    play_missed = [r for r in records
+                   if r["label"] == "C2_ACTIVE_PLAY" and r["predicted"] != "C2_ACTIVE_PLAY"]
     print(f"\n{len(records)} figure(s) -> {OUT}")
     print(f"index -> {index}")
-    print(f"agreement with the folder label: {agree}/{len(records)}"
-          f" (+{accepted} where 3 and 4 were confused, which A36 accepts)")
+    print(f"agreement with the label: {agree}/{len(records)}")
+    if play_missed:
+        no_ball = sum(1 for r in play_missed if not r["ball"])
+        print(f"{len(play_missed)} play frame(s) not called play, {no_ball} of them with no "
+              f"ball seen - the cost of `require_ball` on this sheet (A40)")
     print("\ncolour key:")
     for label, colour in legend():
         print(f"  BGR {colour}  {label}")
@@ -149,9 +156,11 @@ def main() -> int:
         "uv run python experiments/make_overlay_figures.py"
         + (f" --model {args.model}" if args.model else ""),
         "figs/overlays/",
-        f"{len(records)} redacted overlays from {pipeline.model_key}; the label agrees with "
-        f"the rule on {agree} of them, {accepted} more differ only between 3 and 4; "
-        f"people drawn {PERSON and 'in one colour'} and the ball in another",
+        f"{len(records)} redacted overlays from {pipeline.model_key}; the three-class label "
+        f"agrees with the rule on {agree} of them (A40: nothing forgiven, where the 3<->4 "
+        f"cell used to be); {len(play_missed)} play frame(s) not called play, "
+        f"{sum(1 for r in play_missed if not r['ball'])} of those with no ball seen; "
+        f"people drawn in one colour and the ball in another",
     )
     return 0
 

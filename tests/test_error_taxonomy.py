@@ -107,7 +107,7 @@ def test_an_unreadable_frame_is_unknown_rather_than_false() -> None:
 
 def test_physical_camera_resolves_the_mislabelled_tag() -> None:
     row = ManifestRow(
-        file="f.jpg", class4="1_empty", class3="C1_EMPTY", venue="venue_01",
+        file="f.jpg", label="1_empty", class3="C1_EMPTY", venue="venue_01",
         camera="slot_20260712_2030_camB", slot_date="2026-07-12", slot_time="20:30",
         slot_id="s", t_s=0, source="regular", labeled_by="human", lighting="night",
         quality="unknown", split_role="",

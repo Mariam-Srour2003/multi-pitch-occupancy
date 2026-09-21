@@ -11,7 +11,7 @@ any draft goes out:
 uv run python -m experiments.verify_claims --check
 ```
 
-**45 claims are checked against an artefact. 0 are not, and say why.**
+**47 claims are checked against an artefact. 0 are not, and say why.**
 
 ## Checked
 
@@ -56,11 +56,13 @@ uv run python -m experiments.verify_claims --check
 | On 234 seconds of floodlit night football with nobody playing, the clock rule calls all 16 minutes ACTIVE_PLAY - false-play 1.00. | `1.0` | `results/clock_rule_on_video.csv` | `README.md`, `thesis/defence_deck.md` | ✔ |
 | The deployed path - probe, boundary, motion gate, person gate - has false-play 0.00 on the same clip, against the probe alone at 0.38. | `0.0` | `results/clock_rule_on_video.csv` | `README.md`, `thesis/defence_deck.md` | ✔ |
 | 31 generated EMPTY frames take cross-venue false-play from 0.7684 to 0.0235 while raising play-recall. | `0.0235` | `results/median_empties_as_training.csv` | — | ✔ |
-| The detector-first rule reaches 0.996 ACTIVE_PLAY recall across the seven held-out clip venues, scored one frame at a time inside one camera's boundary. | `0.9957` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
+| With A40's ball requirement on, the detector-first rule reaches only 0.308 ACTIVE_PLAY recall across the held-out clip venues, scored one frame at a time inside one camera's boundary. It was 0.996 before the requirement; the requirement, not the detector, is what changed — correcting the venue_01 boundaries on 2026-09-21 moved this by 0.003, so the cost is not a boundary artefact. | `0.3078` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
+| The identical rule with require_ball off reaches 0.996 recall on the same frames — so the 0.685 gap is the cost of the facility's ball rule and not a property of the detector or the counting. | `0.9957` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
+| At clipvenue_i_outdoor_trees the ball requirement leaves 0.111 play recall — the detector sees a ball in 11% of that venue's genuine play frames, so the rule reports 16 of 18 real matches as C3. | `0.1111` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
 | The rule calls none of venue_01 camera B's 243 recorded empty frames a match — 0 of 243, against the probe's 75. | `0.0` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
-| The rule reads 0.889 of those 243 empty frames as EMPTY; the remaining 11% are read as C3, which is the boundary reaching into the car park rather than the detector failing. | `0.8889` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
-| The rule's worst held-out venue is 0.970, where the probe's is 0.667 — both at clipvenue_h_teal_pitch. The probe's mean hides a fold it fails badly; the rule's does not. | `0.9702` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
-| The DINOv2 probe's worst held-out venue is 0.667 ACTIVE_PLAY recall. | `0.6667` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
+| The rule reads 0.926 of those 243 empty frames as EMPTY. It was 0.889 until 2026-09-21, and the difference was literally the car park: camera_B's derived boundary reached past the touchline into it, and a hand-drawn one does not. | `0.9259` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
+| Without the ball requirement the rule's worst held-out venue is 0.970, where the probe's is 0.806. The probe's mean hides a fold it fails badly; the counting rule's does not — until A40's ball requirement is applied, which opens a worse fold of its own (see rule-ball-requirement-worst-venue). | `0.9702` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
+| The DINOv2 probe's worst held-out venue is 0.806 ACTIVE_PLAY recall, at clipvenue_g_netting. It was 0.667 at clipvenue_h_teal_pitch before the 2026-09-21 ingest added daylight frames to both. | `0.8065` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
 | The probe reads 0.000 of the 243 held-out empty frames as EMPTY — it never answers EMPTY at a camera it has not seen (A20), re-measured here under the same control. | `0.0` | `results/rule_frame_eval.csv` | `TODO.md` | ✔ |
 
 ## Notes on individual claims

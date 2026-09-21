@@ -82,8 +82,10 @@ class SlotRun:
     #: one will ask.
     motion_cues: tuple[float, ...] = ()
     people_counts: tuple[int, ...] = ()
-    #: Minutes where a ball was seen inside the boundary. Evidence, not a rule: a ball is
-    #: found in 40% of genuine play frames at unseen venues, so its absence means nothing.
+    #: Minutes where a ball was seen inside the boundary. Since A40 this is not only a
+    #: record: with `require_ball` on, no ball means no ACTIVE_PLAY, so this column is the
+    #: one to read when a slot comes back C3 and the operator says there was a match on. A17
+    #: measured cross-venue ball recall at 0.40, which is exactly why that is worth reading.
     ball_minutes: tuple[int, ...] = ()
     #: Minutes in which no camera could be scored because none had a boundary (A36). They
     #: are also counted in `minutes_missed`, since that is what the capture floor reads;
@@ -91,8 +93,9 @@ class SlotRun:
     minutes_uncertain: int = 0
     #: The cameras that had no resolvable boundary. The first thing to fix at a new site.
     uncertain_cameras: tuple[str, ...] = ()
-    #: The four-class state per decided minute (`vision/rules.MinuteState` values), which
-    #: the three-class `samples` cannot carry. What the evaluation reads (A36).
+    #: The state per decided minute (`vision/rules.MinuteState` values). Three classes since
+    #: A40, and identical to the `samples`' own values - kept as its own column because it is
+    #: at *pitch* level, where the counts are summed, and the samples are per camera.
     minute_states: tuple[str, ...] = ()
 
     @property
@@ -221,14 +224,16 @@ def run_slot(
     previous: dict[str, object] = {}
     motion_seen: list[float] = []
     people_seen: list[int] = []
-    # Minutes where a ball was seen inside the boundary. Recorded, never consulted: across
-    # nine unseen venues a ball is found in 40% of genuine play frames against the person
-    # count's 100%, so its absence carries no information and a rule using it would be a rule
-    # about venue_01. See `vision/people.py` (A17).
+    # Minutes where a ball was seen inside the boundary. This was written when the ball was
+    # recorded and never consulted - across nine unseen venues a ball is found in 40% of
+    # genuine play frames against the person count's 100%, so absence carried no information.
+    # A40 made a ball a *requirement* for ACTIVE_PLAY at the facility's instruction, so that
+    # 40% is now a recall cost rather than an argument against the rule, and it is measured
+    # in `results/rule_frame_eval.csv`. See `vision/people.py` (A17).
     ball_minutes: list[int] = []
     uncertain_minutes = 0
     uncertain_cameras: set[str] = set()
-    minute_states4: list[str] = []
+    minute_states_out: list[str] = []
 
     for minute in range(source.n_minutes):
         observations: dict[str, tuple[Class3, float]] = {}
@@ -361,7 +366,7 @@ def run_slot(
                 people_seen.append(pitch.people_inside)
             if pitch.ball_seen:
                 ball_minutes.append(minute)
-            minute_states4.append(pitch.state.value)
+            minute_states_out.append(pitch.state.value)
         else:
             if not observations:
                 missed += 1
@@ -379,7 +384,7 @@ def run_slot(
                 key=lambda c: observations[c][1],
                 default=None,
             )
-            minute_states4.append(from_class3(state).value)
+            minute_states_out.append(from_class3(state).value)
         fused_states.append(state)
         fused_conf.append(confidence)
         disagreements.append(disagreed)
@@ -435,7 +440,7 @@ def run_slot(
         ball_minutes=tuple(ball_minutes),
         minutes_uncertain=uncertain_minutes,
         uncertain_cameras=tuple(sorted(uncertain_cameras)),
-        minute_states=tuple(minute_states4),
+        minute_states=tuple(minute_states_out),
     )
 
 
