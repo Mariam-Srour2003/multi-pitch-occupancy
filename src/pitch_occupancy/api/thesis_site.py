@@ -1,12 +1,19 @@
 """The thesis frontend, served at `/` (WP8).
 
-Two audiences, two front ends. This one is for the researcher and the supervisor: every
-finding, every experiment, the dataset's limits, both configuration searches, the code map.
-The client-facing operator dashboard lives at `/client` and shows live slot state instead.
+**The site is the talk.** Every tab is one section of the oral defence, holding the same
+slides as `thesis/presentation/Thesis_Defence_25min.pptx`, and you page through them with
+the arrows or the left/right keys. The words on a slide are the point; the words that are
+*spoken* live in the speaker notes (the `Notes` button, or `N`) and in
+`thesis/presentation/SPEAKER_SCRIPT.md`.
 
-Everything here is read from disk **at request time** - the experiment log, the
-pre-registration, the RQ matrix, the result CSVs. Rerun an experiment and reload the page;
-there is no build step to forget and no copy to drift.
+It used to be eleven tabs of rendered Markdown - the pre-registration, the RQ matrix, the
+codebase map, the experiment log. Those documents are the thesis and they are still in the
+repository; they were the right *evidence* and a poor *presentation*, which is what this
+page is for now. The client-facing operator dashboard lives at `/client`.
+
+Numbers are still read from disk **at request time** - the result CSVs, `coverage.md`, the
+model inventory. Rerun an experiment and reload the page; there is no build step to forget
+and no copy to drift.
 """
 
 from __future__ import annotations
@@ -16,101 +23,20 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-from pitch_occupancy.api.diagrams import (
-    DIAGRAM_STYLES,
-    augmentation_axes,
-    blocked_questions,
-    confound_matrix,
-    empty_blindness,
-    pipeline,
-    protocols,
-    schema,
-)
+from pitch_occupancy.api.diagrams import DIAGRAM_STYLES, augmentation_axes
 from pitch_occupancy.api.findings_summary import STYLES as FINDINGS_STYLES
 from pitch_occupancy.api.findings_summary import render_summary as render_findings
-from pitch_occupancy.api.markdown import render
 from pitch_occupancy.api.models_view import STYLES as MODEL_STYLES
 from pitch_occupancy.api.models_view import render as render_models
 from pitch_occupancy.api.search_panel import PANEL_HTML, PANEL_SCRIPT, PANEL_STYLES
-from pitch_occupancy.api.slides import SLIDES, detail
+from pitch_occupancy.api.slides import SCRIPT as DECK_SCRIPT
+from pitch_occupancy.api.slides import SECTIONS, detail
 from pitch_occupancy.api.slides import STYLES as SLIDE_STYLES
 
 ROOT = Path(__file__).resolve().parents[3]
 RESULTS = ROOT / "results"
 DOCS = ROOT / "docs"
 THESIS = ROOT / "thesis"
-
-#: tab id -> (label, source document)
-DOCUMENTS = {
-    "findings": ("Findings", RESULTS / "EXPERIMENT_LOG.md"),
-    "prereg": ("Pre-registration", THESIS / "preregistration.md"),
-    "questions": ("Questions", THESIS / "rq_matrix.md"),
-    "dataset": ("Dataset", DOCS / "data_layout.md"),
-    "database": ("Database", DOCS / "DATABASE.md"),
-    "code": ("Code", DOCS / "CODEBASE.md"),
-    "ideas": ("Ideas", DOCS / "IDEAS.md"),
-    "ethics": ("Ethics", THESIS / "ethics.md"),
-}
-
-
-#: A diagram opens the tab it explains, and the document follows as the detail. Each shows
-#: a mechanism the prose can only assert - so the reader sees it before reading about it.
-LEADS = {
-    "findings": lambda: protocols() + empty_blindness() + pipeline(),
-    "dataset": confound_matrix,
-    "questions": blocked_questions,
-    "database": schema,
-}
-
-#: Tabs whose source document is too long to serve whole, mapped to what renders instead.
-#:
-#: Findings was the whole of `EXPERIMENT_LOG.md` - 75 dated entries, a quarter of a megabyte,
-#: every one of them open. The log is the right archive and the wrong page: it is append-only
-#: history, so a reader looking for what the project found had to read what it found *and*
-#: everything it later withdrew, in the order it happened. `findings_summary` puts the
-#: verified claims and the retractions above it and collapses the entries, so nothing is
-#: dropped and the page is scannable in a screen or two.
-#:
-#: A tab belongs here only when its document is an archive. The pre-registration and the RQ
-#: matrix are *arguments* - they are written to be read start to finish, and collapsing them
-#: would hide the reasoning that is their whole content.
-SUMMARIES = {"findings": render_findings}
-
-#: Tabs that are **built but not placed**. Everything about `ideas` still works - its entry
-#: in `DOCUMENTS`, `slides.ideas()`, `docs/IDEAS.md` and their tests - and `page()` simply
-#: does not lay it out. Serving it is deleting one string.
-#:
-#: Removed from the page on 2026-09-16, with the findings archive, on one judgement: the
-#: site is where the project is presented, and a backlog is neither a finding nor an
-#: argument. It is the register of what was *considered*, which matters to whoever picks
-#: the work up and not to a reader being shown what the work found.
-HIDDEN = {"ideas"}
-
-
-def _doc(path: Path, key: str = "") -> str:
-    """One tab: its slide, then its diagram, then the source document collapsed.
-
-    The order is the argument. A tab used to open with a Markdown file rendered in full,
-    which is the right *evidence* and a poor *page* - a reader arriving at "Dataset" wants
-    the frame count and the gap, and got six thousand words containing both somewhere. The
-    slide leads with the claim, and the document is one click below it rather than gone:
-    a page that only prints the evidence is checked by nobody, and one that removed it
-    could not be checked at all.
-    """
-    slide = SLIDES[key]() if key in SLIDES else ""
-    lead = LEADS[key]() if key in LEADS else ""
-
-    if key in SUMMARIES:
-        return slide + lead + SUMMARIES[key]()
-    if not path.exists():
-        return slide + lead + (
-            f"<p class='missing'>Not generated yet: <code>{path.name}</code></p>"
-        )
-
-    body = render(path.read_text(encoding="utf-8"))
-    if not slide:
-        return lead + body
-    return slide + lead + detail(body, f"The full document &mdash; {path.name}")
 
 
 def _csv(name: str) -> list[dict]:
@@ -332,75 +258,65 @@ def _shell() -> str:
 
 
 def page() -> str:
-    shown = {k: v for k, v in DOCUMENTS.items() if k not in HIDDEN}
+    """Every section of the talk, in order, as one paged deck per tab.
+
+    The searches tab carries one extra thing the slides cannot: the live search panel and
+    the evaluation tables behind it, collapsed. A slide states the finding; those tables are
+    the evidence for it, and a reader who wants to check one configuration is the one who
+    opens them.
+    """
     tabs = "".join(
-        f'<button data-view="{k}">{label}</button>' for k, (label, _) in shown.items()
+        f'<button data-view="{key}">{label}</button>'
+        for key, (label, _) in SECTIONS.items()
     )
-    views = "".join(
-        f'<section class="view" data-view="{k}" hidden><div class="doc">{_doc(path, k)}</div></section>'
-        for k, (_, path) in shown.items()
-    )
-    # The landing tab: the first five pages of the progress-review deck, transcribed.
-    # It is the one tab with no collapsed source document below it, because it has no
-    # source document - the deck *is* the argument, and a `detail()` here would either
-    # link a PDF the page cannot render or repeat what is already above it.
-    overview = (
-        '<section class="view" data-view="overview" hidden><div class="doc">'
-        + SLIDES["overview"]()
-        + "</div></section>"
-    )
-    models = (
-        '<section class="view" data-view="models" hidden><div class="doc">'
-        + SLIDES["models"]()
-        + detail(render_models(), "The full model comparison")
-        + "</div></section>"
-    )
-    augmentation = (
-        '<section class="view" data-view="augmentation" hidden><div class="doc">'
-        # The one tab that is deliberately *more*, not less: augmentation code fails
-        # silently, so the sheets and the before/after pairs are the argument rather than
-        # an illustration of it.
-        + SLIDES["augmentation"]()
-        + detail(_augmentation(), "The augmentation argument in full")
-        + "</div></section>"
-    )
-    searches = (
-        '<section class="view" data-view="searches" hidden><div class="doc">'
-        "<h1>Configuration searches</h1>"
-        + SLIDES["searches"]() +
-        "<p>Both are scored on cross-venue transfer and guarded by a false-play control: "
-        "every cross-venue test set is entirely active play, so recall can be bought by "
-        "saying &ldquo;playing&rdquo; more often.</p>"
-        "<h2>Zero-shot prompt search</h2>"
-        + detail(_prompt_summary(), "Every prompt set scored, ranked") +
-        "<h2>Preprocessing search</h2>"
-        # Server-rendered first, then the live panel. `_search_summary` holds the rule that
-        # an entry predating the false-play repair is shown as "not re-scored" rather than
-        # with its placeholder 0.0000 - and it was **called by nothing but a test**, so the
-        # test certified a safeguard no reader ever saw while the rendered panel served
-        # those same entries as clean top results. It is wired in now, and it is also what
-        # a reader with JavaScript off, or an examiner opening a saved copy, gets.
-        # Collapsed: this renders one row per evaluation, and a full search is 88 of them.
-        # The slide above carries the finding; the table is the evidence for it, and a
-        # reader who wants to check a particular configuration is the one who opens it.
-        + detail(_search_summary(), "Every preprocessing evaluation, ranked") +
-        "<p>Run it here. Each candidate needs a fresh embedding pass, so a full-size run "
-        "takes a few hours - it keeps going if you close the tab.</p>"
-        + PANEL_HTML +
-        "</div></section>"
-    )
+
+    views = []
+    for key, (_, build) in SECTIONS.items():
+        body = build()
+        if key == "searches":
+            body += (
+                detail(_prompt_summary(), "Every prompt set scored, ranked")
+                # Server-rendered first, then the live panel. `_search_summary` holds the
+                # rule that an entry predating the false-play repair is shown as "not
+                # re-scored" rather than with its placeholder 0.0000 - and it was **called
+                # by nothing but a test**, so the test certified a safeguard no reader ever
+                # saw while the rendered panel served those same entries as clean top
+                # results. It is wired in here, and it is also what a reader with JavaScript
+                # off, or an examiner opening a saved copy, gets.
+                + detail(_search_summary(), "Every preprocessing evaluation, ranked")
+                + '<p class="run-note">Run the preprocessing search here. Each candidate '
+                  'needs a fresh embedding pass, so a full-size run takes a few hours '
+                  '&mdash; it keeps going if you close the tab.</p>'
+                + PANEL_HTML
+            )
+        if key == "models":
+            # The full protocol-by-protocol comparison, collapsed. A slide states which
+            # backbone leads; this is the table that shows it, and a reader who wants to
+            # check one protocol is the one who opens it.
+            body += detail(render_models(), "The full model comparison")
+        if key == "problem":
+            # Every verified claim and every retraction, collapsed. The retractions are the
+            # reason to keep this reachable at all: a number that was published and then
+            # withdrawn is part of the method.
+            body += detail(render_findings(), "Every claim, and what was withdrawn")
+        if key == "augmentation":
+            # The augmentation argument in full, with the wet-weather caveat and the
+            # retraction in its own words. The slides carry the numbers; this carries the
+            # reasoning, and it is the one section where the reasoning is the deliverable.
+            body += detail(_augmentation(), "The augmentation argument in full")
+        views.append(
+            f'<section class="view" data-view="{key}" hidden>'
+            f'<div class="doc">{body}</div></section>'
+        )
+
     return (_shell()
-            .replace("__TABS__", '<button data-view="overview">Overview</button>'
-                     '<button data-view="models">Models</button>' + tabs
-                     + '<button data-view="augmentation">Augmentation</button>')
-            # Overview leads, and the shell opens whichever view is first in the DOM - so
-            # a reader who arrives with no hash gets the review rather than a parameter
-            # count. Every deep link still resolves, because the hash names the tab.
-            .replace("__VIEWS__", overview + models + views + augmentation + searches)
+            .replace("__TABS__", tabs)
+            .replace("__VIEWS__", "".join(views))
             .replace("__MODEL_STYLES__",
                      MODEL_STYLES + PANEL_STYLES + DIAGRAM_STYLES + FINDINGS_STYLES
                      + SLIDE_STYLES)
-            .replace("__PANEL_SCRIPT__", PANEL_SCRIPT))
+            .replace("__PANEL_SCRIPT__", PANEL_SCRIPT)
+            .replace("__DECK_SCRIPT__", DECK_SCRIPT))
 
 
 SHELL = """<!doctype html>
@@ -486,8 +402,8 @@ __MODEL_STYLES__
 
 <nav><div class="navin">
   <div class="brand">Pitch Occupancy<span>.</span></div>
-  <span class="tag">thesis</span>
-  <div id="tabs">__TABS__<button data-view="searches">Searches</button></div>
+  <span class="tag">defence</span>
+  <div id="tabs">__TABS__</div>
   <a class="client" href="/client">Client dashboard &rarr;</a>
 </div></nav>
 
@@ -512,5 +428,6 @@ window.addEventListener("hashchange", () => {
   if (ids.includes(h)) show(h);
 });
 __PANEL_SCRIPT__
+__DECK_SCRIPT__
 </script></body></html>
 """

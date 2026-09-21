@@ -130,6 +130,8 @@ a later measurement retracted.
 | [results/gate_status.md](results/gate_status.md) | **Milestone status**, checked against the artefacts rather than ticked by hand |
 | [thesis/claims.md](thesis/claims.md) | **The claims ledger** — every quantitative claim mapped to the artefact that produced it, re-derived on every run |
 | [thesis/defence_redteam.md](thesis/defence_redteam.md) | The ten hardest questions and the evidence for each answer |
+| [thesis/presentation/defence_slides.html](thesis/presentation/defence_slides.html) | **The oral defence deck** — 19 slides, self-contained, opens in a browser. Speaker notes carry what is said; the slides carry only the point |
+| [thesis/defence_deck.md](thesis/defence_deck.md) | The slide *plan* the deck was built from — the argument, the framing decision, and what not to say |
 | [thesis/ch2_related_work.md](thesis/ch2_related_work.md) | Chapter 2 scaffolding — nine strands, what each must establish, and no invented citations |
 | [thesis/alternatives.md](thesis/alternatives.md) | Why computer vision rather than a motion sensor, a turnstile or an app check-in |
 | [thesis/data_requests.md](thesis/data_requests.md) | What to ask the facility for, in priority order |

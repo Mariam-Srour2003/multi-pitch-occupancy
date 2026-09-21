@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from pitch_occupancy.api.app import app
 from pitch_occupancy.api.markdown import render
-from pitch_occupancy.api.thesis_site import DOCUMENTS, HIDDEN
+from pitch_occupancy.api.slides import SECTIONS
 
 
 @pytest.fixture
@@ -50,45 +50,51 @@ def test_api_still_works_alongside_them(client) -> None:
 # --- the thesis site --------------------------------------------------------
 
 
-def test_every_declared_document_gets_a_tab_and_a_view(client) -> None:
+def test_every_section_of_the_talk_gets_a_tab_and_a_view(client) -> None:
+    """The site is the talk: one tab per section, in order, and each one reachable."""
     html = client.get("/").text
-    for key, (label, _) in DOCUMENTS.items():
-        if key in HIDDEN:  # built, not placed - covered by the hidden-renderer test
-            continue
+    for key, (label, _) in SECTIONS.items():
         assert f'data-view="{key}"' in html, f"{key} has no view"
         assert label in html, f"{label} is missing from the nav"
 
 
-def test_the_searches_view_exists_beyond_the_documents(client) -> None:
-    """Searches are assembled from result files rather than a Markdown source."""
-    assert 'data-view="searches"' in client.get("/").text
+def test_the_document_tabs_are_gone(client) -> None:
+    """The eleven Markdown tabs were replaced by the talk, deliberately.
+
+    They were the right *evidence* and a poor *presentation*, and the documents themselves
+    are still in the repository. This asserts the replacement actually happened rather than
+    leaving both, because a site that grew a presentation in front of the wall would be the
+    same page with more scrolling.
+    """
+    html = client.get("/").text
+    for gone in ("prereg", "questions", "database", "code", "ethics", "findings",
+                 "dataset", "ideas", "overview"):
+        assert f'data-view="{gone}"' not in html, f"{gone} tab is still on the page"
 
 
-def test_documents_actually_render_rather_than_appearing_empty(client) -> None:
+def test_every_section_renders_slides_rather_than_appearing_empty(client) -> None:
     """A view that silently renders nothing looks the same as one that is not there."""
     html = client.get("/").text
-    for key in DOCUMENTS:
-        if key in HIDDEN:
-            continue
+    for key in SECTIONS:
         body = re.search(
             rf'data-view="{key}"[^>]*><div class="doc">(.*?)</div></section>', html, re.S
         )
         assert body, f"{key} view not found"
         assert len(body.group(1)) > 200, f"{key} rendered almost nothing"
+        assert '<section class="dk-s' in body.group(1), f"{key} has no slides"
 
 
-def test_missing_document_degrades_to_a_notice(tmp_path, monkeypatch) -> None:
-    """A document that has not been generated should say so, not vanish."""
-    from pitch_occupancy.api import thesis_site
+def test_every_slide_carries_speaker_notes(client) -> None:
+    """The split the deck is built on: the slide holds the point, the notes hold the talk.
 
-    monkeypatch.setitem(
-        thesis_site.DOCUMENTS, "ghost", ("Ghost", tmp_path / "nope.md")
-    )
-    try:
-        html = thesis_site.page()
-        assert "Not generated yet" in html
-    finally:
-        thesis_site.DOCUMENTS.pop("ghost", None)
+    A slide with no notes is one whose argument exists only in the presenter's head, which
+    is exactly the drift this page was made to prevent.
+    """
+    html = client.get("/").text
+    slides = html.count('<section class="dk-s')
+    notes = html.count('<aside class="dk-notes">')
+    assert slides >= 40, f"only {slides} slides on the page"
+    assert notes == slides, f"{slides - notes} slides have no speaker notes"
 
 
 # --- the markdown renderer --------------------------------------------------
@@ -347,10 +353,19 @@ def test_schema_diagram_survives_a_missing_database(monkeypatch, tmp_path) -> No
     assert "rows</text>" not in svg  # but no counts invented
 
 
-def test_database_tab_is_present(client) -> None:
+def test_the_schema_reaches_the_talk(client) -> None:
+    """The Database tab is gone; the schema is a slide in "How it works" instead.
+
+    It stays on the page because "a verdict never exists without its evidence" and "a gap is
+    recorded, never filled" are claims a reader should be able to see the shape of.
+    """
     html = client.get("/").text
-    assert 'data-view="database"' in html
-    assert "Database" in html
+    body = re.search(
+        r'data-view="how"[^>]*><div class="doc">(.*?)</div></section>', html, re.S
+    )
+    assert body, "the How it works section is missing"
+    assert "What gets stored" in body.group(1)
+    assert "frame_samples" in body.group(1)
 
 
 # --- augmentation tab and figure serving -------------------------------------
@@ -617,31 +632,25 @@ def test_the_findings_tab_is_counts_not_an_archive(client) -> None:
     purpose, not a regression that slips in - so the absences are asserted, not assumed.
     """
     html = client.get("/").text
-    assert '<div class="ftiles">' in html, "the counts are the tab now"
-    for gone in ("What the project found", "What was withdrawn", "The full log",
-                 '<details class="fentry"', '<details class="fmonth"'):
+    assert '<div class="ftiles">' in html, "the counts are still the summary"
+    for gone in ("The full log", '<details class="fentry"', '<details class="fmonth"'):
         assert gone not in html, f"the archive is back on the page: {gone!r}"
+    # and it is evidence under a slide now, not a tab of its own
+    assert 'data-view="findings"' not in html
 
 
 def test_the_hidden_renderers_still_build() -> None:
-    """`ideas`, and the three findings layers, are off the page and still implemented.
+    """The three findings layers are off the page and still implemented.
 
     Taking them off the page was a presentation decision, not a decision to lose them - so
     each is called here. Without this they are code nothing runs, which is exactly the
     untested-branch defect this project has twice removed from its own guards.
     """
     from pitch_occupancy.api import findings_summary as fs
-    from pitch_occupancy.api.slides import SLIDES
-    from pitch_occupancy.api.thesis_site import _doc
 
     assert fs.render_claims().count('class="fclaim"') > 20
     assert "<h2>What was withdrawn</h2>" in fs.render_retractions()
     assert fs.render_log().count('<details class="fentry"') > 20
-
-    for tab in HIDDEN:
-        assert tab in DOCUMENTS, f"{tab} is hidden by deletion, not by HIDDEN"
-        assert '<div class="slide">' in SLIDES[tab](), f"{tab}'s slide stopped building"
-        assert "<details" in _doc(DOCUMENTS[tab][1], tab), f"{tab}'s document stopped building"
 
 
 def test_no_log_entry_is_dropped_by_the_summary() -> None:
@@ -741,42 +750,45 @@ def _tab_bodies(html: str) -> dict[str, str]:
 
 
 def test_every_tab_opens_with_a_slide(client) -> None:
-    """A tab used to open with its source Markdown rendered in full - the right evidence and
-    a poor page. Each now leads with counts and figures, and this asserts that on the served
-    HTML rather than on the builder, because the wall is what a reader got."""
+    """Every section of the talk leads with a slide, and the pager that moves between them.
+
+    Asserted on the served HTML rather than on the builder, because the page is what a
+    reader gets.
+    """
     bodies = _tab_bodies(client.get("/").text)
-    for tab in ("overview", "models", "findings", "prereg", "questions", "dataset",
-                "database", "code", "ethics", "augmentation", "searches"):
+    for tab in SECTIONS:
         assert tab in bodies, f"{tab} tab is missing entirely"
         assert '<div class="slide">' in bodies[tab], f"{tab} has no slide"
+        assert "data-deck" in bodies[tab], f"{tab} has no pager"
 
 
-def test_the_document_is_collapsed_rather_than_dropped(client) -> None:
-    """Summarising must not mean omitting.
+def test_the_evidence_is_collapsed_rather_than_dropped(client) -> None:
+    """Replacing the documents with the talk must not mean losing what they showed.
 
-    The whole argument for leading with a slide is that the evidence stays one click below
-    it. `<details>`, not a CSS toggle - find-in-page and a saved copy still reach it.
+    Four sections keep their evidence one click below the slides: the model comparison, the
+    claims ledger with its retractions, the augmentation argument, and the two search
+    tables. `<details>`, not a CSS toggle - find-in-page and a saved copy still reach it.
     """
     bodies = _tab_bodies(client.get("/").text)
-    for tab in ("prereg", "questions", "code", "ethics", "dataset", "database"):
-        assert "<details" in bodies[tab], f"{tab} dropped its document instead of collapsing"
+    for tab in ("models", "problem", "augmentation", "searches"):
+        assert "<details" in bodies[tab], f"{tab} dropped its evidence instead of collapsing"
 
 
-def test_the_long_documents_are_mostly_collapsed(client) -> None:
+def test_the_page_is_slides_first_and_the_walls_are_gone(client) -> None:
     """The page is judged on what it shows before anything is expanded.
 
-    `docs/CODEBASE.md` is 40 KB and `preregistration.md` 33 KB; if either arrives visible,
-    the slide has been added in front of the wall rather than in place of it.
+    The whole point of replacing the document tabs was to put the argument in front of the
+    wall rather than behind it. Two properties say that happened: the visible page is made
+    of slides, and the rendered Markdown documents - 40 KB of codebase map, 33 KB of
+    pre-registration - are no longer served at all.
     """
-    import re
-
-    bodies = _tab_bodies(client.get("/").text)
-    for tab in ("code", "prereg"):
-        body = bodies[tab]
-        visible = re.sub(r'<div class="sl-detail-body">.*?</details>', "", body, flags=re.S)
-        assert len(visible) < len(body) * 0.2, (
-            f"{tab} shows {len(visible)} of {len(body)} bytes before expanding"
-        )
+    html = client.get("/").text
+    assert html.count('<section class="dk-s') >= 40, "the page is not made of slides"
+    for wall in ("The full document &mdash;", "preregistration.md", "CODEBASE.md",
+                 "data_layout.md", "rq_matrix.md"):
+        assert wall not in html, f"a source document is still being served: {wall!r}"
+    # It used to be ~347 KB, most of it rendered Markdown nobody read.
+    assert len(html) < 260_000, f"page is {len(html) // 1024} KB - a wall has come back"
 
 
 def test_the_augmentation_tab_is_deliberately_image_heavy(client) -> None:

@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Who Actually Used the Pitch? &mdash; Defence</title>
+<style>
+:root{
+  --ink:#0E1B2C; --ink2:#16283F; --ink3:#24405C;
+  --paper:#F7F4EC; --white:#FFFDF8;
+  --green:#17B978; --green-d:#0E8F5C;
+  --amber:#F5A524; --amber-d:#B26A00;
+  --coral:#EF4F6B; --coral-d:#D22D4C;
+  --sky:#3FA7E0;  --sky-d:#1D6FA5;
+  --violet:#8B7BE8;
+  --mute-l:#55606E; --mute-d:#9FB3C8;
+  --disp:"Segoe UI Semibold","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --body:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:"Cascadia Mono",Consolas,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#07101B;overflow:hidden;font-family:var(--body)}
+
+/* ---------- stage ---------- */
+#deck{position:fixed;inset:0;display:grid;place-items:center}
+#stage{width:1280px;height:720px;position:relative;transform-origin:center center;
+       box-shadow:0 40px 120px rgba(0,0,0,.6);border-radius:6px;overflow:hidden}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:72px 84px 84px;
+       background:var(--paper);color:var(--ink);animation:in .32s ease}
+.slide.on{display:flex}
+@keyframes in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.slide.dark{background:linear-gradient(145deg,#0E1B2C 0%,#16283F 58%,#0B2A3A 100%);color:var(--paper)}
+.slide.green{background:linear-gradient(140deg,#0E8F5C 0%,#14A86D 100%);color:#F2FBF6}
+.slide.coral{background:linear-gradient(140deg,#C42746 0%,#EF4F6B 100%);color:#FFF3F5}
+.slide.sky{background:linear-gradient(140deg,#14567F 0%,#2C89C4 100%);color:#F0F9FF}
+
+/* ---------- chrome ---------- */
+.rail{position:absolute;left:0;top:0;width:100%;height:8px;
+      background:linear-gradient(90deg,var(--green) 0%,var(--sky) 34%,var(--amber) 67%,var(--coral) 100%)}
+.foot{position:absolute;left:84px;right:84px;bottom:34px;display:flex;justify-content:space-between;
+      font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute-l);font-weight:600}
+.dark .foot,.green .foot,.coral .foot,.sky .foot{color:rgba(255,255,255,.62)}
+#bar{position:fixed;left:0;bottom:0;height:4px;background:linear-gradient(90deg,var(--green),var(--amber),var(--coral));
+     transition:width .3s ease;z-index:40}
+
+/* ---------- type ---------- */
+.eyebrow{font-family:var(--disp);font-size:17px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:var(--green-d)}
+.dark .eyebrow{color:var(--green)} .green .eyebrow,.coral .eyebrow,.sky .eyebrow{color:rgba(255,255,255,.8)}
+h1{font-family:var(--disp);font-size:78px;line-height:1.02;font-weight:700;letter-spacing:-.02em}
+h2{font-family:var(--disp);font-size:50px;line-height:1.08;font-weight:700;letter-spacing:-.015em}
+h3{font-family:var(--disp);font-size:24px;line-height:1.18;font-weight:700}
+p{font-size:21px;line-height:1.45}
+.lead{font-size:28px;line-height:1.35;color:var(--mute-l);max-width:960px}
+.dark .lead{color:var(--mute-d)} .green .lead,.coral .lead,.sky .lead{color:rgba(255,255,255,.85)}
+.big{font-family:var(--disp);font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.sm{font-size:17px;line-height:1.4;color:var(--mute-l)}
+.dark .sm{color:var(--mute-d)} .green .sm,.coral .sm,.sky .sm{color:rgba(255,255,255,.8)}
+.hd{margin-bottom:34px}
+.hd h2{margin-bottom:10px}
+b{font-weight:700}
+
+/* ---------- building blocks ---------- */
+.row{display:flex;gap:18px}
+.grow{flex:1}
+.spacer{flex:1}
+.card{flex:1;background:var(--white);border-radius:14px;padding:26px 24px;
+      border-top:7px solid var(--green);box-shadow:0 6px 20px rgba(14,27,44,.09);display:flex;flex-direction:column;gap:10px}
+.dark .card,.green .card,.coral .card,.sky .card{background:rgba(255,255,255,.09);box-shadow:none;color:inherit}
+.card .sm{color:var(--mute-l)}
+.dark .card .sm,.green .card .sm,.coral .card .sm,.sky .card .sm{color:rgba(255,255,255,.82)}
+.c-green{border-top-color:var(--green)} .c-amber{border-top-color:var(--amber)}
+.c-coral{border-top-color:var(--coral)} .c-sky{border-top-color:var(--sky)}
+.c-violet{border-top-color:var(--violet)}
+.num{font-family:var(--disp);font-size:40px;font-weight:700;line-height:1;letter-spacing:-.02em}
+.n-green{color:var(--green-d)} .n-amber{color:var(--amber-d)} .n-coral{color:var(--coral-d)} .n-sky{color:var(--sky-d)}
+.dark .n-green{color:var(--green)} .dark .n-amber{color:var(--amber)} .dark .n-coral{color:#FF7E93} .dark .n-sky{color:#6FC2ED}
+.chip{display:inline-flex;align-items:center;gap:8px;font-size:18px;font-weight:600;
+      padding:9px 18px;border-radius:99px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3)}
+.chip.lite{background:rgba(14,27,44,.05);border-color:rgba(14,27,44,.12);color:var(--ink)}
+.stat{flex:1;padding:22px 20px;border-radius:14px;background:var(--white);box-shadow:0 6px 20px rgba(14,27,44,.09)}
+.dark .stat{background:rgba(255,255,255,.08);box-shadow:none}
+.arrow{align-self:center;font-family:var(--disp);font-size:30px;font-weight:700;color:var(--amber-d);padding:0 4px}
+.dark .arrow{color:var(--amber)}
+table{width:100%;border-collapse:collapse;font-size:21px}
+th{font-family:var(--disp);font-size:16px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute-l);
+   text-align:left;padding:0 16px 12px;font-weight:700}
+td{padding:15px 16px;border-top:1px solid rgba(14,27,44,.1)}
+tr.hi td{background:#EAF9F2;font-weight:700}
+tr.hi td:first-child{border-left:6px solid var(--green);border-radius:8px 0 0 8px}
+.tag{display:inline-block;font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+     padding:4px 10px;border-radius:6px;background:var(--amber);color:#3A2400}
+.tag.bad{background:var(--coral);color:#fff} .tag.good{background:var(--green);color:#04301F}
+ul{list-style:none;display:flex;flex-direction:column;gap:12px}
+li{font-size:22px;line-height:1.4;padding-left:26px;position:relative}
+li::before{content:"";position:absolute;left:0;top:11px;width:11px;height:11px;border-radius:3px;background:var(--green)}
+li.a::before{background:var(--amber)} li.c::before{background:var(--coral)} li.s::before{background:var(--sky)}
+.blob{position:absolute;border-radius:50%;pointer-events:none}
+
+/* ---------- notes + help ---------- */
+#notes{position:fixed;left:0;right:0;bottom:0;max-height:42vh;overflow:auto;z-index:50;
+       background:#0B1420;color:#DCE6F0;border-top:3px solid var(--amber);padding:20px 28px 26px;
+       font-size:15px;line-height:1.55;display:none}
+#notes.on{display:block}
+#notes h4{font-family:var(--disp);font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--amber);margin-bottom:8px}
+#notes p{font-size:15px;line-height:1.55;margin-bottom:7px}
+#help{position:fixed;right:14px;top:12px;z-index:50;font-size:12px;letter-spacing:.06em;
+      color:rgba(255,255,255,.42);font-family:var(--mono)}
+aside{display:none}
+
+/* ---------- print / PDF ---------- */
+@media print{
+  html,body{background:#fff;overflow:visible;height:auto}
+  #deck{position:static;display:block} #bar,#help,#notes{display:none!important}
+  #stage{width:1280px;height:720px;transform:none!important;box-shadow:none;border-radius:0}
+  .slide{display:flex!important;position:relative;page-break-after:always;width:1280px;height:720px}
+  @page{size:1280px 720px;margin:0}
+}
+</style>
+</head>
+<body>
+<div id="deck"><div id="stage">
+
+<!-- ===== 1 - TITLE ===== -->
+<section class="slide dark on">
+  <div class="rail"></div>
+  <div class="blob" style="right:90px;top:140px;width:300px;height:300px;border:2px solid var(--ink3)"></div>
+  <div class="blob" style="right:170px;top:220px;width:150px;height:150px;background:var(--green);opacity:.18"></div>
+  <div class="spacer"></div>
+  <p class="eyebrow">Master&rsquo;s Thesis &middot; Oral Defence</p>
+  <h1 style="margin:20px 0 22px;max-width:820px">Who actually<br>used the pitch?</h1>
+  <p class="lead" style="max-width:780px">Checking bookings against what the cameras already see.</p>
+  <div class="spacer"></div>
+  <div class="row" style="align-items:center;gap:20px">
+    <div style="width:7px;height:74px;background:var(--amber);border-radius:4px"></div>
+    <div>
+      <p style="font-size:26px;font-weight:700;margin-bottom:6px">Mariam Srour</p>
+      <p class="sm">[Programme] &middot; [Institution] &middot; Supervisor: [Name] &middot; [Date]</p>
+    </div>
+  </div>
+  <aside><h4>Introduce yourself</h4>
+  <p>Good morning, distinguished examiners, professors and colleagues. My name is Mariam Srour, and I am a Master&rsquo;s student in [Programme] at [Institution].</p>
+  <p>The title of my research is &ldquo;Multi-Pitch Occupancy and Booking Verification from Existing Cameras&rdquo;. I will use the shorter question on the slide: who actually used the pitch?</p></aside>
+</section>
+
+<!-- ===== 2 - ROADMAP ===== -->
+<section class="slide">
+  <div class="rail"></div>
+  <div class="hd"><p class="eyebrow">Roadmap</p><h2>Six stops, twenty minutes</h2></div>
+  <div class="row">
+    <div class="card c-green"><p class="num n-green">01</p><h3>Purpose</h3><p class="sm">What the study is for</p></div>
+    <div class="card c-sky"><p class="num n-sky">02</p><h3>Overview</h3><p class="sm">How the system works</p></div>
+    <div class="card c-violet"><p class="num" style="color:#6A57D6">03</p><h3>Dataset</h3><p class="sm">What we had to work with</p></div>
+  </div>
+  <div class="row" style="margin-top:18px">
+    <div class="card c-coral"><p class="num n-coral">04</p><h3>The problem</h3><p class="sm">And the gap we found</p></div>
+    <div class="card c-amber"><p class="num n-amber">05</p><h3>The answer</h3><p class="sm">What we changed, and why</p></div>
+    <div class="card c-green"><p class="num n-green">06</p><h3>Summary</h3><p class="sm">And your questions</p></div>
+  </div>
+  <div class="foot"><span>Roadmap</span><span>02</span></div>
+  <aside><h4>Roadmap</h4>
+  <p>In this presentation I will briefly take you through: the purpose of the research; how the research works, with a short scenario; the dataset, because in this thesis the dataset <i>is</i> the finding; what problem the research tackles; how it provides a solution; and a summary.</p>
+  <p>Two parts I want to spend real time on are the search experiments and the augmentation experiment.</p></aside>
+</section>
+
+<!-- ===== 3 - PURPOSE ===== -->
+<section class="slide green">
+  <div class="rail"></div>
+  <div class="blob" style="left:-80px;bottom:-120px;width:420px;height:420px;background:rgba(255,255,255,.08)"></div>
+  <div class="spacer"></div>
+  <p class="eyebrow">Purpose of the research</p>
+  <h2 style="font-size:60px;margin:22px 0 26px;max-width:1020px">Find out which booked hours were really used &mdash; using the cameras a facility already owns.</h2>
+  <div class="row" style="gap:12px;flex-wrap:wrap">
+    <span class="chip">No new hardware</span>
+    <span class="chip">No GPU &mdash; one small PC</span>
+    <span class="chip">A human makes every decision</span>
+  </div>
+  <div class="spacer"></div>
+  <p class="sm" style="max-width:900px">The study looks at a network of 5-a-side football pitches, three kinds of scene &mdash; empty, active play, maintenance &mdash; and the facility&rsquo;s own booking records.</p>
+  <div class="foot"><span>Purpose</span><span>03</span></div>
+  <aside><h4>Purpose</h4>
+  <p>The purpose of this study is to find out which sold pitch hours were actually used, using cameras that are already installed for highlights.</p>
+  <p>Three constraints shape everything: no new hardware, no GPU, and the system never acts on its own. Say this plainly: the output is not a classification, it is a billing conversation. &ldquo;This booking looks unused, and here are three frames from it.&rdquo;</p></aside>
+</section>
+
+<!-- ===== 4 - OVERVIEW ===== -->
+<section class="slide">
+  <div class="rail"></div>
+  <div class="hd"><p class="eyebrow">Overview</p><h2>How the system works</h2>
+    <p class="lead" style="font-size:24px;margin-top:8px">Five steps. One frame a minute &mdash; not video.</p></div>
+  <div class="row" style="gap:14px">
+    <div class="card c-green"><p class="num n-green">1</p><h3>Sample</h3><p class="sm">One frame per camera per minute. Cuts bandwidth by about 99%.</p></div>
+    <div class="card c-sky"><p class="num n-sky">2</p><h3>Classify</h3><p class="sm">Empty &middot; playing &middot; maintenance</p></div>
+    <div class="card c-violet"><p class="num" style="color:#6A57D6">3</p><h3>Check</h3><p class="sm">Pitch area, motion, people, ball</p></div>
+    <div class="card c-amber"><p class="num n-amber">4</p><h3>Aggregate</h3><p class="sm">One verdict per booked hour</p></div>
+    <div class="card c-coral"><p class="num n-coral">5</p><h3>Compare</h3><p class="sm">Verdict against booking, then flag a human</p></div>
+  </div>
+  <div class="spacer"></div>
+  <p class="sm" style="font-size:19px"><b>Method:</b> frozen vision backbones with a light trained head, evaluated venue by venue so no venue is ever in training and test at once.</p>
+  <div class="foot"><span>Overview &mdash; how it works</span><span>04</span></div>
+  <aside><h4>How the research works</h4>
+  <p>To achieve the purpose I built a five-stage pipeline and then evaluated it. Sampling one frame per camera per minute is the design decision that makes the whole thing fit on a CPU: about 99% less network traffic than decoding 20 to 30 live streams.</p>
+  <p>For the models I used frozen backbones &mdash; DINOv2, ConvNeXtV2, ViT &mdash; with a small trained head on top, because there are not enough labels to fine-tune anything. The important methodological choice is the last line: the split is grouped by venue, so nothing in the test set has a near-twin in training.</p></aside>
+</section>
+
+<!-- ===== 5 - SCENARIO ===== -->
+<section class="slide dark">
+  <div class="rail"></div>
+  <div class="hd"><p class="eyebrow">A small scenario</p><h2>Tuesday, 20:00 &mdash; Pitch 3</h2></div>
+  <div class="row" style="align-items:stretch;gap:12px">
+    <div class="card c-sky"><p class="tag" style="background:var(--sky);color:#04283D;align-self:flex-start">The booking says</p>
+      <h3 style="font-size:27px">Sold. One hour.</h3><p class="sm">Paid for, and marked &ldquo;used&rdquo; by staff.</p></div>
+    <span class="arrow">&rarr;</span>
+    <div class="card c-amber"><p class="tag" style="align-self:flex-start">The camera sees</p>
+      <h3 style="font-size:27px">Empty pitch,<br>13 of 16 minutes</h3><p class="sm">Floodlights on. Nobody on the grass.</p></div>
+    <span class="arrow">&rarr;</span>
+    <div class="card c-green"><p class="tag good" style="align-self:flex-start">The system says</p>
+      <h3 style="font-size:27px">REVIEW<br>plus 3 photos</h3><p class="sm">Never &ldquo;do not bill&rdquo;. Only &ldquo;look at this&rdquo;.</p></div>
+  </div>
+  <div class="spacer"></div>
+  <p class="lead" style="font-size:25px">The output is a <b style="color:var(--amber)">conversation</b>, not a charge.</p>
+  <div class="foot"><span>Overview &mdash; scenario</span><span>05</span></div>
+  <aside><h4>The hypothetical scenario</h4>
+  <p>Imagine it is Tuesday evening. The booking system says pitch 3 was sold for an hour and the staff marked it used. The cameras sampled sixteen frames and thirteen of them show an empty pitch under floodlights.</p>
+  <p>The system does not cancel the charge. It raises one advisory with three evidence photos, and a manager decides. In the code this is structural, not a promise: the only output type the decision layer can produce is an Advisory, and there is no code path that acts on its own.</p></aside>
+</section>
+
+<!-- ===== 6 - DATASET ===== -->
+<section class="slide">
+  <div class="rail"></div>
+  <div class="hd"><p class="eyebrow">Dataset</p><h2>What we had to work with</h2></div>
+  <div class="row" style="gap:14px">
+    <div class="stat"><p class="num n-green" style="font-size:50px">1,692</p><p class="sm" style="margin-top:6px">labelled frames</p></div>
+    <div class="stat"><p class="num n-sky" style="font-size:50px">3</p><p class="sm" style="margin-top:6px">classes</p></div>
+    <div class="stat"><p class="num n-amber" style="font-size:50px">7</p><p class="sm" style="margin-top:6px">venue folds</p></div>
+    <div class="stat"><p class="num n-coral" style="font-size:50px">2</p><p class="sm" style="margin-top:6px">cameras on one pitch</p></div>
+  </div>
+  <div class="row" style="gap:14px;margin-top:16px">
+    <div class="card c-green"><h3>EMPTY</h3><p class="sm">Nobody on the pitch. The class the money depends on.</p></div>
+    <div class="card c-sky"><h3>ACTIVE PLAY</h3><p class="sm">A match in progress.</p></div>
+    <div class="card c-amber"><h3>MAINTENANCE</h3><p class="sm">A mower is not a match. This class stops it being billed as one.</p></div>
+  </div>
+  <div class="spacer"></div>
+  <p class="sm" style="font-size:19px">Frames are sampled every 15&nbsp;seconds from fixed cameras &mdash; so <b>98.5%</b> of them have a near-duplicate. Splits are grouped by venue, never random.</p>
+  <div class="foot"><span>Dataset</span><span>06</span></div>
+  <aside><h4>Dataset</h4>
+  <p>1,692 labelled frames, three classes, seven venue folds for cross-venue testing, and two cameras watching one pitch &mdash; that pair is what lets me measure onboarding cost later.</p>
+  <p>The last line matters more than it looks. Because the cameras are fixed and frames come every fifteen seconds, 98.5% of frames have a direct near-duplicate. A random split puts 37% of those near-duplicate pairs across the train/test line; a grouped split puts 0.8%. When I made the split honest, ConvNeXtV2 lost 0.49 macro-F1 &mdash; the score roughly halved. That is the cost of being honest, and I pay it in every number after this slide.</p></aside>
+</section>
+
+<!-- ===== 7 - THE CATCH ===== -->
+<section class="slide">
+  <div class="rail"></div>
+  <div class="hd"><p class="eyebrow">Dataset &mdash; the catch</p><h2>The data hides a shortcut</h2></div>
+  <div class="row" style="gap:16px">
+    <div class="card c-amber" style="align-items:flex-start"><p class="num n-amber" style="font-size:56px">98%</p>
+      <h3>Daylight means empty</h3><p class="sm">Almost every day frame is an empty pitch.</p></div>
+    <div class="card c-sky" style="align-items:flex-start"><p class="num n-sky" style="font-size:56px">99%</p>
+      <h3>Night means playing</h3><p class="sm">Almost every night frame is a match.</p></div>
+    <div class="card c-coral" style="align-items:flex-start"><p class="num n-coral" style="font-size:56px">99.1%</p>
+      <h3>So guessing by the clock is right</h3><p class="sm">On the whole recorded corpus. No pixels needed.</p></div>
+  </div>
+  <div class="spacer"></div>
+  <div class="row" style="gap:16px;align-items:center">
+    <p class="tag bad">The two missing cells</p>
+    <p style="font-size:22px"><b>9</b> frames of an empty pitch at night &nbsp;&middot;&nbsp; <b>6</b> frames of play in daylight</p>
+  </div>
+  <div class="foot"><span>Dataset &mdash; the confound</span><span>07</span></div>
+  <aside><h4>The confound &mdash; say this slowly</h4>
+  <p>Across the recorded frames, daylight is 98% empty pitches and night is 99% football. So the sentence &ldquo;night means play, day means not-play&rdquo; is correct on 99.1% of the corpus.</p>
+  <p>That means nothing measured on this data can separate <i>recognises an empty pitch</i> from <i>recognises the time of day</i>. The two cells that would break the tie hold nine frames and six frames. This is not a footnote &mdash; it is the finding, and the next slides are its consequences.</p></aside>
+</section>
+
+<!-- ===== 8 - THE PROBLEM ===== -->
+<section class="slide dark">
+  <div class="rail"></div>
+  <div class="hd"><p class="eyebrow">What problem does the research tackle?</p>
+    <h2>A facility sells hours.<br>Nobody checks which ones were used.</h2></div>
+  <div class="row" style="gap:14px">
+    <div class="card c-coral"><h3>No-shows</h3><p class="sm">Paid for, never played.</p></div>
+    <div class="card c-amber"><h3>Unbooked use</h3><p class="sm">Played, never paid for.</p></div>
+    <div class="card c-sky"><h3>Typing mistakes</h3><p class="sm">The record and the reality drift apart.</p></div>
+  </div>
+  <div class="spacer"></div>
+  <div class="row" style="gap:20px;align-items:center">
+    <div style="width:6px;height:70px;background:var(--green);border-radius:4px"></div>
+    <p class="lead" style="font-size:23px;max-width:1000px">A cheap motion sensor answers <i>&ldquo;did something move?&rdquo;</i><br>
+       The audit needs <b style="color:var(--green)">&ldquo;was this booking used &mdash; and here is the picture&rdquo;</b>.</p>
+  </div>
+  <div class="foot"><span>The problem</span><span>08</span></div>
+  <aside><h4>The problem, and the honest concession</h4>
+  <p>This research addresses the problem that a facility sells pitch hours and has no verified record of which ones were used. Staff write it down; the records are unverified; three kinds of error follow.</p>
+  <p>Concede the obvious objection first, before an examiner raises it: a twenty-euro motion sensor is more robust in fog, in darkness, and against a dirty lens. But a sensor answers <i>was something moving</i>. The audit needs <i>was this booking used, and here is the picture</i> &mdash; and it has to tell a five-a-side match from a groundsman on a mower.</p></aside>
+</section>
+
+<!-- ===== 9 - THE CLOCK RULE BEATS THE MODELS ===== -->
+<section class="slide">
+  <div class="rail"></div>
+  <div class="hd"><p class="eyebrow">The gap &mdash; and it is not the models</p>
+    <h2>A rule that never looks at the image wins</h2>
+    <p class="lead" style="font-size:22px;margin-top:8px">Tested on venues the models had never seen.</p></div>
+  <table>
+    <tr><th style="width:38%">Method</th><th style="width:31%">Finds the match</th><th style="width:31%">Wrongly says &ldquo;playing&rdquo;</th></tr>
+    <tr class="hi"><td>Clock rule &mdash; reads no pixels</td><td>1.000</td><td>0.021</td></tr>
+    <tr><td>DINOv2</td><td>0.930</td><td>0.309</td></tr>
+    <tr><td>ConvNeXtV2</td><td>0.911</td><td>0.992</td></tr>
+    <tr><td>ViT</td><td>0.869</td><td>0.835</td></tr>
+  </table>
+  <div class="spacer"></div>
+  <p class="sm" style="font-size:19px">Higher is better on the left. <b>Lower is better on the right.</b> The rule wins on both.</p>
+  <div class="foot"><span>The problem &mdash; evidence</span><span>09</span></div>
+  <aside><h4>The rule that never looks at the image</h4>
+  <p>The clock rule predicts the majority class for the lighting condition. It reads no pixels at all. Across unseen venues it has perfect play-recall and a false-play rate fifteen times lower than the best backbone. It beats all three on both axes at once.</p>
+  <p>Expect the question: &ldquo;so your backbones are worthless?&rdquo; The answer is no &mdash; they are indistinguishable from a light meter <i>on this dataset</i>, which is a statement about the dataset, not about the models. Until the two missing cells are filled, no experiment here can separate an occupancy model from a light meter. Saying that clearly is the contribution.</p>
+  <p>One honesty note, if asked: this slide used to say the opposite. An earlier version reported that the rule collapsed across venues. That number came from a label error &mdash; a brightness threshold filed 216 frames of floodlit night football as daylight. Corrected, the rule wins.</p></aside>
+</section>
+
+<!-- ===== 10 - ONE CLIP FLIPPED IT ===== -->
+<section class="slide coral">
+  <div class="rail"></div>
+  <div class="blob" style="right:-100px;top:-90px;width:380px;height:380px;background:rgba(255,255,255,.09)"></div>
+  <div class="hd"><p class="eyebrow">And then one clip flipped it</p>
+    <h2>234 seconds. Floodlights on.<br>Nobody playing.</h2></div>
+  <div class="row" style="gap:14px">
+    <div class="card"><h3>Clock rule</h3><p class="num" style="color:#FFD9E0;font-size:44px">16 / 16</p><p class="sm">minutes wrong. False alarm rate 1.00.</p></div>
+    <div class="card"><h3>Model alone</h3><p class="num" style="color:#FFD9E0;font-size:44px">0.38</p><p class="sm">false alarm rate.</p></div>
+    <div class="card"><h3>Full system</h3><p class="num" style="color:#FFFFFF;font-size:44px">0.00</p><p class="sm">13 of 13 empty minutes right.</p></div>
+  </div>
+  <div class="spacer"></div>
+  <p class="lead" style="font-size:24px;color:#FFFFFF">A 1,692-frame benchmark ranked the trivial rule first. <b>One clip reversed it.</b><br>
+     The difference is not size or statistics &mdash; it is one missing cell.</p>
+  <div class="foot"><span>The problem &mdash; the reversal</span><span>10</span></div>
+  <aside><h4>The clip that reversed the ranking</h4>
+  <p>This is the cell the corpus does not have: a floodlit pitch at night with nobody on it. Four minutes of it, scored minute by minute.</p>
+  <p>The clock rule calls all sixteen minutes active play &mdash; it is wrong on every single one. The probe alone sits at 0.38. The deployed path &mdash; probe plus pitch boundary plus motion gate plus person gate &mdash; is at zero, and gets all thirteen empty minutes right.</p>
+  <p>The point to land: the benchmark had 1,692 frames and the clip had a few hundred. The clip won, because it contained the case the benchmark was missing. More data of the same kind would not have found this.</p></aside>
+</section>
+
+<!-- ===== 11 - THE SEARCHES ===== -->
+<section class="slide dark">
+  <div class="rail"></div>
+  <div class="hd"><p class="eyebrow">The searches</p><h2>We tuned hard. Twice.</h2></div>
+  <div class="row" style="gap:18px">
+    <div class="card c-sky" style="padding:32px 30px">
+      <p class="num n-sky" style="font-size:62px">88</p>
+      <h3 style="font-size:28px">Preprocessing runs</h3>
+      <p class="sm">Crop, gamma, sharpen, CLAHE, denoise, colour &mdash; four greedy rounds, two backbones.</p></div>
+    <div class="card c-amber" style="padding:32px 30px">
+      <p class="num n-amber" style="font-size:62px">375</p>
+      <h3 style="font-size:28px">Prompt sets</h3>
+      <p class="sm">Zero-shot wording for the three classes, scored across all venue folds.</p></div>
+  </div>
+  <div class="spacer"></div>
+  <p class="lead" style="font-size:25px">Both searches found a winner.<br><b style="color:var(--amber)">Neither winner meant what it looked like.</b></p>
+  <div class="foot"><span>The searches</span><span>11</span></div>
+  <aside><h4>Introducing the searches</h4>
+  <p>These two experiments are here because they are the ones I would have reported as successes six months ago, and both turned out to be measuring something other than what they claimed.</p>
+  <p>The preprocessing search asks: which image preparation helps the backbone? The prompt search asks: with no labels at all, how well can we do just by writing good descriptions of the three classes? Take them one at a time.</p></aside>
+</section>
+
+<!-- ===== 12 - PREPROCESSING SEARCH ===== -->
+<section class="slide">
+  <div class="rail"></div>
+  <div class="hd"><p class="eyebrow">Search 1 &mdash; preprocessing</p><h2>The winner is inside the noise</h2></div>
+  <div class="row" style="gap:14px">
+    <div class="card c-green"><p class="tag good" style="align-self:flex-start">What it found</p>
+      <h3>A best recipe,<br>scoring 1.000</h3><p class="sm">Four greedy rounds, each adding the switch that helped most.</p></div>
+    <div class="card c-coral"><p class="tag bad" style="align-self:flex-start">What it cannot tell</p>
+      <p class="num n-coral" style="font-size:44px">0.0119</p><p class="sm"><b>One frame</b> in the smallest venue fold moves the headline by this much.</p></div>
+    <div class="card c-coral"><p class="tag bad" style="align-self:flex-start">How wide the error bars are</p>
+      <p class="num n-coral" style="font-size:44px">0.092</p><p class="sm">The confidence band &mdash; wider than almost every gap between configurations.</p></div>
+  </div>
+  <div class="spacer"></div>
+  <div class="row" style="gap:16px;align-items:center">
+    <p class="tag">Bonus</p>
+    <p style="font-size:21px">CLAHE &mdash; which the proposal predicted would <i>help</i> &mdash; cost DINOv2 <b>0.27</b> macro-F1.</p>
+  </div>
+  <div class="foot"><span>The searches &mdash; preprocessing</span><span>12</span></div>
+  <aside><h4>The preprocessing search</h4>
+  <p>Eighty-eight runs over crop, undistort, gamma, saturation, sharpening, denoise and CLAHE, greedily, four rounds. It produced a clear winner that scores a perfect 1.000 on the cross-venue folds.</p>
+  <p>Then I measured the resolution of the search itself, and that is the slide. One frame moving in the smallest venue fold shifts the headline by 0.0119. The bootstrap interval over the seven folds is 0.092 wide at the median configuration. Almost every difference the search ranked on is smaller than its own error bar. So the ranking is real arithmetic on unreal precision.</p>
+  <p>The bonus line is the useful one for the thesis story: the proposal explicitly predicted CLAHE would help with floodlight glare. Measured honestly, it costs 0.27 macro-F1. The plan was wrong and the measurement said so.</p></aside>
+</section>
+
+<!-- ===== 13 - PROMPT SEARCH ===== -->
+<section class="slide">
+  <div class="rail"></div>
+  <div class="hd"><p class="eyebrow">Search 2 &mdash; prompts, with zero labels</p><h2>Wording moves the score more than the model does</h2></div>
+  <div class="row" style="gap:14px;align-items:stretch">
+    <div class="stat" style="border-left:7px solid var(--coral)"><p class="sm">Worst wording</p><p class="num n-coral" style="font-size:46px;margin-top:6px">0.021</p></div>
+    <div class="arrow">&rarr;</div>
+    <div class="stat" style="border-left:7px solid var(--green)"><p class="sm">Best wording</p><p class="num n-green" style="font-size:46px;margin-top:6px">0.747</p></div>
+    <div class="stat" style="border-left:7px solid var(--sky)"><p class="sm">Gap from swapping<br>between the 3 trained models</p><p class="num n-sky" style="font-size:46px;margin-top:6px">0.082</p></div>
+  </div>
+  <div class="row" style="gap:14px;margin-top:18px">
+    <div class="card c-amber"><h3>Only 22.9%</h3><p class="sm">of the 375 prompt sets beat the best trained probe. The median one loses to it.</p></div>
+    <div class="card c-coral"><h3>The winner&rsquo;s lead: 0.447</h3><p class="sm">measured on the same folds it was picked from. Picked, not proven.</p></div>
+  </div>
+  <div class="spacer"></div>
+  <div class="foot"><span>The searches &mdash; prompts</span><span>13</span></div>
+  <aside><h4>The prompt search</h4>
+  <p>375 prompt sets, no labels used at all. The span from worst to best wording is 0.726 macro-F1. Choosing between the three trained backbones &mdash; the decision the whole model chapter is about &mdash; moves the score by 0.082. So how you write the sentence matters about nine times more than which model you pick.</p>
+  <p>Two guards on reading that as a win. First, only 22.9% of prompt sets beat the best trained probe, and the median one loses &mdash; so &ldquo;zero-shot works&rdquo; is only true if you already know which wording to use, which needs labels. Second, the winner&rsquo;s lead of 0.447 over a pre-declared prompt is measured on the very folds it was selected from. That is selection bias as a number, and it is disclosed in the pre-registration as an undeclared search family.</p></aside>
+</section>
+
+<!-- ===== 14 - AUGMENTATION ===== -->
+<section class="slide">
+  <div class="rail"></div>
+  <div class="hd"><p class="eyebrow">Augmentation</p><h2>The headline we had to take back</h2>
+    <p class="lead" style="font-size:22px;margin-top:8px">Brightness and gamma augmentation, so a model trained on one camera works on another.</p></div>
+  <div class="row" style="gap:28px;align-items:flex-end">
+    <div style="flex:0 0 470px">
+      <p class="tag">What we published</p>
+      <p class="num n-green" style="font-size:52px;margin-top:12px">0.000 &rarr; 0.687</p>
+      <p class="sm" style="margin-top:6px">empty-pitch recall on an unseen camera, with <b>no labels</b> from it.<br>macro-F1 <b>0.855</b>.</p>
+    </div>
+    <div class="grow">
+      <p class="tag bad">What five random draws actually gave</p>
+      <div style="display:flex;align-items:flex-end;gap:18px;height:190px;margin-top:16px;position:relative">
+        <div style="position:absolute;left:0;right:0;bottom:84px;border-top:2px dashed var(--ink3);opacity:.55"></div>
+        <div style="flex:1;text-align:center"><div style="height:162px;background:linear-gradient(180deg,var(--green),var(--green-d));border-radius:6px 6px 0 0"></div><p class="sm" style="margin-top:7px;font-weight:700">0.855</p></div>
+        <div style="flex:1;text-align:center"><div style="height:79px;background:var(--coral);border-radius:6px 6px 0 0"></div><p class="sm" style="margin-top:7px">0.414</p></div>
+        <div style="flex:1;text-align:center"><div style="height:67px;background:var(--coral);border-radius:6px 6px 0 0"></div><p class="sm" style="margin-top:7px">0.351</p></div>
+        <div style="flex:1;text-align:center"><div style="height:66px;background:var(--coral);border-radius:6px 6px 0 0"></div><p class="sm" style="margin-top:7px">0.350</p></div>
+        <div style="flex:1;text-align:center"><div style="height:66px;background:var(--coral);border-radius:6px 6px 0 0"></div><p class="sm" style="margin-top:7px">0.348</p></div>
+      </div>
+      <p class="sm" style="margin-top:10px">Dashed line = <b>0.441</b>, the score with <b>no augmentation at all</b>. Four of the five are below it.</p>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <p class="sm" style="font-size:19px">Same code, same data, same settings. Only the random draw changed. Standard deviation: <b>0.221</b>.</p>
+  <div class="foot"><span>Augmentation</span><span>14</span></div>
+  <aside><h4>Augmentation &mdash; the retraction</h4>
+  <p>The idea is sound and standard: if the new camera is brighter or darker than the training one, augment the training images across brightness and gamma so the model stops caring. On the draw I ran first, it worked beautifully &mdash; empty-pitch recall on a camera the model had never seen went from zero to 0.687, with no labels from that camera at all. That went into the write-up as a finding.</p>
+  <p>Then I ran the identical experiment four more times, changing nothing but the random seed. 0.414, 0.351, 0.350, 0.348. The published 0.855 is the maximum of five, not a typical value. Four of the five draws are worse than using no augmentation at all, and the standard deviation is 0.221 on a metric bounded between zero and one.</p>
+  <p>Be precise about what was retracted: the row in the results file is unchanged and still reproduces exactly. What was withdrawn is the claim about the <i>method</i>. It is now restated as a claim about that one draw, and it is only ever quoted next to the spread.</p></aside>
+</section>
+
+<!-- ===== 15 - THE LESSON ===== -->
+<section class="slide coral">
+  <div class="rail"></div>
+  <div class="blob" style="left:-120px;top:-100px;width:420px;height:420px;background:rgba(255,255,255,.08)"></div>
+  <div class="spacer"></div>
+  <p class="eyebrow">The lesson</p>
+  <h2 style="font-size:62px;margin:20px 0 28px;max-width:1030px">The number reproduced perfectly.<br>The result did not.</h2>
+  <div class="row" style="gap:14px">
+    <div class="card"><h3>0.348 is not a score</h3><p class="sm">It is the model answering &ldquo;playing&rdquo; to every single frame. A trivial predictor, wearing a number.</p></div>
+    <div class="card"><h3>A test that pins the value cannot catch this</h3><p class="sm">The row was reproducible. That is exactly why the check had to be a re-draw, not a re-run.</p></div>
+    <div class="card"><h3>So: five draws, always</h3><p class="sm">Every headline now runs five times. We ran it on our own best result first.</p></div>
+  </div>
+  <div class="spacer"></div>
+  <div class="foot"><span>Augmentation &mdash; the lesson</span><span>15</span></div>
+  <aside><h4>Why this slide exists</h4>
+  <p>Three things worth saying out loud here.</p>
+  <p>First, 0.3479 kept recurring across presets that share nothing else. When I added a column counting how many frames were predicted empty, the answer was zero every time. That score is not a measurement of augmentation &mdash; it is the macro-F1 of answering &ldquo;active play&rdquo; to everything.</p>
+  <p>Second, and this is the methodological point: a unit test that fixes the published value would have passed forever. The artefact was reproducible. Only re-drawing the randomness exposed it.</p>
+  <p>Third, this is now standing practice, and I applied it to my own strongest result &mdash; the temporal model &mdash; before anyone asked. Volunteering that is the point; an examiner trusts a candidate who ran the check on their own headline.</p></aside>
+</section>
+
+<!-- ===== 16 - THE SOLUTION ===== -->
+<section class="slide dark">
+  <div class="rail"></div>
+  <div class="hd"><p class="eyebrow">How the research provides a solution</p>
+    <h2>Three fixes. None of them is a bigger model.</h2></div>
+  <div class="row" style="gap:14px">
+    <div class="card c-green">
+      <h3>Put rules in the path</h3>
+      <div class="row" style="align-items:center;gap:10px;margin-top:6px">
+        <span class="num n-coral" style="font-size:32px">0.617</span><span class="arrow" style="font-size:22px">&rarr;</span><span class="num n-green" style="font-size:32px">0.012</span>
+      </div>
+      <p class="sm">False &ldquo;playing&rdquo; alarms, once pitch boundary, motion and person checks gate the model.</p></div>
+    <div class="card c-sky">
+      <h3>Generate the missing cell</h3>
+      <div class="row" style="align-items:center;gap:10px;margin-top:6px">
+        <span class="num n-coral" style="font-size:32px">0.768</span><span class="arrow" style="font-size:22px">&rarr;</span><span class="num n-sky" style="font-size:32px">0.024</span>
+      </div>
+      <p class="sm">31 generated empty-pitch frames &mdash; and play-recall went up, not down.</p></div>
+    <div class="card c-amber">
+      <h3>Label a few frames</h3>
+      <div class="row" style="align-items:center;gap:10px;margin-top:6px">
+        <span class="num n-coral" style="font-size:32px">0.44</span><span class="arrow" style="font-size:22px">&rarr;</span><span class="num n-amber" style="font-size:32px">0.99</span>
+      </div>
+      <p class="sm"><b>One</b> frame from a new camera. And <b>five</b> from it beat those five plus 775 from the old one.</p></div>
+  </div>
+  <div class="spacer"></div>
+  <p class="lead" style="font-size:23px">What buys the accuracy is <b style="color:var(--green)">any labels from the new camera</b> &mdash; not a big corpus from an old one.</p>
+  <div class="foot"><span>The answer</span><span>16</span></div>
+  <aside><h4>How the research provides a solution</h4>
+  <p>Three interventions, each measured, and the common thread is that none of them is a bigger network.</p>
+  <p>One: putting cheap geometric and motion rules in front of the model. False alarms on empty pitches drop from 0.617 to 0.012. Counting every kind of wrong verdict, not just play-shaped ones, error falls from 1.00 to 0.11.</p>
+  <p>Two: generating the cell the data does not have. Thirty-one synthetic empty-pitch frames take cross-venue false alarms from 0.768 to 0.024 while raising play-recall.</p>
+  <p>Three: the deployment answer. A model trained on one camera scores 0.36 to 0.51 on the second camera watching the same pitch. One labelled frame from the new camera takes every backbone to about 0.98. And the control that matters: from five frames, training on those five alone matches training on those five plus 775 from the source camera. State the weaker, true version &mdash; what buys the accuracy is having any labels from the new camera.</p></aside>
+</section>
+
+<!-- ===== 17 - LIMITS ===== -->
+<section class="slide">
+  <div class="rail"></div>
+  <div class="hd"><p class="eyebrow">Limits</p><h2>What this study cannot claim</h2>
+    <p class="lead" style="font-size:22px;margin-top:8px">Named first, because an examiner will find them anyway.</p></div>
+  <div class="row" style="gap:14px">
+    <div class="card c-coral"><p class="num n-coral">01</p><h3>Empty pitches exist at one venue only</h3><p class="sm">So a cross-venue three-class test is impossible here.</p></div>
+    <div class="card c-coral"><p class="num n-coral">02</p><h3>243 empty frames are 3 scenes</h3><p class="sm">The real sample is scenes, not frames. Recounted that way, several results stop being significant.</p></div>
+    <div class="card c-coral"><p class="num n-coral">03</p><h3>Nothing has run on the target hardware</h3><p class="sm">Every speed number comes from a laptop.</p></div>
+  </div>
+  <div class="spacer"></div>
+  <div class="row" style="gap:16px;align-items:center">
+    <p class="tag good">What would fix it</p>
+    <p style="font-size:21px">Empty-pitch footage at a <b>second venue</b> &nbsp;&middot;&nbsp; <b>30 real booked slots</b> &nbsp;&middot;&nbsp; <b>5 labelled frames</b> per camera</p>
+  </div>
+  <div class="foot"><span>Limits</span><span>17</span></div>
+  <aside><h4>Limits, and what would change them</h4>
+  <p>Three limits, stated before anyone has to ask.</p>
+  <p>On the sample size point, be concrete: 243 held-out empty frames sound like a lot, but they are three distinct scenes. Six comparisons that were significant to p equals 8 times ten to the minus 53 did not survive being recounted that way. I also report, beside every p-value, the smallest p the design could have produced &mdash; over seven folds that is 0.0156. &ldquo;Not significant&rdquo; and &ldquo;the design could not have produced significance&rdquo; are different statements.</p>
+  <p>Close on the fix, not the apology: these are a data-access problem with a known and inexpensive solution, not a methodological one. Empty-pitch footage at a second venue fixes the confound, the external-validity limit and the scope reduction at once &mdash; and it is one conversation with the facility.</p></aside>
+</section>
+
+<!-- ===== 18 - SUMMARY ===== -->
+<section class="slide sky">
+  <div class="rail"></div>
+  <div class="blob" style="right:-110px;bottom:-120px;width:440px;height:440px;background:rgba(255,255,255,.09)"></div>
+  <div class="hd"><p class="eyebrow">Summary</p><h2>Four sentences</h2></div>
+  <ul style="gap:18px;max-width:1030px">
+    <li class="s"><b>Built.</b> Sample one frame a minute, classify it, check it, turn an hour into a verdict, compare it to the booking &mdash; on a CPU.</li>
+    <li class="s"><b>Found.</b> On this data a clock beats a neural network. That is a fact about the dataset, not about the networks.</li>
+    <li class="s"><b>Fixed.</b> Rules in the path, generated empty frames, and five labelled frames per new camera &mdash; all measured, all cheap.</li>
+    <li class="s"><b>Learned.</b> A result that reproduces is not a result that repeats. Every headline now runs five draws, including our own.</li>
+  </ul>
+  <div class="spacer"></div>
+  <p class="lead" style="font-size:24px;color:#FFFFFF">No protocol compensates for a cell the data never fills.</p>
+  <div class="foot"><span>Summary</span><span>18</span></div>
+  <aside><h4>Summary</h4>
+  <p>In summary, this study investigated whether existing cameras can verify which booked pitch hours were actually used, on hardware a facility already owns.</p>
+  <p>The findings indicate that the system works end to end, and that the evaluation is the contribution: on this corpus, lighting and occupancy are confounded so tightly that a rule reading only the clock outperforms three modern backbones &mdash; and one short clip containing the missing case reverses that ranking completely.</p>
+  <p>These findings contribute a set of evaluation practices &mdash; trivial baselines in every protocol, grouped splits, re-drawing randomness rather than re-running it, and verifying each guard by deliberately breaking what it guards &mdash; and give the facility a concrete, inexpensive recipe for onboarding a new camera.</p>
+  <p>Last sentence, delivered slowly: no protocol compensates for a cell the data never fills.</p></aside>
+</section>
+
+<!-- ===== 19 - THANK YOU ===== -->
+<section class="slide dark">
+  <div class="rail"></div>
+  <div class="blob" style="left:-90px;top:-80px;width:340px;height:340px;background:var(--green);opacity:.13"></div>
+  <div class="blob" style="right:-60px;bottom:-90px;width:300px;height:300px;background:var(--coral);opacity:.13"></div>
+  <div class="spacer"></div>
+  <p class="eyebrow">Thank you</p>
+  <h1 style="font-size:70px;margin:18px 0 22px;max-width:900px">Questions, comments<br>and suggestions welcome.</h1>
+  <p class="lead" style="font-size:24px;max-width:820px">Thank you for your time and attention.</p>
+  <div class="spacer"></div>
+  <div class="row" style="gap:10px;flex-wrap:wrap">
+    <span class="chip">Would a colour histogram have done this?</span>
+    <span class="chip">Is the novelty just smoothing?</span>
+    <span class="chip">How many comparisons before p &lt; 0.05?</span>
+    <span class="chip">Is auditing staff by camera ethical?</span>
+    <span class="chip">Can anyone reproduce this?</span>
+    <span class="chip">What is the human ceiling?</span>
+  </div>
+  <div class="foot"><span>Thank you</span><span>19</span></div>
+  <aside><h4>Closing, and the reserve questions</h4>
+  <p>Thank you for your time and attention. I welcome any questions, comments, suggestions or feedback you may have.</p>
+  <p>The chips are the six questions most likely to come. Short answers: the colour histogram scores 0.9616 on the leaky split and is indistinguishable from ConvNeXtV2 on the 62 distinct scenes. The novelty is tested against four tuned baselines including an HMM, with a saturation caveat enforced in code. Multiple comparisons are Holm-corrected within declared families, with the undeclared ones disclosed as amendments. Ethics: per-field reporting only, and the decision layer can structurally only advise. Reproduction: one pipeline re-derives every claim from its artefact on every run. And the human ceiling &mdash; say plainly that no inter-annotator figure exists. It is a real gap. Practise saying &ldquo;we do not know&rdquo; without flinching.</p></aside>
+</section>
+
+</div></div>
+<div id="bar"></div>
+<div id="help">&larr; &rarr; move &middot; N notes &middot; F full screen &middot; Ctrl+P export PDF</div>
+<div id="notes"><h4>Speaker notes</h4><div id="notes-body"></div></div>
+
+<script>
+(function () {
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var stage = document.getElementById('stage');
+  var notes = document.getElementById('notes');
+  var notesBody = document.getElementById('notes-body');
+  var bar = document.getElementById('bar');
+  var i = 0;
+
+  function fit() {
+    var pad = notes.classList.contains('on') ? window.innerHeight * 0.42 : 0;
+    var s = Math.min(window.innerWidth / 1280, (window.innerHeight - pad) / 720);
+    stage.style.transform = 'scale(' + s + ')';
+    document.getElementById('deck').style.alignItems = pad ? 'start' : 'center';
+    document.getElementById('deck').style.paddingTop = pad ? '16px' : '0';
+  }
+
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach(function (s, k) { s.classList.toggle('on', k === i); });
+    var a = slides[i].querySelector('aside');
+    notesBody.innerHTML = a ? a.innerHTML : '<p>No notes for this slide.</p>';
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    try { location.hash = String(i + 1); } catch (e) {}
+  }
+
+  document.addEventListener('keydown', function (e) {
+    var k = e.key;
+    if (k === 'ArrowRight' || k === 'PageDown' || k === ' ' || k === 'Enter') { show(i + 1); e.preventDefault(); }
+    else if (k === 'ArrowLeft' || k === 'PageUp' || k === 'Backspace') { show(i - 1); e.preventDefault(); }
+    else if (k === 'Home') { show(0); }
+    else if (k === 'End') { show(slides.length - 1); }
+    else if (k === 'n' || k === 'N') { notes.classList.toggle('on'); fit(); }
+    else if (k === 'f' || k === 'F') {
+      if (document.fullscreenElement) { document.exitFullscreen(); }
+      else if (document.documentElement.requestFullscreen) { document.documentElement.requestFullscreen(); }
+    }
+  });
+
+  stage.addEventListener('click', function (e) {
+    show(e.clientX < window.innerWidth / 2 ? i - 1 : i + 1);
+  });
+
+  window.addEventListener('resize', fit);
+  var start = parseInt((location.hash || '').replace('#', ''), 10);
+  fit();
+  show(isNaN(start) ? 0 : start - 1);
+})();
+</script>
+</body>
+</html>
