@@ -53,8 +53,8 @@ negative, most found by checking whether a guard actually guarded — and the mo
 sentence in the thesis is that no protocol compensates for a cell the data never fills.
 
 <!-- status:start -->
-**82 source modules · 72 experiment scripts · 83 test files
-· 90 committed result files.** Counts come from git, so this line cannot drift from
+**83 source modules · 75 experiment scripts · 84 test files
+· 93 committed result files.** Counts come from git, so this line cannot drift from
 the repository; the assessment above it is written by hand. What each module and experiment
 does is in [docs/CODEBASE.md](docs/CODEBASE.md); what each run found is in
 [results/EXPERIMENT_LOG.md](results/EXPERIMENT_LOG.md).
@@ -240,37 +240,67 @@ uv run pitch info       # show resolved config and check the expected paths exis
 uv run pytest           # run the test suite
 ```
 
-### Coming from `main` to the detector-first branch
+### Pulling the 2026-09-21 changes
 
-The rebuild (A36, WP9) lives on `rebuild/detector-first-occupancy`. **Nothing here is
-trained**, which is the shortest way to say what changed: the deployed path counts people
-with an off-the-shelf detector and decides with a written rule, so there is no fitting step
-to run and no checkpoint to restore.
+The detector-first rebuild (A36/A40, WP9–WP10) is **merged into `main`**. If you have a clone
+from before 2026-09-21, three things changed underneath you and one of them needs a command.
+
+**There is nothing to train, and that is the point.** The deployed path counts people with an
+off-the-shelf detector and decides with a written rule, so there is no fitting step and no
+checkpoint to restore. The DINOv2 comparator has no saved model either — its logistic head is
+refitted from the cached features on every load, so "retraining" it means rebuilding the
+cache, nothing more.
 
 ```bash
-git fetch origin
-git switch rebuild/detector-first-occupancy
-uv sync                    # ultralytics arrives here; the lockfile is committed
-uv run pitch fetch-weights # ~80 MB of YOLO weights - the one download
-uv run pitch info          # every path should read [ok]
+git pull origin main
+uv sync                                              # ultralytics; the lockfile is committed
+uv run pitch fetch-weights                           # ~80 MB of YOLO weights, the one download
+uv run python scripts/collapse_label_folders.py      # DRY RUN - see the next section
+uv run pitch info                                    # every path should read [ok]
 uv run pytest -m "not slow"
 ```
+
+#### If you already have a `data/` directory, migrate it
+
+The labelling folders collapsed from four to three: `3_people_not_playing` and `4_maintenance`
+are now one folder, `3_maintenance_non_sporting`. A clone's `data/` is gitignored, so **git
+will not do this for you** and nothing will fail loudly — the manifest will simply report
+"unexpected class folder" and skip those frames.
+
+```bash
+uv run python scripts/collapse_label_folders.py          # reports what it would move
+uv run python scripts/collapse_label_folders.py --apply  # moves frames AND every sidecar
+uv run pitch manifest                                    # rebuild manifest.csv
+uv run python scripts/assign_scene_ids.py                # rebuild the scene sidecar
+uv run pitch cache dinov2                                # ~10 min; only for the probe arm
+```
+
+The collapse script also rewrites `labels.csv`, `scene_ids.csv`, `results/hand_counts.csv` and
+the `.npz` feature caches, which key their rows by filename and would otherwise drop 175
+frames silently. It is idempotent — running it twice is safe and the second run reports
+nothing to do. Nothing under `results/` that records a *measurement* is touched; those say
+what was true when they were written.
+
+Fresh clone with no `data/` yet? Skip the collapse; restore `data/` from the backup
+(`docs/backup.md`) and it already has the three folders.
 
 Three things a clone does not carry, in the order they bite:
 
 | what | why it is missing | how to get it |
 |---|---|---|
 | **detector weights** (`*.pt`, ~80 MB) | gitignored; third-party binaries | `uv run pitch fetch-weights` |
-| **`data/`** (~4.2 GB) | gitignored in full — it is footage of identifiable people | restore from the S3 or Google Drive copy (`docs/backup.md`) |
+| **`data/`** (~4.2 GB) | gitignored in full — footage of identifiable people | restore from the backup (`docs/backup.md`) |
 | **`data/cache/*.npz`** | regenerable, so not worth storing | `uv run pitch cache dinov2` (~10 min) |
 
-The feature cache is needed **only for the probe comparator**, not for the detector-first
+The feature cache is needed **only for the DINOv2 comparator**, not for the detector-first
 path. To see the rebuild work, skip it.
 
-What a clone *does* carry, and should: `configs/rules.json` (the decision rule's numbers),
-`configs/roi.json` and `roi_derived.json` (the pitch boundaries) and `results/hand_counts.csv`
-(a person's count of 100 frames). A boundary and a rule are part of what a deployment *is*,
-and a truth file a clone loses is a model selection nobody can re-derive.
+What a clone *does* carry, and should: `configs/rules.json` (the decision rule's numbers and
+switches), `configs/roi.json` and `roi_derived.json` (the pitch boundaries),
+`configs/davinci_venues.csv` (which clip came from which venue, with the evidence) and
+`results/hand_counts.csv` (a person's count of 100 frames). A boundary and a rule are part of
+what a deployment *is*, and a truth file a clone loses is a model selection nobody can
+re-derive.
 
 Run it on a clip — this needs the weights and nothing else:
 
