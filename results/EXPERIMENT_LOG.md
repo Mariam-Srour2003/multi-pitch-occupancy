@@ -7546,3 +7546,56 @@ for the detector-first path. And the fit uses **every** development row: neither
 fully present in the deployed probe.
 
 - 2026-09-21 | seven frames had reached a locked final-test venue | uv run python scripts/ingest_davinci.py | configs/davinci_venues.csv | playing day.mp4 is clipvenue_b_floodlit_track, a locked venue; 7 frames were extracted after the clip had been inspected in detail to establish that, taking the locked set 114 -> 121; removed, and ingest_davinci now refuses locked venues with a printed LOCKED line plus a test on the real manifest; no measurement changes since development_rows never included them
+
+- 2026-09-21 | what training on four videos costs | uv run python experiments/video_concentration_cost.py | video_concentration_cost.csv | everything (deployed) n=1599 recall 0.9556 false-play 0.3086 EMPTY 0.0000; distinct scenes n=180 recall 0.9534 false-play 0.0000 EMPTY 0.0206; capped 12/video n=351 recall 0.9966 false-play 0.0123 EMPTY 0.0041; capped 20/video n=383 recall 0.9831 false-play 0.0082 EMPTY 0.0041; capped 40/video n=463 recall 0.9886 false-play 0.0165 EMPTY 0.0000; identical held-out sides, only the training rows differ; EMPTY accuracy stays ~0 in every arm, so capping stops the probe saying PLAY without teaching it to say EMPTY
+
+### 2026-09-21 — what training on four videos costs: false-play 0.309 -> 0.012, recall UP
+
+Asked whether the models had been retrained on the new data, the literal answer is that the
+probe has no saved artefact at all - `load_classifier` refits a `LinearProbe` from the feature
+cache on every load, so it is retrained on every call and currently on **1,599 development
+rows including 21 DaVinci frames**. The detector is never trained: frozen COCO weights, which
+is the whole argument for the detector-first path.
+
+The more useful answer is what it is being retrained *on*. The deployed fit uses **every**
+development row, and four source videos are 75% of them. `experiments/video_concentration_cost.py`
+measures what that costs, with identical held-out sides - leave-one-venue-out for recall,
+venue_01 camera B for the control - and only the training rows differing:
+
+| training rows are | n fit | recall | worst venue | false-play | EMPTY acc | balanced |
+|---|---|---|---|---|---|---|
+| everything (deployed) | 1,599 | 0.9556 | 0.806 | **0.3086** | 0.0000 | 0.6470 |
+| distinct scenes | 180 | 0.9534 | 0.710 | 0.0000 | 0.0206 | 0.9534 |
+| **capped 12/video** | 351 | **0.9966** | **0.976** | 0.0123 | 0.0041 | **0.9843** |
+| capped 20/video | 383 | 0.9831 | 0.923 | 0.0082 | 0.0041 | 0.9748 |
+| capped 40/video | 463 | 0.9886 | 0.952 | 0.0165 | 0.0000 | 0.9721 |
+
+**Capping is not a trade here, which is the surprise.** Every earlier pruning result in this
+log bought false-play with recall: A30's distinct-scenes arm took false-play 0.31 -> 0.00
+against 0.10 of macro-F1, and the row above reproduces that shape - 0.9534 recall, worst venue
+0.710. The cap does not. At twelve frames per video the probe fits on **351 rows instead of
+1,599** and is better on both axes at once: recall 0.9556 -> 0.9966, worst venue 0.806 ->
+0.976, false-play 0.3086 -> 0.0123. 1,248 training rows were not merely redundant, they were
+**costing** something.
+
+The mechanism is the obvious one. Four recordings carry three quarters of the corpus and two
+of them are an empty pitch in daylight; a fit weighted that way learns those afternoons, and
+`ClockRule` already showed that reading the time of day scores 0.984 here. Bounding each
+video's vote is what stops the fit from being able to.
+
+**Read the EMPTY column before celebrating.** It is ~0.00 in every arm. Capping does not teach
+the probe to say EMPTY at a camera it has not seen - it stops it saying PLAY, and it does that
+by saying C3 instead. That is A20's finding exactly, unmoved: the complement of a false-play
+rate is not correctness. The probe remains a model that cannot answer the question the
+facility is actually asking, and the detector-first path remains the one that can (0.9259
+EMPTY accuracy on the same control).
+
+**The ordering among the caps is within noise** at these sample sizes; 12 beating 20 and 40 is
+not evidence that twelve is right. What is outside noise is that all three beat the deployed
+fit on recall and false-play simultaneously.
+
+Nothing is switched over on this entry. `load_classifier` still fits on everything, and
+changing it moves every probe number in the thesis - that is WP10-T9 and it is a decision with
+a measurement under it now rather than a guess.
+
+- 2026-09-21 | what training on four videos costs | uv run python experiments/video_concentration_cost.py | video_concentration_cost.csv | capping training rows at 12 per source video takes cross-venue false-play 0.3086 -> 0.0123 while RAISING play recall 0.9556 -> 0.9966 and worst venue 0.806 -> 0.976, fitting on 351 rows instead of 1599 - unlike every earlier pruning result this is not a trade; EMPTY accuracy stays ~0 in every arm, so it stops the probe saying PLAY without teaching it EMPTY (A20 unmoved); nothing switched over

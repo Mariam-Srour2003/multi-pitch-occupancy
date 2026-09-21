@@ -78,6 +78,12 @@ OUT_OF_SCOPE = {
         "EMPTY 0.892 -> 0.785). 164 paired moments at one venue, and the pairing is thin "
         "until the recordings are re-extracted on a shared timebase - arrives with WP9-T6b."
     ),
+    "video_concentration_cost.csv": (
+        "What training on four videos costs: the probe refitted on everything, on distinct "
+        "scenes, and under three per-video caps, with identical held-out sides. Capping "
+        "takes false-play 0.309 -> 0.012 while RAISING recall 0.956 -> 0.997. EMPTY accuracy "
+        "stays ~0 in every arm, so it stops the probe saying PLAY without teaching it EMPTY."
+    ),
     "dataset_redundancy.csv": (
         "How much of the dataset is a second copy of something already in it: frames "
         "against distinct scenes, per class, venue, source and camera. 1,720 recorded "
