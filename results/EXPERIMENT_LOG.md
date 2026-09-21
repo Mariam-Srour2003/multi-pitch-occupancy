@@ -7503,3 +7503,46 @@ daylight frames in the ingest. Three claims went stale and were restated: cross-
 EMPTY accuracy, and the probe's worst venue. 47 verified, 0 failing.
 
 - 2026-09-21 | rule_frame_eval on corrected boundaries | uv run python experiments/rule_frame_eval.py | rule_frame_eval.csv | venue_01 one-camera play recall 0.2751 -> 0.8346 on the counting rule and EMPTY accuracy 0.8889 -> 0.9259, both from replacing four derived boundaries with two hand-drawn ones; require_ball moved only 0.3110 -> 0.3078 so its cost is not a boundary artefact, but the frames it discards went 200 -> 501 of 1089; MIN_VENUE_PLAY added after a one-frame venue took the clock rule from 1.000 to 0.861 by being worth an eighth of a mean-over-venues
+
+### 2026-09-21 — seven frames reached a locked venue, and the guard that now refuses them
+
+Asked whether the model had been retrained and how the data is split, checking rather than
+recalling turned up a mistake in the 2026-09-21 ingest.
+
+`configs/davinci_venues.csv` assigns `playing day.mp4` to `clipvenue_b_floodlit_track` -
+correctly; the terracotta running-track border curves identically and it is plainly the same
+camera. **`clipvenue_b_floodlit_track` is one of the two locked final-test venues.** Seven
+frames were extracted into the labelled set, taking the locked set from **114 to 121**.
+
+Nothing failed, and that is the part worth dwelling on. `development_rows` drops locked venues,
+so the frames never reached a fit; `load_classifier` has a belt-and-braces check for locked
+venues in the training rows and it passed, because the frames were correctly excluded from
+training. Every guard in the project is about **contaminating the training set**, and this was
+the opposite direction: contaminating the *test* set.
+
+And contaminated is the right word. Those frames were extracted **after** the clip had been
+rendered, gridded, and compared frame by frame against `clipvenue_b` in order to decide that
+it came from there. The lock exists so the final number is computed on footage nobody has
+looked at. `development_rows` keeping it out of training does not un-look at it.
+
+The seven frames are removed from `data/processed/` and from the clip sidecar; the source
+video stays in `data/raw/davinci_2026-09-21/`, where raw footage belongs. `ingest_davinci.py`
+now reads `load_final_venues()` and refuses to extract into one, printing `LOCKED` beside the
+clip so the refusal is visible rather than silent. `tests/test_splits.py` asserts on the real
+manifest that no `dv`-prefixed frame sits in a locked venue.
+
+**No measurement changes.** Development rows are 1,599 before and after, because those seven
+were never among them; the corrected `rule_frame_eval` table stands. The labelled set goes
+1,909 -> 1,902 and the ingest yields 21 frames rather than 28. What is lost is real and small:
+those were daylight play frames at a venue the corpus only has at night, which is exactly why
+they were worth having - the ACTIVE_PLAY x daylight cell of the confound matrix goes 21 -> 14.
+
+**For the record, since the question was asked plainly.** The probe is refit from the feature
+cache on every load - `load_classifier` fits a fresh `LinearProbe` on all 1,599 development
+rows - so the DaVinci frames are in the deployed fit, the cache having been regenerated over
+all 1,902. The detector is never trained: frozen COCO weights, which is the entire argument
+for the detector-first path. And the fit uses **every** development row: neither
+`distinct_rows` nor `balanced_rows` is applied, so the 75% concentration measured earlier is
+fully present in the deployed probe.
+
+- 2026-09-21 | seven frames had reached a locked final-test venue | uv run python scripts/ingest_davinci.py | configs/davinci_venues.csv | playing day.mp4 is clipvenue_b_floodlit_track, a locked venue; 7 frames were extracted after the clip had been inspected in detail to establish that, taking the locked set 114 -> 121; removed, and ingest_davinci now refuses locked venues with a printed LOCKED line plus a test on the real manifest; no measurement changes since development_rows never included them

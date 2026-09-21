@@ -732,3 +732,35 @@ def test_the_cap_refuses_a_nonsense_budget_and_a_missing_sidecar(tmp_path):
         balanced_rows(rows, per_video=0, path=scenes)
     with _pytest.raises(FileNotFoundError):
         balanced_rows(rows, per_video=5, path=tmp_path / "absent.csv")
+
+
+def test_no_ingested_frame_ever_lands_in_a_locked_venue() -> None:
+    """The locked venues are opened once, at the end, on footage nobody has looked at.
+
+    Seven frames of `playing day.mp4` went into the labelled set on 2026-09-21 - *after* the
+    clip had been rendered, gridded and compared frame by frame against
+    `clipvenue_b_floodlit_track` to establish that it came from there. The locked set went
+    114 -> 121. `development_rows` kept them out of training, which is why nothing failed;
+    what it cannot do is un-look at them. A test set you have inspected is not a test set.
+
+    This asserts on the real dataset because that is where the mistake happened. Frames still
+    reach locked venues legitimately - the 114 were put there deliberately - so the rule is
+    narrower than "nothing new in a locked venue": nothing *this project extracted from a
+    clip it was choosing venues for*. The `dv` prefix is that provenance.
+    """
+    from pitch_occupancy.config import settings
+    from pitch_occupancy.data.manifest import read_manifest
+    from pitch_occupancy.data.splits import load_final_venues
+
+    manifest = settings.dataset_dir / "manifest.csv"
+    if not manifest.exists():
+        pytest.skip("manifest not present")
+    locked = load_final_venues()
+    assert locked, "there are supposed to be locked venues"
+    intruders = [r.file for r in read_manifest(manifest)
+                 if r.venue in locked and r.camera.startswith("dv")]
+    assert not intruders, (
+        f"{len(intruders)} DaVinci frame(s) reached a locked final-test venue: "
+        f"{intruders[:3]}. scripts/ingest_davinci.py refuses these; if they are on disk, "
+        f"they predate the guard and must be removed rather than left."
+    )

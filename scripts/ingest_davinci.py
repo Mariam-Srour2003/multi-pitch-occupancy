@@ -37,6 +37,7 @@ from pathlib import Path
 import cv2
 
 from pitch_occupancy.data.dedup import dhash, hamming
+from pitch_occupancy.data.splits import load_final_venues
 from pitch_occupancy.data.taxonomy import Class3, Label
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,6 +46,10 @@ RAW = ROOT / "data" / "raw" / "davinci_2026-09-21"
 CONFIG = ROOT / "configs" / "davinci_venues.csv"
 SOURCES = (Path(r"C:\Users\maria\Downloads\davinci\davinci"),
            Path(r"C:\Users\maria\Downloads\Davinci new\Davinci new"))
+
+#: Venues held back for the final evaluation, read from the same place every
+#: split reads it. Frames are never extracted into them.
+LOCKED: frozenset[str] = frozenset()
 
 FOLDER = {Class3.EMPTY: Label.EMPTY, Class3.ACTIVE_PLAY: Label.PLAYING,
           Class3.MAINTENANCE_NON_SPORTING: Label.MAINTENANCE_NON_SPORTING}
@@ -108,6 +113,8 @@ def main() -> int:
     args = ap.parse_args()
 
     rows = read_config()
+    global LOCKED
+    LOCKED = load_final_venues()
     sidecar_rows: list[dict] = []
     per_class: Counter = Counter()
     missing = []
@@ -119,6 +126,17 @@ def main() -> int:
             continue
         cls = Class3(row["class3"])
         folder = FOLDER[cls]
+        if row["venue"] in LOCKED:
+            # The locked venues are opened once, at the end, on footage nobody has looked
+            # at. `playing day.mp4` is clipvenue_b_floodlit_track, and seven of its frames
+            # went into the labelled set on 2026-09-21 before this guard existed - after I
+            # had rendered the clip, gridded it and compared it frame by frame against that
+            # venue to decide it *was* that venue. Inspected footage cannot be a held-out
+            # test set, and `development_rows` dropping it from training does not undo that.
+            # The source video stays in data/raw/; nothing is extracted from it.
+            print(f"{row['clip'][:29]:<30}{row['venue']:<28}{cls.value[:2]:<6}"
+                  f"{'LOCKED':<6}{'-':>5}  a final-test venue, not extracted")
+            continue
         if args.apply:
             RAW.mkdir(parents=True, exist_ok=True)
             if not (RAW / src.name).exists():

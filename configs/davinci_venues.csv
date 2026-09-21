@@ -20,7 +20,7 @@ not playing night.mp4,clipvenue_g_netting,C3_MAINTENANCE_NON_SPORTING,dev,"same 
 notplaying day.mp4,venue_01,C3_MAINTENANCE_NON_SPORTING,dev,"same camera as the venue_01 night slot: same blue boards and white signage panels, same pitch"
 playing day 2.mp4,clipvenue_f_outdoor_bldg,C2_ACTIVE_PLAY,dev,"same camera: identical beige building, floodlight pole and fence, same XbotGo watermark. Daylight where the corpus has night - a genuinely new lighting condition at a known venue"
 playing day 3.mp4,clipvenue_g_netting,C2_ACTIVE_PLAY,dev,"same camera as not playing night.mp4 and as the corpus clip: netting, '4' sign, hillside"
-playing day.mp4,clipvenue_b_floodlit_track,C2_ACTIVE_PLAY,dev,"same camera: the terracotta running-track border curves identically, same centre circle and diagonal. Daylight where the corpus has night"
+playing day.mp4,clipvenue_b_floodlit_track,C2_ACTIVE_PLAY,locked,"same camera: the terracotta running-track border curves identically, same centre circle and diagonal. Daylight where the corpus has night -- NOT EXTRACTED: clipvenue_b is a locked final-test venue, and this clip was inspected in detail while deciding that. Inspected footage cannot be held-out test data."
 "main, not playing day.mp4",venue_01,C3_MAINTENANCE_NON_SPORTING,dev,"venue_01 blue boards and white signage, same camera family as the night slot"
 not playing sitting.mp4,venue_01,C3_MAINTENANCE_NON_SPORTING,dev,"venue_01; median-frame hash 2 from not playing with ball, 7 from playing day 4"
 not playing with ball .mp4,venue_01,C3_MAINTENANCE_NON_SPORTING,test,"venue_01; the held-out C3 clip - people on the pitch with a ball and no game, the case the head-count rule exists for"
