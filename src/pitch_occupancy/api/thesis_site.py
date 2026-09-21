@@ -1,10 +1,10 @@
 """The thesis frontend, served at `/` (WP8).
 
-**The site is the talk.** Every tab is one section of the oral defence, holding the same
-slides as `thesis/presentation/Thesis_Defence_25min.pptx`, and you page through them with
-the arrows or the left/right keys. The words on a slide are the point; the words that are
-*spoken* live in the speaker notes (the `Notes` button, or `N`) and in
-`thesis/presentation/SPEAKER_SCRIPT.md`.
+**The site is the talk.** Its nine tabs are the nine numbered sections of the
+oral-presentation template, in the order they are delivered, and each one is an ordinary
+scrollable page rather than a deck: a coloured hero, then blocks of cards, counts, a table
+or a figure. The page carries the claim; what is *spoken* is in the collapsed "What to say"
+block at the foot of each tab, and in full in `thesis/presentation/SPEAKER_SCRIPT.md`.
 
 It used to be eleven tabs of rendered Markdown - the pre-registration, the RQ matrix, the
 codebase map, the experiment log. Those documents are the thesis and they are still in the
@@ -29,9 +29,8 @@ from pitch_occupancy.api.findings_summary import render_summary as render_findin
 from pitch_occupancy.api.models_view import STYLES as MODEL_STYLES
 from pitch_occupancy.api.models_view import render as render_models
 from pitch_occupancy.api.search_panel import PANEL_HTML, PANEL_SCRIPT, PANEL_STYLES
-from pitch_occupancy.api.slides import SCRIPT as DECK_SCRIPT
-from pitch_occupancy.api.slides import SECTIONS, detail
-from pitch_occupancy.api.slides import STYLES as SLIDE_STYLES
+from pitch_occupancy.api.talk import SECTIONS, detail
+from pitch_occupancy.api.talk import STYLES as TALK_STYLES
 
 ROOT = Path(__file__).resolve().parents[3]
 RESULTS = ROOT / "results"
@@ -273,9 +272,23 @@ def page() -> str:
     views = []
     for key, (_, build) in SECTIONS.items():
         body = build()
-        if key == "searches":
+        # The evidence each tab's claims rest on, collapsed underneath it. Nothing here is
+        # part of the talk - it is what an examiner opens when they want to check one row.
+        if key == "how":
+            # The full protocol-by-protocol comparison. The page states which backbone
+            # leads; this is the table that shows it.
+            body += detail(render_models(), "The full model comparison")
+        if key == "problem":
+            # Every verified claim and every retraction. The retractions are the reason to
+            # keep this reachable at all: a number that was published and then withdrawn is
+            # part of the method.
+            body += detail(render_findings(), "Every claim, and what was withdrawn")
+        if key == "solution":
+            # The two searches and the augmentation argument all live in this tab now, so
+            # their evidence does too.
             body += (
-                detail(_prompt_summary(), "Every prompt set scored, ranked")
+                detail(_augmentation(), "The augmentation argument in full")
+                + detail(_prompt_summary(), "Every prompt set scored, ranked")
                 # Server-rendered first, then the live panel. `_search_summary` holds the
                 # rule that an entry predating the false-play repair is shown as "not
                 # re-scored" rather than with its placeholder 0.0000 - and it was **called
@@ -289,21 +302,6 @@ def page() -> str:
                   '&mdash; it keeps going if you close the tab.</p>'
                 + PANEL_HTML
             )
-        if key == "models":
-            # The full protocol-by-protocol comparison, collapsed. A slide states which
-            # backbone leads; this is the table that shows it, and a reader who wants to
-            # check one protocol is the one who opens it.
-            body += detail(render_models(), "The full model comparison")
-        if key == "problem":
-            # Every verified claim and every retraction, collapsed. The retractions are the
-            # reason to keep this reachable at all: a number that was published and then
-            # withdrawn is part of the method.
-            body += detail(render_findings(), "Every claim, and what was withdrawn")
-        if key == "augmentation":
-            # The augmentation argument in full, with the wet-weather caveat and the
-            # retraction in its own words. The slides carry the numbers; this carries the
-            # reasoning, and it is the one section where the reasoning is the deliverable.
-            body += detail(_augmentation(), "The augmentation argument in full")
         views.append(
             f'<section class="view" data-view="{key}" hidden>'
             f'<div class="doc">{body}</div></section>'
@@ -314,9 +312,8 @@ def page() -> str:
             .replace("__VIEWS__", "".join(views))
             .replace("__MODEL_STYLES__",
                      MODEL_STYLES + PANEL_STYLES + DIAGRAM_STYLES + FINDINGS_STYLES
-                     + SLIDE_STYLES)
-            .replace("__PANEL_SCRIPT__", PANEL_SCRIPT)
-            .replace("__DECK_SCRIPT__", DECK_SCRIPT))
+                     + TALK_STYLES)
+            .replace("__PANEL_SCRIPT__", PANEL_SCRIPT))
 
 
 SHELL = """<!doctype html>
@@ -428,6 +425,5 @@ window.addEventListener("hashchange", () => {
   if (ids.includes(h)) show(h);
 });
 __PANEL_SCRIPT__
-__DECK_SCRIPT__
 </script></body></html>
 """

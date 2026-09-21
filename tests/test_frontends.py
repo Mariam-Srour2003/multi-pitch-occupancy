@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from pitch_occupancy.api.app import app
 from pitch_occupancy.api.markdown import render
-from pitch_occupancy.api.slides import SECTIONS
+from pitch_occupancy.api.talk import SECTIONS
 
 
 @pytest.fixture
@@ -58,43 +58,47 @@ def test_every_section_of_the_talk_gets_a_tab_and_a_view(client) -> None:
         assert label in html, f"{label} is missing from the nav"
 
 
-def test_the_document_tabs_are_gone(client) -> None:
-    """The eleven Markdown tabs were replaced by the talk, deliberately.
+def test_the_nav_is_exactly_the_nine_template_sections(client) -> None:
+    """The site is the oral-presentation template: nine tabs, in delivery order.
 
-    They were the right *evidence* and a poor *presentation*, and the documents themselves
-    are still in the repository. This asserts the replacement actually happened rather than
-    leaving both, because a site that grew a presentation in front of the wall would be the
-    same page with more scrolling.
+    Asserted as an exact list rather than a subset. A tenth tab is not a small regression
+    here - the whole point of the structure is that the nav *is* the talk's outline, and an
+    extra entry means a section exists that nobody rehearsed.
     """
+    import re as _re
+
     html = client.get("/").text
+    nav = _re.findall(r'<button data-view="(\w+)">([^<]+)</button>', html)
+    assert [k for k, _ in nav] == list(SECTIONS), f"nav drifted: {nav}"
+    assert len(nav) == 9, f"{len(nav)} tabs, expected 9"
     for gone in ("prereg", "questions", "database", "code", "ethics", "findings",
-                 "dataset", "ideas", "overview"):
+                 "dataset", "ideas", "overview", "models", "rules", "searches",
+                 "augmentation", "start"):
         assert f'data-view="{gone}"' not in html, f"{gone} tab is still on the page"
 
 
-def test_every_section_renders_slides_rather_than_appearing_empty(client) -> None:
+def test_every_section_renders_blocks_rather_than_appearing_empty(client) -> None:
     """A view that silently renders nothing looks the same as one that is not there."""
-    html = client.get("/").text
+    bodies = _tab_bodies(client.get("/").text)
     for key in SECTIONS:
-        body = re.search(
-            rf'data-view="{key}"[^>]*><div class="doc">(.*?)</div></section>', html, re.S
-        )
-        assert body, f"{key} view not found"
-        assert len(body.group(1)) > 200, f"{key} rendered almost nothing"
-        assert '<section class="dk-s' in body.group(1), f"{key} has no slides"
+        assert key in bodies, f"{key} view not found"
+        body = bodies[key]
+        assert len(body) > 200, f"{key} rendered almost nothing"
+        assert '<header class="tk-hero' in body, f"{key} has no hero"
+        assert '<section class="tk-block' in body, f"{key} has no blocks"
 
 
-def test_every_slide_carries_speaker_notes(client) -> None:
-    """The split the deck is built on: the slide holds the point, the notes hold the talk.
+def test_the_page_carries_no_delivery_notes(client) -> None:
+    """The site is what the room looks at while you talk, so it holds no script.
 
-    A slide with no notes is one whose argument exists only in the presenter's head, which
-    is exactly the drift this page was made to prevent.
+    Each tab briefly ended with a collapsed "What to say here". It was removed on purpose:
+    delivery notes on the screen compete with the person delivering them. The talk lives in
+    `thesis/presentation/SPEAKER_SCRIPT.md`. Asserted rather than assumed, so putting it
+    back is a decision someone makes rather than a regression that slips in.
     """
     html = client.get("/").text
-    slides = html.count('<section class="dk-s')
-    notes = html.count('<aside class="dk-notes">')
-    assert slides >= 40, f"only {slides} slides on the page"
-    assert notes == slides, f"{slides - notes} slides have no speaker notes"
+    for gone in ("tk-say", "What to say"):
+        assert gone not in html, f"delivery notes are back on the page: {gone!r}"
 
 
 # --- the markdown renderer --------------------------------------------------
@@ -156,10 +160,14 @@ def test_the_real_experiment_log_renders(client) -> None:
 
 
 def test_models_view_leads_with_a_recommendation(client) -> None:
-    """A table of numbers does not answer "which one should I use"."""
-    html = client.get("/").text
-    assert 'data-view="models"' in html
-    assert "Use this one" in html
+    """A table of numbers does not answer "which one should I use".
+
+    The Models tab is gone; the comparison is collapsed under "How it works", which is
+    where the page makes its claim about which backbone leads.
+    """
+    body = _tab_bodies(client.get("/").text)["how"]
+    assert "The full model comparison" in body, "the comparison left the page"
+    assert "Use this one" in body
 
 
 def test_models_view_ranks_each_protocol_separately(client) -> None:
@@ -359,23 +367,23 @@ def test_the_schema_reaches_the_talk(client) -> None:
     It stays on the page because "a verdict never exists without its evidence" and "a gap is
     recorded, never filled" are claims a reader should be able to see the shape of.
     """
-    html = client.get("/").text
-    body = re.search(
-        r'data-view="how"[^>]*><div class="doc">(.*?)</div></section>', html, re.S
-    )
-    assert body, "the How it works section is missing"
-    assert "What gets stored" in body.group(1)
-    assert "frame_samples" in body.group(1)
+    body = _tab_bodies(client.get("/").text)["how"]
+    assert "What gets stored" in body
+    assert "frame_samples" in body
+    assert "The rule table" in body, "the decision table left the page"
+    assert "Preprocessing" in body, "the preprocessing list left the page"
 
 
 # --- augmentation tab and figure serving -------------------------------------
 
 
-def test_augmentation_tab_exists_and_renders(client) -> None:
-    html = client.get("/").text
-    assert 'data-view="augmentation"' in html
-    assert html.count('data-view="augmentation"') >= 2  # a tab button and a view section
-    assert "discards nothing" in html
+def test_the_augmentation_argument_reaches_the_solution_tab(client) -> None:
+    """Augmentation is no longer a tab; it is part of "How the research provides a
+    solution", with the full argument collapsed beneath it."""
+    body = _tab_bodies(client.get("/").text)["solution"]
+    assert "augmentation" in body.lower()
+    assert "The augmentation argument in full" in body
+    assert "discards nothing" in body
 
 
 def test_augmentation_tab_never_shows_the_headline_without_its_retraction(client) -> None:
@@ -749,29 +757,44 @@ def _tab_bodies(html: str) -> dict[str, str]:
     return dict(zip(parts[1::2], parts[2::2], strict=True))
 
 
-def test_every_tab_opens_with_a_slide(client) -> None:
-    """Every section of the talk leads with a slide, and the pager that moves between them.
+def test_every_tab_is_a_scrollable_page_not_a_deck(client) -> None:
+    """Each tab reads top to bottom. No slides, no pager, nothing to press.
 
-    Asserted on the served HTML rather than on the builder, because the page is what a
-    reader gets.
+    The deck was replaced on purpose: a reader who has to page through 51 slides to find one
+    number is worse served than one who can scroll and use find-in-page.
     """
     bodies = _tab_bodies(client.get("/").text)
     for tab in SECTIONS:
         assert tab in bodies, f"{tab} tab is missing entirely"
-        assert '<div class="slide">' in bodies[tab], f"{tab} has no slide"
-        assert "data-deck" in bodies[tab], f"{tab} has no pager"
+        assert '<div class="tk">' in bodies[tab], f"{tab} is not a talk page"
+        for deck in ("data-deck", "dk-s", "dk-bar", "dk-notes"):
+            assert deck not in bodies[tab], f"{tab} still carries deck markup: {deck}"
 
 
 def test_the_evidence_is_collapsed_rather_than_dropped(client) -> None:
     """Replacing the documents with the talk must not mean losing what they showed.
 
-    Four sections keep their evidence one click below the slides: the model comparison, the
-    claims ledger with its retractions, the augmentation argument, and the two search
-    tables. `<details>`, not a CSS toggle - find-in-page and a saved copy still reach it.
+    Three tabs keep their evidence one click below the page: the model comparison and the
+    before/after preprocessing sheet under How it works, the claims ledger with its
+    retractions under The problem, and the augmentation argument with both search tables
+    under The solution. `<details>`, not a CSS toggle - find-in-page and a saved copy still
+    reach it.
     """
     bodies = _tab_bodies(client.get("/").text)
-    for tab in ("models", "problem", "augmentation", "searches"):
-        assert "<details" in bodies[tab], f"{tab} dropped its evidence instead of collapsing"
+    # By the label each one is served under, not by a count: a count passes while the wrong
+    # thing is collapsed, and breaks on a cosmetic change that costs nothing.
+    expected = {
+        "how": ["The full model comparison", "Every switch, before and after"],
+        "problem": ["Every claim, and what was withdrawn"],
+        "solution": ["The augmentation argument in full",
+                     "Every prompt set scored, ranked",
+                     "Every preprocessing evaluation, ranked"],
+    }
+    for tab, labels in expected.items():
+        for label in labels:
+            assert f"<summary>{label}</summary>" in bodies[tab], (
+                f"{tab} dropped its evidence instead of collapsing it: {label!r}"
+            )
 
 
 def test_the_page_is_slides_first_and_the_walls_are_gone(client) -> None:
@@ -783,7 +806,7 @@ def test_the_page_is_slides_first_and_the_walls_are_gone(client) -> None:
     pre-registration - are no longer served at all.
     """
     html = client.get("/").text
-    assert html.count('<section class="dk-s') >= 40, "the page is not made of slides"
+    assert html.count('<section class="tk-block') >= 30, "the page is not made of blocks"
     for wall in ("The full document &mdash;", "preregistration.md", "CODEBASE.md",
                  "data_layout.md", "rq_matrix.md"):
         assert wall not in html, f"a source document is still being served: {wall!r}"
@@ -798,9 +821,9 @@ def test_the_augmentation_tab_is_deliberately_image_heavy(client) -> None:
     that removes the goalmouth - and every one of those passes a shape and dtype check. The
     only reliable check is a person looking, so this tab has to carry the pictures.
     """
-    body = _tab_bodies(client.get("/").text)["augmentation"]
-    assert body.count("<img") >= 10, "the augmentation tab lost its sheets"
-    assert "/figs/preproc/" in body, "the before/after pairs are not on the page"
+    html = client.get("/").text
+    assert html.count("<img") >= 10, "the talk lost its augmentation sheets"
+    assert "/figs/preproc/" in html, "the before/after pairs are not on the page"
 
 
 def test_every_preprocessing_pair_reaches_the_augmentation_tab(client) -> None:
@@ -808,7 +831,7 @@ def test_every_preprocessing_pair_reaches_the_augmentation_tab(client) -> None:
     which would be a second inventory, and the one that goes stale."""
     import csv
 
-    from pitch_occupancy.api.slides import RESULTS
+    from pitch_occupancy.api.talk import RESULTS
 
     pairs = RESULTS / "preprocess_pairs.csv"
     if not pairs.exists():
@@ -816,15 +839,15 @@ def test_every_preprocessing_pair_reaches_the_augmentation_tab(client) -> None:
     with pairs.open(newline="", encoding="utf-8") as fh:
         labels = [r["label"] for r in csv.DictReader(fh)]
 
-    body = _tab_bodies(client.get("/").text)["augmentation"]
-    missing = [lab for lab in labels if f"<code>{lab}</code>" not in body]
+    html = client.get("/").text
+    missing = [lab for lab in labels if f"<code>{lab}</code>" not in html]
     assert not missing, f"switches with no before/after card: {missing}"
 
 
 def test_the_rq_statuses_are_parsed_from_the_matrix_not_restated() -> None:
     """The statuses move as the work moves, so a copy in the page would be right the day it
     was written and wrong afterwards with nothing to catch it."""
-    from pitch_occupancy.api.slides import rq_status
+    from pitch_occupancy.api.talk import rq_status
 
     rows = rq_status()
     assert len(rows) >= 6, f"only parsed {len(rows)} research questions"
@@ -837,9 +860,9 @@ def test_the_rq_statuses_are_parsed_from_the_matrix_not_restated() -> None:
 def test_a_slide_reports_a_missing_artefact_rather_than_rendering_a_hole(tmp_path) -> None:
     """A page that silently shows nothing where its argument should be is the failure
     `augmentation_grid.py` was written to prevent, and it applies to the page too."""
-    from pitch_occupancy.api import slides
+    from pitch_occupancy.api import talk
 
-    assert "missing" in slides.figure("no_such_figure.png", script="uv run something")
+    assert "missing" in talk.figure("no_such_figure.png", script="uv run something")
 
 
 def test_the_figure_route_serves_the_pairs_but_still_refuses_venue_check(client) -> None:
@@ -860,7 +883,7 @@ def test_the_dataset_slide_counts_venues_not_lighting_columns() -> None:
     and counts day and night as venues - which reported "all from 2 venues" for the fact the
     whole data request is about. Scoped to the class-by-venue section instead.
     """
-    from pitch_occupancy.api.slides import RESULTS, coverage_counts
+    from pitch_occupancy.api.talk import RESULTS, coverage_counts
 
     if not (RESULTS / "coverage.md").exists():
         pytest.skip("no coverage report generated")
