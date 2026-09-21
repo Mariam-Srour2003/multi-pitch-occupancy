@@ -62,6 +62,9 @@ from pitch_occupancy.vision import roi
 RESULTS = settings.results_dir
 EMPTY, PLAY = Class3.EMPTY.value, Class3.ACTIVE_PLAY.value
 C3 = Class3.MAINTENANCE_NON_SPORTING.value
+#: Play frames a venue needs before its recall joins the mean over venues. Every
+#: venue in the corpus except one has at least 13; see `score`.
+MIN_VENUE_PLAY = 5
 PUBLISHED = RESULTS / "h3_with_false_play.csv"
 CACHE = {"dinov2": "dinov2.npz"}
 
@@ -213,7 +216,18 @@ def score(arm: str, predictions: dict[str, dict], rows) -> dict:
     per_venue: dict[str, list[int]] = defaultdict(list)
     for row, got in answers(play_rows):
         per_venue[row.venue].append(int(got["class3"] == PLAY))
-    recalls = {v: float(np.mean(hits)) for v, hits in per_venue.items() if hits}
+    # The headline averages the *per-venue* recalls, so each venue is one vote however many
+    # frames it has - which is right when every venue carries a real estimate, and wrong the
+    # moment one does not. `davinci_l_city_pitch` arrived on 2026-09-21 with a single play
+    # frame (its sibling still is the holdout), and that one frame took the clock rule from
+    # 1.000 to 0.861 and DINOv2 from 0.930 to 0.836 by being worth an eighth of the headline.
+    # A recall estimated from one frame can only be 0.000 or 1.000; it is not an estimate.
+    # So a venue enters the mean only above MIN_VENUE_PLAY, and the ones below it are
+    # reported with their counts rather than dropped quietly.
+    recalls = {v: float(np.mean(hits)) for v, hits in per_venue.items()
+               if len(hits) >= MIN_VENUE_PLAY}
+    thin = {v: (float(np.mean(hits)), len(hits)) for v, hits in per_venue.items()
+            if 0 < len(hits) < MIN_VENUE_PLAY}
     recall = float(np.mean(list(recalls.values()))) if recalls else float("nan")
     play_flat = [hit for hits in per_venue.values() for hit in hits]
     ci = bootstrap_ci(play_flat) if play_flat else None
@@ -257,6 +271,9 @@ def score(arm: str, predictions: dict[str, dict], rows) -> dict:
         "n_venue_01_play": len(v01),
         "venue_01_play_recall_one_camera": round(float(np.mean(v01)), 4) if v01 else None,
         "recall_by_venue": ";".join(f"{v}={x:.3f}" for v, x in sorted(recalls.items())),
+        "n_venues_in_mean": len(recalls),
+        # Named, with their frame counts, so "excluded" is never mistaken for "absent".
+        "venues_below_min": ";".join(f"{v}={x:.3f}(n={n})" for v, (x, n) in sorted(thin.items())),
     }
 
 
@@ -380,9 +397,13 @@ def main() -> int:
               f"{number(s['abstention_rate']):>9.4f}"
               f"{number(s['balanced']):>10.4f}")
 
-    print(f"\nrecall is the mean over {len({r.venue for r in rows if r.venue != 'venue_01'})} "
-          f"held-out clip venues; false-play and EMPTY accuracy are on venue_01 camera B's "
-          f"{scores[0]['n_control']} recorded empty frames.")
+    print(f"\nrecall is the mean over the {scores[0]['n_venues_in_mean']} held-out clip venues "
+          f"with at least {MIN_VENUE_PLAY} play frames; false-play and EMPTY accuracy are on "
+          f"venue_01 camera B's {scores[0]['n_control']} recorded empty frames.")
+    if scores[0]["venues_below_min"]:
+        print(f"  below that floor and NOT in the mean: {scores[0]['venues_below_min']}")
+        print("  a recall measured on one frame can only be 0.000 or 1.000 - it is not an "
+              "estimate, and\n  a mean over venues would give it the same vote as 168 frames.")
     print(f"\nvenue_01's own {scores[0]['n_venue_01_play']} play frames, scored one camera at "
           f"a time - NOT in the recall column above, and the cost A36 accepted:")
     for s in scores:

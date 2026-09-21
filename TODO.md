@@ -2239,14 +2239,18 @@ tagged with the question it answers. Fix that first — it is what turns a build
       only → `configs/rules.json` with `frozen_at`/`frozen_commit`.
 - [~] **WP9-T6 Evaluation** — `rule_frame_eval` re-run 2026-09-20 under A40 (+ 3-class
       confusion). ~~detector-first recall 0.996 … balanced 0.996, worst venue 0.970~~ — those
-      are now the **`detector_first_no_ball`** arm. With A40's ball requirement on:
-      **recall 0.311, worst venue 0.111**, false-play 0.000, EMPTY 0.889, balanced 0.311.
-      200 of 1,078 recorded play frames flip to C3, and recall *equals the ball-detection rate
-      venue by venue* — above the head count the rule has become a ball detector. Frame level
-      only: no burst, no pitch-level sum, so **0.311 is a floor and 0.996 is the ceiling**, and
-      WP9-T6a is what closes the gap between them. The probe arms still reproduce
-      `h3_with_false_play.csv` first; the clock rule still wins on this corpus and loses 16–0
-      on real footage, and both belong in the thesis together.
+      are now the **`detector_first_no_ball`** arm. Re-run 2026-09-21 on the corrected
+      venue_01 boundaries and the 28 new frames. With A40's ball requirement on:
+      **recall 0.3078, worst venue 0.111**, false-play 0.000, EMPTY 0.9259, balanced 0.3078;
+      without it, 0.9957 / 0.970. **501 of 1,089** recorded play frames flip to C3 — up from
+      200, because venue_01 alone contributes 312 now that a correct boundary lets it see its
+      own players. Recall *equals the ball-detection rate venue by venue*: above the head
+      count the rule has become a ball detector. The boundary fix moved this arm by 0.003, so
+      **the ball cost is not a boundary artefact**. Frame level only: no burst, no pitch-level
+      sum, so **0.3078 is a floor and 0.9957 is the ceiling**, and WP9-T6a closes the gap.
+      Probe arms: DINOv2 0.9556 (worst venue **0.8065**), gated 0.9548, clock rule 0.9844.
+      `davinci_l_city_pitch` has one play frame and is excluded from the venue-mean by
+      `MIN_VENUE_PLAY` — reported with its count, never dropped quietly.
   - [ ] **WP9-T6a** `ball_recovery` (the audit's tiling numbers are its first measurement:
         recall 0.43 → 0.59, and 0.17 → 0.58 at `f_outdoor_bldg`), `rule_on_clips`,
         `rule_on_unseen_clip` (the seam already reproduces 13/13; this is the CSV),
@@ -2305,7 +2309,7 @@ tagged with the question it answers. Fix that first — it is what turns a build
       (the ball requirement is deliberately **not** carried into the truth — defining the
       label by what the detector can see would make the cost unmeasurable by construction).
   - [ ] **[H] WP9-T9a Decide whether to keep `require_ball` on.** The measurement is in:
-        0.996 → 0.311 cross-venue play recall at frame level, 200 of 1,078 play frames
+        0.9957 → 0.3078 cross-venue play recall at frame level, **501 of 1,089** play frames
         flipped, worst venue 0.111. **But the cost is entirely a one-camera, one-frame cost** —
         `rule_pitch_pairs.csv` is unchanged under A40 (0.338 → 0.859) because a ball is seen on
         99/99 paired venue_01 play moments once two cameras are ORed, and 187 of the 200 lost
@@ -2321,7 +2325,7 @@ tagged with the question it answers. Fix that first — it is what turns a build
         force** — which is stated on every verdict rather than left to be discovered.
   - [ ] **WP9-T9c** The review pages still default to `dinov2` (`config.default_model_key`),
         so A40's rule does not govern `/clip`, `/images` or `/roi`. That flip is WP9-T7 and it
-        should not happen while WP9-T9a is open, because it would deploy the 0.311 arm.
+        should not happen while WP9-T9a is open, because it would deploy the 0.3078 arm.
         **Reported from use 2026-09-20**: on eight operator clips the probe scores **3/8** and
         answers ACTIVE_PLAY at 1.00 on both maintenance clips, where the detector counting
         alone scores 7/8. This is now the most visible defect in the product.

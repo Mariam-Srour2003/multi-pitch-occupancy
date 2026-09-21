@@ -460,8 +460,8 @@ note = "A30: H3's folds never contained the generated frames, so A13's repair ha
 
 [[claim]]
 id = "rule-cross-venue-recall"
-statement = "With A40's ball requirement on, the detector-first rule reaches only 0.311 ACTIVE_PLAY recall across the seven held-out clip venues, scored one frame at a time inside one camera's boundary. It was 0.996 before the requirement (2026-09-19); the requirement, not the detector, is what changed."
-value = 0.311
+statement = "With A40's ball requirement on, the detector-first rule reaches only 0.308 ACTIVE_PLAY recall across the held-out clip venues, scored one frame at a time inside one camera's boundary. It was 0.996 before the requirement; the requirement, not the detector, is what changed — correcting the venue_01 boundaries on 2026-09-21 moved this by 0.003, so the cost is not a boundary artefact."
+value = 0.3078
 where = ["TODO.md"]
 source = "results/rule_frame_eval.csv"
 select = { arm = "detector_first" }
@@ -496,8 +496,8 @@ column = "false_play_rate"
 
 [[claim]]
 id = "rule-empty-accuracy"
-statement = "The rule reads 0.889 of those 243 empty frames as EMPTY; the remaining 11% are read as C3, which is the boundary reaching into the car park rather than the detector failing."
-value = 0.8889
+statement = "The rule reads 0.926 of those 243 empty frames as EMPTY. It was 0.889 until 2026-09-21, and the difference was literally the car park: camera_B's derived boundary reached past the touchline into it, and a hand-drawn one does not."
+value = 0.9259
 where = ["TODO.md"]
 source = "results/rule_frame_eval.csv"
 select = { arm = "detector_first" }
@@ -505,7 +505,7 @@ column = "empty_accuracy"
 
 [[claim]]
 id = "rule-worst-venue"
-statement = "Without the ball requirement the rule's worst held-out venue is 0.970, where the probe's is 0.667. The probe's mean hides a fold it fails badly; the counting rule's does not — until A40's ball requirement is applied, which opens a worse fold of its own (see rule-ball-requirement-worst-venue)."
+statement = "Without the ball requirement the rule's worst held-out venue is 0.970, where the probe's is 0.806. The probe's mean hides a fold it fails badly; the counting rule's does not — until A40's ball requirement is applied, which opens a worse fold of its own (see rule-ball-requirement-worst-venue)."
 value = 0.9702
 where = ["TODO.md"]
 source = "results/rule_frame_eval.csv"
@@ -514,8 +514,8 @@ column = "recall_worst_venue"
 
 [[claim]]
 id = "probe-worst-venue"
-statement = "The DINOv2 probe's worst held-out venue is 0.667 ACTIVE_PLAY recall."
-value = 0.6667
+statement = "The DINOv2 probe's worst held-out venue is 0.806 ACTIVE_PLAY recall, at clipvenue_g_netting. It was 0.667 at clipvenue_h_teal_pitch before the 2026-09-21 ingest added daylight frames to both."
+value = 0.8065
 where = ["TODO.md"]
 source = "results/rule_frame_eval.csv"
 select = { arm = "dinov2" }

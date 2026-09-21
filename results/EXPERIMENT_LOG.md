@@ -7437,3 +7437,69 @@ written on 2026-09-19 against the derived venue_01 outlines that were replaced t
 walking on the far half just above the boundary's top edge" describe a boundary that no longer
 exists. The counts themselves are counts of people and stand; the in/out judgements in the
 notes need re-reading when the [H] verification pass happens, and that is now part of it.
+
+- 2026-09-21 | WP9-T6 rule vs probe at frame level | uv run python experiments/rule_frame_eval.py | rule_frame_eval.csv | clock_rule recall 0.861 false-play 0.021 EMPTY 0.979; dinov2 recall 0.836 false-play 0.309 EMPTY 0.000; dinov2_gated recall 0.835 false-play 0.012 EMPTY 0.926; detector_first recall 0.394 false-play 0.000 EMPTY 0.926; detector_first_no_ball recall 0.996 false-play 0.000 EMPTY 0.926; best balanced: detector_first_no_ball; one frame per camera, no burst, no pitch sum
+
+- 2026-09-21 | WP9-T6 rule vs probe at frame level | uv run python experiments/rule_frame_eval.py | rule_frame_eval.csv | clock_rule recall 0.984 false-play 0.021 EMPTY 0.979; dinov2 recall 0.956 false-play 0.309 EMPTY 0.000; dinov2_gated recall 0.955 false-play 0.012 EMPTY 0.926; detector_first recall 0.308 false-play 0.000 EMPTY 0.926; detector_first_no_ball recall 0.996 false-play 0.000 EMPTY 0.926; best balanced: detector_first_no_ball; one frame per camera, no burst, no pitch sum
+
+- 2026-09-21 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 44 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-21 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 45 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-21 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 47 claims verified against their artefacts, 0 recorded as unsupported
+
+### 2026-09-21 — the corrected boundaries, measured; and a one-frame venue that moved a headline
+
+`rule_frame_eval` re-run on the corrected venue_01 boundaries and the 28 ingested frames -
+1,599 development rows where there were 1,578.
+
+**What the boundary fix bought, and it is the number this branch was missing.**
+
+| | before | after |
+|---|---|---|
+| venue_01 one-camera play recall, `detector_first_no_ball` | 0.2751 | **0.8346** |
+| venue_01 one-camera play recall, `detector_first` | 0.2588 | 0.4465 |
+| EMPTY accuracy on the 243-frame control | 0.8889 | **0.9259** |
+
+On 2026-09-20 the 0.2751 was reported and attributed to A16's "a camera sees half a pitch".
+On 2026-09-21 that was corrected to "partly a boundary across the wrong half". The number now
+says **mostly**: 804 play frames, so this is not a small-sample wobble. The EMPTY gain is
+literally the car park - camera_B's derived outline reached past the touchline into it, and a
+hand-drawn one does not.
+
+**A one-frame venue moved three headlines and none of it was real.** The first re-run showed
+the clock rule falling 1.000 -> 0.8614 and DINOv2 0.9297 -> 0.8362. The headline averages
+*per-venue* recalls, one vote each, and `davinci_l_city_pitch` arrived with exactly **one**
+play frame - its sibling still is the holdout. That frame was worth an eighth of the headline.
+
+A recall measured on one frame can only be 0.000 or 1.000. It is not an estimate, and giving
+it the same vote as clipvenue_a's 168 frames is not a conservative choice, it is a wrong one.
+`score` now takes a venue into the mean only at `MIN_VENUE_PLAY = 5` and prints the ones below
+it **with their counts**, so excluded never reads as absent. This was introduced by the ingest
+the day before, caught on the first run after it, and is recorded here rather than quietly
+fixed - the corpus had no venue under 13 play frames until 2026-09-21, so the metric had never
+had to say what it does with one.
+
+**The corrected table**, mean over the 7 clip venues that clear the floor:
+
+| arm | recall | worst venue | false-play | EMPTY | balanced |
+|---|---|---|---|---|---|
+| `detector_first_no_ball` | **0.9957** | 0.970 | 0.0000 | 0.9259 | **0.9957** |
+| clock_rule | 0.9844 | 0.923 | 0.0206 | 0.9794 | 0.9638 |
+| dinov2 | 0.9556 | 0.806 | 0.3086 | 0.0000 | 0.6470 |
+| dinov2_gated | 0.9548 | 0.806 | 0.0123 | 0.9259 | 0.9424 |
+| `detector_first` | 0.3078 | 0.111 | 0.0000 | 0.9259 | 0.3078 |
+
+**`require_ball` survived the boundary fix, and got more expensive.** The strict arm moved
+0.3110 -> 0.3078 - three thousandths - so the cost is not a boundary artefact and the A40
+finding stands unchanged. But the frames it discards went **200 -> 501 of 1,089**, because
+venue_01 contributes 312 of them now: with a correct boundary that camera finally detects its
+own players, and then the ball requirement throws them away. Fixing the boundary made the
+ball rule cost more, not less.
+
+The probe arms improved slightly (0.9297 -> 0.9556) and the probe's worst venue moved from
+0.667 at `clipvenue_h_teal_pitch` to 0.806 at `clipvenue_g_netting`, both of which gained
+daylight frames in the ingest. Three claims went stale and were restated: cross-venue recall,
+EMPTY accuracy, and the probe's worst venue. 47 verified, 0 failing.
+
+- 2026-09-21 | rule_frame_eval on corrected boundaries | uv run python experiments/rule_frame_eval.py | rule_frame_eval.csv | venue_01 one-camera play recall 0.2751 -> 0.8346 on the counting rule and EMPTY accuracy 0.8889 -> 0.9259, both from replacing four derived boundaries with two hand-drawn ones; require_ball moved only 0.3110 -> 0.3078 so its cost is not a boundary artefact, but the frames it discards went 200 -> 501 of 1089; MIN_VENUE_PLAY added after a one-frame venue took the clock rule from 1.000 to 0.861 by being worth an eighth of a mean-over-venues
