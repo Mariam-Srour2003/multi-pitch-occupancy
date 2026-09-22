@@ -247,16 +247,14 @@ the pitch &middot; <a href="/roi" style="color:var(--accent)">boundary editor</a
   <p class="note" id="gatenote" style="display:none"></p>
 
   <div class="tiles" style="margin-top:14px">
-    <div class="tile"><div class="k">Score from map</div>
-      <div class="v sm" id="x-map">&mdash;</div></div>
-    <div class="tile"><div class="k">Score direct</div>
-      <div class="v sm" id="x-dir">&mdash;</div></div>
-    <div class="tile"><div class="k">Reconstruction err</div>
-      <div class="v sm" id="x-err">&mdash;</div></div>
-    <div class="tile"><div class="k">People detected</div>
+    <div class="tile"><div class="k">People on the pitch</div>
       <div class="v sm" id="x-ppl">&mdash;</div></div>
-    <div class="tile" id="x-focus-tile"><div class="k">Evidence focus</div>
-      <div class="v sm" id="x-focus">&mdash;</div></div>
+    <div class="tile" id="x-outside-tile"><div class="k">People outside it</div>
+      <div class="v sm" id="x-outside">&mdash;</div></div>
+    <div class="tile"><div class="k">Ball</div>
+      <div class="v sm" id="x-ball">&mdash;</div></div>
+    <div class="tile"><div class="k">Movement</div>
+      <div class="v sm" id="x-motion">&mdash;</div></div>
     <div class="tile" id="x-out-tile"><div class="k">Evidence outside boundary</div>
       <div class="v sm" id="x-out">&mdash;</div></div>
   </div>
@@ -436,6 +434,17 @@ function paint(s){
   }else{note.style.display='none';}
   $('v-ms').textContent=Math.round(s.elapsed_ms)+' ms'+(s.explained?' (explained)':'');
 
+  // The tiles a venue can act on. What the probe scored, what it scored directly, how well
+  // the map reconstructs that score and how tightly the evidence sits on the people were
+  // the decomposition auditing itself - true, and unreadable to anyone who has not read the
+  // method. The audit is not lost: `test_walkthrough.py` asserts the reconstruction on every
+  // explained step, which is a better home for it than a tile nobody can act on. These three
+  // ride on every record rather than only an explained one, so a frame that got no heatmap
+  // still reports who was found.
+  $('x-ppl').textContent=(s.n_inside===null||s.n_inside===undefined)?'—':s.n_inside;
+  $('x-ball').textContent=s.ball?'yes':'no';
+  $('x-motion').textContent=(s.motion===null||s.motion===undefined)?'—':s.motion.toFixed(2);
+
   if(s.explained){
     $('img-raw').src=s.frame;$('img-heat').src=s.heat;
     // The detector's pane. It is served with the same record, so a frame that has a
@@ -452,30 +461,27 @@ function paint(s){
         ' &middot; rule '+d.rule+' &middot; '+d.people_inside+' inside'+
         (d.people_outside_boundary?' &middot; '+d.people_outside_boundary+' outside':'')+
         ' &middot; ball '+(d.ball?d.ball_confidence.toFixed(2):'none')));
-    $('x-map').textContent=s.score_from_map.toFixed(3);
-    $('x-dir').textContent=s.score_direct.toFixed(3);
-    $('x-err').textContent=s.reconstruction_error.toExponential(1);
-    $('x-ppl').textContent=s.n_people;
+    // "Found six, counted three" is what a reader most often needs explained, so the two
+    // counts sit side by side rather than being summed into one.
+    const out=(d&&d.checked)?d.people_outside_boundary:null;
+    $('x-outside').textContent=out==null?'—':out;
+    $('x-outside-tile').className='tile'+(out?' flagged':'');
+    if(d&&d.checked&&d.ball){$('x-ball').textContent='yes  '+d.ball_confidence.toFixed(2);}
     // Zero, or there is no boundary. Anything else means the outline reached the picture
     // but not the pooling, which is the exact failure this tile exists to make visible.
     const o=s.evidence_outside;
     $('x-out').textContent=o==null?'no boundary':(o*100).toFixed(1)+'%';
     $('x-out-tile').className='tile'+(o!=null&&o>0.001?' flagged':'');
+    // The focus ratio has no tile any more, but a score spread as though the people were
+    // not there is still worth one line on the frames where it happens.
     const f=s.focus_ratio;
-    $('x-focus').textContent=f==null?'—':f.toFixed(2)+'x';
-    $('x-focus-tile').className='tile'+(f!=null&&f<1?' flagged':'');
-    $('focusnote').innerHTML=f==null
-      ? '<span title="No people were detected, so there is no area to compare the evidence '+
-        'against. A ratio over zero area is not a small number - it is not a number.">no '+
-        'people &mdash; focus undefined</span>'
-      : (f<1 ? '<span title="The score is spread as though the people were not there, which '+
-               'for an ACTIVE_PLAY prediction is worth a look.">evidence spread off the '+
-               'people</span>' : '');
+    $('focusnote').innerHTML=(f!=null&&f<1)
+      ? '<span title="The evidence is spread as though the people the detector found were '+
+        'not there, which for an active-play verdict is worth a look.">the model was not '+
+        'looking at the people it found</span>' : '';
   } else {
-    $('x-map').textContent='—';$('x-dir').textContent='—';$('x-err').textContent='—';
-    $('x-ppl').textContent='—';$('x-focus').textContent='—';
-    $('x-out').textContent='—';
-    $('x-focus-tile').className='tile';$('x-out-tile').className='tile';
+    $('x-outside').textContent='—';$('x-out').textContent='—';
+    $('x-outside-tile').className='tile';$('x-out-tile').className='tile';
     $('focusnote').innerHTML='<span title="explain in detail bounds how many frames get '+
       'a map, because explaining costs about twice a bare prediction">no evidence map '+
       'for this frame</span>';

@@ -247,16 +247,12 @@ the fix for a neighbouring pitch showing up in frame.">masks outside the pitch &
   </div>
 
   <div class="tiles" style="margin-top:12px">
-    <div class="tile"><div class="k">Score from map</div>
-      <div class="v sm" id="x-map">&mdash;</div></div>
-    <div class="tile"><div class="k">Score direct</div>
-      <div class="v sm" id="x-dir">&mdash;</div></div>
-    <div class="tile"><div class="k">Reconstruction error</div>
-      <div class="v sm" id="x-err">&mdash;</div></div>
-    <div class="tile"><div class="k">People detected</div>
+    <div class="tile"><div class="k">People on the pitch</div>
       <div class="v sm" id="x-ppl">&mdash;</div></div>
-    <div class="tile" id="x-focus-tile"><div class="k">Focus ratio</div>
-      <div class="v sm" id="x-focus">&mdash;</div></div>
+    <div class="tile" id="x-outside-tile"><div class="k">People outside it</div>
+      <div class="v sm" id="x-outside">&mdash;</div></div>
+    <div class="tile"><div class="k">Ball</div>
+      <div class="v sm" id="x-ball">&mdash;</div></div>
     <div class="tile" id="x-out-tile"><div class="k">Evidence outside boundary</div>
       <div class="v sm" id="x-out">&mdash;</div></div>
   </div>
@@ -364,6 +360,12 @@ function paint(s){
   $('v-conf').textContent='confidence '+s.confidence.toFixed(3);
   $('v-ms').textContent=Math.round(s.elapsed_ms)+' ms'+(s.explained?' (explained)':'');
 
+  // See the clip reviewer for why the probe's own audit numbers are gone from here: they
+  // were the decomposition checking itself, and `test_walkthrough.py` checks it instead.
+  // A still has no predecessor, so there is no movement tile to give it.
+  $('x-ppl').textContent=(s.n_inside===null||s.n_inside===undefined)?'\\u2014':s.n_inside;
+  $('x-ball').textContent=s.ball?'yes':'no';
+
   if(s.explained){
     $('img-raw').src=s.frame;$('img-heat').src=s.heat;
     // The detector's pane. It is served with the same record, so a frame that has a
@@ -371,39 +373,36 @@ function paint(s){
     // showing the previous frame's answer next to this frame's heatmap.
     $('img-boxes').src=s.boxes||'';
     const d=s.detector;
-    $('detnote').innerHTML=!d?'The detector did not run on this frame.'
-      :(!d.checked?'The detector was not available for this frame — which is not the '+
-        'same as finding nobody.'
-      :('<b>'+d.state.split('_').slice(1).join(' ')+'</b> at '+d.confidence.toFixed(2)+
-        ' by row '+d.rule+' — '+d.people_inside+' inside'+
-        (d.people_outside_boundary?', '+d.people_outside_boundary+' outside the boundary':'')+
-        ', ball '+(d.ball?d.ball_confidence.toFixed(2):'none')+
-        '. The probe scores pooled features and can only answer with a heatmap; the '+
-        'detector answers with a box round each person and a ring round the ball.'));
-    $('x-map').textContent=s.score_from_map.toFixed(3);
-    $('x-dir').textContent=s.score_direct.toFixed(3);
-    $('x-err').textContent=s.reconstruction_error.toExponential(1);
-    $('x-ppl').textContent=s.n_people;
+    // "not available" is not "found nobody", and the distinction survives the trim as a
+    // word rather than a sentence: a blank count would read as zero people.
+    $('detnote').innerHTML=!d?'detector &mdash; did not run'
+      :(!d.checked?'detector &mdash; unavailable <span title="Not the same as finding '+
+        'nobody.">(not zero)</span>'
+      :('<b>'+d.state.split('_').slice(1).join(' ')+'</b> '+d.confidence.toFixed(2)+
+        ' &middot; rule '+d.rule+' &middot; '+d.people_inside+' inside'+
+        (d.people_outside_boundary?' &middot; '+d.people_outside_boundary+' outside':'')+
+        ' &middot; ball '+(d.ball?d.ball_confidence.toFixed(2):'none')));
+    // "Found six, counted three" is what a reader most often needs explained, so the two
+    // counts sit side by side rather than being summed into one.
+    const out=(d&&d.checked)?d.people_outside_boundary:null;
+    $('x-outside').textContent=out==null?'\\u2014':out;
+    $('x-outside-tile').className='tile'+(out?' flagged':'');
+    if(d&&d.checked&&d.ball){$('x-ball').textContent='yes  '+d.ball_confidence.toFixed(2);}
     // Zero, or there is no boundary. Anything else means the outline reached the picture
     // but not the pooling, which is the exact failure this tile exists to make visible.
     const o=s.evidence_outside;
     $('x-out').textContent=o==null?'no boundary':(o*100).toFixed(1)+'%';
     $('x-out-tile').className='tile'+(o!=null&&o>0.001?' flagged':'');
+    // Silent unless something is wrong with it - a note saying nothing went wrong is the
+    // kind of sentence this page is meant to be rid of.
     const f=s.focus_ratio;
-    $('x-focus').textContent=f==null?'\\u2014':f.toFixed(2)+'x';
-    $('x-focus-tile').className='tile'+(f!=null&&f<1?' flagged':'');
-    // Silent when the focus is fine: a note that says nothing went wrong is the kind of
-    // sentence this page is meant to be rid of. The two cases worth a word keep theirs.
-    $('focusnote').innerHTML=f==null
-      ? '<span title="No people were detected, so there is no area to compare the evidence '+
-        'against. A ratio over zero area is not a small number - it is not a number.">no '+
-        'people &mdash; focus undefined</span>'
-      : (f<1 ? '<span title="The score is spread as though the people were not there, which '+
-               'for an ACTIVE_PLAY prediction is worth a look.">evidence spread off the '+
-               'people</span>' : '');
+    $('focusnote').innerHTML=(f!=null&&f<1)
+      ? '<span title="The evidence is spread as though the people the detector found were '+
+        'not there, which for an active-play verdict is worth a look.">the model was not '+
+        'looking at the people it found</span>' : '';
   } else {
-    ['x-map','x-dir','x-err','x-ppl','x-focus','x-out'].forEach(k=>$(k).textContent='\\u2014');
-    $('x-focus-tile').className='tile';
+    $('x-outside').textContent='\\u2014';$('x-out').textContent='\\u2014';
+    $('x-outside-tile').className='tile';$('x-out-tile').className='tile';
     $('focusnote').innerHTML='<span title="explain in detail bounds how many images get '+
       'a map, because explaining costs about twice a bare prediction">no evidence map for '+
       'this image</span>';
@@ -414,7 +413,11 @@ function paint(s){
 
 function card(s){
   const el=document.createElement('div');
-  el.className='shot'+(s.focus_ratio!=null&&s.focus_ratio<1?' flagged':'');
+  // Flagged on a disagreement a reader can check against the picture - the verdict says
+  // nobody is playing and yet people were found, or the reverse - rather than on the focus
+  // ratio, which needed the method to read.
+  const play=s.predicted.indexOf('ACTIVE_PLAY')>=0;
+  el.className='shot'+((play&&s.n_inside===0)?' flagged':'');
   const imgs=document.createElement('div');imgs.className='imgs';
   if(s.explained){
     [[s.frame,'image'],[s.heat,'evidence map']].forEach(([src,alt])=>{
@@ -433,16 +436,14 @@ function card(s){
   conf.innerHTML='conf <b>'+s.confidence.toFixed(3)+'</b>';
   row.append(pill,conf);
   body.append(name,row);
-  if(s.explained){
-    const r2=document.createElement('div');r2.className='row';
-    const f=s.focus_ratio;
-    const focus=document.createElement('span');
-    focus.className='m'+(f!=null&&f<1?' bad':'');
-    focus.innerHTML='focus <b>'+(f==null?'\\u2014':f.toFixed(2)+'x')+'</b>';
-    const ppl=document.createElement('span');ppl.className='m spacer';
-    ppl.innerHTML='people <b>'+s.n_people+'</b>';
-    r2.append(focus,ppl);body.appendChild(r2);
-  }
+  const r2=document.createElement('div');r2.className='row';
+  const ppl=document.createElement('span');
+  ppl.className='m'+((play&&s.n_inside===0)?' bad':'');
+  ppl.innerHTML='people <b>'+
+    ((s.n_inside===null||s.n_inside===undefined)?'\\u2014':s.n_inside)+'</b>';
+  const ball=document.createElement('span');ball.className='m spacer';
+  ball.innerHTML='ball <b>'+(s.ball?'yes':'no')+'</b>';
+  r2.append(ppl,ball);body.appendChild(r2);
   el.append(imgs,body);
   return el;
 }
@@ -451,16 +452,23 @@ function summarise(){
   if(!results.length) return;
   const counts={};
   results.forEach(s=>counts[s.predicted]=(counts[s.predicted]||0)+1);
-  const explained=results.filter(s=>s.explained);
-  const flagged=explained.filter(s=>s.focus_ratio!=null&&s.focus_ratio<1).length;
   const meanConf=results.reduce((a,s)=>a+s.confidence,0)/results.length;
   const worst=results.reduce((a,s)=>Math.min(a,s.confidence),1);
+  const num=s=>(s.n_inside===null||s.n_inside===undefined)?0:s.n_inside;
+  const people=results.reduce((a,s)=>a+num(s),0);
+  const withBall=results.filter(s=>s.ball).length;
+  // The batch's one quality flag, and it is a disagreement a reader can check against the
+  // picture rather than the focus ratio it replaces: the verdict says a match is on and the
+  // detector found nobody on the pitch.
+  const odd=results.filter(s=>s.predicted.indexOf('ACTIVE_PLAY')>=0&&num(s)===0).length;
 
   const tiles=[
     ['Images read',results.length,''],
+    ['People found',people,''],
+    ['With a ball',withBall+' of '+results.length,''],
     ['Mean confidence',meanConf.toFixed(3),''],
     ['Least confident',worst.toFixed(3),''],
-    ['Evidence off people',flagged+' of '+explained.length,flagged?'flagged':''],
+    ['Play, nobody on the pitch',odd,odd?'flagged':''],
   ];
   Object.entries(counts).sort().forEach(([k,v])=>
     tiles.push([k.replace('C1_','').replace('C2_','').replace('C3_','').replace(/_/g,' '),
