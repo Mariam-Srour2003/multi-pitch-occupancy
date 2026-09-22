@@ -210,6 +210,36 @@ def test_the_api_refuses_a_misclick_with_a_reason() -> None:
     assert "mis-click" in response.json()["detail"]
 
 
+def test_a_limited_listing_trims_the_menu_without_touching_the_stores() -> None:
+    """The reviewer pages ask for three; the stores keep all hundred-odd.
+
+    The derived store holds one boundary per clip in the corpus, so a selector built from the
+    whole listing is unusable - but that store is also read by the pipeline and by every
+    masking experiment, so shortening the menu must not mean deleting anything. This is the
+    test that says the trim is a view.
+    """
+    for i in range(6):
+        roi.save_derived(f"derived_{i}", MIDDLE)
+    client = TestClient(app)
+    trimmed = client.get("/api/v1/roi", params={"limit": 3}).json()
+    assert len(trimmed["cameras"]) == 3
+    assert set(trimmed["boundaries"]) == set(trimmed["cameras"])
+    assert len(client.get("/api/v1/roi").json()["cameras"]) == 6
+    assert len(roi.load_all()) == 6
+
+
+def test_a_limited_listing_puts_hand_drawn_outlines_first() -> None:
+    """Sorting alphabetically across both stores fills a three-item menu with machine ids and
+    drops the outlines somebody drew on purpose off the end. `zzz` sorts last and is still
+    there, because it was drawn."""
+    for i in range(6):
+        roi.save_derived(f"aaa_derived_{i}", MIDDLE)
+    roi.save("zzz_drawn_by_hand", MIDDLE)
+    cameras = TestClient(app).get("/api/v1/roi", params={"limit": 3}).json()["cameras"]
+    assert cameras[0] == "zzz_drawn_by_hand"
+    assert len(cameras) == 3
+
+
 def test_the_editor_page_is_served() -> None:
     html = TestClient(app).get("/roi").text
     assert "/api/v1/roi" in html

@@ -45,7 +45,8 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 __all__ = [
     "Polygon", "STORE", "DERIVED_STORE", "FILLS", "DEFAULT_FILL", "FILE_KEY_CAMERA",
-    "ALIASES_KEY", "load_all", "load_aliases", "get", "resolve", "resolve_with_key",
+    "ALIASES_KEY", "load_all", "load_drawn", "load_aliases", "get", "resolve",
+    "resolve_with_key",
     "save", "save_derived", "remove", "validate", "coverage", "apply", "grid_weights",
     "outline", "derive_from_frames", "derive_from_video",
 ]
@@ -176,6 +177,18 @@ def load_all() -> dict[str, Polygon]:
     `STORE`, so drawing one is how a person corrects a derivation they disagree with.
     """
     return {**_read(DERIVED_STORE), **_read(STORE)}
+
+
+def load_drawn() -> dict[str, Polygon]:
+    """Only the hand-drawn boundaries, from `STORE`.
+
+    `load_all` deliberately hides which store an outline came from, because the masking path
+    does not care. A *menu* does: `DERIVED_STORE` holds one entry per clip in the corpus, so a
+    selector built from `load_all` is a hundred machine-generated ids long and the two or three
+    outlines somebody actually drew are lost in it. This is the split that lets a caller put
+    those first without reaching into the private readers.
+    """
+    return _read(STORE)
 
 
 def load_aliases() -> dict[str, str]:

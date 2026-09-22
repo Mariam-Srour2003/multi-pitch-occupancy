@@ -122,6 +122,14 @@ del{color:var(--ink-3);text-decoration-color:var(--flag);margin-right:7px}
 .note{border-left:3px solid var(--accent);background:var(--surface);padding:12px 16px;
   border-radius:0 8px 8px 0;font-size:13px;color:var(--ink-2);margin:14px 0 0}
 .note b{color:var(--ink)}
+/* The pages carry their reasoning in `title` now rather than in paragraphs, so the places
+   that hold one have to look hoverable - an explanation nobody can see they can ask for is
+   an explanation that was deleted. `:empty` covers the notes the JS clears: with the prose
+   gone, an emptied note would otherwise render as a bare bordered box. */
+[title]{cursor:help}
+figcaption[title],label[title],.sub2 span[title],.note span[title]{
+  border-bottom:1px dotted currentColor}
+.note:empty,.sub2:empty{display:none}
 .warn{border-left-color:var(--flag)}
 .err{border-left-color:var(--flag);color:var(--flag)}
 #stage{display:none}#stage.on{display:block}
@@ -158,8 +166,9 @@ del{color:var(--ink-3);text-decoration-color:var(--flag);margin-right:7px}
 <main>
 
 <h2>Analyse a clip</h2>
-<p class="sub2">Samples a frame at a fixed interval, classifies each one, and reports when the
-state changed. Nothing is stored: the file is deleted as soon as it has been read.</p>
+<p class="sub2" title="Samples a frame at a fixed interval, classifies each one, and
+reports when the state changed. The file is deleted as soon as it has been read.">sample
+&rarr; classify &rarr; segment &middot; nothing stored</p>
 
 <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a video">
   <strong>Drop a video here, or click to choose</strong>
@@ -169,7 +178,7 @@ state changed. Nothing is stored: the file is deleted as soon as it has been rea
 
 <div class="controls">
   <div><label for="iv">Sample every</label>
-    <input type="number" id="iv" value="10" min="1" max="600" step="1"></div>
+    <input type="number" id="iv" value="1" min="1" max="600" step="1"></div>
   <div><label for="win">Smoothing window</label>
     <select id="win">
       <option value="1">1 - none</option>
@@ -179,9 +188,9 @@ state changed. Nothing is stored: the file is deleted as soon as it has been rea
     </select></div>
   <div><label for="expn">Explain in detail</label>
     <select id="expn">
-      <option value="8" selected>first 8 frames</option>
+      <option value="8">first 8 frames</option>
       <option value="20">first 20</option>
-      <option value="-1">every frame</option>
+      <option value="-1" selected>every frame</option>
       <option value="0">none</option>
     </select></div>
   <div><label for="camera">Pitch boundary</label>
@@ -191,48 +200,41 @@ state changed. Nothing is stored: the file is deleted as soon as it has been rea
   <button class="act" id="go" disabled>Analyse</button>
   <button class="act" id="watch" disabled>Watch it work</button>
 </div>
-<p class="sub2" style="margin-top:9px">Masks everything outside this camera's pitch on
-<b>every sampled frame</b> &mdash; the fix for a neighbouring pitch appearing in shot. Draw
-one on the clip's first frame in the <a href="/roi" style="color:var(--accent)">boundary
-editor</a>.</p>
+<p class="sub2" style="margin-top:9px" title="Masks everything outside this camera's pitch
+on every sampled frame - the fix for a neighbouring pitch appearing in shot.">masks outside
+the pitch &middot; <a href="/roi" style="color:var(--accent)">boundary editor</a></p>
 
 <div id="busy"><div class="spin"></div><span id="busytxt">Analysing&hellip;</span></div>
 <div id="err" class="note err" style="display:none"></div>
 
 <div id="stage">
   <h2>Watching it work</h2>
-  <p class="sub2">Each frame is sampled, embedded by the frozen backbone, scored by the
-    linear probe, and then <b>put through the same two gates the Analyse tab applies</b> —
-    so the verdict here is the system's, not the probe's, and the two tabs agree about one
-    clip. Where a gate overruled the probe, the probe's verdict is struck through beside the
-    answer and the reason is given. The overlay is <b>not a saliency heuristic</b> — the
-    probe is linear over mean-pooled features, so the map below <i>is</i> the summands of the
-    probe's score, and the reconstruction error beside it proves that rather than asserting
-    it. It keeps explaining the <i>probe</i> even on an overruled frame, which is exactly the
-    frame worth looking at.</p>
+  <p class="sub2" title="Each frame is sampled, embedded by the frozen backbone, scored by
+    the linear probe, then put through the same two gates the Analyse tab applies - so the
+    verdict here is the system's, not the probe's.">sample &rarr; embed &rarr; probe &rarr;
+    gates</p>
 
   <div class="stagebar">
     <span class="stagenow" id="stage-step">waiting</span>
     <span class="spacer"></span>
-    <label for="speed" style="font-size:12px;color:var(--ink-3)">slow motion</label>
+    <label for="speed" style="font-size:12px;color:var(--ink-3)" title="A pause this page
+      adds between steps. The backbone runs at the same speed either way - it does not make
+      the model faster.">slow motion</label>
     <input type="range" id="speed" min="0" max="3000" step="100" value="1200">
     <span class="mono" id="speedtxt">1.2s</span>
     <button class="ghost" id="skip">Continue without slow motion</button>
   </div>
-  <p class="sub2" style="margin:-6px 0 14px">Slow motion is a pause this page adds between
-    steps; the button drops it. The backbone runs at the same speed either way &mdash; it does
-    not make the model faster. The control that changes the actual work is
-    <b>explain in detail</b>, because an explained frame costs about twice a bare prediction.</p>
-
   <div class="panes">
     <figure><img id="img-raw" alt="sampled frame">
       <figcaption>the frame as sampled</figcaption></figure>
     <figure><img id="img-heat" alt="evidence map">
-      <figcaption>where the score came from</figcaption></figure>
+      <figcaption title="This map is not a saliency heuristic: the probe is linear over
+        mean-pooled features, so the map is the summands of its score. The reconstruction
+        error tile is that claim being checked.">where the score came from</figcaption></figure>
     <figure><img id="img-boxes" alt="What the detector found: a box round each person, a ring round the ball">
       <figcaption>What the detector found</figcaption></figure>
   </div>
-  <p class="note" id="detnote" style="margin-top:8px">Two models, one frame. The probe scores pooled features, so its explanation can only be a heatmap; the detector finds objects, so its explanation is a box round <b>each person separately</b> and a ring round the ball. Anything found outside the boundary is dimmed, not dropped.</p>
+  <p class="note" id="detnote" style="margin-top:8px" title="Two models, one frame. The probe scores pooled features, so its explanation can only be a heatmap; the detector finds objects, so its explanation is a box round each person and a ring round the ball. Anything found outside the boundary is dimmed, not dropped.">probe &rarr; heatmap &middot; detector &rarr; boxes &middot; outside the boundary dimmed</p>
 
   <div class="verdictbar" id="verdictbar">
     <span class="pill" id="v-pred">&mdash;</span>
@@ -287,27 +289,25 @@ editor</a>.</p>
 
   <div id="bnote"></div>
   <div id="gnote"></div>
-  <div id="bnote"></div>
-  <div id="gnote"></div>
   <div id="corrnote"></div>
 
   <h2>Segments</h2>
-  <p class="sub2">A boundary is reported as the interval it falls in. Sampling every
-    <span id="ivtxt"></span> seconds locates a change to within that and no better.</p>
+  <p class="sub2" title="A boundary is reported as the interval it falls in: sampling
+    locates a change to within one interval and no better.">resolution
+    &plusmn;<span id="ivtxt"></span>s</p>
   <div class="scroll"><table><thead><tr>
     <th>State</th><th>From</th><th>To</th><th class="num">Duration</th>
     <th class="num">Samples</th><th class="num">Corrected</th>
   </tr></thead><tbody id="segs"></tbody></table></div>
 
   <h2>Every sample</h2>
-  <p class="sub2">Rows tinted red were overruled by their neighbours. The struck-through
-    value is what the model actually said about that frame — the first strike is the probe's
-    verdict before a gate overruled it, the second is this frame's verdict before its
-    neighbours did. <b>People inside</b> is the detector's count within the outline, run on
-    every frame here; <b>motion</b> is how much changed since the previous sample. Rows
-    marked <span class="warnflag">!</span> are ones where the two disagree — the verdict is
-    empty and yet somebody was found — which is worth a look, because the motion threshold
-    was fitted at one venue and calibrated nowhere else.</p>
+  <p class="sub2"><del>struck</del> <span title="First strike: the probe's verdict before a
+    gate overruled it. Second: this frame's verdict before its neighbours did.">overruled</span>
+    &middot; <span title="Rows tinted red were overruled by their neighbours.">red row
+    smoothed</span>
+    &middot; <span class="warnflag">!</span> <span title="The verdict is empty and yet the
+    detector found somebody. Worth a look: the motion threshold was fitted at one venue and
+    calibrated nowhere else.">empty, yet people found</span></p>
   <div style="margin:0 0 10px">
     <button class="ghost" id="toggle" aria-pressed="false">Show raw predictions only</button>
   </div>
@@ -336,11 +336,14 @@ drop.ondragover=e=>{e.preventDefault();drop.classList.add('over')};
 drop.ondragleave=()=>drop.classList.remove('over');
 drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');pick(e.dataTransfer.files[0])};
 
-// Saved boundaries. A failure to load leaves the selector at "whole frame", which is the
-// behaviour the page had before boundaries existed.
+// Saved boundaries. At most three, because the derived store holds one per clip in the
+// corpus and a hundred machine-generated ids is not a menu; the endpoint trims the list and
+// nothing is deleted, so the masking experiments still see every one of them. "whole frame"
+// stays first and stays selected, which is the behaviour the page had before boundaries
+// existed - and is what a failure to load leaves behind too.
 (async()=>{
   try{
-    const b=await (await fetch('/api/v1/roi')).json();
+    const b=await (await fetch('/api/v1/roi?limit=3')).json();
     (b.cameras||[]).forEach(k=>{
       const o=document.createElement('option');
       o.value=k;o.textContent=k+'  '+(b.boundaries[k].coverage*100).toFixed(0)+'%';
@@ -425,9 +428,11 @@ function paint(s){
       : (s.n_inside>0 ? 'a small group with no ball is present but not playing'
                       : 'nothing moved between this frame and the previous sample');
     note.style.display='';
-    note.textContent='The probe said '+s.probed+' — a gate overruled it, because '+why+
-      '. The evidence map below still decomposes the probe’s own score, so it shows what '+
-      'the probe was reading; on an overruled frame that is the thing worth looking at.';
+    // The map keeps decomposing the *probe*, not the gate, which is why an overruled frame
+    // is the one worth looking at. That belongs on the map's own caption, not in a
+    // paragraph the reader meets before the numbers.
+    note.innerHTML='<b>gate overruled the probe</b> &middot; probe said '+s.probed+
+      ' <span title="'+why+'">why?</span>';
   }else{note.style.display='none';}
   $('v-ms').textContent=Math.round(s.elapsed_ms)+' ms'+(s.explained?' (explained)':'');
 
@@ -438,15 +443,15 @@ function paint(s){
     // showing the previous frame's answer next to this frame's heatmap.
     $('img-boxes').src=s.boxes||'';
     const d=s.detector;
-    $('detnote').innerHTML=!d?'The detector did not run on this frame.'
-      :(!d.checked?'The detector was not available for this frame — which is not the '+
-        'same as finding nobody.'
-      :('<b>'+d.state.split('_').slice(1).join(' ')+'</b> at '+d.confidence.toFixed(2)+
-        ' by row '+d.rule+' — '+d.people_inside+' inside'+
-        (d.people_outside_boundary?', '+d.people_outside_boundary+' outside the boundary':'')+
-        ', ball '+(d.ball?d.ball_confidence.toFixed(2):'none')+
-        '. The probe scores pooled features and can only answer with a heatmap; the '+
-        'detector answers with a box round each person and a ring round the ball.'));
+    // "not available" is not "found nobody", and the distinction survives the trim as a
+    // word rather than a sentence: a blank count would read as zero people.
+    $('detnote').innerHTML=!d?'detector &mdash; did not run'
+      :(!d.checked?'detector &mdash; unavailable <span title="Not the same as finding '+
+        'nobody.">(not zero)</span>'
+      :('<b>'+d.state.split('_').slice(1).join(' ')+'</b> '+d.confidence.toFixed(2)+
+        ' &middot; rule '+d.rule+' &middot; '+d.people_inside+' inside'+
+        (d.people_outside_boundary?' &middot; '+d.people_outside_boundary+' outside':'')+
+        ' &middot; ball '+(d.ball?d.ball_confidence.toFixed(2):'none')));
     $('x-map').textContent=s.score_from_map.toFixed(3);
     $('x-dir').textContent=s.score_direct.toFixed(3);
     $('x-err').textContent=s.reconstruction_error.toExponential(1);
@@ -460,19 +465,20 @@ function paint(s){
     $('x-focus').textContent=f==null?'—':f.toFixed(2)+'x';
     $('x-focus-tile').className='tile'+(f!=null&&f<1?' flagged':'');
     $('focusnote').innerHTML=f==null
-      ? 'No people were detected in this frame, so there is no area to compare the evidence '+
-        'against. A ratio over zero area is not a small number — it is not a number.'
-      : ('Positive evidence on people over the area they cover. Above 1 means the score '+
-         'concentrates on <b>people</b>; near or below 1 means it is spread as though they '+
-         'were not there — which for an ACTIVE_PLAY prediction is worth a look.');
+      ? '<span title="No people were detected, so there is no area to compare the evidence '+
+        'against. A ratio over zero area is not a small number - it is not a number.">no '+
+        'people &mdash; focus undefined</span>'
+      : (f<1 ? '<span title="The score is spread as though the people were not there, which '+
+               'for an ACTIVE_PLAY prediction is worth a look.">evidence spread off the '+
+               'people</span>' : '');
   } else {
     $('x-map').textContent='—';$('x-dir').textContent='—';$('x-err').textContent='—';
     $('x-ppl').textContent='—';$('x-focus').textContent='—';
     $('x-out').textContent='—';
     $('x-focus-tile').className='tile';$('x-out-tile').className='tile';
-    $('focusnote').textContent='This frame was predicted without an evidence map — '+
-      '"explain in detail" bounds how many get one, because explaining costs about twice a '+
-      'bare prediction.';
+    $('focusnote').innerHTML='<span title="explain in detail bounds how many frames get '+
+      'a map, because explaining costs about twice a bare prediction">no evidence map '+
+      'for this frame</span>';
   }
 
   const i=document.createElement('i');
@@ -552,45 +558,50 @@ function render(d){
     tl.appendChild(i);
   }
 
+  // Three states, and the warn one stays loud: a reader who does not notice that no outline
+  // was applied reads an over-report as a result.
   const bnote=$('bnote');
   if(d.boundary_derived){
     bnote.className='note';
-    bnote.innerHTML='<b>No stored outline for this camera, so one was measured from the '+
-      'footage.</b> The median of the first frames is thresholded for turf and its outline '+
-      'used as the pitch \u2014 the same routine the corpus uses. A hand-drawn outline is '+
-      'better; what this replaces is no outline at all, which scores the neighbouring pitch, '+
-      'the walkway and the car park as if they were this pitch.';
+    bnote.innerHTML='outline <b>measured from the footage</b> <span title="No stored '+
+      'outline for this camera. The median of the first frames is thresholded for turf and '+
+      'its outline used as the pitch - the same routine the corpus uses. A hand-drawn one '+
+      'is better; what this replaces is no outline at all.">why?</span>';
   } else if(d.boundary){
     bnote.className='note';
-    bnote.innerHTML='Using the stored outline for <b>'+d.camera+'</b>.';
+    bnote.innerHTML='outline <b>'+d.camera+'</b>';
   } else {
     bnote.className='note warn';
-    bnote.innerHTML='<b>No pitch outline.</b> Every pixel counts, including the next pitch '+
-      'over and anyone walking past. Expect active play to be over-reported.';
+    bnote.innerHTML='<b>no pitch outline</b> &middot; <span title="Every pixel counts, '+
+      'including the next pitch over and anyone walking past.">active play '+
+      'over-reported</span>';
   }
 
   const gnote=$('gnote');
   if(d.n_gated){
     gnote.className='note';
-    gnote.innerHTML='<b>'+d.n_gated+' verdict'+(d.n_gated>1?'s were':' was')+' weakened by '+
-      'the gates.</b> A play verdict with nobody inside the outline becomes empty, and a '+
-      'small group with no ball becomes not-playing. The gates only ever weaken a claim, '+
-      'never strengthen one \u2014 the table shows what the model said before each.';
+    gnote.innerHTML='<b>'+d.n_gated+'</b> weakened by the gates <span title="A play verdict '+
+      'with nobody inside the outline becomes empty, and a small group with no ball becomes '+
+      'not-playing. The gates only ever weaken a claim, never strengthen one - the table '+
+      'shows what the model said before each.">why?</span>';
   } else { gnote.className='';gnote.innerHTML=''; }
 
+  // The one claim on this page that must not be trimmed away: a smoothed timeline is a
+  // judgement, not the answer. It keeps a count on the page and its reason a hover away -
+  // see `test_the_page_is_served_and_names_what_smoothing_costs`.
   const note=$('corrnote');
   if(d.n_corrected&&!rawOnly){
     note.className='note warn';
-    note.innerHTML='<b>'+d.n_corrected+' sample'+(d.n_corrected>1?'s were':' was')+
-      ' changed by smoothing.</b> A lone disagreeing sample between two agreeing neighbours is '+
-      'usually a misread frame \\u2014 but it can equally be a real brief event, and at this '+
-      'sampling interval nothing in the samples can tell those apart. Check the striped bands '+
-      'above against the footage before trusting them, or set the '+
-      'window to 1 to turn smoothing off.';
+    note.innerHTML='<b>'+d.n_corrected+'</b> changed by smoothing <span title="A lone '+
+      'disagreeing sample between two agreeing neighbours is usually a misread frame - but '+
+      'it can equally be a real brief event, and at this sampling interval nothing in the '+
+      'samples can tell those apart. Check the striped bands against the footage, or set '+
+      'the window to 1 to turn smoothing off.">judgement, not an answer</span>';
   } else if(d.interval_widened){
     note.className='note warn';
-    note.innerHTML='<b>The interval was widened to '+d.interval_s.toFixed(1)+'s</b> so the whole '+
-      'clip is covered within the sample cap, rather than analysing only its beginning.';
+    note.innerHTML='<b>interval widened to '+d.interval_s.toFixed(1)+'s</b> <span '+
+      'title="So the whole clip is covered within the sample cap, rather than analysing '+
+      'only its beginning.">why?</span>';
   } else { note.className='';note.innerHTML=''; }
 
   const segs=$('segs');segs.innerHTML='';

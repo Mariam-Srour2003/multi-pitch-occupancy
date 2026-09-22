@@ -1,9 +1,9 @@
-"""The oral defence, as nine scrollable pages (WP8).
+"""The thesis report, as eight scrollable pages (WP8).
 
-The site *is* the talk, and its shape is the oral-presentation template: nine tabs, one per
-numbered section, in the order they are delivered. Each tab is an ordinary page you scroll -
-a coloured hero, then blocks of cards, counts, a table or a figure. No slides and no pager:
-a reader should be able to read a tab top to bottom without pressing anything.
+The site follows the **report**: summary, plan, general introduction, four chapters and a
+conclusion, in reading order. Each tab is an ordinary page you scroll - a coloured hero,
+then blocks of cards, counts, a table or a figure. No slides and no pager: a reader should
+be able to read a tab top to bottom without pressing anything.
 
 Three rules keep it honest, and they are the same three the deck was built on:
 
@@ -16,11 +16,11 @@ in its own history.
 **A missing artefact says so.** A block whose figure has not been generated prints the
 command that would generate it, rather than rendering an empty box.
 
-**Short on the page, long in the script.** Each tab is the *claim*; what is actually said
-lives in `thesis/presentation/SPEAKER_SCRIPT.md` and nowhere on the page. If a sentence here
-is one you would speak rather than show, it belongs in the script - the site is what the room
-looks at while you talk, so a paragraph of delivery notes on it is a paragraph competing with
-you.
+**References are placeholders until they are read.** The general introduction lists the
+nine literature strands as `[CITE]`, exactly as `thesis/ch2_related_work.md` does, and no
+author name is written here that has not been read. A fabricated or half-remembered citation
+is the one error in a thesis that cannot be defended, and it is the specific failure an
+LLM-assisted draft is most likely to introduce.
 """
 
 from __future__ import annotations
@@ -455,234 +455,439 @@ def preprocess_pairs() -> str:
     )
 
 
-# --- the nine sections ----------------------------------------------------------------
+# --- the eight parts of the report ----------------------------------------------------
+#
+# The site follows the **report**, not the oral-presentation template: summary, plan,
+# general introduction, four chapters, conclusion. Each tab holds the material for that
+# part - what is presented and talked through - and nothing that is only delivery.
 
 
-def introduce() -> str:
-    """1. Introduce yourself."""
-    return (
-        '<div class="tk">'
-        + hero("Master&rsquo;s thesis &middot; oral defence",
-               "Good morning, distinguished examiners, professors and colleagues.",
-               "My name is Mariam Srour, and I am a Master&rsquo;s student in "
-               "<b>[Programme]</b> at <b>[Institution]</b>.", tone="ink")
-        + block("Who and where", cards([
-            ("Candidate", "Mariam Srour &mdash; Master&rsquo;s student, <b>[Programme]</b>."),
-            ("Institution", "<b>[Institution]</b>."),
-            ("Supervisor", "<b>[Name]</b>."),
-            ("Date", "<b>[Date]</b>."),
-        ]), note="Fill these four in before you present.")
-        + block("The work, in one sentence",
-                quote("A system that checks, from cameras a facility already owns, "
-                      "<b>which booked pitch hours were actually used</b> &mdash; on one "
-                      "small computer, with a person deciding every case."),
-                tint="green")
-        + "</div>"
-    )
-
-
-def topic() -> str:
-    """2. Name / topic of the research."""
+def summary() -> str:
+    """1. Summary - the abstract, as counts and three findings."""
     c = coverage_counts()
     counts = tiles([
         (c.get("frames", "?"), "labelled frames", "lead"),
-        ("3", "classes: empty, playing, maintenance", "good"),
-        ("7", "venue folds for cross-venue testing", "warn"),
-        ("0", "GPUs &mdash; a CPU-only constraint", "bad"),
+        ("3", "classes", "good"),
+        ("7", "venue folds", "warn"),
+        ("0", "GPUs", "bad"),
     ]) if c else "<p class='missing'>No coverage report generated yet.</p>"
     return (
         '<div class="tk">'
-        + hero("The title of my research is",
+        + hero("Summary",
                "Multi-Pitch Occupancy and Booking Verification from Existing Cameras",
-               "Or, in the form I will use for the rest of this talk: "
-               "<b>who actually used the pitch?</b>", tone="green")
-        + block("What that means", cards([
-            ("The question",
-             "A facility sells pitch hours. Which of them were actually played?"),
-            ("The constraint",
-             "Existing cameras, one small computer, no GPU, and no footage leaves the site."),
-            ("The output",
-             "Not a classification &mdash; an advisory with three evidence photographs."),
-        ]))
-        + block("The scale of it", counts, tint="sky")
-        + block("One design rule, carried everywhere",
-                quote("The vision path must <b>never</b> see the booking record as an input. "
-                      "A model that has read the booking flag cannot give evidence "
-                      "independent of the record it audits."),
-                note="That is the difference between an audit and a rubber stamp.")
+               "A CPU-only system that checks which booked pitch hours were actually used, "
+               "and an evaluation that turned out to be the result.", tone="ink")
+        + block("The abstract",
+                quote("A facility rents 5-a-side pitches by the hour and cannot verify which "
+                      "slots were used. This work samples <b>one frame per camera per "
+                      "minute</b> from existing CCTV, classifies each frame as empty, active "
+                      "play or maintenance, aggregates an hour into a verdict, and "
+                      "reconciles that verdict against the booking record &mdash; on a "
+                      "single mini-PC with no GPU, and with a person confirming every "
+                      "flag."))
+        + block("The study in numbers", counts, tint="sky")
+        + block("Three findings", cards([
+            ("The evaluation was measuring the wrong thing",
+             "Lighting and occupancy are confounded: a rule reading only the clock scores "
+             "<b>99.1%</b> on the corpus and beats all three deep backbones across unseen "
+             "venues."),
+            ("One clip reversed a 1,692-frame benchmark",
+             "234 seconds containing the case the corpus lacks put the trivial rule at "
+             "<b>16/16 wrong</b> and the deployed system at <b>0.00</b>."),
+            ("A published result did not survive a re-draw",
+             "An augmentation headline of <b>0.855</b> was the maximum of five draws; four "
+             "of five fell below using no augmentation at all. It was retracted and "
+             "restated."),
+        ], wide=True))
+        + block("What it contributes", points([
+            "An <b>evaluation method</b>: trivial baselines in every protocol, splits "
+            "grouped by venue, randomness re-drawn rather than re-run, and every safeguard "
+            "verified by breaking what it guards.",
+            "A <b>deployment recipe</b>: five labelled frames onboard a new camera, and the "
+            "source corpus stops contributing after that.",
+            "A <b>decision layer</b> that can only advise &mdash; enforced by the type "
+            "system, not by policy.",
+        ]), tint="green")
         + "</div>"
     )
 
 
-def roadmap() -> str:
-    """3. Roadmap."""
+def plan() -> str:
+    """2. Plan - how the report is organised."""
     return (
         '<div class="tk">'
-        + hero("Roadmap", "In this presentation, I will briefly take you through",
-               tone="sky")
-        + block("", numbered([
-            ("Purpose of the research", "What the study is for, and who it helps."),
-            ("How the research works", "The method, the data, the models &mdash; and a "
-                                       "hypothetical Tuesday evening."),
-            ("What problem it tackles", "The verification gap, and the gap in the data that "
-                                        "shaped everything."),
-            ("How it provides a solution", "Three fixes, two searches, and one retraction."),
-            ("Summary", "What was found, what it cannot claim, and your questions."),
+        + hero("Plan", "How this report is organised",
+               "Eight parts: a summary, this plan, a general introduction, four chapters, "
+               "and a conclusion.", tone="sky")
+        + block("The eight parts", numbered([
+            ("Summary", "The abstract, the scale of the study, and the three findings."),
+            ("Plan", "This page."),
+            ("General introduction",
+             "The problem in general, who has worked on it, the problem to be resolved, how "
+             "we resolve it, and the decomposition of the report."),
+            ("Chapter 1 &mdash; State of the art",
+             "Playgrounds: how facilities are monitored today and why each alternative "
+             "fails. Deep learning: what the field has established, and the gap."),
+            ("Chapter 2 &mdash; Deep learning methods and our model",
+             "The families considered, why the backbones are frozen, the architecture, and "
+             "how it is evaluated."),
+            ("Chapter 3 &mdash; YOLOv8",
+             "Why a detector at all, the candidates tested, the bake-off that chose one, "
+             "and what it cannot see."),
+            ("Chapter 4 &mdash; Applications and data augmentation",
+             "The deployed application, preprocessing, the augmentation presets, the "
+             "retraction, and the data generated with AI."),
+            ("Conclusion and perspectives",
+             "What was achieved, what it cannot claim, and what would change that."),
         ]))
-        + block("Two things I will spend real time on", cards([
-            ("The configuration searches",
-             "Both found a winner. Neither winner meant what it looked like."),
-            ("The augmentation experiment",
-             "A published result that we withdrew &mdash; and the check that caught it."),
-        ], wide=True), tint="amber")
+        + block("What each chapter answers", cards([
+            ("Chapter 1", "What is already done, and what is missing?"),
+            ("Chapter 2", "Which model, and why that one?"),
+            ("Chapter 3", "How do we count people and a ball on a pitch?"),
+            ("Chapter 4", "Does it work in practice, and what did we do about the data?"),
+        ]), tint="violet")
         + "</div>"
     )
 
 
-def purpose() -> str:
-    """4. Purpose of the research."""
+def introduction() -> str:
+    """3. General introduction - problem, prior work, our problem, our approach, plan."""
+    strands = [
+        ("&sect;2.1 Occupancy and activity recognition from fixed cameras",
+         "That classifying scene state from a fixed viewpoint is a solved problem class, and "
+         "what accuracy the field considers ordinary. <code>[CITE]</code>"),
+        ("&sect;2.2 Frozen features and linear probes",
+         "That a frozen backbone with a small trained head is a legitimate method rather "
+         "than a shortcut. <code>[CITE]</code>"),
+        ("&sect;2.3 Dataset leakage and evaluation protocol",
+         "That near-duplicate leakage is a known, recurring problem, with prior cases where "
+         "a benchmark was found to be measuring memorisation. <code>[CITE]</code>"),
+        ("&sect;2.4 Trivial baselines and benchmark validity",
+         "That checking a benchmark against a baseline which ignores the input is "
+         "established practice. <code>[CITE]</code>"),
+        ("&sect;2.5 Edge and CPU-constrained inference",
+         "What is achievable without a GPU, and at what accuracy cost. <code>[CITE]</code>"),
+        ("&sect;2.6 Object detection for people and small objects",
+         "The YOLO family, and small-object detection at distance. <code>[CITE]</code>"),
+        ("&sect;2.7 Data augmentation and domain shift",
+         "Which augmentations transfer across cameras, and which do not. "
+         "<code>[CITE]</code>"),
+        ("&sect;2.8 Prior art in facility and booking verification",
+         "Whether anyone has audited bookings from cameras before. <code>[CITE]</code>"),
+        ("&sect;2.9 Selective prediction and abstention",
+         "That a REVIEW band is a literature-backed design, not an engineering "
+         "convenience. <code>[CITE]</code>"),
+    ]
     return (
         '<div class="tk">'
-        + hero("Purpose of the research",
-               "Find out which booked hours were really used &mdash; using the cameras a "
-               "facility already owns.", tone="green")
-        + block("The study focuses on", cards([
-            ("The subject", "A network of synthetic 5-a-side football pitches."),
-            ("The population", "Every booked hour on every pitch, sampled once a minute."),
-            ("The context", "Existing CCTV, a CPU-only mini-PC, and the facility&rsquo;s own "
-                            "booking records."),
-            ("The variables", "Three scene classes &mdash; empty, active play, maintenance "
-                              "&mdash; against what the booking claims."),
+        + hero("General introduction",
+               "A facility sells hours it cannot verify",
+               "The problem, who has worked on it, what remains, and how this work answers "
+               "it.", tone="green")
+        + block("The problem in general", cards([
+            ("Pitches are sold by the hour",
+             "A multi-pitch facility rents 20&ndash;30 synthetic 5-a-side pitches in hourly "
+             "slots, all day, most of them after dark."),
+            ("The record is written by hand",
+             "Staff mark which slots were used. Nothing checks that record against what "
+             "happened on the grass."),
+            ("Nobody can check it",
+             "One manager cannot watch twenty pitches at once, so they spot-check &mdash; "
+             "and a spot check is a sample, not an audit."),
+            ("So three errors go unseen",
+             "<b>No-shows</b> (paid, never played), <b>unbooked use</b> (played, never "
+             "paid), and plain <b>data-entry error</b>."),
         ]))
-        + block("What the owner gets", cards([
-            ("Time back",
-             "Nobody can watch 20&ndash;30 pitches. It checks <b>every booked minute</b> and "
-             "shows the manager only what disagrees."),
-            ("The same judgement at 8am and 11pm",
-             "It does not tire, rush, or skip the far pitch. A person samples; this does "
-             "not."),
-            ("A picture, not a memory",
-             "Every flag arrives with three evidence frames."),
-            ("Coverage a patrol cannot match",
-             "One camera per pitch, once a minute, all day."),
-        ]), tint="green",
-            note="Stated carefully: more <b>consistent</b> and more <b>auditable</b> than a "
-                 "manual check &mdash; not more accurate than a human looking at the same "
-                 "photograph. No inter-annotator figure exists, and that is a real gap.")
-        + block("And three things it refuses to do", points([
-            "It <b>never bills</b> and never acts &mdash; <code>Advisory</code> is the only "
-            "output the decision layer can produce.",
-            "Anomalies are reported <b>per field, never per person</b>.",
-            "<b>Review never becomes an anomaly</b> &mdash; the system may not turn its own "
-            "uncertainty into someone else&rsquo;s error.",
-        ]), tint="coral")
+        + block("Authors who have worked on it", cards(strands, wide=True), tint="amber",
+                note="<b>Every reference here is a placeholder.</b> This project's rule is "
+                     "that no citation is written down until the paper has been opened and "
+                     "read &mdash; a fabricated or half-remembered reference is the one "
+                     "error in a thesis that cannot be defended. The nine strands say what "
+                     "each must establish; filling them is yours. See "
+                     "<code>thesis/ch2_related_work.md</code>.")
+        + block("The problem to be resolved",
+                quote("Given only the cameras a facility already owns and a computer with "
+                      "<b>no GPU</b>, decide for each booked hour whether the pitch was "
+                      "used &mdash; accurately enough to raise a billing conversation, and "
+                      "with evidence a customer can be shown.")
+                + points([
+                    "It must recognise an <b>empty</b> pitch, not just a busy one &mdash; "
+                    "the money rests entirely on that class.",
+                    "It must work at a venue it has <b>never seen</b>, because a facility "
+                    "adds pitches.",
+                    "It must run 20&ndash;30 cameras inside a <b>60-second</b> cycle on one "
+                    "mini-PC.",
+                    "It must never act on its own: the output is advice, and a person "
+                    "decides.",
+                ]), tint="coral")
+        + block("How we resolve it", numbered([
+            ("Sample sparsely", "One frame per camera per minute instead of decoding video "
+                                "&mdash; about <b>99% less</b> network traffic."),
+            ("Classify with frozen features",
+             "Three pretrained backbones used as fixed extractors, with a small trained head "
+             "on top."),
+            ("Count with a detector",
+             "YOLOv8 finds people and the ball inside the pitch boundary, and cheap rules "
+             "can overrule the classifier."),
+            ("Aggregate and reconcile",
+             "Sixty predictions become one verdict per hour, checked against the booking "
+             "record."),
+            ("Evaluate honestly",
+             "Splits grouped by venue, four trivial baselines in every protocol, and every "
+             "safeguard verified by breaking it."),
+        ]))
+        + block("Decomposition of the report", cards([
+            ("Chapter 1 &mdash; State of the art",
+             "Playgrounds and deep learning: what exists, and what it does not answer."),
+            ("Chapter 2 &mdash; Methods and our model",
+             "Why frozen backbones, what the architecture is, and how it is evaluated."),
+            ("Chapter 3 &mdash; YOLOv8",
+             "The detector: candidates, the bake-off, and the counting rules."),
+            ("Chapter 4 &mdash; Applications and augmentation",
+             "The deployed system, preprocessing, augmentation, and the generated data."),
+        ]), tint="sky")
         + "</div>"
     )
 
 
-def how() -> str:
-    """5. How does the research work? Design, data, models, rules, analysis."""
-    c = coverage_counts()
+def chapter1() -> str:
+    """4. Chapter 1 - state of the art: playgrounds, and deep learning."""
+    return (
+        '<div class="tk">'
+        + hero("Chapter 1 &mdash; State of the art",
+               "Playgrounds, and deep learning",
+               "How sports facilities are monitored today, what deep learning has "
+               "established, and the gap between them.", tone="violet")
+        + block("Playgrounds &mdash; how occupancy is measured today", table(
+            ["Approach", "Cost per pitch", "What it measures", "How it fails"],
+            [["PIR / motion sensor", "~&euro;20", "Motion in a cone",
+              "Rain, wind-blown netting, foxes, staff crossing &mdash; and no evidence "
+              "trail"],
+             ["Door counter / turnstile", "&euro;300&ndash;2,000", "People through a gate",
+              "Multi-pitch venues share an entrance; nobody counts <i>out</i>"],
+             ["Floodlight power draw", "~&euro;60", "Lights on",
+              "Daylight slots invisible; lights left on; shared circuits"],
+             ["App check-in", "~&euro;0", "That someone tapped a button",
+              "Measures compliance with the app &mdash; the no-show is exactly when nobody "
+              "taps"],
+             ["Manual logging", "Staff time", "What staff wrote down",
+              "<b>It is one of the three records being audited</b>"],
+             ["<b>This system</b>", "<b>Reuses existing CCTV</b>",
+              "<b>Scene state per minute, with evidence</b>",
+              "<b>Needs a camera view; classification error</b>"]], hi=5))
+        + block("Why the alternatives do not close the case", points([
+            "A sensor answers <i>did something move</i>. An audit needs <i>was this booking "
+            "used, and here is the picture</i>.",
+            "None of them can tell a five-a-side match from a <b>groundsman on a mower</b> "
+            "&mdash; which is the difference between billing and not billing.",
+            "Only the camera produces <b>evidence</b>: three frames a customer can be shown.",
+            "And the camera is <b>already installed</b>, for highlights. Every alternative "
+            "is new hardware on every pitch.",
+        ]), tint="amber",
+            note="Conceded first, because it is true: a PIR sensor is more robust in fog, in "
+                 "darkness and against a dirty lens. See "
+                 "<code>thesis/alternatives.md</code>.")
+        + block("Deep learning &mdash; what the field has established", cards([
+            ("Scene classification from fixed cameras is routine",
+             "Which is what licenses spending this thesis on the <i>evaluation</i> and the "
+             "reconciliation rather than on the classifier."),
+            ("Frozen backbones with linear probes work",
+             "Strong results from very few labels &mdash; and the concession that "
+             "fine-tuning would probably score higher."),
+            ("Object detection finds people reliably",
+             "The YOLO family in particular; small objects at distance remain hard."),
+            ("Leakage and shortcut learning are known failure modes",
+             "Grouped splitting, near-duplicate audits, and trivial baselines are "
+             "established practice, not an eccentricity."),
+        ]), note="Each of these is a strand in <code>thesis/ch2_related_work.md</code>, and "
+                 "each is waiting on references that have actually been read.")
+        + block("The gap this work sits in", cards([
+            ("Evaluation is usually same-scene",
+             "Almost all reported occupancy accuracy is scored on frames drawn from the "
+             "<b>same scenes</b> as training, so it measures memory of a place rather than "
+             "recognition of an activity."),
+            ("Trivial baselines are rarely reported",
+             "A benchmark that a clock rule can win looks healthy until somebody runs the "
+             "clock rule."),
+            ("And nobody audits bookings from cameras",
+             "The reconciliation problem &mdash; three records that disagree &mdash; is the "
+             "part with the least prior art."),
+        ], wide=True), tint="coral")
+        + "</div>"
+    )
+
+
+def chapter2() -> str:
+    """5. Chapter 2 - deep learning methods and our model."""
     inv = _json("model_inventory.json")
-    empty = c.get("EMPTY", {}) if c else {}
-    play = c.get("ACTIVE_PLAY", {}) if c else {}
-    with_empty = c.get("venues_with_empty", 1) if c else 1
-
     model_tiles = tiles([
         (f'{inv["frozen_total_params"] / 1e6:.1f}M', "frozen parameters, never updated",
          "lead"),
         (f'{inv["trained_total_params"]:,}', "trained parameters, all of them", "good"),
         (f'{inv["frozen_to_trained_ratio"]:,}:1', "frozen to trained", "warn"),
+        (str(inv["n_classes"]), "classes out"),
     ]) if inv else "<p class='missing'>No <code>model_inventory.json</code> yet.</p>"
-
+    lanes = []
+    if inv:
+        for b in inv["frozen"]:
+            lanes.append((b["label"],
+                          f'<b>{b["params"]:,}</b> parameters, <b>0</b> updated.<br>'
+                          f'{b["pretraining"]} &mdash; {b["pretraining_labels"]}.'))
     return (
         '<div class="tk">'
-        + hero("How does the research work?", "Five stages, one frame a minute",
-               "Sparse sampling, not a video stream &mdash; which is what makes the whole "
-               "facility fit on one small computer.", tone="ink")
-        + block("The design", numbered([
-            ("Sample", "One frame per camera per minute. About <b>99% less</b> network "
-                       "traffic than decoding the streams."),
-            ("Classify", "Empty, active play, or maintenance &mdash; so a mower is not billed "
-                         "as a match."),
-            ("Check", "Pitch boundary, motion, people, ball. These rules can <b>overrule</b> "
-                      "the model."),
-            ("Aggregate", "About 60 predictions become one verdict per booked hour: used, "
-                          "not used, or review."),
-            ("Compare", "Verdict against the booking record; disagreements flagged with "
-                        "evidence."),
+        + hero("Chapter 2 &mdash; Deep learning methods",
+               "The families considered, and the model we built",
+               "Three frozen backbones, a classifier small enough to read on one screen, and "
+               "the reason it is that way round.", tone="ink")
+        + block("The families considered", cards([
+            ("Convolutional networks",
+             "ConvNeXtV2 &mdash; a modern CNN, supervised and masked-autoencoder "
+             "pretraining on ImageNet-22k."),
+            ("Vision transformers",
+             "ViT-Base &mdash; supervised ImageNet-21k, fine-tuned to 1k."),
+            ("Self-supervised transformers",
+             "DINOv2 &mdash; self-supervised on LVD-142M, no labels at all."),
+            ("Vision-language models",
+             "CLIP / OpenCLIP / SigLIP, used <b>zero-shot</b> with written class "
+             "descriptions."),
         ]))
-        + block("A hypothetical scenario &mdash; Tuesday, 20:00, Pitch 3", beats([
-            ("Sold", "1 hour", "The booking says: paid for, and marked &ldquo;used&rdquo; by "
-                               "staff."),
-            ("13", "of 16", "The camera sees: an empty pitch under floodlights."),
-            ("REVIEW", "+3 photos", "The system says: never &ldquo;do not bill&rdquo;. Only "
-                                    "&ldquo;look at this&rdquo;."),
-        ]), tint="sky")
-        + block("Where a verdict can be refused", pipeline(),
-                note="Every stage can refuse rather than guess &mdash; which is why a camera "
-                     "that drops out cannot silently become an empty pitch.")
-        + block("What gets stored", schema(),
-                note="One row per camera per sampled minute is the only thing observed; "
-                     "everything above it is derived. A verdict and its evidence are written "
-                     "in one transaction, and a dropped minute is stored <b>as a gap</b> "
-                     "rather than filled &mdash; because no footage is not evidence that a "
-                     "pitch was unused.")
-        + block("The data collected", (tiles([
-            (c.get("frames", "?"), "recorded frames", "lead"),
-            (c.get("venues", "?"), "venues"),
-            (empty.get("total", "?"),
-             f'EMPTY, all from {with_empty} venue{"" if with_empty == 1 else "s"}', "warn"),
-            ("98.5%", "of frames have a near-duplicate", "bad"),
-        ]) + cards([
-            ("Fixed cameras, every 15 seconds",
-             "Existing CCTV on posts. One view forever &mdash; which is why no rotation is "
-             "ever simulated."),
-            ("Hand-labelled to a written protocol",
-             "Rules fixed in advance, with the ambiguous cases decided before the runs."),
-            ("EMPTY is daytime, ACTIVE_PLAY is night",
-             f'{empty.get("day", "?")} day against {empty.get("night", "?")} night; '
-             f'{play.get("night", "?")} night against {play.get("day", "?")} day.'),
-        ])) if c else "<p class='missing'>No coverage report generated yet.</p>")
-        + block("Why more data was not simply collected", cards([
-            ("There are people in it",
-             "Players, staff, sometimes children. Footage of identifiable people is "
-             "sensitive data &mdash; consent, retention and redaction all apply."),
-            ("So the bottleneck is permission",
-             "Every extra venue is a conversation with a facility, not a download."),
-            ("And the task needs variety",
-             "Many venues, lights, angles, weathers. Volume of the <b>same</b> scene adds "
-             "nothing."),
-        ]), tint="amber")
-        + block("So some data was generated, from a real starting point", cards([
-            ("Real anchor first",
-             "Every generated item starts from an <b>actual frame of an actual pitch</b> "
-             "&mdash; never a text prompt alone."),
-            ("Images &mdash; Gemini and ChatGPT",
-             "Used to produce the scene the corpus lacks: an empty pitch under floodlights."),
-            ("Stills into video &mdash; 2 AI tools",
-             "A still frame animated into motion, so the motion check has something to read. "
-             "<b>[tool names to be added]</b>"),
+        + block("Our model &mdash; almost nothing is trained", model_tiles
+                + (cards(lanes, wide=True) if lanes else ""))
+        + block("Why the backbones are frozen", cards([
+            ("Fine-tuning needs variety we do not have",
+             "Updating 200M parameters on <b>~150 distinct scenes</b> does not learn "
+             "football. It learns <i>these pitches</i>, under <i>these floodlights</i>."),
+            ("The data cannot simply be grown",
+             "It is footage of identifiable people, so every new venue is a consent "
+             "conversation. The bottleneck is <b>permission</b>."),
+            ("And our own numbers show the risk",
+             "98.5% of frames have a near-duplicate, and accuracy <b>falls</b> when labels "
+             "rise from 300 to 671."),
+            ("Freezing also bought the breadth",
+             "Embed once, reuse forever &mdash; which is how 75 experiments fit into one "
+             "thesis."),
+        ]), tint="green",
+            note="Freezing is a <b>defence against overfitting</b> first, and an efficiency "
+                 "win second.")
+        + block("The two novel modules, reported as they came out", cards([
+            ("Gated multi-backbone fusion &mdash; negative",
+             "Routing between backbones is worth <b>&minus;0.024</b> cross-venue recall "
+             "against the same head with the gate off. It puts ~0.70 of its weight on "
+             "DINOv2 in every fold: a learned constant in a router&rsquo;s costume."),
+            ("STAN, a temporal model &mdash; preliminary",
+             "1,651 parameters, scoring a perfect 1.000 on 200 composed slots. That is an "
+             "exhausted test set, not a win: <b>the real test set is two slots</b>, and the "
+             "&ge;30-slot rule raises in code."),
+        ], wide=True), tint="coral")
+        + block("The architecture", pipeline(),
+                note="Every stage can <b>refuse</b> rather than guess, which is what makes "
+                     "REVIEW a real outcome instead of a low-confidence USED.")
+        + block("What the system stores", schema(),
+                note="One row per camera per sampled minute is the only thing observed. A "
+                     "verdict and its evidence are written in one transaction; a dropped "
+                     "minute is stored <b>as a gap</b> rather than filled.")
+        + block("How the model is evaluated", cards([
+            ("Grouped splits, never random",
+             "Whole venues and slots held out, so no test frame has a near-twin in "
+             "training."),
+            ("Leave-one-venue-out",
+             "Seven folds, each reported with the smallest p-value the design could have "
+             "produced (0.0156)."),
+            ("Four trivial baselines, every time",
+             "A clock rule, a colour histogram, a constant predictor, a random one."),
+            ("Pre-registered, amended in the open",
+             "Hypotheses fixed before the runs; every change numbered and left in place."),
+        ]) + protocols(),
+            note="Identical model, identical data, two ways of drawing the train/test "
+                 "line &mdash; and the answer changes.")
+        + block("And the evaluation is where the result was", tiles([
+            ("99.1%", "correct by reading only the clock &mdash; no pixels", "bad"),
+            ("1.000", "macro-F1 for a constant predictor, cross-venue", "bad"),
+            ("0", "of 243 held-out empty frames DINOv2 gets right", "bad"),
+        ]) + confound_matrix() + empty_blindness(),
+            note="Class and time of day are nearly the same variable, so accuracy here "
+                 "cannot separate <i>recognises an empty pitch</i> from <i>recognises "
+                 "the time of day</i>. And a low false-alarm rate is <b>not</b> "
+                 "accuracy: on the 243 held-out empty frames DINOv2 answers PLAYING 75 "
+                 "times and MAINTENANCE 168 times.")
+        + "</div>"
+    )
+
+
+def chapter3() -> str:
+    """6. Chapter 3 - YOLOv8: the detector, the bake-off, and the counting rules."""
+    rows = _csv("detector_audit.csv")
+    chosen = next((r for r in rows if r.get("chosen") == "True"), None)
+    single = [r for r in rows if r.get("tiles") == "1"]
+    bake = table(
+        ["Detector", "Count MAE", "Within one", "&ge;5 recall", "Ball recall", "ms/frame",
+         "Fits budget"],
+        [[f'<b>{r["detector"]}</b>' if r is chosen else r["detector"],
+          r["count_mae"], r["within_one_rate"], r["ge5_recall"],
+          r["ball_recall_mean"], r["median_ms"],
+          "yes" if r["fits_budget"] == "True" else "<b>no</b>"]
+         for r in single],
+        hi=next((i for i, r in enumerate(single) if r is chosen), None),
+    ) if single else ("<p class='missing'>No <code>detector_audit.csv</code> yet. Run "
+                      "<code>uv run python experiments/detector_audit.py</code>.</p>")
+    tiled = [r for r in rows if r.get("tiles") == "2"]
+    return (
+        '<div class="tk">'
+        + hero("Chapter 3 &mdash; YOLOv8",
+               "Counting what stands on the pitch",
+               "The classifier says what a scene looks like. The detector says how many "
+               "people are on it &mdash; and it can overrule the classifier.", tone="amber")
+        + block("Why a detector at all", cards([
+            ("A classifier cannot be argued with",
+             "&ldquo;This frame looks like play&rdquo; is not a reason. &ldquo;Six people "
+             "and a ball inside the boundary&rdquo; is."),
+            ("The facility&rsquo;s rule is a count",
+             "Five people make a game; four or fewer do not. That is a number the detector "
+             "can produce and a manager can check."),
+            ("It gates the model",
+             "Boundary, motion, people and ball checks sit <b>in front of</b> the classifier "
+             "and can veto it."),
+            ("And it is explainable",
+             "Every verdict carries the boxes it was made from, drawn on the evidence "
+             "frame."),
+        ]))
+        + block("Why YOLOv8", points([
+            "<b>Single-stage and real-time.</b> One forward pass per frame &mdash; which is "
+            "what a 60-second cycle over 20&ndash;30 cameras can afford on a CPU.",
+            "<b>Pretrained on COCO</b>, which already contains <i>person</i> and "
+            "<i>sports ball</i> &mdash; the two classes this system needs, with no training "
+            "of our own.",
+            "<b>Segmentation variants available</b>, so masks can be drawn for the reader "
+            "without changing how anything is counted.",
+            "<b>A registry, not a string.</b> Seven candidates are named in code "
+            "(<code>vision/detector.py</code>), so switching detector is a setting rather "
+            "than an edit.",
+        ]))
+        + block("The bake-off &mdash; seven candidates, one chosen", bake,
+                note=(f"<b>{chosen['detector']}</b> was chosen: the lowest count error "
+                      f"({chosen['count_mae']} people), the best within-one rate "
+                      f"({chosen['within_one_rate']}), and the fastest that fits the cycle "
+                      f"at {chosen['median_ms']} ms a frame. Scored against "
+                      f"{chosen['n_hand']} hand-counted frames."
+                      if chosen else "No detector has been selected yet."),
+            tint="green")
+        + block("Tiling &mdash; measured, and rejected", cards([
+            ("The idea",
+             "A far-side player is a few pixels tall at the detector&rsquo;s input size. "
+             "Running the frame as four overlapping quarters plus the whole should find "
+             "them."),
             ("What it bought",
-             "31 generated empty frames took cross-venue false alarms from <b>0.768 to "
-             "0.024</b> &mdash; while play-recall went up."),
-        ]), tint="violet",
-            note="<b>Excluded from every corpus count.</b> They are a training aid, not "
-                 "evidence the system works on real footage of that case. And no rain was "
-                 "generated: with no wet footage to check against, that would test the "
-                 "generator rather than the weather.")
-        + block("The models &mdash; almost nothing here is trained", model_tiles + cards([
-            ("Why not fine-tune?",
-             "Updating 200M parameters on ~150 distinct scenes does not learn football. It "
-             "learns <b>these pitches</b>."),
-            ("Small data overfits",
-             "98.5% near-duplicates, and accuracy that <b>falls</b> when labels rise from 300 "
-             "to 671. The risk is a high score for the wrong reason."),
-            ("So freezing is a defence first",
-             "Against overfitting. Embedding once and reusing forever is the second, very "
-             "welcome, consequence."),
-        ]), tint="green")
-        + block("The rule table &mdash; first matching row wins", table(
+             "Better recall on the &ge;5 threshold, and better ball recall &mdash; the ball "
+             "is exactly the small object tiling should help."),
+            ("What it cost",
+             "Roughly five forward passes. Every tiled configuration <b>fails the "
+             "60-second budget</b>, and the count error gets <i>worse</i>, not better."),
+            ("So it is a candidate, not a default",
+             "It stays in the registry, switched off, with the measurement beside it."),
+        ]), tint="coral",
+            note=(f"Every one of the {len(tiled)} tiled configurations misses the cycle "
+                  "budget." if tiled else ""))
+        + block("From boxes to a verdict &mdash; the rule table", table(
             ["#", "Condition", "Verdict"],
             [["1", "Detector unavailable", "Uncertain &mdash; a missing detector is not an "
                                            "empty pitch"],
@@ -694,216 +899,162 @@ def how() -> str:
               "<b>ACTIVE PLAY</b> &mdash; the only way in"],
              ["7", "5+ people, otherwise", "Not a game &mdash; a crowd that is not playing"]],
             hi=5),
-            note="Five people make a game and four do not &mdash; that is the "
-                 "<b>facility&rsquo;s rule</b>, not something fitted. The ball requirement is "
-                 "strict and costs recall where the detector cannot see one (0.996 &rarr; "
-                 "0.308). A cue that cannot be measured is reported, never assumed.")
-        + block("Preprocessing &mdash; what happens before the model sees a frame", chips([
-            "Letterbox to 224&times;224", "Undistort", "Centre / top crop",
-            "Per-image standardise", "CLAHE", "Gamma", "Saturation &amp; grayscale",
-            "Denoise", "Sharpen", "Blur (a control, not a candidate)",
-        ]) + detail(preprocess_pairs(), "Every switch, before and after"),
-                note="Experiments and the live pipeline share <b>one</b> preprocessing "
-                     "module. CLAHE, which the proposal expected to help with "
-                     "floodlight glare, costs DINOv2 <b>0.27</b> macro-F1.")
-        + block("How the data were analysed", cards([
-            ("Grouped splits, never random",
-             "Whole venues and slots held out, so no test frame has a near-twin in training."),
-            ("Four trivial baselines, every time",
-             "A clock rule, a colour histogram, a constant predictor, a random one. If they "
-             "win, the protocol is wrong."),
-            ("Leave-one-venue-out",
-             "Seven folds, each reported with the smallest p-value the design could have "
-             "produced (0.0156)."),
-            ("Pre-registered, amended in the open",
-             "Hypotheses fixed before the runs; every change numbered and left in place."),
-        ]))
+            note="A person is placed by the <b>foot of their box</b>, so detection and "
+                 "segmentation models count identically. Five and four are the "
+                 "<b>facility&rsquo;s</b> numbers, not fitted ones. A cue that cannot be "
+                 "measured is reported, never assumed.")
+        + block("What the detector cannot do", cards([
+            ("It often cannot see the ball",
+             "Cross-venue ball recall is <b>0.40</b>, and between 0.06 and 0.89 depending on "
+             "the venue."),
+            ("So the ball rule is expensive",
+             "Requiring a ball drops play recall from <b>0.996 to 0.308</b> at the worst "
+             "venues. That is the facility&rsquo;s rule, and the cost is measured rather "
+             "than argued about."),
+            ("Failure is <code>None</code>, never <code>[]</code>",
+             "A missing weights file or a raised prediction returns &ldquo;not "
+             "checked&rdquo;. Collapsing that into &ldquo;nothing found&rdquo; is how a "
+             "broken install reports every pitch empty."),
+        ], wide=True), tint="amber")
         + "</div>"
     )
 
 
-def problem() -> str:
-    """6. What problem does the research tackle?"""
-    return (
-        '<div class="tk">'
-        + hero("What problem does the research tackle?",
-               "A facility sells hours. Nobody checks which ones were used.",
-               "Staff write it down; the records are unverified; three kinds of error "
-               "follow.", tone="coral")
-        + block("The problem, in three failure modes", cards([
-            ("No-shows", "Paid for, never played."),
-            ("Unbooked use", "Played, never paid for."),
-            ("Data-entry error", "The record and the reality drift apart."),
-        ]), note="A &euro;20 motion sensor is more robust in fog and darkness &mdash; but it "
-                 "answers <i>did something move</i>. An audit needs <i>was this booking used, "
-                 "and here is the picture</i>, and it must tell a match from a groundsman.")
-        + block("What is already known &mdash; and the gap", cards([
-            ("Known: frozen backbones work",
-             "Strong results from very few labels, across many vision tasks."),
-            ("Known: occupancy from CCTV",
-             "People counting and occupancy are established problems."),
-            ("Missing: honest evaluation",
-             "Almost all of it is scored on frames from the <b>same scenes</b> as training."),
-            ("So the score measures memory",
-             "Recognition of a <b>place</b>, not of an <b>activity</b> &mdash; and nobody "
-             "runs a trivial rule beside it to check."),
-        ]))
-        + block("This gap matters because the money rests on one class",
-                quote("Getting &ldquo;playing&rdquo; right is easy and worth nothing. If the "
-                      "system cannot reliably recognise an <b>empty</b> pitch, it cannot flag "
-                      "a single unused booking."), tint="amber")
-        + block("First consequence &mdash; honest splitting halves the score", tiles([
-            ("37.1%", "of near-duplicate pairs cross the line under a random split", "bad"),
-            ("0.8%", "under a split grouped by venue and slot", "good"),
-            ("&minus;0.49", "macro-F1: what honesty costs ConvNeXtV2", "warn"),
-        ]), note="But only about two thirds of that fall is leakage: a model that never "
-                 "trains cannot leak, and scoring one on the same test sets isolates the "
-                 "rest at <b>0.183</b>.")
-        + block("The real gap &mdash; in this data, the time of day is the answer", tiles([
-            ("98%", "of daylight frames are an empty pitch", "warn"),
-            ("99%", "of night frames are a match", "warn"),
-            ("99.1%", "so &ldquo;night means play&rdquo; is right on the whole corpus", "bad"),
-        ]) + confound_matrix(), tint="coral",
-            note="The two cells that would break the tie hold <b>9 frames</b> (empty at "
-                 "night) and <b>6</b> (play in daylight). Nothing measured here can separate "
-                 "<i>recognises an empty pitch</i> from <i>recognises the time of day</i>.")
-        + block("The same model, judged two ways", protocols(),
-                note="Identical model, identical data. Two ways of drawing the train/test "
-                     "line &mdash; and the answer changes.")
-        + block("What that does to a benchmark", table(
-            ["Method", "Finds the match", "Wrongly says &ldquo;playing&rdquo;"],
-            [["<b>Clock rule &mdash; reads no pixels</b>", "<b>1.000</b>", "<b>0.021</b>"],
-             ["DINOv2", "0.930", "0.309"],
-             ["ConvNeXtV2", "0.911", "0.992"],
-             ["ViT", "0.869", "0.835"]], hi=0)
-            + beats([("16/16", "0.00", "Minutes wrong on a clip of a floodlit empty pitch: "
-                                       "the clock rule, then the full deployed system.")]),
-            note="Across venues the models had never seen. One 234-second clip containing the "
-                 "missing case reversed a ranking that 1,692 frames had produced.")
-        + block("And two more things the protocol was hiding",
-                empty_blindness() + cards([
-                    ("A constant predictor wins one protocol",
-                     "Always answering &ldquo;playing&rdquo; scores macro-F1 <b>1.000</b> "
-                     "cross-venue &mdash; because every held-out venue is 100% active play. "
-                     "There is no ranking to change."),
-                    ("A low false-play rate is not accuracy",
-                     "On 243 held-out empty frames DINOv2 answers PLAYING 75 times and "
-                     "MAINTENANCE 168 times. It is correct <b>zero</b> times."),
-                ], wide=True),
-                note="Both were found the same way &mdash; by adding a column to check "
-                     "whether a number meant what it said.")
-        + block("Which is why one missing cell blocks four questions", blocked_questions())
-        + "</div>"
-    )
-
-
-def solution() -> str:
-    """7. How does the research provide a solution?"""
+def chapter4() -> str:
+    """7. Chapter 4 - applications and data augmentation."""
     a = augmentation_spread()
     res = search_resolution()
-
     spread = beats([
         (a.get("baseline", "?"), a.get("max", "?"),
          "macro-F1: no augmentation, against the draw that was published"),
         (a.get("max", "?"), a.get("min", "?"),
          f'the same preset, best against worst of {a.get("n", "?")} draws'),
     ]) if a.get("sd") else "<p class='missing'>No augmentation spread measured yet.</p>"
-
     floor = tiles([
         (res["floor"], "one frame in the smallest fold moves the headline this much", "bad"),
         (res["interval"], "how wide the confidence band is at the median setting", "bad"),
     ]) if res.get("floor") else "<p class='missing'>No resolution audit yet.</p>"
-
     return (
         '<div class="tk">'
-        + hero("How does the research provide a solution?",
-               "The fix was never a bigger model.",
-               "Three interventions, each measured on the boundary it was meant to help.",
-               tone="green")
-        + block("Three fixes, all cheap", beats([
-            ("0.617", "0.012", "False alarms on empty pitches, once the pitch boundary, "
-                               "motion and person checks can veto the model."),
-            ("0.768", "0.024", "With 31 generated empty-pitch frames in training &mdash; and "
-                               "play-recall went up."),
-            ("0.441", "0.990", "One labelled frame of a new camera. Five from it beat those "
-                               "five plus 775 from the old one."),
-        ]), note="What buys the accuracy is having <b>any</b> labels from the new camera "
-                 "&mdash; not a large corpus from an old one. That is the weaker claim, and "
-                 "it is the true one.")
-        + block("What was investigated &mdash; two configuration searches", tiles([
-            ("88", "preprocessing runs &mdash; greedy, four rounds", "lead"),
+        + hero("Chapter 4 &mdash; Applications and data augmentation",
+               "What it does in practice, and what we did about the data",
+               "The deployed application, the preprocessing path, the augmentation "
+               "experiment, and the data we generated.", tone="sky")
+        + block("The application &mdash; a booked hour, end to end", beats([
+            ("Sold", "1 hour", "The booking says: paid for, and marked &ldquo;used&rdquo; by "
+                               "staff."),
+            ("13", "of 16", "The camera sees: an empty pitch under floodlights."),
+            ("REVIEW", "+3 photos", "The system says: never &ldquo;do not bill&rdquo;. Only "
+                                    "&ldquo;look at this&rdquo;."),
+        ]), note="A manager opens the slot, sees three evidence frames and the per-minute "
+                 "table, and confirms or overrides. The model&rsquo;s original verdict is "
+                 "retained, never replaced.")
+        + block("Preprocessing &mdash; before the model sees a frame", chips([
+            "Letterbox to 224&times;224", "Undistort", "Centre / top crop",
+            "Per-image standardise", "CLAHE", "Gamma", "Saturation &amp; grayscale",
+            "Denoise", "Sharpen", "Blur (a control, not a candidate)",
+        ]) + detail(preprocess_pairs(), "Every switch, before and after"),
+            note="Experiments and the live pipeline share <b>one</b> preprocessing module. "
+                 "CLAHE, which the proposal expected to help with floodlight glare, "
+                 "<b>costs</b> DINOv2 0.27 macro-F1.")
+        + block("Data augmentation &mdash; the presets", cards([
+            ("<code>colour</code>", "Brightness, contrast, saturation, hue &mdash; turf hue "
+                                    "encodes venue identity and does not transfer."),
+            ("<code>light</code>", "Brightness, gamma, sensor noise &mdash; matched to how "
+                                   "two cameras on one pitch actually differ."),
+            ("<code>weather</code>", "Fog, rain, noise."),
+            ("<code>full</code>", "Every effect at once."),
+        ]), note="<b>No rotations, warps or perspective changes.</b> The cameras are bolted "
+                 "to a post and see one view forever, so a rotated pitch is not a harder "
+                 "example &mdash; it is an impossible one. Horizontal flip is the one "
+                 "exception, because it breaks memorisation of <i>this</i> pitch&rsquo;s "
+                 "layout.")
+        + block("The augmentation experiment &mdash; and its retraction", spread
+                + points([
+                    f'Standard deviation <b>{a.get("sd", "?")}</b> on a metric bounded in '
+                    '[0,&nbsp;1].',
+                    f'The published number was the <b>maximum of {a.get("n", "five")}</b>.',
+                    f'Four of five draws land <b>below the {a.get("baseline", "?")}</b> the '
+                    'probe reaches with no augmentation at all.',
+                ], tone="bad"), tint="coral",
+                note="The row in the results file is unchanged and still reproduces exactly "
+                     "&mdash; which is the problem, not the defence. A test pinning the "
+                     "published value would have passed forever; only re-drawing the "
+                     "randomness caught it. Every headline now runs five draws.")
+        + block("Generating data with AI, from a real starting point", cards([
+            ("Real anchor first",
+             "Every generated item starts from an <b>actual frame of an actual pitch</b> "
+             "&mdash; never a text prompt alone."),
+            ("Images &mdash; Gemini and ChatGPT",
+             "Used to produce the scene the corpus lacks: an empty pitch under floodlights "
+             "at night."),
+            ("Stills into video &mdash; 2 AI tools",
+             "A still frame animated into motion, so the motion check has something to read. "
+             "<b>[tool names to be added]</b>"),
+            ("What it bought",
+             "31 generated empty frames took cross-venue false alarms from <b>0.768 to "
+             "0.024</b> &mdash; while play-recall went up."),
+        ]), tint="violet",
+            note="<b>Excluded from every corpus count.</b> A training aid, not evidence that "
+                 "the system works on real footage of that case. And no rain was generated: "
+                 "with no wet footage to validate against, that would test the generator "
+                 "rather than the weather.")
+        + block("Two configuration searches", tiles([
+            ("88", "preprocessing runs &mdash; greedy", "lead"),
             ("375", "prompt sets &mdash; exhaustive, zero labels", "lead"),
             ("0.726", "macro-F1 span from worst wording to best", "warn"),
             ("0.082", "span from swapping between the three backbones", "good"),
-        ]) + cards([
-            ("Wording moved the score nine times more than the model did",
-             "And only 22.9% of prompt sets beat the trained probe &mdash; so "
-             "&ldquo;zero-shot works&rdquo; is true only if you already know the wording, "
-             "which needs labels."),
-            ("Both winners sit inside the noise",
-             "The winner&rsquo;s lead of 0.447 is measured on the folds it was selected from. "
-             "Disclosed in the pre-registration as an undeclared search family."),
-        ], wide=True), tint="sky")
-        + block("Because both searches are finer than the data", floor,
-                note="Almost every gap the preprocessing search ranked on is <b>smaller than "
-                     "its own error bar</b>. The ranking is real arithmetic on unreal "
-                     "precision.")
-        + block("The augmentation experiment &mdash; and its retraction", spread + points([
-            f'Standard deviation <b>{a.get("sd", "?")}</b> on a metric bounded in '
-            '[0,&nbsp;1].',
-            f'The published number was the <b>maximum of {a.get("n", "five")}</b>.',
-            f'Four of five draws land <b>below the {a.get("baseline", "?")}</b> the probe '
-            'reaches with no augmentation at all.',
-        ], tone="bad"), tint="coral",
-            note="The row in the results file is unchanged and still reproduces exactly "
-                 "&mdash; which is the problem, not the defence. A test pinning the published "
-                 "value would have passed forever; only re-drawing the randomness caught it. "
-                 "Every headline now runs five draws.")
-        + block("And the practice that found half of this", cards([
-            ("A test-set lock", "Resolved against the working directory, so it locked "
-                                "nothing."),
-            ("A confidence threshold", "Set to 0.0 &mdash; a gate that can never fire."),
-            ("A gate criterion", "Grepped for a word instead of running the verifier."),
-            ("Evidence selection", "Recorded a file path of <code>None</code> for every frame "
-                                   "it chose."),
-        ]), tint="amber",
-            note="Six safeguards in this project were doing nothing. Each new guard is now "
-                 "verified by <b>deliberately breaking the thing it guards</b> &mdash; "
-                 "because a wrong result that looks plausible is invisible.")
-        + block("What the findings contribute", cards([
-            ("To practice",
-             "A five-frame onboarding recipe for every new camera, and a rule table a "
-             "facility manager can read and argue with."),
-            ("To the field",
-             "An evaluation method: trivial baselines in every protocol, grouped splits, "
-             "re-drawing randomness rather than re-running it, and every guard verified by "
-             "breaking it."),
-        ], wide=True), tint="green")
+        ]) + floor,
+            note="Wording moved the score <b>nine times more</b> than the model did. And "
+                 "almost every gap the preprocessing search ranked on is <b>smaller than its "
+                 "own error bar</b>: the ranking is real arithmetic on unreal precision.")
+        + block("What the applications achieved", beats([
+            ("0.617", "0.012", "False alarms on empty pitches, once boundary, motion and "
+                               "person checks can veto the model."),
+            ("0.768", "0.024", "With 31 generated empty-pitch frames in training."),
+            ("0.441", "0.990", "One labelled frame of a new camera. Five from it beat those "
+                               "five plus 775 from the old one."),
+        ]), tint="green",
+            note="Not one of these is a bigger model. What buys the accuracy is having "
+                 "<b>any</b> labels from the new camera &mdash; not a large corpus from an "
+                 "old one.")
         + "</div>"
     )
 
 
-def summary() -> str:
-    """8. Summary."""
+def conclusion() -> str:
+    """8. Conclusion and perspectives."""
     return (
         '<div class="tk">'
-        + hero("Summary", "In summary",
-               "What this study investigated, what it found, and what it contributes.",
-               tone="ink")
-        + block("", cards([
-            ("Investigated",
-             "Whether cameras a facility already owns can verify which booked hours were "
-             "actually used &mdash; on a CPU, with a human deciding every case."),
-            ("Found",
-             "On this data a clock beats a neural network. Lighting and occupancy are "
-             "confounded so tightly that no protocol here separates them."),
-            ("Contributed",
-             "An evaluation method: trivial baselines everywhere, grouped splits, re-drawing "
-             "randomness, and every guard verified by breaking it."),
-            ("Implies",
-             "For the facility, a five-frame onboarding recipe. For the field, that a "
-             "benchmark can rank a light meter first and still look healthy."),
-        ], wide=True))
+        + hero("Conclusion and perspectives",
+               "The system works. The evaluation is the finding.",
+               "What was achieved, what it cannot claim, and what would change that.",
+               tone="green")
+        + block("What was achieved", cards([
+            ("A complete system",
+             "Sampling, classification, detection, slot aggregation, reconciliation, an API "
+             "and a dashboard &mdash; all running on a CPU."),
+            ("A reproducible programme",
+             "Every result regenerates from the manifest and the cached features through one "
+             "pipeline; every claim is re-derived from its artefact on every run."),
+            ("A deployment recipe",
+             "Five labelled frames onboard a new camera, after which the source corpus stops "
+             "contributing."),
+            ("An enforced ethical boundary",
+             "<code>Advisory</code> is the only output the decision layer can produce, and "
+             "no code path acts."),
+        ]))
+        + block("What was found", points([
+            "On this corpus, <b>lighting and occupancy are the same variable</b>: a rule "
+            "reading only the clock is right on 99.1% of frames and beats all three "
+            "backbones across unseen venues.",
+            "<b>One 234-second clip reversed a 1,692-frame benchmark</b>, because it "
+            "contained the case the benchmark was missing.",
+            "<b>A low false-alarm rate is not accuracy</b> &mdash; the models answer "
+            "MAINTENANCE, not EMPTY, and are correct zero times out of 243.",
+            "<b>A reproducible number is not a reproducible result</b>: the augmentation "
+            "headline was the maximum of five draws.",
+        ]), tint="sky")
         + block("What this study cannot claim", cards([
             ("Empty pitches exist at one venue only",
              "So a three-class cross-venue evaluation cannot be run on this corpus."),
@@ -914,69 +1065,44 @@ def summary() -> str:
              "Every latency number comes from a laptop."),
             ("No human ceiling exists",
              "There is no inter-annotator figure. That is a real gap, and we say so."),
-        ]), tint="coral")
-        + block("What would actually change it", numbered([
+        ]) + blocked_questions(),
+            tint="coral",
+            note="One absent cell propagates into four separate research questions. "
+                 "They are blocked on data, not on work &mdash; which is why the "
+                 "perspectives below are mostly a recording trip rather than an "
+                 "engineering plan.")
+        + block("Perspectives", numbered([
             ("Empty-pitch footage at a second venue",
              "20&ndash;30 minutes, day and night. Fixes the confound, the external-validity "
-             "limit and the scope reduction at once."),
+             "limit and the scope reduction at once &mdash; one conversation with the "
+             "facility."),
             ("About 30 real labelled slots",
-             "One conversation with the facility. Lifts the temporal model out of "
-             "preliminary."),
-            ("Five labelled frames per camera",
-             "Already measured, already cheap &mdash; and it is the onboarding recipe we "
-             "would hand over."),
-        ]), tint="green",
-            note="The limitations are mostly a <b>data-access problem with a known and "
-                 "inexpensive solution</b> &mdash; not a methodological one.")
+             "Lifts the temporal model out of preliminary and gives reconciliation a ground "
+             "truth."),
+            ("An inter-annotator study",
+             "Two labellers on the same frames would give the human ceiling this work "
+             "currently lacks."),
+            ("Deployment on the target mini-PC",
+             "Every latency figure here is from a laptop; the production claim is untested "
+             "until it runs there."),
+            ("A ball detector that sees the ball",
+             "At 0.40 cross-venue recall, the ball requirement is the single most expensive "
+             "rule in the system."),
+        ]), tint="amber")
         + block("", quote("<b>No protocol compensates for a case the data never "
-                          "contains.</b>"), tint="amber")
+                          "contains.</b>"), tint="green")
         + "</div>"
     )
 
 
-def thanks() -> str:
-    """9. Thank you & questions."""
-    return (
-        '<div class="tk">'
-        + hero("Thank you &amp; questions",
-               "Thank you for your time and attention.",
-               "I welcome any questions, comments, suggestions or feedback you may have.",
-               tone="ink")
-        + block("Questions I expect, and the short answers", cards([
-            ("Would a colour histogram have done this?",
-             "0.9616 on the leaky split &mdash; indistinguishable from ConvNeXtV2 once you "
-             "count 62 scenes rather than 394 frames."),
-            ("Is the novelty just temporal smoothing?",
-             "Tested against four tuned baselines including an HMM, with the saturation "
-             "caveat enforced in code."),
-            ("How many comparisons before p &lt; 0.05?",
-             "Holm within declared families; the undeclared ones disclosed as numbered "
-             "amendments."),
-            ("Is auditing staff by camera ethical?",
-             "Per-field reporting only, and the decision layer can structurally only advise."),
-            ("Can anyone reproduce this?",
-             "One pipeline re-derives every claim from its artefact on every run."),
-            ("What is the human ceiling?",
-             "<b>No inter-annotator figure exists.</b> Say so plainly &mdash; it is a real "
-             "gap."),
-        ]))
-        + block("Closing", quote("Practise a strong, clear voice and a confident tone. Use "
-                                "simple language for the complex ideas. And end on the "
-                                "statistic, not an apology."), tint="green")
-        + "</div>"
-    )
-
-
-#: tab id -> (label, builder). The nine sections of the oral-presentation template, in the
-#: order they are delivered.
+#: tab id -> (label, builder). The eight parts of the report, in reading order.
 SECTIONS: dict[str, tuple[str, object]] = {
-    "introduce": ("1. Introduce", introduce),
-    "topic": ("2. Topic", topic),
-    "roadmap": ("3. Roadmap", roadmap),
-    "purpose": ("4. Purpose", purpose),
-    "how": ("5. How it works", how),
-    "problem": ("6. The problem", problem),
-    "solution": ("7. The solution", solution),
-    "summary": ("8. Summary", summary),
-    "thanks": ("9. Thank you", thanks),
+    "summary": ("Summary", summary),
+    "plan": ("Plan", plan),
+    "introduction": ("General Introduction", introduction),
+    "ch1": ("Ch.1 State of the Art", chapter1),
+    "ch2": ("Ch.2 Methods & Model", chapter2),
+    "ch3": ("Ch.3 YOLOv8", chapter3),
+    "ch4": ("Ch.4 Applications", chapter4),
+    "conclusion": ("Conclusion", conclusion),
 }

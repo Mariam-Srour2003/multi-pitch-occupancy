@@ -272,19 +272,14 @@ def page() -> str:
     views = []
     for key, (_, build) in SECTIONS.items():
         body = build()
-        # The evidence each tab's claims rest on, collapsed underneath it. Nothing here is
-        # part of the talk - it is what an examiner opens when they want to check one row.
-        if key == "how":
-            # The full protocol-by-protocol comparison. The page states which backbone
+        # The evidence each chapter's claims rest on, collapsed underneath it. Nothing here
+        # is part of the report's argument - it is what an examiner opens to check one row.
+        if key == "ch2":
+            # The full protocol-by-protocol comparison. The chapter states which backbone
             # leads; this is the table that shows it.
             body += detail(render_models(), "The full model comparison")
-        if key == "problem":
-            # Every verified claim and every retraction. The retractions are the reason to
-            # keep this reachable at all: a number that was published and then withdrawn is
-            # part of the method.
-            body += detail(render_findings(), "Every claim, and what was withdrawn")
-        if key == "solution":
-            # The two searches and the augmentation argument all live in this tab now, so
+        if key == "ch4":
+            # The two searches and the augmentation argument all belong to this chapter, so
             # their evidence does too.
             body += (
                 detail(_augmentation(), "The augmentation argument in full")
@@ -302,6 +297,11 @@ def page() -> str:
                   '&mdash; it keeps going if you close the tab.</p>'
                 + PANEL_HTML
             )
+        if key == "conclusion":
+            # Every verified claim and every retraction. The retractions are the reason to
+            # keep this reachable at all: a number that was published and then withdrawn is
+            # part of the method.
+            body += detail(render_findings(), "Every claim, and what was withdrawn")
         views.append(
             f'<section class="view" data-view="{key}" hidden>'
             f'<div class="doc">{body}</div></section>'

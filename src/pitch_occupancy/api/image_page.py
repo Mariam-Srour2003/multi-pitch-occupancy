@@ -108,6 +108,14 @@ button.ghost[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)
 .note{border-left:3px solid var(--accent);background:var(--surface);padding:12px 16px;
   border-radius:0 8px 8px 0;font-size:13px;color:var(--ink-2);margin:14px 0 0;max-width:78ch}
 .note b{color:var(--ink)}
+/* The pages carry their reasoning in `title` now rather than in paragraphs, so the places
+   that hold one have to look hoverable - an explanation nobody can see they can ask for is
+   an explanation that was deleted. `:empty` covers the notes the JS clears: with the prose
+   gone, an emptied note would otherwise render as a bare bordered box. */
+[title]{cursor:help}
+figcaption[title],label[title],.sub2 span[title],.note span[title]{
+  border-bottom:1px dotted currentColor}
+.note:empty,.sub2:empty{display:none}
 .warn{border-left-color:var(--flag)}
 .err{border-left-color:var(--flag);color:var(--flag);display:none}
 #stage{display:none}#stage.on{display:block}
@@ -163,10 +171,10 @@ dialog .close{position:absolute;top:8px;right:10px}
 <main>
 
 <h2>Explain one image, or a batch</h2>
-<p class="sub2">Classifies each still and shows <b>where in the frame the score came
-from</b> &mdash; the same evidence decomposition the clip walkthrough uses, on pictures
-instead of footage. Nothing is stored: images are decoded in memory and the copies used for
-reading are deleted as soon as the batch finishes.</p>
+<p class="sub2" title="The same evidence decomposition the clip walkthrough uses, on
+pictures instead of footage. Images are decoded in memory and the copies used for reading
+are deleted as soon as the batch finishes.">classify &rarr; explain &middot; nothing
+stored</p>
 
 <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose images">
   <strong>Drop images here, or click to choose</strong>
@@ -184,7 +192,9 @@ reading are deleted as soon as the batch finishes.</p>
       <option value="4">first 4</option>
       <option value="8">first 8</option>
     </select></div>
-  <div><label for="speed">Slow motion</label>
+  <div><label for="speed" title="A pause this page adds between renders - the model runs
+      at the same speed either way. The control that changes the actual work is explain in
+      detail: an explained image costs roughly twice a bare prediction.">Slow motion</label>
     <input type="range" id="speed" min="0" max="2500" step="250" value="900"
       style="width:120px"></div>
   <div><label for="camera">Pitch boundary</label>
@@ -194,9 +204,9 @@ reading are deleted as soon as the batch finishes.</p>
   <div><button class="ghost" id="redact" aria-pressed="false">Pixelate people</button></div>
   <button class="act" id="go" disabled>Explain these</button>
 </div>
-<p class="sub2" style="margin-top:9px">Pick a camera to mask everything outside its pitch
-&mdash; the fix for a neighbouring pitch showing up in frame. Draw one in the
-<a href="/roi" style="color:var(--accent)">boundary editor</a>.</p>
+<p class="sub2" style="margin-top:9px" title="Masks everything outside the camera's pitch -
+the fix for a neighbouring pitch showing up in frame.">masks outside the pitch &middot;
+<a href="/roi" style="color:var(--accent)">boundary editor</a></p>
 
 <div class="note" id="err"></div>
 
@@ -204,11 +214,6 @@ reading are deleted as soon as the batch finishes.</p>
 
 <section id="stage">
   <h2>Watching it work</h2>
-  <p class="sub2">One image at a time, rendered as the backbone finishes it. The slow motion
-  is a pause this page adds between renders &mdash; the model runs at the same speed either
-  way. The control that changes the actual work is <b>explain in detail</b>: an explained
-  image costs roughly twice a bare prediction.</p>
-
   <div class="stagebar">
     <span class="stagenow" id="stage-step">idle</span>
     <span class="mono" id="stage-name" style="color:var(--ink-3);font-size:12px"></span>
@@ -221,11 +226,18 @@ reading are deleted as soon as the batch finishes.</p>
     <figure><img id="img-raw" alt="The image as the model received it">
       <figcaption>The image</figcaption></figure>
     <figure><img id="img-heat" alt="Evidence map over the image: where the score came from">
-      <figcaption>Where the score came from</figcaption></figure>
+      <figcaption title="Exact rather than a saliency heuristic: the per-position
+        contributions plus a constant sum to the score. The first three tiles are that claim
+        being checked - if the error is not tiny, the decomposition is
+        wrong.">Where the score came from</figcaption></figure>
     <figure><img id="img-boxes" alt="What the detector found: a box round each person, a ring round the ball">
       <figcaption>What the detector found</figcaption></figure>
   </div>
-  <p class="note" id="detnote" style="margin-top:8px">Two models, one frame. The probe scores pooled features, so its explanation can only be a heatmap; the detector finds objects, so its explanation is a box round <b>each person separately</b> and a ring round the ball. Anything found outside the boundary is dimmed, not dropped.</p>
+  <p class="note" id="detnote" style="margin-top:8px" title="Two models, one frame. The
+    probe scores pooled features, so its explanation can only be a heatmap; the detector
+    finds objects, so its explanation is a box round each person and a ring round the ball.
+    Anything found outside the boundary is dimmed, not dropped.">probe &rarr; heatmap
+    &middot; detector &rarr; boxes &middot; outside the boundary dimmed</p>
 
   <div class="verdictbar">
     <span class="pill" id="v-pred">&mdash;</span>
@@ -248,23 +260,20 @@ reading are deleted as soon as the batch finishes.</p>
     <div class="tile" id="x-out-tile"><div class="k">Evidence outside boundary</div>
       <div class="v sm" id="x-out">&mdash;</div></div>
   </div>
-  <div class="note" id="focusnote">The evidence map is exact rather than a saliency
-  heuristic: the per-position contributions plus a constant <b>sum to the score</b>. The
-  first three tiles are that claim being checked in front of you &mdash; if the error is not
-  tiny, the decomposition is wrong.</div>
+  <div class="note" id="focusnote"></div>
 </section>
 
 <section id="out">
   <h2>The batch</h2>
-  <p class="sub2">Sorted by confidence, <b>least confident first</b> &mdash; on a batch the
-  useful question is not what the verdict is but which of these to look at yourself. Click
-  either image to enlarge it.</p>
+  <p class="sub2" title="On a batch the useful question is not what the verdict is but which
+    of these to look at yourself.">least confident first &middot; click an image to
+    enlarge</p>
   <div class="tiles" id="sum"></div>
-  <div class="note warn" id="alone"><b>Each image stands on its own.</b> The clip reviewer
-  can overrule an isolated misread using the samples either side of it in time; a set of
-  stills has no neighbours &mdash; these may be minutes or venues apart, and nothing in the
-  upload says which. So nothing here is smoothed or corrected, and the evidence map is the
-  only thing a prediction can be judged by.</div>
+  <div class="note warn" id="alone" title="The clip reviewer can overrule an isolated
+    misread using the samples either side of it in time; these stills may be minutes or
+    venues apart, and nothing in the upload says which, so the evidence map is the only
+    thing a prediction can be judged by."><b>Each image stands on its own</b> &middot; no
+    neighbours &middot; nothing smoothed or corrected</div>
   <div class="gallery" id="gallery" style="margin-top:14px"></div>
 </section>
 
@@ -296,11 +305,14 @@ function pick(list){
     fig.append(img,cap);box.appendChild(fig);
   });
 }
-// Saved boundaries, so a batch can be masked to one pitch. Failing to load them leaves the
-// selector at "whole frame", which is the behaviour the page had before boundaries existed.
+// Saved boundaries, so a batch can be masked to one pitch. At most three: the derived store
+// holds one entry per clip in the corpus, and the endpoint trims the menu rather than anything
+// being deleted, so the masking experiments still see every one of them. Failing to load them
+// leaves the selector at "whole frame", which is the behaviour the page had before boundaries
+// existed and is also its default now.
 (async()=>{
   try{
-    const b=await (await fetch('/api/v1/roi')).json();
+    const b=await (await fetch('/api/v1/roi?limit=3')).json();
     (b.cameras||[]).forEach(k=>{
       const o=document.createElement('option');
       o.value=k;o.textContent=k+'  '+(b.boundaries[k].coverage*100).toFixed(0)+'%';
@@ -380,18 +392,21 @@ function paint(s){
     const f=s.focus_ratio;
     $('x-focus').textContent=f==null?'\\u2014':f.toFixed(2)+'x';
     $('x-focus-tile').className='tile'+(f!=null&&f<1?' flagged':'');
+    // Silent when the focus is fine: a note that says nothing went wrong is the kind of
+    // sentence this page is meant to be rid of. The two cases worth a word keep theirs.
     $('focusnote').innerHTML=f==null
-      ? 'No people were detected here, so there is no area to compare the evidence against. '+
-        'A ratio over zero area is not a small number \\u2014 it is not a number.'
-      : ('Positive evidence on people over the area they cover. Above 1 means the score '+
-         'concentrates on <b>people</b>; near or below 1 means it is spread as though they '+
-         'were not there \\u2014 which for an ACTIVE_PLAY prediction is worth a look.');
+      ? '<span title="No people were detected, so there is no area to compare the evidence '+
+        'against. A ratio over zero area is not a small number - it is not a number.">no '+
+        'people &mdash; focus undefined</span>'
+      : (f<1 ? '<span title="The score is spread as though the people were not there, which '+
+               'for an ACTIVE_PLAY prediction is worth a look.">evidence spread off the '+
+               'people</span>' : '');
   } else {
     ['x-map','x-dir','x-err','x-ppl','x-focus','x-out'].forEach(k=>$(k).textContent='\\u2014');
     $('x-focus-tile').className='tile';
-    $('focusnote').textContent='This image was predicted without an evidence map \\u2014 '+
-      '"explain in detail" bounds how many get one, because explaining costs about twice a '+
-      'bare prediction.';
+    $('focusnote').innerHTML='<span title="explain in detail bounds how many images get '+
+      'a map, because explaining costs about twice a bare prediction">no evidence map for '+
+      'this image</span>';
   }
   results.push(s);
   $('livecount').textContent=results.length+(results.length===1?' image':' images');

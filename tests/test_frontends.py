@@ -58,22 +58,23 @@ def test_every_section_of_the_talk_gets_a_tab_and_a_view(client) -> None:
         assert label in html, f"{label} is missing from the nav"
 
 
-def test_the_nav_is_exactly_the_nine_template_sections(client) -> None:
-    """The site is the oral-presentation template: nine tabs, in delivery order.
+def test_the_nav_is_exactly_the_eight_parts_of_the_report(client) -> None:
+    """The site follows the report: summary, plan, introduction, four chapters, conclusion.
 
-    Asserted as an exact list rather than a subset. A tenth tab is not a small regression
-    here - the whole point of the structure is that the nav *is* the talk's outline, and an
-    extra entry means a section exists that nobody rehearsed.
+    Asserted as an exact list rather than a subset. A ninth tab is not a small regression
+    here - the whole point of the structure is that the nav *is* the report's table of
+    contents, and an extra entry means a part exists that the report does not have.
     """
     import re as _re
 
     html = client.get("/").text
     nav = _re.findall(r'<button data-view="(\w+)">([^<]+)</button>', html)
     assert [k for k, _ in nav] == list(SECTIONS), f"nav drifted: {nav}"
-    assert len(nav) == 9, f"{len(nav)} tabs, expected 9"
+    assert len(nav) == 8, f"{len(nav)} tabs, expected 8"
     for gone in ("prereg", "questions", "database", "code", "ethics", "findings",
                  "dataset", "ideas", "overview", "models", "rules", "searches",
-                 "augmentation", "start"):
+                 "augmentation", "start", "topic", "roadmap", "purpose", "how", "problem",
+                 "solution", "thanks"):
         assert f'data-view="{gone}"' not in html, f"{gone} tab is still on the page"
 
 
@@ -92,9 +93,10 @@ def test_the_page_carries_no_delivery_notes(client) -> None:
     """The site is what the room looks at while you talk, so it holds no script.
 
     Each tab briefly ended with a collapsed "What to say here". It was removed on purpose:
-    delivery notes on the screen compete with the person delivering them. The talk lives in
-    `thesis/presentation/SPEAKER_SCRIPT.md`. Asserted rather than assumed, so putting it
-    back is a decision someone makes rather than a regression that slips in.
+    delivery notes on the screen compete with the person delivering them. The spoken
+    version lives in `thesis/presentation/SPEAKER_SCRIPT.md`. Asserted rather than
+    assumed, so putting it back is a decision someone makes rather than a regression that
+    slips in.
     """
     html = client.get("/").text
     for gone in ("tk-say", "What to say"):
@@ -162,10 +164,10 @@ def test_the_real_experiment_log_renders(client) -> None:
 def test_models_view_leads_with_a_recommendation(client) -> None:
     """A table of numbers does not answer "which one should I use".
 
-    The Models tab is gone; the comparison is collapsed under "How it works", which is
-    where the page makes its claim about which backbone leads.
+    The comparison is collapsed under Chapter 2, which is where the report makes its claim
+    about which backbone leads.
     """
-    body = _tab_bodies(client.get("/").text)["how"]
+    body = _tab_bodies(client.get("/").text)["ch2"]
     assert "The full model comparison" in body, "the comparison left the page"
     assert "Use this one" in body
 
@@ -361,26 +363,25 @@ def test_schema_diagram_survives_a_missing_database(monkeypatch, tmp_path) -> No
     assert "rows</text>" not in svg  # but no counts invented
 
 
-def test_the_schema_reaches_the_talk(client) -> None:
-    """The Database tab is gone; the schema is a slide in "How it works" instead.
+def test_the_schema_reaches_the_report(client) -> None:
+    """The Database tab is gone; the schema is a block in Chapter 2 instead.
 
     It stays on the page because "a verdict never exists without its evidence" and "a gap is
     recorded, never filled" are claims a reader should be able to see the shape of.
     """
-    body = _tab_bodies(client.get("/").text)["how"]
-    assert "What gets stored" in body
-    assert "frame_samples" in body
-    assert "The rule table" in body, "the decision table left the page"
-    assert "Preprocessing" in body, "the preprocessing list left the page"
+    bodies = _tab_bodies(client.get("/").text)
+    assert "What the system stores" in bodies["ch2"]
+    assert "frame_samples" in bodies["ch2"]
+    assert "rule table" in bodies["ch3"], "the decision table left the page"
+    assert "Preprocessing" in bodies["ch4"], "the preprocessing list left the page"
 
 
 # --- augmentation tab and figure serving -------------------------------------
 
 
-def test_the_augmentation_argument_reaches_the_solution_tab(client) -> None:
-    """Augmentation is no longer a tab; it is part of "How the research provides a
-    solution", with the full argument collapsed beneath it."""
-    body = _tab_bodies(client.get("/").text)["solution"]
+def test_the_augmentation_argument_reaches_chapter_four(client) -> None:
+    """Augmentation is Chapter 4, with the full argument collapsed beneath it."""
+    body = _tab_bodies(client.get("/").text)["ch4"]
     assert "augmentation" in body.lower()
     assert "The augmentation argument in full" in body
     assert "discards nothing" in body
@@ -752,7 +753,8 @@ def _tab_bodies(html: str) -> dict[str, str]:
     import re
 
     parts = re.split(
-        r'<section class="view" data-view="([a-z]+)" hidden><div class="doc">', html
+        r'<section class="view" data-view="([a-z0-9]+)" hidden>'
+        r'<div class="doc">', html
     )
     return dict(zip(parts[1::2], parts[2::2], strict=True))
 
@@ -784,11 +786,12 @@ def test_the_evidence_is_collapsed_rather_than_dropped(client) -> None:
     # By the label each one is served under, not by a count: a count passes while the wrong
     # thing is collapsed, and breaks on a cosmetic change that costs nothing.
     expected = {
-        "how": ["The full model comparison", "Every switch, before and after"],
-        "problem": ["Every claim, and what was withdrawn"],
-        "solution": ["The augmentation argument in full",
-                     "Every prompt set scored, ranked",
-                     "Every preprocessing evaluation, ranked"],
+        "ch2": ["The full model comparison"],
+        "ch4": ["Every switch, before and after",
+                "The augmentation argument in full",
+                "Every prompt set scored, ranked",
+                "Every preprocessing evaluation, ranked"],
+        "conclusion": ["Every claim, and what was withdrawn"],
     }
     for tab, labels in expected.items():
         for label in labels:

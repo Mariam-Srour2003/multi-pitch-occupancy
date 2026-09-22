@@ -121,11 +121,26 @@ def _verdict(frame, *, explain: bool) -> dict:
 
 
 @router.get("/roi")
-def list_boundaries() -> dict:
-    """Every saved boundary, with the share of the frame each one keeps."""
+def list_boundaries(limit: int | None = Query(None, ge=0, le=1000)) -> dict:
+    """Every saved boundary, with the share of the frame each one keeps.
+
+    ``limit`` shortens the *menu* and deletes nothing. The two stores are read by the live
+    path and by every masking experiment, so a page that wants a three-item selector asks for
+    three items rather than emptying `configs/roi_derived.json` - which would leave the
+    experiments running unmasked and quietly disagreeing with their own logged numbers.
+
+    Hand-drawn outlines come first when the list is trimmed, because `DERIVED_STORE` holds one
+    entry per clip in the corpus and would otherwise fill a short menu with machine-generated
+    ids while the outlines somebody drew on purpose fell off the end.
+    """
     saved = roi.load_all()
+    keys = sorted(saved)
+    if limit is not None:
+        drawn = roi.load_drawn()
+        keys = sorted(keys, key=lambda k: (k not in drawn, k))[:limit]
+        saved = {k: saved[k] for k in keys}
     return {
-        "cameras": sorted(saved),
+        "cameras": keys,
         "boundaries": {
             key: {"polygon": polygon, "coverage": roi.coverage(polygon)}
             for key, polygon in saved.items()
