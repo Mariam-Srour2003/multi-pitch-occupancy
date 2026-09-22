@@ -31,12 +31,10 @@ import re
 from pathlib import Path
 
 from pitch_occupancy.api.diagrams import (
-    blocked_questions,
     confound_matrix,
+    dinov2_stack,
     empty_blindness,
-    pipeline,
-    protocols,
-    schema,
+    yolo_stack,
 )
 
 __all__ = [
@@ -146,6 +144,14 @@ def detail(html: str, label: str) -> str:
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else ""
+
+
+def _json_at(path: Path) -> dict:
+    """A JSON file anywhere in the repository - `_json` only reaches `results`."""
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except json.JSONDecodeError:
+        return {}
 
 
 def _json(name: str) -> dict:
@@ -536,6 +542,16 @@ def summary() -> str:
              "published figure was simply the best of five, so it was withdrawn the same "
              "day and restated as a property of that one draw."),
         ], wide=True))
+        + block("What the evaluation was actually measuring", tiles([
+            ("99.1%", "correct by reading only the clock &mdash; no pixels", "bad"),
+            ("1.000", "macro-F1 for a constant predictor, cross-venue", "bad"),
+            ("0", "of 243 held-out empty frames DINOv2 gets right", "bad"),
+        ]) + confound_matrix() + empty_blindness(),
+            note="Class and time of day are nearly the same variable, so accuracy here "
+                 "cannot separate <i>recognises an empty pitch</i> from <i>recognises the "
+                 "time of day</i>. And a low false-alarm rate is <b>not</b> accuracy: on "
+                 "the 243 held-out empty frames DINOv2 answers PLAYING 75 times and "
+                 "MAINTENANCE 168 times.")
         + "</div>"
     )
 
@@ -613,18 +629,6 @@ def introduction() -> str:
              "like a true one."),
         ]), note="Six questions, one source of truth: the cameras the facility already "
                  "owns. Today none of them can be answered without a person watching.")
-        + block("Authors who have worked on it", points([
-            "The problem sits where three literatures meet: <b>scene and activity "
-            "recognition from fixed cameras</b>, <b>frozen features with linear probes</b>, "
-            "and the <b>evaluation-protocol</b> work on leakage, shortcut learning and "
-            "trivial baselines.",
-            "Around them sit CPU-constrained inference, calibration for classifiers that "
-            "route work to a person, audit against an administrative record, and selective "
-            "prediction.",
-            "<b>Chapter 1 takes each in turn</b>, as nine strands with the sources behind "
-            "them &mdash; <a class=\"tk-cite\" href=\"/related-work\">the nine strands "
-            "&rarr;</a>",
-        ]), tint="amber")
         + block("How we resolve it", numbered([
             ("Sample sparsely", "One frame per camera per minute instead of decoding video "
                                 "&mdash; about <b>99% less</b> network traffic."),
@@ -715,33 +719,13 @@ def chapter1() -> str:
              ["<b>This system</b>", "<b>Reuses existing CCTV</b>",
               "<b>Scene state per minute, with evidence</b>",
               "<b>Needs a camera view; classification error</b>"]], hi=5))
-        + block("Deep learning &mdash; what the field must establish", strand_cards(),
-                note="<b>Every reference is still a placeholder.</b> This project's rule is "
-                     "that no citation is written down until the paper has been opened and "
-                     "read &mdash; a fabricated or half-remembered reference is the one "
-                     "error in a thesis that cannot be defended. Each <i>sources</i> link "
-                     "opens that strand in <code>thesis/ch2_related_work.md</code>, where "
-                     "the open <code>[CITE]</code> slots are; filling them is yours.")
+        + block("Deep learning &mdash; what the field must establish", strand_cards())
         + "</div>"
     )
 
 
 def chapter2() -> str:
     """5. Chapter 2 - deep learning methods and our model."""
-    inv = _json("model_inventory.json")
-    model_tiles = tiles([
-        (f'{inv["frozen_total_params"] / 1e6:.1f}M', "frozen parameters, never updated",
-         "lead"),
-        (f'{inv["trained_total_params"]:,}', "trained parameters, all of them", "good"),
-        (f'{inv["frozen_to_trained_ratio"]:,}:1', "frozen to trained", "warn"),
-        (str(inv["n_classes"]), "classes out"),
-    ]) if inv else "<p class='missing'>No <code>model_inventory.json</code> yet.</p>"
-    lanes = []
-    if inv:
-        for b in inv["frozen"]:
-            lanes.append((b["label"],
-                          f'<b>{b["params"]:,}</b> parameters, <b>0</b> updated.<br>'
-                          f'{b["pretraining"]} &mdash; {b["pretraining_labels"]}.'))
     return (
         '<div class="tk">'
         + hero("Chapter 2 &mdash; Deep learning methods",
@@ -760,8 +744,6 @@ def chapter2() -> str:
              "CLIP / OpenCLIP / SigLIP, used <b>zero-shot</b> with written class "
              "descriptions."),
         ]))
-        + block("Our model &mdash; almost nothing is trained", model_tiles
-                + (cards(lanes, wide=True) if lanes else ""))
         + block("Why the backbones are frozen", cards([
             ("Fine-tuning needs variety we do not have",
              "Updating 200M parameters on <b>~150 distinct scenes</b> does not learn "
@@ -772,130 +754,135 @@ def chapter2() -> str:
             ("And our own numbers show the risk",
              "98.5% of frames have a near-duplicate, and accuracy <b>falls</b> when labels "
              "rise from 300 to 671."),
-            ("Freezing also bought the breadth",
-             "Embed once, reuse forever &mdash; which is how 75 experiments fit into one "
-             "thesis."),
         ]), tint="green",
             note="Freezing is a <b>defence against overfitting</b> first, and an efficiency "
                  "win second.")
-        + block("The two novel modules, reported as they came out", cards([
-            ("Gated multi-backbone fusion &mdash; negative",
-             "Routing between backbones is worth <b>&minus;0.024</b> cross-venue recall "
-             "against the same head with the gate off. It puts ~0.70 of its weight on "
-             "DINOv2 in every fold: a learned constant in a router&rsquo;s costume."),
-            ("STAN, a temporal model &mdash; preliminary",
-             "1,651 parameters, scoring a perfect 1.000 on 200 composed slots. That is an "
-             "exhausted test set, not a win: <b>the real test set is two slots</b>, and the "
-             "&ge;30-slot rule raises in code."),
-        ], wide=True), tint="coral")
-        + block("The architecture", pipeline(),
-                note="Every stage can <b>refuse</b> rather than guess, which is what makes "
-                     "REVIEW a real outcome instead of a low-confidence USED.")
-        + block("What the system stores", schema(),
-                note="One row per camera per sampled minute is the only thing observed. A "
-                     "verdict and its evidence are written in one transaction; a dropped "
-                     "minute is stored <b>as a gap</b> rather than filled.")
-        + block("How the model is evaluated", cards([
-            ("Grouped splits, never random",
-             "Whole venues and slots held out, so no test frame has a near-twin in "
-             "training."),
-            ("Leave-one-venue-out",
-             "Seven folds, each reported with the smallest p-value the design could have "
-             "produced (0.0156)."),
-            ("Four trivial baselines, every time",
-             "A clock rule, a colour histogram, a constant predictor, a random one."),
-            ("Pre-registered, amended in the open",
-             "Hypotheses fixed before the runs; every change numbered and left in place."),
-        ]) + protocols(),
-            note="Identical model, identical data, two ways of drawing the train/test "
-                 "line &mdash; and the answer changes.")
-        + block("And the evaluation is where the result was", tiles([
-            ("99.1%", "correct by reading only the clock &mdash; no pixels", "bad"),
-            ("1.000", "macro-F1 for a constant predictor, cross-venue", "bad"),
-            ("0", "of 243 held-out empty frames DINOv2 gets right", "bad"),
-        ]) + confound_matrix() + empty_blindness(),
-            note="Class and time of day are nearly the same variable, so accuracy here "
-                 "cannot separate <i>recognises an empty pitch</i> from <i>recognises "
-                 "the time of day</i>. And a low false-alarm rate is <b>not</b> "
-                 "accuracy: on the 243 held-out empty frames DINOv2 answers PLAYING 75 "
-                 "times and MAINTENANCE 168 times.")
+        + block("DINOv2 &mdash; what actually runs", dinov2_stack())
+        + block("What the backbone does with a frame", cards([
+            ("It was never taught football",
+             "DINOv2 is pretrained on 142M images with <b>no labels at all</b>. It has no "
+             "classifier and no notion of <i>empty</i> or <i>playing</i>; what it learned "
+             "is how to describe an image so that similar images get similar numbers."),
+            ("The frame becomes patches",
+             "The 224&#215;224 crop is cut into <b>14&#215;14</b> squares &mdash; 256 of "
+             "them &mdash; and each becomes a vector. Attention then lets every patch see "
+             "every other, which is how a transformer reads context a convolution cannot."),
+            ("Twelve layers, one description",
+             "12 blocks, 12 attention heads, width 768. The 256 output tokens are averaged "
+             "into a single <b>768-number</b> vector: the whole frame, as one point in "
+             "768-dimensional space."),
+            ("Then, and only then, a decision",
+             "Those 768 numbers are the input to a logistic regression with 3 outputs. "
+             "<b>That regression is the model this project trains</b> &mdash; everything "
+             "before it is downloaded and left alone."),
+        ], wide=True))
+        + block("Frozen and trained, stage by stage", table(
+            ["Stage", "What happens", "Parameters", "Updated here"],
+            [["Crop", "Resize shortest edge to 256, centre-crop 224 &mdash; discards 23.4% "
+                      "of the frame", "&mdash;", "no"],
+             ["Patch embedding", "14&#215;14 patches &rarr; 256 tokens, plus a CLS token",
+              "included below", "<b>never</b>"],
+             ["Transformer &#215; 12", "12 heads, width 768, self-attention over all tokens",
+              "86,580,480", "<b>never</b> &mdash; 0 gradients received"],
+             ["Mean over tokens", "256 token vectors &rarr; one 768-number embedding, "
+                                  "cached to disk", "0", "&mdash;"],
+             ["<b>Linear probe</b>", "<b>StandardScaler &rarr; LogisticRegression</b>, "
+                                     "class_weight balanced, seed 42",
+              "<b>2,307</b>", "<b>yes &mdash; refit from scratch in under a second</b>"]],
+            hi=4),
+            note="The embedding is computed <b>once per frame</b> and cached, which is why "
+                 "the probe can be refit for every backbone, protocol and seed in seconds "
+                 "&mdash; and why a frozen backbone is what made the experiment programme "
+                 "affordable at all. <code>class_weight=&quot;balanced&quot;</code> is "
+                 "there because MAINTENANCE has six frames in the whole dataset; an "
+                 "unweighted fit never predicts it.")
+        + block("Why a probe and not fine-tuning", cards([
+            ("Two thousand parameters cannot memorise a venue",
+             "86.6M frozen against 2,307 trained &mdash; <b>37,529 frozen parameters for "
+             "every one that moves</b>. A head that small has no capacity to learn "
+             "<i>these floodlights</i>."),
+            ("The alternative was measured, not assumed",
+             "Fine-tuning would probably score higher on this corpus. That is exactly the "
+             "concern: on ~150 distinct scenes, a higher score is the symptom."),
+        ]), tint="green")
         + "</div>"
     )
 
 
 def chapter3() -> str:
-    """6. Chapter 3 - YOLOv8: the detector, the bake-off, and the counting rules."""
-    rows = _csv("detector_audit.csv")
-    chosen = next((r for r in rows if r.get("chosen") == "True"), None)
-    single = [r for r in rows if r.get("tiles") == "1"]
-    bake = table(
-        ["Detector", "Count MAE", "Within one", "&ge;5 recall", "Ball recall", "ms/frame",
-         "Fits budget"],
-        [[f'<b>{r["detector"]}</b>' if r is chosen else r["detector"],
-          r["count_mae"], r["within_one_rate"], r["ge5_recall"],
-          r["ball_recall_mean"], r["median_ms"],
-          "yes" if r["fits_budget"] == "True" else "<b>no</b>"]
-         for r in single],
-        hi=next((i for i, r in enumerate(single) if r is chosen), None),
-    ) if single else ("<p class='missing'>No <code>detector_audit.csv</code> yet. Run "
-                      "<code>uv run python experiments/detector_audit.py</code>.</p>")
-    tiled = [r for r in rows if r.get("tiles") == "2"]
+    """6. Chapter 3 - YOLOv8: the model, how it is run, and the rules on top of it."""
+    cfg = _json_at(ROOT / "configs" / "rules.json")
     return (
         '<div class="tk">'
         + hero("Chapter 3 &mdash; YOLOv8",
                "Counting what stands on the pitch",
                "The classifier says what a scene looks like. The detector says how many "
-               "people are on it &mdash; and it can overrule the classifier.", tone="amber")
-        + block("Why a detector at all", cards([
-            ("A classifier cannot be argued with",
-             "&ldquo;This frame looks like play&rdquo; is not a reason. &ldquo;Six people "
-             "and a ball inside the boundary&rdquo; is."),
-            ("The facility&rsquo;s rule is a count",
-             "Five people make a game; four or fewer do not. That is a number the detector "
-             "can produce and a manager can check."),
-            ("It gates the model",
-             "Boundary, motion, people and ball checks sit <b>in front of</b> the classifier "
-             "and can veto it."),
-            ("And it is explainable",
-             "Every verdict carries the boxes it was made from, drawn on the evidence "
-             "frame."),
+               "people are on it, whether there is a ball, and whether anything moved "
+               "&mdash; and those counts can overrule the classifier.", tone="amber")
+        + block("The model", cards([
+            ("YOLOv8n, pretrained on COCO",
+             "A single-stage detector used exactly as downloaded. <b>Nothing in it is "
+             "trained here</b> &mdash; COCO already contains the two classes this system "
+             "needs."),
+            ("It is asked for two classes only",
+             "<code>person</code> (COCO 0) and <code>sports ball</code> (COCO 32). The ball "
+             "comes out of the same forward pass, so it costs nothing extra."),
+            ("Small on purpose",
+             "One pass per frame is what a <b>60-second cycle over 20&ndash;30 cameras</b> "
+             "can afford on a CPU with no GPU."),
+            ("A registry, not a string",
+             "Seven candidates are named in <code>vision/detector.py</code>, so changing "
+             "detector is a setting rather than an edit."),
         ]))
-        + block("Why YOLOv8", points([
-            "<b>Single-stage and real-time.</b> One forward pass per frame &mdash; which is "
-            "what a 60-second cycle over 20&ndash;30 cameras can afford on a CPU.",
-            "<b>Pretrained on COCO</b>, which already contains <i>person</i> and "
-            "<i>sports ball</i> &mdash; the two classes this system needs, with no training "
-            "of our own.",
-            "<b>Segmentation variants available</b>, so masks can be drawn for the reader "
-            "without changing how anything is counted.",
-            "<b>A registry, not a string.</b> Seven candidates are named in code "
-            "(<code>vision/detector.py</code>), so switching detector is a setting rather "
-            "than an edit.",
-        ]))
-        + block("The bake-off &mdash; seven candidates, one chosen", bake,
-                note=(f"<b>{chosen['detector']}</b> was chosen: the lowest count error "
-                      f"({chosen['count_mae']} people), the best within-one rate "
-                      f"({chosen['within_one_rate']}), and the fastest that fits the cycle "
-                      f"at {chosen['median_ms']} ms a frame. Scored against "
-                      f"{chosen['n_hand']} hand-counted frames."
-                      if chosen else "No detector has been selected yet."),
-            tint="green")
-        + block("Tiling &mdash; measured, and rejected", cards([
-            ("The idea",
-             "A far-side player is a few pixels tall at the detector&rsquo;s input size. "
-             "Running the frame as four overlapping quarters plus the whole should find "
-             "them."),
-            ("What it bought",
-             "Better recall on the &ge;5 threshold, and better ball recall &mdash; the ball "
-             "is exactly the small object tiling should help."),
-            ("What it cost",
-             "Roughly five forward passes. Every tiled configuration <b>fails the "
-             "60-second budget</b>, and the count error gets <i>worse</i>, not better."),
-            ("So it is a candidate, not a default",
-             "It stays in the registry, switched off, with the measurement beside it."),
-        ]), tint="coral",
-            note=(f"Every one of the {len(tiled)} tiled configurations misses the cycle "
-                  "budget." if tiled else ""))
+        + block("The architecture &mdash; one forward pass", yolo_stack())
+        + block("How it is run here", table(
+            ["Setting", "Value", "Why"],
+            [["Detector", f'<b>{cfg.get("detector", "yolov8n")}</b>',
+              "Every published count in this project was measured with it"],
+             ["Input long edge", str(cfg.get("imgsz", 1280)),
+              "A far-side player is a few pixels tall at 640 &mdash; the difference between "
+              "&ldquo;finds nobody&rdquo; and a usable count"],
+             ["Tiling", f'{cfg.get("tiles", 1)} &mdash; off',
+              "Four overlapping quarters plus the whole costs ~5 passes, misses the cycle "
+              "budget, and the count error gets <i>worse</i>"],
+             ["Person confidence", str(cfg.get("person_conf", 0.25)), "A person is a big, "
+              "ordinary COCO object; the default threshold holds"],
+             ["Ball confidence", str(cfg.get("ball_conf", 0.1)),
+              "A ball at distance is a few pixels, so the bar is low &mdash; and the "
+              "burst rule below is what keeps a bright stud from counting"],
+             ["Burst", f'{cfg.get("burst_frames", 3)} frames, '
+                       f'{cfg.get("burst_spacing_s", 1.0)}s apart',
+              "One frame cannot show motion, and a ball has to recur to be a ball"],
+             ["Failure", "<code>None</code>, never <code>[]</code>",
+              "<b>&ldquo;Not checked&rdquo; is not &ldquo;nothing found&rdquo;.</b> "
+              "Collapsing them is how a broken install reports every pitch empty"]],
+            hi=6))
+        + block("The three cues, and what each is allowed to decide", cards([
+            ("People &mdash; counted by the foot of the box",
+             "Someone at the touchline has their centre over the pitch and their feet "
+             "outside it, and it is the feet that say where they stand. At venue_01 an "
+             "empty pitch has <b>0</b> people in 89% of frames; a match has a median of "
+             "<b>6</b>, and 0 in 0.4%."),
+            ("Motion &mdash; did anything change",
+             "Mean absolute difference between consecutive sampled frames at "
+             "<b>160&#215;90</b>, against a threshold of <b>1.098</b> fitted on venue_01 at "
+             "a 15-second gap. Scene-level only: it answers <i>something moved</i>, never "
+             "<i>who</i>."),
+            ("Ball &mdash; and whether it is in play",
+             "A ball must be seen in at least <b>2 of the 3</b> burst frames, because a "
+             "false ball fires once &mdash; a bright stud, a bin lid, line paint. And it "
+             "must move more than <b>its own width</b>: a ball lying on the grass while "
+             "three people work around it is furniture, not a game."),
+            ("One direction only",
+             "The gates turn a not-empty verdict into EMPTY when they find nobody and "
+             "nothing moving. <b>They never turn EMPTY into play.</b> Finding nobody is "
+             "strong evidence against a match; finding somebody is not evidence for one."),
+        ], wide=True),
+            note="The ball requirement is a <b>switch</b>, because it is a decision rather "
+                 "than a fact: cross-venue ball recall is <b>0.40</b>, ranging 0.06 to 0.89 "
+                 "by venue, so requiring a ball costs genuine matches wherever the detector "
+                 "cannot see one. That cost is measured in "
+                 "<code>results/rule_frame_eval.csv</code> rather than argued about.")
         + block("From boxes to a verdict &mdash; the rule table", table(
             ["#", "Condition", "Verdict"],
             [["1", "Detector unavailable", "Uncertain &mdash; a missing detector is not an "
@@ -903,28 +890,20 @@ def chapter3() -> str:
              ["2", "No pitch boundary", "Uncertain &mdash; mandatory on the deployed path"],
              ["3", "Nobody, nothing moving", "<b>EMPTY</b>"],
              ["4", "Nobody, but something moved", "Uncertain"],
-             ["5", "1&ndash;4 people", "Not a game &mdash; too few, ball or no ball"],
-             ["6", "5+ people, <b>and</b> a ball, <b>and</b> motion",
+             ["5", f'1&ndash;{cfg.get("small_group_max", 4)} people',
+              "Not a game &mdash; too few, ball or no ball"],
+             ["6", f'{cfg.get("play_min", 5)}+ people, <b>and</b> a ball in play, '
+                   "<b>and</b> motion",
               "<b>ACTIVE PLAY</b> &mdash; the only way in"],
-             ["7", "5+ people, otherwise", "Not a game &mdash; a crowd that is not playing"]],
+             ["7", f'{cfg.get("play_min", 5)}+ people, otherwise',
+              "Not a game &mdash; a crowd that is not playing"]],
             hi=5),
-            note="A person is placed by the <b>foot of their box</b>, so detection and "
-                 "segmentation models count identically. Five and four are the "
-                 "<b>facility&rsquo;s</b> numbers, not fitted ones. A cue that cannot be "
-                 "measured is reported, never assumed.")
-        + block("What the detector cannot do", cards([
-            ("It often cannot see the ball",
-             "Cross-venue ball recall is <b>0.40</b>, and between 0.06 and 0.89 depending on "
-             "the venue."),
-            ("So the ball rule is expensive",
-             "Requiring a ball drops play recall from <b>0.996 to 0.308</b> at the worst "
-             "venues. That is the facility&rsquo;s rule, and the cost is measured rather "
-             "than argued about."),
-            ("Failure is <code>None</code>, never <code>[]</code>",
-             "A missing weights file or a raised prediction returns &ldquo;not "
-             "checked&rdquo;. Collapsing that into &ldquo;nothing found&rdquo; is how a "
-             "broken install reports every pitch empty."),
-        ], wide=True), tint="amber")
+            note=f"<b>{cfg.get("play_min", 5)}</b> and "
+                 f"<b>{cfg.get("small_group_max", 4)}</b> are the <b>facility&rsquo;s</b> "
+                 "numbers, not fitted ones: five make a game, four or fewer do not. Every "
+                 "threshold that <i>was</i> fitted is recorded in "
+                 "<code>configs/rules.json</code> with the camera it was fitted on, and a "
+                 "cue that cannot be measured is reported as unmeasured, never assumed.")
         + "</div>"
     )
 
@@ -949,23 +928,12 @@ def chapter4() -> str:
                "What it does in practice, and what we did about the data",
                "The deployed application, the preprocessing path, the augmentation "
                "experiment, and the data we generated.", tone="sky")
-        + block("The application &mdash; a booked hour, end to end", beats([
-            ("Sold", "1 hour", "The booking says: paid for, and marked &ldquo;used&rdquo; by "
-                               "staff."),
-            ("13", "of 16", "The camera sees: an empty pitch under floodlights."),
-            ("REVIEW", "+3 photos", "The system says: never &ldquo;do not bill&rdquo;. Only "
-                                    "&ldquo;look at this&rdquo;."),
-        ]), note="A manager opens the slot, sees three evidence frames and the per-minute "
-                 "table, and confirms or overrides. The model&rsquo;s original verdict is "
-                 "retained, never replaced.")
-        + block("Preprocessing &mdash; before the model sees a frame", chips([
-            "Letterbox to 224&times;224", "Undistort", "Centre / top crop",
-            "Per-image standardise", "CLAHE", "Gamma", "Saturation &amp; grayscale",
-            "Denoise", "Sharpen", "Blur (a control, not a candidate)",
-        ]) + detail(preprocess_pairs(), "Every switch, before and after"),
-            note="Experiments and the live pipeline share <b>one</b> preprocessing module. "
-                 "CLAHE, which the proposal expected to help with floodlight glare, "
-                 "<b>costs</b> DINOv2 0.27 macro-F1.")
+        + block("Preprocessing &mdash; every switch, before and after",
+                preprocess_pairs(),
+                note="Experiments and the live pipeline share <b>one</b> preprocessing "
+                     "module, so these are the frames the model actually receives. CLAHE, "
+                     "which the proposal expected to help with floodlight glare, "
+                     "<b>costs</b> DINOv2 0.27 macro-F1.")
         + block("Data augmentation &mdash; the presets", cards([
             ("<code>colour</code>", "Brightness, contrast, saturation, hue &mdash; turf hue "
                                     "encodes venue identity and does not transfer."),
@@ -1032,74 +1000,22 @@ def chapter4() -> str:
 
 
 def conclusion() -> str:
-    """8. Conclusion and perspectives."""
+    """8. The closing tab: the floor opens, and then the demo runs.
+
+    Deliberately empty of content. Everything this tab used to hold - what was achieved,
+    what was found, what the study cannot claim, the perspectives - is argued in the
+    chapters, and repeating it here is a slide nobody reads while a person is talking. What
+    the last tab is *for* is the two things that happen next: questions, and the system
+    running on real footage.
+    """
     return (
         '<div class="tk">'
-        + hero("Conclusion and perspectives",
-               "The system works. The evaluation is the finding.",
-               "What was achieved, what it cannot claim, and what would change that.",
-               tone="green")
-        + block("What was achieved", cards([
-            ("A complete system",
-             "Sampling, classification, detection, slot aggregation, reconciliation, an API "
-             "and a dashboard &mdash; all running on a CPU."),
-            ("A reproducible programme",
-             "Every result regenerates from the manifest and the cached features through one "
-             "pipeline; every claim is re-derived from its artefact on every run."),
-            ("A deployment recipe",
-             "Five labelled frames onboard a new camera, after which the source corpus stops "
-             "contributing."),
-            ("An enforced ethical boundary",
-             "<code>Advisory</code> is the only output the decision layer can produce, and "
-             "no code path acts."),
-        ]))
-        + block("What was found", points([
-            "On this corpus, <b>lighting and occupancy are the same variable</b>: a rule "
-            "reading only the clock is right on 99.1% of frames and beats all three "
-            "backbones across unseen venues.",
-            "<b>One 234-second clip reversed a 1,692-frame benchmark</b>, because it "
-            "contained the case the benchmark was missing.",
-            "<b>A low false-alarm rate is not accuracy</b> &mdash; the models answer "
-            "MAINTENANCE, not EMPTY, and are correct zero times out of 243.",
-            "<b>A reproducible number is not a reproducible result</b>: the augmentation "
-            "headline was the maximum of five draws.",
-        ]), tint="sky")
-        + block("What this study cannot claim", cards([
-            ("Empty pitches exist at one venue only",
-             "So a three-class cross-venue evaluation cannot be run on this corpus."),
-            ("243 empty frames are 3 scenes",
-             "The effective sample is scenes, not frames. Six comparisons stop being "
-             "significant when recounted that way."),
-            ("Nothing has run on the target hardware",
-             "Every latency number comes from a laptop."),
-            ("No human ceiling exists",
-             "There is no inter-annotator figure. That is a real gap, and we say so."),
-        ]) + blocked_questions(),
-            tint="coral",
-            note="One absent cell propagates into four separate research questions. "
-                 "They are blocked on data, not on work &mdash; which is why the "
-                 "perspectives below are mostly a recording trip rather than an "
-                 "engineering plan.")
-        + block("Perspectives", numbered([
-            ("Empty-pitch footage at a second venue",
-             "20&ndash;30 minutes, day and night. Fixes the confound, the external-validity "
-             "limit and the scope reduction at once &mdash; one conversation with the "
-             "facility."),
-            ("About 30 real labelled slots",
-             "Lifts the temporal model out of preliminary and gives reconciliation a ground "
-             "truth."),
-            ("An inter-annotator study",
-             "Two labellers on the same frames would give the human ceiling this work "
-             "currently lacks."),
-            ("Deployment on the target mini-PC",
-             "Every latency figure here is from a laptop; the production claim is untested "
-             "until it runs there."),
-            ("A ball detector that sees the ball",
-             "At 0.40 cross-venue recall, the ball requirement is the single most expensive "
-             "rule in the system."),
-        ]), tint="amber")
-        + block("", quote("<b>No protocol compensates for a case the data never "
-                          "contains.</b>"), tint="green")
+        + hero("Questions",
+               "Ask anything.",
+               "And then, rather than another slide: the model, running.", tone="green")
+        + block("", quote("Now we would like to <b>show you the system</b> &mdash; the "
+                          "model on real footage, how a frame becomes a verdict, and what "
+                          "the operator actually sees."), tint="green")
         + "</div>"
     )
 

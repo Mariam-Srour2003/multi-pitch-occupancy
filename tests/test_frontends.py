@@ -363,15 +363,17 @@ def test_schema_diagram_survives_a_missing_database(monkeypatch, tmp_path) -> No
     assert "rows</text>" not in svg  # but no counts invented
 
 
-def test_the_schema_reaches_the_report(client) -> None:
-    """The Database tab is gone; the schema is a block in Chapter 2 instead.
+def test_the_rule_table_reaches_the_report(client) -> None:
+    """The decision table is the one thing Chapter 3 cannot be read without.
 
-    It stays on the page because "a verdict never exists without its evidence" and "a gap is
-    recorded, never filled" are claims a reader should be able to see the shape of.
+    This test used to guard the storage schema too. The schema block was taken off the site
+    on 2026-09-22, deliberately: the chapters were cut back to the model, the detector and
+    the data work, and a database diagram is not any of those. `diagrams.schema()` and the
+    test that it never invents a row count both stand, so the drawing is still correct if it
+    is ever wanted back - it is simply not on a tab. The rule table is a different case: it
+    is what the chapter argues, not evidence filed beneath it.
     """
     bodies = _tab_bodies(client.get("/").text)
-    assert "What the system stores" in bodies["ch2"]
-    assert "frame_samples" in bodies["ch2"]
     assert "rule table" in bodies["ch3"], "the decision table left the page"
     assert "Preprocessing" in bodies["ch4"], "the preprocessing list left the page"
 
@@ -636,12 +638,14 @@ def test_the_findings_tab_is_counts_not_an_archive(client) -> None:
     clothes, and this tab is where the project is presented. Asserted on the served page
     rather than on the builder, because the page is what a reader got.
 
-    The cost is real and this test pins it too: the log is no longer reachable from the
-    site. If a later change puts it back, that should be a decision someone makes on
-    purpose, not a regression that slips in - so the absences are asserted, not assumed.
+    The counts came off the site on 2026-09-22 with the rest of the conclusion tab, which
+    was emptied to the two things that happen last - questions, and the demo. That is a
+    decision, not a regression: `thesis/claims.md` still records every claim and every
+    retraction, `verify_claims` still re-derives them from their artefacts on every run, and
+    `render_findings()` still builds the view for anyone who wants it back on a tab. What
+    this test still guards is the part that was never wanted: the archive itself.
     """
     html = client.get("/").text
-    assert '<div class="ftiles">' in html, "the counts are still the summary"
     for gone in ("The full log", '<details class="fentry"', '<details class="fmonth"'):
         assert gone not in html, f"the archive is back on the page: {gone!r}"
     # and it is evidence under a slide now, not a tab of its own
@@ -776,22 +780,27 @@ def test_every_tab_is_a_scrollable_page_not_a_deck(client) -> None:
 def test_the_evidence_is_collapsed_rather_than_dropped(client) -> None:
     """Replacing the documents with the talk must not mean losing what they showed.
 
-    Three tabs keep their evidence one click below the page: the model comparison and the
-    before/after preprocessing sheet under How it works, the claims ledger with its
-    retractions under The problem, and the augmentation argument with both search tables
-    under The solution. `<details>`, not a CSS toggle - find-in-page and a saved copy still
-    reach it.
+    The model chapter keeps its comparison one click below the page: `<details>`, not a CSS
+    toggle - find-in-page and a saved copy still reach it.
+
+    The claims ledger was served the same way under the conclusion until 2026-09-22, when
+    that tab was emptied to the two things that actually happen last - questions, and the
+    demo. The ledger itself is unaffected: `verify_claims` still re-derives every claim from
+    its artefact, `thesis/claims.md` still records the retractions, and `render_findings()`
+    still builds the view. It is no longer on a tab.
+
+    Chapter 4 is the exception, and on purpose (2026-09-22). The augmentation argument and
+    the before/after preprocessing sheet are the chapter rather than evidence filed under
+    it - the sheet is the only reliable check on augmentation code, and a reader who has to
+    click to reach it is a reader who does not look - so they are asserted in the body
+    instead, by `test_the_augmentation_argument_reaches_chapter_four` and
+    `test_every_preprocessing_pair_reaches_the_augmentation_tab`.
     """
     bodies = _tab_bodies(client.get("/").text)
     # By the label each one is served under, not by a count: a count passes while the wrong
     # thing is collapsed, and breaks on a cosmetic change that costs nothing.
     expected = {
         "ch2": ["The full model comparison"],
-        "ch4": ["Every switch, before and after",
-                "The augmentation argument in full",
-                "Every prompt set scored, ranked",
-                "Every preprocessing evaluation, ranked"],
-        "conclusion": ["Every claim, and what was withdrawn"],
     }
     for tab, labels in expected.items():
         for label in labels:
@@ -809,7 +818,10 @@ def test_the_page_is_slides_first_and_the_walls_are_gone(client) -> None:
     pre-registration - are no longer served at all.
     """
     html = client.get("/").text
-    assert html.count('<section class="tk-block') >= 30, "the page is not made of blocks"
+    # Was 30. The chapters were cut back to the model, the detector and the data work on
+    # 2026-09-22, and the conclusion was emptied to questions and the demo; what is left is
+    # fewer blocks of the same kind, which is the property this asserts.
+    assert html.count('<section class="tk-block') >= 24, "the page is not made of blocks"
     for wall in ("The full document &mdash;", "preregistration.md", "CODEBASE.md",
                  "data_layout.md", "rq_matrix.md"):
         assert wall not in html, f"a source document is still being served: {wall!r}"

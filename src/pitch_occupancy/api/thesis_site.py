@@ -281,27 +281,17 @@ def page() -> str:
         if key == "ch4":
             # The two searches and the augmentation argument all belong to this chapter, so
             # their evidence does too.
+            # The augmentation argument is the chapter, not evidence filed under it: the
+            # sheet is the only reliable check on augmentation code, and a reader who has
+            # to click to reach it is a reader who does not look. It goes in the body.
             body += (
-                detail(_augmentation(), "The augmentation argument in full")
-                + detail(_prompt_summary(), "Every prompt set scored, ranked")
-                # Server-rendered first, then the live panel. `_search_summary` holds the
-                # rule that an entry predating the false-play repair is shown as "not
-                # re-scored" rather than with its placeholder 0.0000 - and it was **called
-                # by nothing but a test**, so the test certified a safeguard no reader ever
-                # saw while the rendered panel served those same entries as clean top
-                # results. It is wired in here, and it is also what a reader with JavaScript
-                # off, or an examiner opening a saved copy, gets.
-                + detail(_search_summary(), "Every preprocessing evaluation, ranked")
+                '<section class="tk-block"><h2 class="tk-h">The augmentation '
+                'argument in full</h2>' + _augmentation() + "</section>"
                 + '<p class="run-note">Run the preprocessing search here. Each candidate '
                   'needs a fresh embedding pass, so a full-size run takes a few hours '
                   '&mdash; it keeps going if you close the tab.</p>'
                 + PANEL_HTML
             )
-        if key == "conclusion":
-            # Every verified claim and every retraction. The retractions are the reason to
-            # keep this reachable at all: a number that was published and then withdrawn is
-            # part of the method.
-            body += detail(render_findings(), "Every claim, and what was withdrawn")
         views.append(
             f'<section class="view" data-view="{key}" hidden>'
             f'<div class="doc">{body}</div></section>'

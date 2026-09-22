@@ -1,0 +1,119 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+500 frames | 8 venue folds | 1 model(s)
+16 candidate settings across 10 switches
+  play frames per fold: a_blue_barrier=55, d_indoor_dome=8, e_pink_boards=7, f_outdoor_bldg=3, g_netting=6, h_teal_pitch=5, i_outdoor_trees=8, davinci_j_maint_outdoor=0
+
+  WARNING: 7/8 folds have fewer than 10 play frames (d_indoor_dome=8, e_pink_boards=7, f_outdoor_bldg=3, g_netting=6, h_teal_pitch=5, i_outdoor_trees=8, davinci_j_maint_outdoor=0).
+  Recall takes only a few discrete values there, the unweighted fold mean
+  over-weights them, and a result of 1.000 is mostly arithmetic.
+  Drop --limit for a ranking you can trust.
+
+
+============================================================
+convnextv2
+============================================================
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6431.54it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+  baseline           recall nan
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4089.12it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    undistort=0.15               recall nan worst nan falsePlay 0.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 3892.10it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    undistort=0.3                recall nan worst nan falsePlay 0.0141
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6075.28it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    centre_crop=0.5              recall nan worst nan falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6221.37it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    centre_crop=0.7              recall nan worst nan falsePlay 0.0141
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 3745.47it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+'[Errno 11001] getaddrinfo failed' thrown while requesting HEAD https://huggingface.co/facebook/convnextv2-tiny-22k-224/resolve/main/processor_config.json
+Retrying in 1s [Retry 1/5].
+'[Errno 11001] getaddrinfo failed' thrown while requesting HEAD https://huggingface.co/facebook/convnextv2-tiny-22k-224/resolve/main/processor_config.json
+Retrying in 2s [Retry 2/5].
+'[Errno 11001] getaddrinfo failed' thrown while requesting HEAD https://huggingface.co/facebook/convnextv2-tiny-22k-224/resolve/main/processor_config.json
+Retrying in 4s [Retry 3/5].
+    top_crop=0.2                 recall nan worst nan falsePlay 0.0141
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 3447.36it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    top_crop=0.35                recall nan worst nan falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4274.28it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    letterbox=False              recall nan worst nan falsePlay 0.0141
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 3838.84it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    per_image_standardise=True   recall nan worst nan falsePlay 0.0141
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 3085.34it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.

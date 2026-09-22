@@ -12,14 +12,17 @@ drawing; a literal hue is spent only where it carries meaning.
 from __future__ import annotations
 
 import csv
+import json
 from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 MANIFEST = ROOT / "data" / "processed" / "manifest.csv"
+INVENTORY = ROOT / "results" / "model_inventory.json"
+RULES = ROOT / "configs" / "rules.json"
 
 __all__ = ["confound_matrix", "blocked_questions", "pipeline", "protocols", "schema",
-           "augmentation_axes", "DIAGRAM_STYLES"]
+           "augmentation_axes", "dinov2_stack", "yolo_stack", "DIAGRAM_STYLES"]
 
 DIAGRAM_STYLES = """
 figure{margin:20px 0}
@@ -32,6 +35,179 @@ figcaption{font-size:12.5px;color:var(--ink-3);margin-top:9px;max-width:72ch}
 .dg-line{stroke:currentColor;stroke-width:1.4;fill:none;opacity:.55}
 .dg-hot{stroke:var(--accent);stroke-width:2;fill:none}
 """
+
+
+def _inventory() -> dict:
+    if not INVENTORY.exists():
+        return {}
+    try:
+        return json.loads(INVENTORY.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+
+
+def dinov2_stack() -> str:
+    """What DINOv2 is, and where the frozen part stops.
+
+    The claim: one of these two boxes is pretrained and never touched, the other is the
+    whole of what this project trains - and the second is four orders of magnitude smaller.
+    Drawn because "frozen backbone with a linear probe" is a phrase that hides its own
+    proportions; the enclosing regions are the argument.
+
+    Every number is read from `results/model_inventory.json`, which `model_inventory.py`
+    derives from the loaded models, so the drawing cannot drift from the code.
+    """
+    inv = _inventory()
+    if not inv:
+        return ""
+    dino = next((b for b in inv["frozen"] if b["key"] == "dinov2"), None)
+    probe = inv.get("trained", {}).get("probe")
+    if not dino or not probe:
+        return ""
+    a = dino["architecture"]
+    patches = (224 // a["patch"]) ** 2
+    ratio = dino["params"] // probe["params"]
+
+    w, h = 916, 246
+    y, bh = 62, 62
+    boxes = [
+        (20, 118, "the frame", f'{224}&#215;{224}, inside', "the pitch boundary"),
+        (170, 150, "patch embedding", f'{a["patch"]}&#215;{a["patch"]} patches',
+         f'{patches} tokens + CLS'),
+        (356, 176, f'transformer &#215; {a["layers"]}', f'{a["heads"]} heads, width '
+         f'{a["hidden"]}', "every patch sees every other"),
+        (570, 124, "mean over tokens", f'one {a["output_dim"]}-number', "description"),
+        (740, 156, "linear probe", "768 &#215; 3 + 3 biases", "the only thing trained"),
+    ]
+    svg = ""
+    for i, (x, bw, title, l1, l2) in enumerate(boxes):
+        svg += (f'<rect class="dg-box" x="{x}" y="{y}" width="{bw}" height="{bh}" rx="8"/>'
+                f'<text class="dg-t" x="{x + bw / 2}" y="{y + 20}" text-anchor="middle">'
+                f'{title}</text>'
+                f'<text class="dg-l" x="{x + bw / 2}" y="{y + 38}" text-anchor="middle">'
+                f'{l1}</text>'
+                f'<text class="dg-s" x="{x + bw / 2}" y="{y + 52}" text-anchor="middle">'
+                f'{l2}</text>')
+        if i < len(boxes) - 1:
+            nx = boxes[i + 1][0]
+            svg += (f'<path class="dg-line" d="M {x + bw} {y + bh / 2} L {nx - 6} '
+                    f'{y + bh / 2}" marker-end="url(#ar3)"/>')
+
+    # the two regions: what is pretrained and never touched, and what this project fits
+    frozen = (f'<rect x="152" y="{y - 30}" width="566" height="{bh + 48}" rx="12" fill="none" '
+              f'stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" opacity=".5"/>'
+              f'<text class="dg-l" x="164" y="{y - 12}">frozen &middot; '
+              f'{dino["params"]:,} parameters &middot; '
+              f'{inv.get("frozen_gradients_received", 0)} gradients received</text>')
+    trained = (f'<rect x="724" y="{y - 30}" width="188" height="{bh + 48}" rx="12" fill="none" '
+               f'stroke="var(--accent)" stroke-width="1.6"/>'
+               f'<text class="dg-l" x="736" y="{y - 12}" fill="var(--accent)">trained '
+               f'&middot; {probe["params"]:,}</text>')
+
+    # the three classes, and the one number that carries the argument
+    chips = ""
+    for j, name in enumerate(("EMPTY", "ACTIVE PLAY", "MAINTENANCE")):
+        cx = 570 + j * 118
+        chips += (f'<rect class="dg-box" x="{cx}" y="{y + bh + 44}" width="108" height="26" '
+                  f'rx="13"/><text class="dg-s" x="{cx + 54}" y="{y + bh + 61}" '
+                  f'text-anchor="middle">{name}</text>')
+    drop = (f'<path class="dg-line" d="M 818 {y + bh} L 818 {y + bh + 38}" '
+            f'marker-end="url(#ar3)"/>')
+
+    return f"""<figure>
+<svg viewBox="0 0 {w} {h}" role="img"
+  aria-label="DINOv2 as a frozen vision transformer feeding a trained linear probe: the
+  frame becomes {patches} patch tokens, {a['layers']} transformer layers turn them into one
+  {a['output_dim']}-number description, and only the probe on the end is fitted.">
+  <defs><marker id="ar3" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7"
+    orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor" opacity="0.55"/></marker></defs>
+  {frozen}{trained}{svg}{drop}{chips}
+  <text class="dg-s" x="20" y="{y + bh + 61}">{ratio:,} frozen parameters
+    per trained one</text>
+</svg>
+<figcaption>DINOv2 is pretrained on {dino["pretraining"].split(" on ")[-1]} with
+{dino["pretraining_labels"]}, so it has no notion of the three classes and no classifier:
+what comes out is a description of the image. Everything inside the dashed region is used
+exactly as downloaded and receives no gradient at any point in this project. The whole of
+what is fitted is the box on the right.</figcaption>
+</figure>"""
+
+
+def _rules() -> dict:
+    if not RULES.exists():
+        return {}
+    try:
+        return json.loads(RULES.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+
+def yolo_stack() -> str:
+    """YOLOv8 as it is actually run here, and where the rules take over.
+
+    The claim: the detector is one forward pass that ends at boxes, and every decision in
+    this project happens *after* it, in code that can be read. Drawn so the seam is visible -
+    left of it a network nobody here trained, right of it arithmetic and the facility's own
+    numbers.
+
+    The settings come from `configs/rules.json`, so the drawing states what the deployed
+    rule is configured with rather than what the prose remembers.
+    """
+    cfg = _rules()
+    if not cfg:
+        return ""
+    w, h = 916, 232
+    y, bh = 58, 66
+    stages = [
+        (20, 126, "the frame", f'long edge {cfg.get("imgsz", 1280)}', "one per camera-minute"),
+        (176, 168, "backbone", "CSPDarknet, C2f blocks", "features at 3 scales"),
+        (376, 150, "neck", "PAN-FPN", "small objects keep detail"),
+        (558, 158, "head", "anchor-free, decoupled", "box + class, no anchors"),
+        (748, 148, "NMS", f'person &ge; {cfg.get("person_conf", 0.25)}',
+         f'ball &ge; {cfg.get("ball_conf", 0.1)}'),
+    ]
+    svg = ""
+    for i, (x, bw, title, l1, l2) in enumerate(stages):
+        svg += (f'<rect class="dg-box" x="{x}" y="{y}" width="{bw}" height="{bh}" rx="8"/>'
+                f'<text class="dg-t" x="{x + bw / 2}" y="{y + 22}" text-anchor="middle">'
+                f'{title}</text>'
+                f'<text class="dg-l" x="{x + bw / 2}" y="{y + 40}" text-anchor="middle">'
+                f'{l1}</text>'
+                f'<text class="dg-s" x="{x + bw / 2}" y="{y + 55}" text-anchor="middle">'
+                f'{l2}</text>')
+        if i < len(stages) - 1:
+            nx = stages[i + 1][0]
+            svg += (f'<path class="dg-line" d="M {x + bw} {y + bh / 2} L {nx - 6} '
+                    f'{y + bh / 2}" marker-end="url(#ar4)"/>')
+
+    net = (f'<rect x="160" y="{y - 30}" width="576" height="{bh + 48}" rx="12" fill="none" '
+           f'stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" opacity=".5"/>'
+           f'<text class="dg-l" x="172" y="{y - 12}">one forward pass &middot; COCO weights, '
+           f'nothing trained here &middot; {cfg.get("detector", "yolov8n")}</text>')
+    out = (f'<rect x="744" y="{y - 30}" width="158" height="{bh + 48}" rx="12" fill="none" '
+           f'stroke="var(--accent)" stroke-width="1.6"/>'
+           f'<text class="dg-l" x="756" y="{y - 12}" fill="var(--accent)">boxes out</text>')
+
+    # where the network stops and the readable part starts
+    seam = (f'<path class="dg-hot" d="M 822 {y + bh} L 822 {y + bh + 30}" '
+            f'marker-end="url(#ar4)"/>'
+            f'<text class="dg-l" x="812" y="{y + bh + 46}" text-anchor="end" '
+            f'fill="var(--accent)">then the rules: foot inside the boundary, '
+            f'{cfg.get("small_group_max", 4)} or fewer is not a game, '
+            f'{cfg.get("play_min", 5)}+ with a moving ball is</text>')
+
+    return f"""<figure>
+<svg viewBox="0 0 {w} {h}" role="img"
+  aria-label="YOLOv8 as one forward pass from frame to boxes - backbone, neck, head and
+  non-maximum suppression - with every decision taken afterwards by the rule table.">
+  <defs><marker id="ar4" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7"
+    orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor" opacity="0.55"/></marker></defs>
+  {net}{out}{svg}{seam}
+</svg>
+<figcaption>The detector ends at boxes. It is asked for two COCO classes only - person and
+sports ball - and it is never asked whether a match is happening: that is decided afterwards
+by counting, which is why a verdict can be shown to a manager as the objects it was made
+from.</figcaption>
+</figure>"""
 
 
 def _counts() -> dict[tuple[str, str], int]:
