@@ -469,45 +469,67 @@ def summary() -> str:
         (c.get("frames", "?"), "labelled frames", "lead"),
         ("3", "classes", "good"),
         ("7", "venue folds", "warn"),
-        ("0", "GPUs", "bad"),
+        ("0", "GPUs &mdash; and no cloud services either", "bad"),
     ]) if c else "<p class='missing'>No coverage report generated yet.</p>"
     return (
         '<div class="tk">'
         + hero("Summary",
-               "Multi-Pitch Occupancy and Booking Verification from Existing Cameras",
+               "Playground Activity Detection using Deep Learning",
                "A CPU-only system that checks which booked pitch hours were actually used, "
                "and an evaluation that turned out to be the result.", tone="ink")
         + block("The abstract",
-                quote("A facility rents 5-a-side pitches by the hour and cannot verify which "
-                      "slots were used. This work samples <b>one frame per camera per "
-                      "minute</b> from existing CCTV, classifies each frame as empty, active "
-                      "play or maintenance, aggregates an hour into a verdict, and "
-                      "reconciles that verdict against the booking record &mdash; on a "
-                      "single mini-PC with no GPU, and with a person confirming every "
-                      "flag."))
+                quote("A business owner running <b>seven football playgrounds</b> cannot sit "
+                      "and watch seven camera feeds all day to know which pitches are being "
+                      "played on and which are standing idle. Lebanon has on the order of "
+                      "<b>1,200</b> five-a-side football playgrounds, and even the ones that "
+                      "sell their slots online have no way of checking whether the people "
+                      "who booked actually turned up.<br><br>"
+                      "This work uses <b>deep learning</b> to answer that automatically. It "
+                      "samples <b>one frame per camera per minute</b> from the CCTV already "
+                      "installed, classifies each frame as empty, active play or "
+                      "maintenance, turns an hour of those into a single verdict, and "
+                      "reconciles that verdict against the booking record &mdash; so the "
+                      "owner is shown only the bookings where the record and the camera "
+                      "disagree, instead of watching the cameras.<br><br>"
+                      "It runs on ordinary <b>CPU servers</b>, with no GPU and no cloud "
+                      "inference bill, so running it stays close to the cost of the cameras "
+                      "the owner already owns. A person confirms every flag.")
+                + cards([
+                    ("The owner&rsquo;s problem",
+                     "Seven pitches, one person, and no way to watch them all. Checking by "
+                     "eye is a sample, not an audit."),
+                    ("The market",
+                     "~<b>1,200</b> five-a-side football playgrounds in Lebanon "
+                     "<code>[source]</code> &mdash; the same problem, multiplied."),
+                    ("Booking &ne; attendance",
+                     "An online booking says a slot was <i>sold</i>. It does not say anyone "
+                     "came."),
+                    ("Cheap by design",
+                     "CPU servers rather than GPUs or cloud inference. The constraint is "
+                     "what makes it deployable, not a limitation to work around."),
+                ]))
         + block("The study in numbers", counts, tint="sky")
         + block("Three findings", cards([
-            ("The evaluation was measuring the wrong thing",
-             "Lighting and occupancy are confounded: a rule reading only the clock scores "
-             "<b>99.1%</b> on the corpus and beats all three deep backbones across unseen "
-             "venues."),
-            ("One clip reversed a 1,692-frame benchmark",
-             "234 seconds containing the case the corpus lacks put the trivial rule at "
-             "<b>16/16 wrong</b> and the deployed system at <b>0.00</b>."),
-            ("A published result did not survive a re-draw",
-             "An augmentation headline of <b>0.855</b> was the maximum of five draws; four "
-             "of five fell below using no augmentation at all. It was retracted and "
-             "restated."),
+            ("A good score here does not mean the model sees the pitch",
+             "People play in the evening and the pitch stands empty during the day, so in "
+             "this footage <i>dark means busy, daylight means empty</i> happens to be right "
+             "<b>99.1%</b> of the time. A rule that checks nothing but the time of day "
+             "&mdash; it never looks at the picture &mdash; matches all three deep models, "
+             "and beats them at venues none of them had seen. No score on this data can "
+             "separate an occupancy detector from a light sensor."),
+            ("Four minutes of footage overturned a 1,692-frame benchmark",
+             "<b>234 seconds</b> of a floodlit pitch at night with nobody on it &mdash; the "
+             "one situation the dataset never recorded. Of the 16 moments sampled from it, "
+             "the time-of-day rule called <b>all 16</b> a match in progress and was wrong "
+             "every time, while the full deployed system raised <b>no false alarm at "
+             "all</b>. The far larger benchmark had ranked the two the other way round."),
+            ("A published number turned out to be luck",
+             "An image-augmentation result of <b>0.855</b> was run four more times with "
+             "nothing changed but the random draw. The other four landed between 0.348 and "
+             "0.414 &mdash; below the <b>0.441</b> of using no augmentation at all. The "
+             "published figure was simply the best of five, so it was withdrawn the same "
+             "day and restated as a property of that one draw."),
         ], wide=True))
-        + block("What it contributes", points([
-            "An <b>evaluation method</b>: trivial baselines in every protocol, splits "
-            "grouped by venue, randomness re-drawn rather than re-run, and every safeguard "
-            "verified by breaking what it guards.",
-            "A <b>deployment recipe</b>: five labelled frames onboard a new camera, and the "
-            "source corpus stops contributing after that.",
-            "A <b>decision layer</b> that can only advise &mdash; enforced by the type "
-            "system, not by policy.",
-        ]), tint="green")
         + "</div>"
     )
 
@@ -533,7 +555,9 @@ def plan() -> str:
              "how it is evaluated."),
             ("Chapter 3 &mdash; YOLOv8",
              "Why a detector at all, the candidates tested, the bake-off that chose one, "
-             "and what it cannot see."),
+             "what it cannot see, and how it is wired to the classifier of Chapter 2: a "
+             "motion check between two frames and a head count inside the pitch boundary, "
+             "each able to overturn a match-in-progress verdict but never to create one."),
             ("Chapter 4 &mdash; Applications and data augmentation",
              "The deployed application, preprocessing, the augmentation presets, the "
              "retraction, and the data generated with AI."),
@@ -542,9 +566,15 @@ def plan() -> str:
         ]))
         + block("What each chapter answers", cards([
             ("Chapter 1", "What is already done, and what is missing?"),
-            ("Chapter 2", "Which model, and why that one?"),
-            ("Chapter 3", "How do we count people and a ball on a pitch?"),
-            ("Chapter 4", "Does it work in practice, and what did we do about the data?"),
+            ("Chapter 2", "Which deep learning model, and why that one?"),
+            ("Chapter 3",
+             "How do we count people and a ball on a pitch, and how do the two models talk "
+             "to each other? The classifier reads the whole frame, a motion check asks "
+             "whether anything moved since the last one, and YOLOv8 counts who is standing "
+             "inside the boundary &mdash; the detector overrules the classifier in one "
+             "direction only."),
+            ("Chapter 4",
+             "Does it work in real-world conditions, and what did we do about the data?"),
         ]), tint="violet")
         + "</div>"
     )
@@ -581,23 +611,29 @@ def introduction() -> str:
     return (
         '<div class="tk">'
         + hero("General introduction",
-               "A facility sells hours it cannot verify",
-               "The problem, who has worked on it, what remains, and how this work answers "
-               "it.", tone="green")
+               "A booking says an hour was sold. Only the camera knows if anyone came.",
+               "What is really being sold here is <b>trust</b>, and today it rests on a "
+               "handwritten sheet nobody can check. A model has no stake in the answer "
+               "&mdash; but trust is earned, not assumed, so this work spends as much care "
+               "proving the model honest as building it.", tone="green")
         + block("The problem in general", cards([
-            ("Pitches are sold by the hour",
-             "A multi-pitch facility rents 20&ndash;30 synthetic 5-a-side pitches in hourly "
-             "slots, all day, most of them after dark."),
-            ("The record is written by hand",
-             "Staff mark which slots were used. Nothing checks that record against what "
-             "happened on the grass."),
-            ("Nobody can check it",
-             "One manager cannot watch twenty pitches at once, so they spot-check &mdash; "
-             "and a spot check is a sample, not an audit."),
-            ("So three errors go unseen",
-             "<b>No-shows</b> (paid, never played), <b>unbooked use</b> (played, never "
-             "paid), and plain <b>data-entry error</b>."),
-        ]))
+            ("Was this hour booked?",
+             "The sheet says the slot was sold. That is the only thing it says."),
+            ("Did they come?",
+             "A booking is a promise. Nothing in the system records whether anyone arrived."),
+            ("Did they actually play?",
+             "Two people crossing the pitch is not a match, and the record cannot tell the "
+             "difference."),
+            ("Is the pitch empty right now?",
+             "The question the money rests on, and the one nobody is watching twenty pitches "
+             "to answer."),
+            ("Did someone play without booking?",
+             "Played, never paid &mdash; an hour the facility gave away and never saw."),
+            ("Did staff write it down wrong?",
+             "The record is filled in by hand at a busy desk. A wrong tick looks exactly "
+             "like a true one."),
+        ]), note="Six questions, one source of truth: the cameras the facility already "
+                 "owns. Today none of them can be answered without a person watching.")
         + block("Authors who have worked on it", cards(strands, wide=True), tint="amber",
                 note="<b>Every reference here is a placeholder.</b> This project's rule is "
                      "that no citation is written down until the paper has been opened and "

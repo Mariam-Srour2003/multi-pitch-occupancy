@@ -1,4 +1,4 @@
-# THESIS MASTER TODO — Multi-Pitch Occupancy & Booking Verification
+# THESIS MASTER TODO — Playground Activity Detection using Deep Learning
 
 > **What this file is.** The single checkable work list for the whole thesis. It merges
 > `SUPER_PLAN.md`, `Thesis_Plan_Multi-Pitch_Occupancy (4).docx`, and

@@ -319,7 +319,7 @@ def page() -> str:
 SHELL = """<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pitch Occupancy - Thesis</title>
+<title>Playground Activity Detection - Thesis</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
@@ -398,8 +398,7 @@ __MODEL_STYLES__
 </style></head><body>
 
 <nav><div class="navin">
-  <div class="brand">Pitch Occupancy<span>.</span></div>
-  <span class="tag">defence</span>
+  <div class="brand">Playground Activity<span>.</span></div>
   <div id="tabs">__TABS__</div>
   <a class="client" href="/client">Client dashboard &rarr;</a>
 </div></nav>

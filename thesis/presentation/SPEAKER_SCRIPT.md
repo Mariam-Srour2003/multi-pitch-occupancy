@@ -19,19 +19,20 @@ Things still yours to fill in are marked **[LIKE THIS]**.
 
 | Tab | Blocks | Starts | Runs |
 |---|---|---|---|
-| 1. Summary | 4 | 0:00 | 2:10 |
-| 2. Plan | 2 | 2:10 | 0:50 |
-| 3. General Introduction | 5 | 3:00 | 2:35 |
-| 4. Ch.1 State of the Art | 4 | 5:35 | 2:25 |
-| 5. Ch.2 Methods & Model | 8 | 8:00 | 4:30 |
-| 6. Ch.3 YOLOv8 | 6 | 12:30 | 4:25 |
-| 7. Ch.4 Applications | 7 | 16:55 | 5:40 |
-| 8. Conclusion | 5 | 22:35 | 2:05 |
+| 1. Summary | 4 | 0:00 | 3:10 |
+| 2. Plan | 2 | 3:10 | 0:25 |
+| 3. General Introduction | 5 | 3:35 | 2:35 |
+| 4. Ch.1 State of the Art | 4 | 6:10 | 2:25 |
+| 5. Ch.2 Methods & Model | 8 | 8:35 | 4:30 |
+| 6. Ch.3 YOLOv8 | 6 | 13:05 | 4:25 |
+| 7. Ch.4 Applications | 7 | 17:30 | 5:40 |
+| 8. Conclusion | 5 | 23:05 | 2:05 |
 
 **Measured, not guessed.** At 140 words a minute with the **⟨cut if short⟩**
-passages dropped, the spoken text is **24 minutes 40**; reading every word including them is
-**26**. Tabs 5, 6 and 7 are together three fifths of the talk, which is right &mdash; they
-are the three chapters with results in them. Time yourself once and adjust.
+passages dropped, the spoken text is **25 minutes 20**; reading every word including them is
+**27**. That is tight for a 25-minute slot, so know your cuts: dropping the optional
+passages is 105 seconds, and blocks 5.5, 5.6 and 3.5 are diagrams and a recap that work
+without commentary. Time yourself once and adjust.
 
 ---
 
@@ -44,21 +45,42 @@ Good morning, distinguished examiners, professors and colleagues.
 My name is Mariam Srour, and I am a Master's student in **[PROGRAMME]** at
 **[INSTITUTION]**. My supervisor is **[NAME]**.
 
-The title of my work is *Multi-Pitch Occupancy and Booking Verification from Existing
-Cameras*.
+The title of my work is *Playground Activity Detection using Deep Learning*.
 
 ### 1.1 · "The abstract"
 
-In one paragraph: a facility rents five-a-side pitches by the hour and cannot verify which
-slots were actually used. This work samples **one frame per camera per minute** from the
-CCTV that is already installed, classifies each frame as empty, active play or maintenance,
-aggregates an hour into a verdict, and reconciles that verdict against the booking record —
-on a single mini-PC with **no GPU**, and with a person confirming every flag.
+Let me start with whose problem this is.
+
+Picture a business owner who runs **seven football playgrounds**. He cannot sit and watch
+seven camera feeds all day to know which pitches are being played on and which are standing
+idle. And he is not unusual — Lebanon has on the order of **1,200** five-a-side football
+playgrounds, and even the ones that sell their slots online have no way of checking whether
+the people who booked actually turned up. A booking says a slot was *sold*. It does not say
+anyone came.
+
+So this work uses **deep learning** to answer that automatically. It samples **one frame per
+camera per minute** from the CCTV that is already installed, classifies each frame as empty,
+active play or maintenance, turns an hour of those into a single verdict, and reconciles
+that verdict against the booking record. The owner is then shown only the bookings where the
+record and the camera disagree — instead of watching the cameras.
+
+And it runs on ordinary **CPU servers**. No GPU, and no cloud inference bill. That was a
+deliberate constraint rather than a limitation: it is what keeps the running cost close to
+the cost of the cameras the owner already owns, which is what makes it something a facility
+would actually buy.
+
+> **If asked where 1,200 comes from:** be ready with the source, or say plainly that it is
+> an order-of-magnitude figure you have not yet been able to verify. Do not guess at a
+> precise number in the room.
 
 ### 1.2 · "The study in numbers"
 
 The scale, once, so nobody has to guess it. Sixteen hundred and ninety-two labelled frames,
-three classes, seven venue folds for cross-venue testing, and no GPU anywhere in the design.
+three classes, and seven venue folds for cross-venue testing.
+
+And the last one is the one to point at: **zero GPUs, and zero cloud services**. Nothing in
+this system is rented by the hour — no graphics card, and no inference API. Everything you
+see runs on a CPU the facility already owns.
 
 ### 1.3 · "Three findings"
 
@@ -83,7 +105,7 @@ enforced by the type system rather than by a policy document.
 
 ---
 
-# Tab 2 — Plan · 2:10
+# Tab 2 — Plan · 3:10
 
 ### 2.1 · "The eight parts"
 
@@ -96,13 +118,14 @@ applications and the data augmentation. And the conclusion sets out what remains
 
 ### 2.2 · "What each chapter answers"
 
-Put as four questions: Chapter 1 asks *what is already done, and what is missing?* Chapter 2
-asks *which model, and why that one?* Chapter 3 asks *how do we count people and a ball on a
-pitch?* And Chapter 4 asks *does it work in practice, and what did we do about the data?*
+⟨cut if short⟩ Put as four questions: Chapter 1 asks *what is already done, and what
+is missing?* Chapter 2 asks *which model, and why that one?* Chapter 3 asks *how do we count
+people and a ball on a pitch?* And Chapter 4 asks *does it work in practice, and what did we
+do about the data?*
 
 ---
 
-# Tab 3 — General Introduction · 3:00
+# Tab 3 — General Introduction · 3:35
 
 ### 3.1 · "The problem in general"
 
@@ -165,7 +188,7 @@ Which maps onto the four chapters you see here.
 
 ---
 
-# Tab 4 — Chapter 1, State of the Art · 5:35
+# Tab 4 — Chapter 1, State of the Art · 6:10
 
 ### 4.1 · "Playgrounds — how occupancy is measured today"
 
@@ -220,7 +243,7 @@ disagree — has the least prior art of all.
 
 ---
 
-# Tab 5 — Chapter 2, Methods and our Model · 8:00
+# Tab 5 — Chapter 2, Methods and our Model · 8:35
 
 ### 5.1 · "The families considered"
 
@@ -315,7 +338,7 @@ reporting around it, is the contribution.
 
 ---
 
-# Tab 6 — Chapter 3, YOLOv8 · 12:30
+# Tab 6 — Chapter 3, YOLOv8 · 13:05
 
 ### 6.1 · "Why a detector at all"
 
@@ -399,7 +422,7 @@ install comes to report every pitch empty.
 
 ---
 
-# Tab 7 — Chapter 4, Applications and Augmentation · 16:55
+# Tab 7 — Chapter 4, Applications and Augmentation · 17:30
 
 ### 7.1 · "The application — a booked hour, end to end"
 
@@ -505,7 +528,7 @@ camera. What buys the accuracy is having **any** labels from the new camera.
 
 ---
 
-# Tab 8 — Conclusion · 22:35
+# Tab 8 — Conclusion · 23:05
 
 ### 8.1 · "What was achieved"
 

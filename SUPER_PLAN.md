@@ -1,4 +1,4 @@
-# SUPER PLAN — Multi-Pitch Occupancy & Booking Verification (Master's Thesis + Client System)
+# SUPER PLAN — Playground Activity Detection using Deep Learning (Master's Thesis + Client System)
 
 > **Purpose of this file.** Complete, self-contained execution plan. It merges the two planning
 > documents ("Thesis_Plan_Multi-Pitch_Occupancy" and "Thesis_Schedule_and_Effort_Plan") with the

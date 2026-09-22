@@ -1,4 +1,4 @@
-# Multi-Pitch Occupancy & Booking Verification
+# Playground Activity Detection using Deep Learning
 
 Low-bandwidth, CPU-only computer vision that audits how a network of synthetic 5-a-side football
 pitches is actually used — and reconciles what it sees against what the facility's booking records

@@ -225,8 +225,8 @@ function statement(s, o) {
   s.addNotes(
     "Good morning, distinguished examiners, professors and colleagues.\n\n" +
     "My name is Mariam Srour, and I am a Master's student in [Programme] at [Institution].\n\n" +
-    "The title of my research is \"Multi-Pitch Occupancy and Booking Verification from " +
-    "Existing Cameras\". Throughout this talk I will use the shorter version on the slide: " +
+    "The title of my research is \"Playground Activity Detection using Deep Learning\". " +
+    "Throughout this talk I will use the shorter version on the slide: " +
     "who actually used the pitch?\n\n" +
     "[25 minutes. Pace: about 45 seconds a slide. Do not rush the three slides on the " +
     "confound - they are the thesis.]"
