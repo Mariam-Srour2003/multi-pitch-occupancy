@@ -33,6 +33,7 @@ from pitch_occupancy.api.routes import router
 from pitch_occupancy.api.schedule_editor import router as schedule_router
 from pitch_occupancy.api.search_control import router as search_router
 from pitch_occupancy.api.simulator import router as simulator_router
+from pitch_occupancy.api.talk import related_work_page
 from pitch_occupancy.api.thesis_site import page as thesis_page
 from pitch_occupancy.config import settings
 
@@ -73,6 +74,17 @@ def thesis() -> HTMLResponse:
     there is no build step to forget and no copy that can drift from the results.
     """
     return HTMLResponse(thesis_page())
+
+
+@app.get("/related-work", response_class=HTMLResponse, include_in_schema=False)
+def related_work() -> HTMLResponse:
+    """The nine related-work strands, from `thesis/ch2_related_work.md`.
+
+    Chapter 1 states what each strand has to establish; this is where its *sources* link
+    lands - the strand in full, with the `[CITE]` slots still open. Rendered from the file
+    on each request, so the page cannot drift from the document being written.
+    """
+    return HTMLResponse(related_work_page())
 
 
 @app.get("/clip", response_class=HTMLResponse, include_in_schema=False)

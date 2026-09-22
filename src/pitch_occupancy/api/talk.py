@@ -1,6 +1,6 @@
 """The thesis report, as eight scrollable pages (WP8).
 
-The site follows the **report**: summary, plan, general introduction, four chapters and a
+The site follows the **report**: summary, plan, introduction, four chapters and a
 conclusion, in reading order. Each tab is an ordinary page you scroll - a coloured hero,
 then blocks of cards, counts, a table or a figure. No slides and no pager: a reader should
 be able to read a tab top to bottom without pressing anything.
@@ -16,8 +16,8 @@ in its own history.
 **A missing artefact says so.** A block whose figure has not been generated prints the
 command that would generate it, rather than rendering an empty box.
 
-**References are placeholders until they are read.** The general introduction lists the
-nine literature strands as `[CITE]`, exactly as `thesis/ch2_related_work.md` does, and no
+**References are placeholders until they are read.** Chapter 1 lists the nine
+literature strands as `[CITE]`, exactly as `thesis/ch2_related_work.md` does, and no
 author name is written here that has not been read. A fabricated or half-remembered citation
 is the one error in a thesis that cannot be defended, and it is the specific failure an
 LLM-assisted draft is most likely to introduce.
@@ -40,7 +40,7 @@ from pitch_occupancy.api.diagrams import (
 )
 
 __all__ = [
-    "STYLES", "SECTIONS",
+    "STYLES", "SECTIONS", "STRANDS", "related_work_page",
     "hero", "block", "tiles", "cards", "numbered", "figure", "points", "beat", "beats",
     "table", "quote", "chips", "detail",
 ]
@@ -331,6 +331,12 @@ STYLES = """
 .tk-card h3{margin:0 0 5px;font-size:14.5px;font-weight:700;color:var(--ink);
  line-height:1.25}
 .tk-card p{margin:0;font-size:13px;color:var(--ink-2);line-height:1.5}
+.tk-cite{display:inline-block;margin-top:9px;padding:3px 9px;border-radius:999px;
+ border:1px solid var(--line);background:var(--surface-2);color:var(--accent);
+ font:600 11.5px/1.5 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.02em;
+ text-decoration:none;white-space:nowrap}
+.tk-cite:hover{border-color:var(--accent);background:var(--accent-soft)}
+.tk-cite span{opacity:.7}
 
 /* --- numbered steps ------------------------------------------------------------ */
 .tk-steps{display:grid;gap:10px}
@@ -458,7 +464,7 @@ def preprocess_pairs() -> str:
 # --- the eight parts of the report ----------------------------------------------------
 #
 # The site follows the **report**, not the oral-presentation template: summary, plan,
-# general introduction, four chapters, conclusion. Each tab holds the material for that
+# introduction, four chapters, conclusion. Each tab holds the material for that
 # part - what is presented and talked through - and nothing that is only delivery.
 
 
@@ -481,7 +487,7 @@ def summary() -> str:
                 quote("A business owner running <b>seven football playgrounds</b> cannot sit "
                       "and watch seven camera feeds all day to know which pitches are being "
                       "played on and which are standing idle. Lebanon has on the order of "
-                      "<b>1,200</b> five-a-side football playgrounds, and even the ones that "
+                      "<b>1,200</b> football playgrounds, and even the ones that "
                       "sell their slots online have no way of checking whether the people "
                       "who booked actually turned up.<br><br>"
                       "This work uses <b>deep learning</b> to answer that automatically. It "
@@ -499,8 +505,8 @@ def summary() -> str:
                      "Seven pitches, one person, and no way to watch them all. Checking by "
                      "eye is a sample, not an audit."),
                     ("The market",
-                     "~<b>1,200</b> five-a-side football playgrounds in Lebanon "
-                     "<code>[source]</code> &mdash; the same problem, multiplied."),
+                     "~<b>1,200</b> football playgrounds in Lebanon &mdash; the "
+                     "same problem, multiplied."),
                     ("Booking &ne; attendance",
                      "An online booking says a slot was <i>sold</i>. It does not say anyone "
                      "came."),
@@ -539,14 +545,13 @@ def plan() -> str:
     return (
         '<div class="tk">'
         + hero("Plan", "How this report is organised",
-               "Eight parts: a summary, this plan, a general introduction, four chapters, "
+               "Eight parts: a summary, this plan, an introduction, four chapters, "
                "and a conclusion.", tone="sky")
         + block("The eight parts", numbered([
             ("Summary", "The abstract, the scale of the study, and the three findings."),
             ("Plan", "This page."),
-            ("General introduction",
-             "The problem in general, who has worked on it, the problem to be resolved, how "
-             "we resolve it, and the decomposition of the report."),
+            ("Introduction",
+             "The problem in general, who has worked on it, and how we resolve it."),
             ("Chapter 1 &mdash; State of the art",
              "Playgrounds: how facilities are monitored today and why each alternative "
              "fails. Deep learning: what the field has established, and the gap."),
@@ -581,36 +586,10 @@ def plan() -> str:
 
 
 def introduction() -> str:
-    """3. General introduction - problem, prior work, our problem, our approach, plan."""
-    strands = [
-        ("&sect;2.1 Occupancy and activity recognition from fixed cameras",
-         "That classifying scene state from a fixed viewpoint is a solved problem class, and "
-         "what accuracy the field considers ordinary. <code>[CITE]</code>"),
-        ("&sect;2.2 Frozen features and linear probes",
-         "That a frozen backbone with a small trained head is a legitimate method rather "
-         "than a shortcut. <code>[CITE]</code>"),
-        ("&sect;2.3 Dataset leakage and evaluation protocol",
-         "That near-duplicate leakage is a known, recurring problem, with prior cases where "
-         "a benchmark was found to be measuring memorisation. <code>[CITE]</code>"),
-        ("&sect;2.4 Trivial baselines and benchmark validity",
-         "That checking a benchmark against a baseline which ignores the input is "
-         "established practice. <code>[CITE]</code>"),
-        ("&sect;2.5 Edge and CPU-constrained inference",
-         "What is achievable without a GPU, and at what accuracy cost. <code>[CITE]</code>"),
-        ("&sect;2.6 Object detection for people and small objects",
-         "The YOLO family, and small-object detection at distance. <code>[CITE]</code>"),
-        ("&sect;2.7 Data augmentation and domain shift",
-         "Which augmentations transfer across cameras, and which do not. "
-         "<code>[CITE]</code>"),
-        ("&sect;2.8 Prior art in facility and booking verification",
-         "Whether anyone has audited bookings from cameras before. <code>[CITE]</code>"),
-        ("&sect;2.9 Selective prediction and abstention",
-         "That a REVIEW band is a literature-backed design, not an engineering "
-         "convenience. <code>[CITE]</code>"),
-    ]
+    """3. Introduction - the problem, the prior work, and how we resolve it."""
     return (
         '<div class="tk">'
-        + hero("General introduction",
+        + hero("Introduction",
                "A booking says an hour was sold. Only the camera knows if anyone came.",
                "What is really being sold here is <b>trust</b>, and today it rests on a "
                "handwritten sheet nobody can check. A model has no stake in the answer "
@@ -634,28 +613,18 @@ def introduction() -> str:
              "like a true one."),
         ]), note="Six questions, one source of truth: the cameras the facility already "
                  "owns. Today none of them can be answered without a person watching.")
-        + block("Authors who have worked on it", cards(strands, wide=True), tint="amber",
-                note="<b>Every reference here is a placeholder.</b> This project's rule is "
-                     "that no citation is written down until the paper has been opened and "
-                     "read &mdash; a fabricated or half-remembered reference is the one "
-                     "error in a thesis that cannot be defended. The nine strands say what "
-                     "each must establish; filling them is yours. See "
-                     "<code>thesis/ch2_related_work.md</code>.")
-        + block("The problem to be resolved",
-                quote("Given only the cameras a facility already owns and a computer with "
-                      "<b>no GPU</b>, decide for each booked hour whether the pitch was "
-                      "used &mdash; accurately enough to raise a billing conversation, and "
-                      "with evidence a customer can be shown.")
-                + points([
-                    "It must recognise an <b>empty</b> pitch, not just a busy one &mdash; "
-                    "the money rests entirely on that class.",
-                    "It must work at a venue it has <b>never seen</b>, because a facility "
-                    "adds pitches.",
-                    "It must run 20&ndash;30 cameras inside a <b>60-second</b> cycle on one "
-                    "mini-PC.",
-                    "It must never act on its own: the output is advice, and a person "
-                    "decides.",
-                ]), tint="coral")
+        + block("Authors who have worked on it", points([
+            "The problem sits where three literatures meet: <b>scene and activity "
+            "recognition from fixed cameras</b>, <b>frozen features with linear probes</b>, "
+            "and the <b>evaluation-protocol</b> work on leakage, shortcut learning and "
+            "trivial baselines.",
+            "Around them sit CPU-constrained inference, calibration for classifiers that "
+            "route work to a person, audit against an administrative record, and selective "
+            "prediction.",
+            "<b>Chapter 1 takes each in turn</b>, as nine strands with the sources behind "
+            "them &mdash; <a class=\"tk-cite\" href=\"/related-work\">the nine strands "
+            "&rarr;</a>",
+        ]), tint="amber")
         + block("How we resolve it", numbered([
             ("Sample sparsely", "One frame per camera per minute instead of decoding video "
                                 "&mdash; about <b>99% less</b> network traffic."),
@@ -672,18 +641,53 @@ def introduction() -> str:
              "Splits grouped by venue, four trivial baselines in every protocol, and every "
              "safeguard verified by breaking it."),
         ]))
-        + block("Decomposition of the report", cards([
-            ("Chapter 1 &mdash; State of the art",
-             "Playgrounds and deep learning: what exists, and what it does not answer."),
-            ("Chapter 2 &mdash; Methods and our model",
-             "Why frozen backbones, what the architecture is, and how it is evaluated."),
-            ("Chapter 3 &mdash; YOLOv8",
-             "The detector: candidates, the bake-off, and the counting rules."),
-            ("Chapter 4 &mdash; Applications and augmentation",
-             "The deployed system, preprocessing, augmentation, and the generated data."),
-        ]), tint="sky")
         + "</div>"
     )
+
+
+#: The nine related-work strands of `thesis/ch2_related_work.md`, as Chapter 1 shows them.
+#: Each carries the anchor of its section in that document, so the card can link to the
+#: place the citations go. **No reference is written here**: the rule is that a citation is
+#: recorded only once the paper has been opened and read, and a card on a website is exactly
+#: the wrong place for that rule to be relaxed.
+STRANDS: list[tuple[str, str, str]] = [
+    ("s2-1", "&sect;2.1 Occupancy and activity recognition from fixed cameras",
+     "That classifying scene state from a fixed viewpoint is a solved problem class, and "
+     "what accuracy the field considers ordinary."),
+    ("s2-2", "&sect;2.2 Frozen features and linear probes",
+     "That a frozen backbone with a small trained head is a legitimate method rather than a "
+     "shortcut."),
+    ("s2-3", "&sect;2.3 Dataset leakage and evaluation protocol",
+     "That near-duplicate leakage is a known, recurring problem, with prior cases where a "
+     "benchmark was found to be measuring memorisation."),
+    ("s2-4", "&sect;2.4 Trivial baselines and benchmark validity",
+     "That checking a benchmark against a baseline which ignores the input is established "
+     "practice."),
+    ("s2-5", "&sect;2.5 Edge and CPU-constrained inference",
+     "What is achievable without a GPU, and at what accuracy cost."),
+    ("s2-6", "&sect;2.6 Calibration and uncertainty for deployed classifiers",
+     "That a confidence score is an operational quantity once it routes work to a person, "
+     "and how calibration is normally assessed."),
+    ("s2-7", "&sect;2.7 Facility management, audit and record reconciliation",
+     "That cross-checking a sensor against an administrative record is a recognised "
+     "problem, in this domain or an adjacent one."),
+    ("s2-8", "&sect;2.8 Prior art &mdash; who already does this",
+     "Whether a commercial or academic system already audits facility occupancy, and what "
+     "it does not do."),
+    ("s2-9", "&sect;2.9 Selective prediction and learning to defer",
+     "That abstaining and handing a case to a human is a studied design with its own "
+     "metrics &mdash; so the REVIEW band is literature-backed, not an engineering "
+     "convenience."),
+]
+
+
+def strand_cards() -> str:
+    """The nine strands, each with a link to its section and its open `[CITE]` slots."""
+    return cards([
+        (title, f'{claim} <a class="tk-cite" href="/related-work#{anchor}">'
+                f'sources <span>&rarr;</span></a>')
+        for anchor, title, claim in STRANDS
+    ], wide=True)
 
 
 def chapter1() -> str:
@@ -711,44 +715,13 @@ def chapter1() -> str:
              ["<b>This system</b>", "<b>Reuses existing CCTV</b>",
               "<b>Scene state per minute, with evidence</b>",
               "<b>Needs a camera view; classification error</b>"]], hi=5))
-        + block("Why the alternatives do not close the case", points([
-            "A sensor answers <i>did something move</i>. An audit needs <i>was this booking "
-            "used, and here is the picture</i>.",
-            "None of them can tell a five-a-side match from a <b>groundsman on a mower</b> "
-            "&mdash; which is the difference between billing and not billing.",
-            "Only the camera produces <b>evidence</b>: three frames a customer can be shown.",
-            "And the camera is <b>already installed</b>, for highlights. Every alternative "
-            "is new hardware on every pitch.",
-        ]), tint="amber",
-            note="Conceded first, because it is true: a PIR sensor is more robust in fog, in "
-                 "darkness and against a dirty lens. See "
-                 "<code>thesis/alternatives.md</code>.")
-        + block("Deep learning &mdash; what the field has established", cards([
-            ("Scene classification from fixed cameras is routine",
-             "Which is what licenses spending this thesis on the <i>evaluation</i> and the "
-             "reconciliation rather than on the classifier."),
-            ("Frozen backbones with linear probes work",
-             "Strong results from very few labels &mdash; and the concession that "
-             "fine-tuning would probably score higher."),
-            ("Object detection finds people reliably",
-             "The YOLO family in particular; small objects at distance remain hard."),
-            ("Leakage and shortcut learning are known failure modes",
-             "Grouped splitting, near-duplicate audits, and trivial baselines are "
-             "established practice, not an eccentricity."),
-        ]), note="Each of these is a strand in <code>thesis/ch2_related_work.md</code>, and "
-                 "each is waiting on references that have actually been read.")
-        + block("The gap this work sits in", cards([
-            ("Evaluation is usually same-scene",
-             "Almost all reported occupancy accuracy is scored on frames drawn from the "
-             "<b>same scenes</b> as training, so it measures memory of a place rather than "
-             "recognition of an activity."),
-            ("Trivial baselines are rarely reported",
-             "A benchmark that a clock rule can win looks healthy until somebody runs the "
-             "clock rule."),
-            ("And nobody audits bookings from cameras",
-             "The reconciliation problem &mdash; three records that disagree &mdash; is the "
-             "part with the least prior art."),
-        ], wide=True), tint="coral")
+        + block("Deep learning &mdash; what the field must establish", strand_cards(),
+                note="<b>Every reference is still a placeholder.</b> This project's rule is "
+                     "that no citation is written down until the paper has been opened and "
+                     "read &mdash; a fabricated or half-remembered reference is the one "
+                     "error in a thesis that cannot be defended. Each <i>sources</i> link "
+                     "opens that strand in <code>thesis/ch2_related_work.md</code>, where "
+                     "the open <code>[CITE]</code> slots are; filling them is yours.")
         + "</div>"
     )
 
@@ -1131,11 +1104,73 @@ def conclusion() -> str:
     )
 
 
+RELATED_WORK_STYLES = """
+:root{color-scheme:light;
+ --ground:#f6f8f7;--surface:#fff;--surface-2:#eef2f1;--line:#dde4e2;
+ --ink:#111817;--ink-2:#4b5a58;--ink-3:#7a8886;--accent:#0d6d78;--accent-soft:#d7ebed}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+ --ground:#0e1414;--surface:#161e1e;--surface-2:#1c2625;--line:#2b3736;
+ --ink:#eaf1ef;--ink-2:#a3b2af;--ink-3:#7b8a88;--accent:#4fb3bf;--accent-soft:#12363a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+ font:15px/1.65 Archivo,ui-sans-serif,system-ui,sans-serif}
+.wrap{max-width:820px;margin:0 auto;padding:0 20px 80px}
+.back{display:inline-block;margin:26px 0 0;font-size:13px;color:var(--accent);
+ text-decoration:none}
+.back:hover{text-decoration:underline}
+h1{font-size:27px;letter-spacing:-.02em;margin:18px 0 6px}
+h2{font-size:19px;letter-spacing:-.012em;margin:38px 0 8px;scroll-margin-top:18px;
+ padding-top:14px;border-top:1px solid var(--line)}
+h3{font-size:15px;margin:22px 0 6px}
+p,li{color:var(--ink-2);max-width:78ch}
+p{margin:10px 0}
+li{margin:5px 0}
+strong{color:var(--ink)}
+blockquote{margin:14px 0;padding:12px 16px;background:var(--surface);
+ border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:9px;
+ color:var(--ink-2);font-size:14px}
+code{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12.5px;
+ background:var(--surface-2);padding:1px 5px;border-radius:4px;color:var(--ink)}
+:target{background:var(--accent-soft);border-radius:8px}
+hr{border:0;border-top:1px solid var(--line);margin:26px 0}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;color:var(--ink-2)}
+th{background:var(--surface-2);color:var(--ink)}
+@media (max-width:640px){.wrap{padding:0 16px 60px}}
+"""
+
+#: `## §2.N ...` in the rendered document, so each strand can be linked to by anchor.
+_STRAND_HEADING = re.compile(r"<h2>(§2\.(\d))")
+
+
+def related_work_page() -> str:
+    """`thesis/ch2_related_work.md`, rendered, with an anchor on every strand.
+
+    Where the *sources* link on each Chapter 1 card lands. The document is read from disk on
+    each request, so the page shows the strands as they currently stand rather than a copy
+    that drifts - and it is the file itself, `[CITE]` placeholders and all, because the whole
+    point of the link is to reach the slots that are still empty.
+    """
+    from pitch_occupancy.api.markdown import render
+
+    md = _read(THESIS / "ch2_related_work.md")
+    if not md:
+        return ("<!doctype html><meta charset='utf-8'><title>Related work</title>"
+                "<p>No <code>thesis/ch2_related_work.md</code> in this checkout.</p>")
+    body = _STRAND_HEADING.sub(lambda m: f'<h2 id="s2-{m.group(2)}">{m.group(1)}', render(md))
+    return ("<!doctype html><html lang='en'><head><meta charset='utf-8'>"
+            "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+            "<title>Related work — the nine strands</title>"
+            f"<style>{RELATED_WORK_STYLES}</style></head><body><div class='wrap'>"
+            "<a class='back' href='/'>&larr; back to the report</a>"
+            f"{body}</div></body></html>")
+
+
 #: tab id -> (label, builder). The eight parts of the report, in reading order.
 SECTIONS: dict[str, tuple[str, object]] = {
     "summary": ("Summary", summary),
     "plan": ("Plan", plan),
-    "introduction": ("General Introduction", introduction),
+    "introduction": ("Introduction", introduction),
     "ch1": ("Ch.1 State of the Art", chapter1),
     "ch2": ("Ch.2 Methods & Model", chapter2),
     "ch3": ("Ch.3 YOLOv8", chapter3),
