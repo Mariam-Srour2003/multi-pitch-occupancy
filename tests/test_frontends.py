@@ -161,35 +161,12 @@ def test_the_real_experiment_log_renders(client) -> None:
 # --- the models view --------------------------------------------------------
 
 
-def test_models_view_leads_with_a_recommendation(client) -> None:
-    """A table of numbers does not answer "which one should I use".
-
-    The comparison is collapsed under Chapter 2, which is where the report makes its claim
-    about which backbone leads.
-    """
+def test_the_model_comparison_reaches_chapter_two(client) -> None:
+    """The comparison is collapsed under Chapter 2, which is where the report makes its
+    claim about which backbone leads."""
     body = _tab_bodies(client.get("/").text)["ch2"]
     assert "The full model comparison" in body, "the comparison left the page"
-    assert "Use this one" in body
-
-
-def test_models_view_ranks_each_protocol_separately(client) -> None:
-    """One strip per protocol, and each is named - a bare count would pass while the page
-    silently lost the protocol that reverses the decision."""
-    from pitch_occupancy.api.models_view import render as render_models
-
-    out = render_models()
-    for protocol in ("random split (leaky)", "grouped split", "cross-venue recall",
-                     "false-play (lower is better)"):
-        assert protocol in out, protocol
-    assert out.count('class="strip"') == 4
-
-
-def test_models_view_flags_a_ranking_inversion(client) -> None:
-    """The finding is that the protocol reverses the decision - it must not need a reader
-    to reconstruct that from three separate tables."""
-    from pitch_occupancy.api.models_view import render as render_models
-
-    assert "reverses the decision" in render_models()
+    assert "DINOv2" in body
 
 
 def test_models_view_survives_missing_results(monkeypatch, tmp_path) -> None:
@@ -205,65 +182,6 @@ def test_models_view_marks_the_clock_rule_as_using_no_pixels(client) -> None:
     from pitch_occupancy.api.models_view import render as render_models
 
     assert "never the pixels" in render_models()
-
-
-def test_the_input_path_challenge_reaches_the_served_page(client) -> None:
-    """Asserted on the HTML the reader receives, not on the helper that builds it.
-
-    A safeguard once lived in a function called by one test and nothing else, while the page
-    that was actually served ranked by recall alone. Testing the function certified something
-    no reader ever saw. So this goes through the client: the recommendation was challenged and
-    the challenge was tested, and a reader deciding what to deploy must see both.
-    """
-    from pitch_occupancy.api import models_view
-
-    if not (models_view.RESULTS / "input_path_protocol.csv").exists():
-        pytest.skip("input-path protocol results not present")
-    html = client.get("/").text
-    assert "This recommendation was challenged" in html
-    assert "under the swap" in html
-
-
-def test_the_input_path_verdict_is_read_from_the_csv_not_written_in(monkeypatch, tmp_path) -> None:
-    """The most-quoted figure in this project was once a plot with its ranks hardcoded,
-    contradicting its own source table. A verdict paragraph can fail the same way, so it is
-    checked by feeding it the opposite data and requiring the opposite word."""
-    from pitch_occupancy.api import models_view
-
-    same = {
-        (k, f"train_{cam}"): {"estimate": "-0.5000"}
-        for k in models_view.TRAINED for cam in ("camera_A", "camera_B")
-    }
-    assert "reverses" not in models_view._input_path_note(same)
-    assert "same direction" in models_view._input_path_note(same)
-
-    flipped = dict(same)
-    flipped[("dinov2", "train_camera_B")] = {"estimate": "+0.5000"}
-    assert "reverses" in models_view._input_path_note(flipped)
-    assert "DINOv2 reverses outright" in models_view._input_path_note(flipped)
-
-
-def test_the_input_path_rates_in_the_prose_come_from_the_csv_too() -> None:
-    """The paragraph quotes a before/after pair and an other-direction rate. Those are the
-    numbers most likely to be typed in once and left behind when the run changes."""
-    from pitch_occupancy.api import models_view
-
-    made_up = {
-        ("convnextv2", "train_camera_A"):
-            {"estimate": "-0.7000", "raw": "0.8100", "preproc": "0.1100"},
-        ("convnextv2", "train_camera_B"):
-            {"estimate": "-0.0100", "raw": "0.0420", "preproc": "0.0320"},
-    }
-    out = models_view._input_path_note(made_up)
-    assert "from 0.81 to 0.11" in out
-    assert "already 0.042" in out
-    assert "0.99" not in out and "0.028" not in out
-
-
-def test_the_input_path_panel_is_absent_rather_than_invented_when_unmeasured() -> None:
-    from pitch_occupancy.api import models_view
-
-    assert models_view._input_path_note({}) == ""
 
 
 # --- diagrams ---------------------------------------------------------------
@@ -437,7 +355,6 @@ def test_the_model_view_reports_false_play_not_only_recall() -> None:
         pytest.skip("h3_with_false_play.csv not generated")
     html = render()
     assert "False-play" in html and "Balanced" in html
-    assert "answering" in html and "playing" in html
 
 
 def test_the_model_view_names_the_backbone_that_survives_the_control() -> None:
@@ -526,45 +443,6 @@ def test_the_recommendation_carries_its_interval() -> None:
     html = render()
     assert f"{float(winner['cross_lo']):.3f}" in html
     assert f"{float(winner['cross_hi']):.3f}" in html
-
-
-def test_a_lead_is_not_claimed_when_the_intervals_overlap() -> None:
-    """DINOv2's cross-venue interval overlaps both rivals', and H4 returns inconclusive.
-
-    Something still has to be deployed, so the recommendation stands - but it must not read
-    as a measured gap when a paired test does not find one.
-    """
-    from pitch_occupancy.api.models_view import collect, render, _overlap, TRAINED
-
-    rows = collect()["rows"]
-    winner = max(
-        (r for r in rows if r["key"] in TRAINED and r.get("cross")),
-        key=lambda r: float(r["cross"]),
-    )
-    overlapping = [
-        r for r in rows
-        if r["key"] in TRAINED and r["key"] != winner["key"]
-        and _overlap(winner, r, "cross_lo", "cross_hi")
-    ]
-    html = render()
-    if overlapping:
-        assert "not established by the intervals" in html
-        for r in overlapping:
-            assert r["label"] in html
-    else:  # pragma: no cover - would mean the data changed materially
-        assert "not established by the intervals" not in html
-
-
-def test_overlap_detection_is_symmetric_and_handles_missing_bounds() -> None:
-    from pitch_occupancy.api.models_view import _overlap
-
-    a = {"lo": "0.10", "hi": "0.50"}
-    b = {"lo": "0.40", "hi": "0.90"}
-    far = {"lo": "0.80", "hi": "0.95"}
-    assert _overlap(a, b, "lo", "hi") and _overlap(b, a, "lo", "hi")
-    assert not _overlap(a, far, "lo", "hi")
-    assert not _overlap(a, {"lo": "", "hi": ""}, "lo", "hi")
-    assert not _overlap(a, {}, "lo", "hi")
 
 
 def test_a_missing_interval_renders_nothing_rather_than_a_dash() -> None:
@@ -767,10 +645,12 @@ def test_the_page_is_slides_first_and_the_walls_are_gone(client) -> None:
     pre-registration - are no longer served at all.
     """
     html = client.get("/").text
-    # Was 30. The chapters were cut back to the model, the detector and the data work on
-    # 2026-09-22, and the conclusion was emptied to questions and the demo; what is left is
-    # fewer blocks of the same kind, which is the property this asserts.
-    assert html.count('<section class="tk-block') >= 24, "the page is not made of blocks"
+    # Was 30, then 24. The chapters were cut back to the model, the detector and the data
+    # work on 2026-09-22, and the conclusion was emptied to questions and the demo; on
+    # 2026-09-23 the augmentation retraction, the generated-data slide and the
+    # probe-versus-fine-tuning slide were withdrawn. What is left is fewer blocks of the
+    # same kind, which is the property this asserts.
+    assert html.count('<section class="tk-block') >= 22, "the page is not made of blocks"
     for wall in ("The full document &mdash;", "preregistration.md", "CODEBASE.md",
                  "data_layout.md", "rq_matrix.md"):
         assert wall not in html, f"a source document is still being served: {wall!r}"

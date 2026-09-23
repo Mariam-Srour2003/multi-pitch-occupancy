@@ -12,7 +12,6 @@ missing the cell reads as absent rather than as a stale number.
 from __future__ import annotations
 
 import csv
-import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -83,27 +82,6 @@ def collect() -> dict:
     grouped = {r["model"]: r for r in h1h2 if r["split"].startswith("grouped")}
     random_ = {r["model"]: r for r in h1h2 if r["split"].startswith("random")}
 
-    best_prompt = {}
-    p = RESULTS / "prompt_search_best.json"
-    if p.exists():
-        best_prompt = json.loads(p.read_text(encoding="utf-8")).get("best", {})
-
-    # The recommendation on this page was challenged - "ConvNeXtV2's false-play is an
-    # artefact of the input path, letterbox it and the pick reverses" - and the challenge was
-    # tested. A reader deciding what to deploy has no way to know either happened unless the
-    # page says so, and a page that shows only the surviving answer is a page that cannot be
-    # audited. Read from the CSV rather than written out, so a rerun that overturns this
-    # overturns the paragraph with it.
-    challenge: dict[tuple[str, str], dict] = {}
-    for r in _csv("input_path_protocol.csv"):
-        if r["axis"] != "false_play" or not r["backbone"]:
-            continue
-        cell = challenge.setdefault((r["backbone"], r["unit_key"]), {})
-        if r["measure"] == "delta_preproc_minus_raw":
-            cell["estimate"] = r["estimate"]
-        elif r["measure"] == "rate":
-            cell[r["arm"]] = r["estimate"]
-
     rows = []
     for key in (*TRAINED, "clock_rule"):
         cross = h3.get(key, {})
@@ -131,7 +109,7 @@ def collect() -> dict:
             "ms": lat.get(key, {}).get("single_median_ms"),
             "conc": lat.get(key, {}).get("round_wall_s"),
         })
-    return {"rows": rows, "best_prompt": best_prompt, "challenge": challenge}
+    return {"rows": rows}
 
 
 def _balanced(row: dict) -> float | None:
@@ -198,41 +176,15 @@ held-out empty pitch a match, and <b>balanced</b> is recall minus that.</p>
 
 STYLES = """
 td.bad{color:var(--warn);font-weight:600}
-.verdict{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);
- border-radius:11px;padding:19px 22px;margin:20px 0}
-.verdict .vk{font:500 10.5px 'JetBrains Mono',monospace;letter-spacing:.12em;
- text-transform:uppercase;color:var(--accent);margin-bottom:4px}
-.verdict .vname{font-size:27px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px}
-.verdict p{margin:0 0 10px;max-width:72ch}
-.verdict .vfall{color:var(--ink-3);font-size:13.5px;margin:0}
-.strips{display:flex;flex-direction:column;gap:9px;margin:16px 0}
-.strip{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
-.strip .sp{font:500 11px 'JetBrains Mono',monospace;color:var(--ink-3);
- width:170px;flex:none;text-transform:uppercase;letter-spacing:.07em}
-.rc{display:flex;align-items:center;gap:7px;padding:6px 12px;border-radius:8px;
- background:var(--surface-2);border:1px solid var(--line)}
-.rc .rn{font:700 12px 'JetBrains Mono',monospace;color:var(--ink-3)}
-.rc .rl{font-size:13px;font-weight:600}
-.rc.r1{background:var(--accent-soft);border-color:transparent}
-.rc.r1 .rn,.rc.r1 .rl{color:var(--accent)}
 .mbar{display:inline-block;width:96px;height:8px;border-radius:2px;background:var(--surface-2);
  vertical-align:middle;overflow:hidden}
-.mbar.wide{width:180px}
 .mbar i{display:block;height:100%;border-radius:2px}
 .t-accent{background:var(--accent)} .t-muted{background:var(--ink-3)}
-.t-ok{background:var(--up,#2c7a52)}
 .cell{white-space:nowrap}
 .cv{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:13px;
+ margin-left:9px;color:var(--ink);font-weight:600}
 .ci{display:block;font:500 10.5px 'JetBrains Mono',monospace;color:var(--ink-3);
  letter-spacing:-.01em;margin-top:2px;white-space:nowrap}
-.vcav{font-size:13px;color:var(--ink-2);margin-top:10px}
- margin-left:9px;color:var(--ink);font-weight:600}
 .mn{font-weight:600;color:var(--ink)}
 .mt{font-size:12px;color:var(--ink-3);margin-top:1px}
-.foot{font-size:13px;color:var(--ink-3);max-width:72ch}
-.callout{border-radius:10px;padding:14px 18px;margin:14px 0;background:var(--surface-2);
- max-width:74ch}
-.callout.warn{background:var(--warn-soft)}
-.callout p{margin:0;color:var(--ink-2)}
-.callout b{color:var(--ink)}
 """

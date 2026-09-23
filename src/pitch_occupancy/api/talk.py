@@ -34,7 +34,7 @@ from pitch_occupancy.api.diagrams import dinov2_stack, yolo_stack
 
 __all__ = [
     "STYLES", "SECTIONS", "STRANDS", "related_work_page",
-    "hero", "block", "tiles", "cards", "numbered", "figure", "points", "beat", "beats",
+    "hero", "block", "tiles", "cards", "numbered", "figure",
     "table", "quote", "chips", "detail",
 ]
 
@@ -95,22 +95,6 @@ def figure(name: str, caption: str = "", *, alt: str = "", script: str = "") -> 
     cap = f"<figcaption>{caption}</figcaption>" if caption else ""
     return (f'<figure class="tk-fig"><img src="/figs/{name}" loading="lazy" '
             f'alt="{alt or caption or name}">{cap}</figure>')
-
-
-def points(items: list[str], *, tone: str = "") -> str:
-    body = "".join(f"<li>{t}</li>" for t in items)
-    return f'<ul class="tk-points{" " + tone if tone else ""}">{body}</ul>'
-
-
-def beat(before: str, after: str, label: str) -> str:
-    """``before -> after``, the shape most of this project's results take."""
-    return ('<div class="tk-beat">'
-            f'<span class="was">{before}</span><span class="to">&rarr;</span>'
-            f'<span class="now">{after}</span><span class="lab">{label}</span></div>')
-
-
-def beats(items: list[tuple[str, str, str]]) -> str:
-    return f'<div class="tk-beats">{"".join(beat(a, b, c) for a, b, c in items)}</div>'
 
 
 def table(headers: list[str], rows: list[list[str]], *, hi: int | None = None) -> str:
@@ -219,18 +203,6 @@ def gate_rows() -> list[tuple[str, str, str]]:
         if m:
             out.append((m.group(1), m.group(2), m.group(3)))
     return out
-
-
-def search_resolution() -> dict:
-    """The preprocessing search's own resolution, from `search_resolution.csv`.
-
-    Found by its `describe` rather than by position - a slice of the last row would silently
-    become a real configuration the day another summary is appended.
-    """
-    for row in _csv("search_resolution.csv"):
-        if row.get("describe") == "RESOLUTION_FLOOR":
-            return {"floor": row.get("unweighted", ""), "interval": row.get("weighted", "")}
-    return {}
 
 
 # --- the look -------------------------------------------------------------------------
@@ -791,15 +763,6 @@ def chapter2() -> str:
                  "affordable at all. <code>class_weight=&quot;balanced&quot;</code> is "
                  "there because MAINTENANCE has six frames in the whole dataset; an "
                  "unweighted fit never predicts it.")
-        + block("Why a probe and not fine-tuning", cards([
-            ("Two thousand parameters cannot memorise a venue",
-             "86.6M frozen against 2,307 trained &mdash; <b>37,529 frozen parameters for "
-             "every one that moves</b>. A head that small has no capacity to learn "
-             "<i>these floodlights</i>."),
-            ("The alternative was measured, not assumed",
-             "Fine-tuning would probably score higher on this corpus. That is exactly the "
-             "concern: on ~150 distinct scenes, a higher score is the symptom."),
-        ]), tint="green")
         + "</div>"
     )
 
@@ -905,51 +868,17 @@ def chapter3() -> str:
 
 def chapter4() -> str:
     """7. Chapter 4 - applications and data augmentation."""
-    res = search_resolution()
-    floor = tiles([
-        (res["floor"], "one frame in the smallest fold moves the headline this much", "bad"),
-        (res["interval"], "how wide the confidence band is at the median setting", "bad"),
-    ]) if res.get("floor") else "<p class='missing'>No resolution audit yet.</p>"
     return (
         '<div class="tk">'
         + hero("Chapter 4 &mdash; Applications and data augmentation",
                "What it does in practice, and what we did about the data",
-               "The deployed application, the preprocessing path, the augmentation "
-               "experiment, and the data we generated.", tone="sky")
+               "The preprocessing path and the augmentation argument, in pictures.",
+               tone="sky")
         + block("Preprocessing &mdash; six switches, before and after",
                 preprocess_pairs(),
                 note="One preprocessing module for the experiments and the live pipeline, "
                      "so these are the frames the model receives. CLAHE <b>costs</b> DINOv2 "
                      "0.27 macro-F1.")
-        + block("Data augmentation &mdash; the presets", cards([
-            ("<code>colour</code>", "Brightness, contrast, saturation, hue &mdash; turf hue "
-                                    "encodes venue identity and does not transfer."),
-            ("<code>light</code>", "Brightness, gamma, sensor noise &mdash; matched to how "
-                                   "two cameras on one pitch actually differ."),
-            ("<code>weather</code>", "Fog, rain, noise."),
-            ("<code>full</code>", "Every effect at once."),
-        ]), note="<b>No rotations, warps or perspective changes</b> &mdash; the cameras are "
-                 "bolted to a post. Horizontal flip is the one exception, because it breaks "
-                 "memorisation of <i>this</i> pitch&rsquo;s layout.")
-        + block("Two configuration searches", tiles([
-            ("88", "preprocessing runs &mdash; greedy", "lead"),
-            ("375", "prompt sets &mdash; exhaustive, zero labels", "lead"),
-            ("0.726", "macro-F1 span from worst wording to best", "warn"),
-            ("0.082", "span from swapping between the three backbones", "good"),
-        ]) + floor,
-            note="Wording moved the score <b>nine times more</b> than the model did. And "
-                 "almost every gap the preprocessing search ranked on is <b>smaller than its "
-                 "own error bar</b>: the ranking is real arithmetic on unreal precision.")
-        + block("What the applications achieved", beats([
-            ("0.617", "0.012", "False alarms on empty pitches, once boundary, motion and "
-                               "person checks can veto the model."),
-            ("0.768", "0.024", "With 31 generated empty-pitch frames in training."),
-            ("0.441", "0.990", "One labelled frame of a new camera. Five from it beat those "
-                               "five plus 775 from the old one."),
-        ]), tint="green",
-            note="Not one of these is a bigger model. What buys the accuracy is having "
-                 "<b>any</b> labels from the new camera &mdash; not a large corpus from an "
-                 "old one.")
         + "</div>"
     )
 
