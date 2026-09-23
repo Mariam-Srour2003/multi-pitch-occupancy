@@ -7669,3 +7669,9 @@ at scale) is where it gets settled rather than argued.
 - 2026-09-22 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
 
 - 2026-09-22 | what training on four videos costs | uv run python experiments/video_concentration_cost.py | video_concentration_cost.csv | everything (deployed) n=1599 recall 0.9556 false-play 0.3086 EMPTY 0.0000; distinct scenes n=180 recall 0.9534 false-play 0.0000 EMPTY 0.0206; capped 12/video n=351 recall 0.9966 false-play 0.0123 EMPTY 0.0041; capped 20/video n=383 recall 0.9831 false-play 0.0082 EMPTY 0.0041; capped 40/video n=463 recall 0.9886 false-play 0.0165 EMPTY 0.0000; identical held-out sides, only the training rows differ; EMPTY accuracy stays ~0 in every arm, so capping stops the probe saying PLAY without teaching it to say EMPTY
+
+- 2026-09-22 | preprocessing search | `python experiments/preprocess_search.py` | `preprocess_search.json` | 43 evaluations
+
+- 2026-09-23 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
+
+- 2026-09-23 | what training on four videos costs | uv run python experiments/video_concentration_cost.py | video_concentration_cost.csv | everything (deployed) n=1599 recall 0.9556 false-play 0.3086 EMPTY 0.0000; distinct scenes n=180 recall 0.9534 false-play 0.0000 EMPTY 0.0206; capped 12/video n=351 recall 0.9966 false-play 0.0123 EMPTY 0.0041; capped 20/video n=383 recall 0.9831 false-play 0.0082 EMPTY 0.0041; capped 40/video n=463 recall 0.9886 false-play 0.0165 EMPTY 0.0000; identical held-out sides, only the training rows differ; EMPTY accuracy stays ~0 in every arm, so capping stops the probe saying PLAY without teaching it to say EMPTY

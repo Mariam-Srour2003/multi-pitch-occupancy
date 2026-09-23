@@ -24,36 +24,21 @@ DATA = ROOT / "results" / "preprocess_search.json"
 OUT = ROOT / "results" / "preprocess_search.html"
 
 TEMPLATE = """<title>Preprocessing Switch Search</title>
+<meta name="color-scheme" content="dark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
 <style>
 :root {
-  color-scheme: light;
-  --ground:#f6f8f7; --surface:#ffffff; --surface-2:#eef2f1; --line:#dde4e2;
-  --ink:#111817; --ink-2:#4d5c5a; --ink-3:#788785;
-  --accent:#0d6d78; --accent-soft:#d7ebed;
-  --up:#2c7a52; --up-soft:#d8ecdf; --down:#a8512f; --down-soft:#f3e0d7;
-  --warn:#8a6d1f; --warn-soft:#f5ead0;
-  --radius:10px;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --ground:#0e1414; --surface:#161e1e; --surface-2:#1d2726; --line:#2b3736;
-    --ink:#eaf1ef; --ink-2:#a3b2af; --ink-3:#7b8a88;
-    --accent:#4fb3bf; --accent-soft:#12363a;
-    --up:#5cb884; --up-soft:#153327; --down:#d98a63; --down-soft:#332016;
-    --warn:#cfae57; --warn-soft:#2f2814;
-  }
-}
-:root[data-theme="dark"] {
+  /* Dark only - no light palette and no prefers-color-scheme branch, so a
+     daylight OS cannot flip this page to white. */
   color-scheme: dark;
   --ground:#0e1414; --surface:#161e1e; --surface-2:#1d2726; --line:#2b3736;
   --ink:#eaf1ef; --ink-2:#a3b2af; --ink-3:#7b8a88;
   --accent:#4fb3bf; --accent-soft:#12363a;
   --up:#5cb884; --up-soft:#153327; --down:#d98a63; --down-soft:#332016;
   --warn:#cfae57; --warn-soft:#2f2814;
+  --radius:10px;
 }
 * { box-sizing: border-box; }
 body {

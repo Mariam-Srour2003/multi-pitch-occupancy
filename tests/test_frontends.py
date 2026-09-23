@@ -271,8 +271,7 @@ def test_the_input_path_panel_is_absent_rather_than_invented_when_unmeasured() -
 
 @pytest.mark.parametrize(
     "name",
-    ["confound_matrix", "blocked_questions", "pipeline", "protocols", "schema",
-     "augmentation_axes", "empty_blindness"],
+    ["blocked_questions", "pipeline", "protocols", "schema", "augmentation_axes"],
 )
 def test_every_diagram_stays_inside_its_viewbox(name) -> None:
     """Content drawn past the viewBox is clipped, and clipping is invisible in code."""
@@ -291,8 +290,7 @@ def test_every_diagram_stays_inside_its_viewbox(name) -> None:
 
 @pytest.mark.parametrize(
     "name",
-    ["confound_matrix", "blocked_questions", "pipeline", "protocols", "schema",
-     "augmentation_axes", "empty_blindness"],
+    ["blocked_questions", "pipeline", "protocols", "schema", "augmentation_axes"],
 )
 def test_every_diagram_is_captioned_and_labelled(name) -> None:
     """A diagram nobody can read is worse than a sentence."""
@@ -305,36 +303,6 @@ def test_every_diagram_is_captioned_and_labelled(name) -> None:
     assert "aria-label=" in svg
     assert "<figcaption>" in svg
     assert svg.count("<svg") == svg.count("</svg>") == 1
-
-
-def test_confound_diagram_reads_the_real_manifest() -> None:
-    """It must show the dataset's actual shape, not an illustration of it."""
-    from pitch_occupancy.api.diagrams import MANIFEST, confound_matrix
-
-    if not MANIFEST.exists():
-        pytest.skip("no manifest")
-    svg = confound_matrix()
-    # per-cell counts, not class totals - the split across lighting is the whole finding
-    assert ">485<" in svg  # empty, daylight
-    assert ">9<" in svg  # empty, floodlit - the near-absent cell
-    # 970 until A25 relabelled 216 clip frames from `day` to `night`: a brightness threshold
-    # had filed floodlit night football as daylight. The correction makes the confound worse,
-    # which is the point of the diagram. 1,186 -> 1,189 on 2026-09-21 when the operator's
-    # DaVinci exports were ingested, which also put the first 21 frames in the
-    # ACTIVE_PLAY x daylight cell - the confound is still overwhelming, and now visibly
-    # dented rather than absolute.
-    assert ">1189<" in svg  # active play, floodlit
-    # 21 on the day of the ingest; 14 once the seven frames that had landed in the locked
-    # clipvenue_b were removed from the labelled set (they were daylight play at a night
-    # venue, which is what made them worth having and what made losing them a real cost).
-    assert ">14<" in svg  # active play, daylight - empty until 2026-09-21
-
-
-def test_confound_diagram_degrades_when_there_is_no_manifest(monkeypatch, tmp_path) -> None:
-    from pitch_occupancy.api import diagrams
-
-    monkeypatch.setattr(diagrams, "MANIFEST", tmp_path / "absent.csv")
-    assert diagrams.confound_matrix() == ""
 
 
 def test_diagrams_lead_the_tabs_they_explain(client) -> None:
@@ -423,24 +391,6 @@ def test_figure_route_refuses_anything_but_a_figure_filename(client, name) -> No
     never be published. A subpath or a traversal must not reach them, and nor must any
     non-image file."""
     assert client.get(f"/figs/{name}").status_code in (404, 405)
-
-
-def test_the_empty_blindness_diagram_shows_both_outcomes() -> None:
-    """It exists to contrast two training sets, so a version showing one is broken."""
-    from pitch_occupancy.api.diagrams import empty_blindness
-
-    svg = empty_blindness()
-    assert "23%" in svg and "100%" in svg
-    assert "venue_01 camera A" in svg and "clip venues" in svg
-    # the marker has to be inside the svg or every connector loses its head
-    body = svg[svg.index("<svg"):svg.index("</svg>")]
-    assert "<defs>" in body and 'marker-end="url(#eb-arrow)"' in body
-
-
-def test_the_findings_tab_leads_with_the_empty_blindness_diagram(client) -> None:
-    """The most consequential finding in the project should not be buried in prose."""
-    html = client.get("/").text
-    assert "every empty pitch called a match" in html
 
 
 def test_the_search_table_never_shows_a_broken_false_play_as_a_number() -> None:

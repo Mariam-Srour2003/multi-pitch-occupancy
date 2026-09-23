@@ -30,12 +30,7 @@ import json
 import re
 from pathlib import Path
 
-from pitch_occupancy.api.diagrams import (
-    confound_matrix,
-    dinov2_stack,
-    empty_blindness,
-    yolo_stack,
-)
+from pitch_occupancy.api.diagrams import dinov2_stack, yolo_stack
 
 __all__ = [
     "STYLES", "SECTIONS", "STRANDS", "related_work_page",
@@ -419,6 +414,7 @@ STYLES = """
 .tk-pair .cap{padding:9px 12px;border-top:1px solid var(--line)}
 .tk-pair .cap code{font-size:11.5px;font-weight:700;color:var(--ink);background:none;
  padding:0}
+.tk-pair .cap .w{margin-top:3px;font-size:11.5px;line-height:1.4;color:var(--ink-3)}
 .tk-pair .cap .m{display:flex;gap:9px;flex-wrap:wrap;margin-top:4px;
  font:500 10.5px 'JetBrains Mono',monospace;color:var(--ink-3)}
 .tk-pair .cap .m b{color:var(--ink-2)}
@@ -429,6 +425,29 @@ STYLES = """
  .tk-block{padding:20px 18px}
 }
 """
+
+
+# What each switch *is*, in one phrase - keyed by the `switch` column of
+# preprocess_pairs.csv. The csv's `hypothesis` column says why a switch was tried; it
+# assumes the reader already knows what CLAHE or gamma are. A room being talked through
+# these frames does not, and a grid of before/after pairs is unreadable without it.
+_WHAT = {
+    "letterbox": "Pad to a square instead of squashing, so the pitch keeps its shape.",
+    "per_image_standardise": "Subtract each frame&rsquo;s own mean brightness and divide by "
+                             "its spread, so day and night start level.",
+    "top_crop": "Cut a fraction off the top of the frame, where the sky and the stands are.",
+    "centre_crop": "Keep only the middle of the frame and throw the border away.",
+    "clahe": "Contrast-limited adaptive histogram equalisation &mdash; stretches contrast "
+             "tile by tile, so a dark corner is lifted without blowing out a floodlit one.",
+    "gamma": "A brightness curve. Below 1 brightens the dark tones, above 1 deepens them.",
+    "saturation": "How strong the colours are. 0.0 is grayscale, 1.0 is untouched.",
+    "undistort": "Straighten the fisheye bulge, so lines that are straight on the pitch "
+                 "look straight in the frame.",
+    "blur_sigma": "Gaussian blur &mdash; deliberately destroys fine detail, including the "
+                  "people.",
+    "sharpen": "Unsharp mask &mdash; raises edge contrast to counter lens softness.",
+    "denoise": "Bilateral filter &mdash; smooths speckle while leaving edges intact.",
+}
 
 
 def preprocess_pairs() -> str:
@@ -447,11 +466,13 @@ def preprocess_pairs() -> str:
     for r in rows:
         area = float(r["area_retained"])
         kept = f' &middot; <b>{area:.0%}</b> kept' if area < 1.0 else ""
+        blurb = _WHAT.get(r["switch"], "")
+        what = f'<div class="w">{blurb}</div>' if blurb else ""
         cells.append(
             f'<figure class="tk-pair{" crop" if area < 1.0 else ""}">'
             f'<img src="/figs/preproc/{Path(r["file"]).name}" loading="lazy" '
             f'alt="The same frame before and after {r["label"]}">'
-            f'<div class="cap"><code>{r["label"]}</code><div class="m">'
+            f'<div class="cap"><code>{r["label"]}</code>{what}<div class="m">'
             f'<b>{float(r["mean_abs_change_255"]):.1f}</b>/255 moved &middot; '
             f'<b>{float(r["share_pixels_changed"]):.0%}</b> of pixels{kept}'
             "</div></div></figure>"
@@ -546,12 +567,7 @@ def summary() -> str:
             ("99.1%", "correct by reading only the clock &mdash; no pixels", "bad"),
             ("1.000", "macro-F1 for a constant predictor, cross-venue", "bad"),
             ("0", "of 243 held-out empty frames DINOv2 gets right", "bad"),
-        ]) + confound_matrix() + empty_blindness(),
-            note="Class and time of day are nearly the same variable, so accuracy here "
-                 "cannot separate <i>recognises an empty pitch</i> from <i>recognises the "
-                 "time of day</i>. And a low false-alarm rate is <b>not</b> accuracy: on "
-                 "the 243 held-out empty frames DINOv2 answers PLAYING 75 times and "
-                 "MAINTENANCE 168 times.")
+        ]))
         + "</div>"
     )
 

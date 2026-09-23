@@ -11,17 +11,14 @@ drawing; a literal hue is spent only where it carries meaning.
 
 from __future__ import annotations
 
-import csv
 import json
-from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-MANIFEST = ROOT / "data" / "processed" / "manifest.csv"
 INVENTORY = ROOT / "results" / "model_inventory.json"
 RULES = ROOT / "configs" / "rules.json"
 
-__all__ = ["confound_matrix", "blocked_questions", "pipeline", "protocols", "schema",
+__all__ = ["blocked_questions", "pipeline", "protocols", "schema",
            "augmentation_axes", "dinov2_stack", "yolo_stack", "DIAGRAM_STYLES"]
 
 DIAGRAM_STYLES = """
@@ -207,77 +204,6 @@ def yolo_stack() -> str:
 sports ball - and it is never asked whether a match is happening: that is decided afterwards
 by counting, which is why a verdict can be shown to a manager as the objects it was made
 from.</figcaption>
-</figure>"""
-
-
-def _counts() -> dict[tuple[str, str], int]:
-    if not MANIFEST.exists():
-        return {}
-    with MANIFEST.open(newline="", encoding="utf-8") as fh:
-        rows = list(csv.DictReader(fh))
-    return Counter((r["class3"], r["lighting"]) for r in rows)
-
-
-def confound_matrix() -> str:
-    """Class against lighting, with cell area proportional to count.
-
-    The claim: the labelled data puts EMPTY in daylight and ACTIVE_PLAY at night, so a rule
-    that reads only the clock separates them. Drawn as a grid because the *shape* of the
-    occupancy is the finding - two filled corners on a diagonal, everything else near-empty.
-    """
-    c = _counts()
-    if not c:
-        return ""
-    classes = [
-        ("C1_EMPTY", "EMPTY"),
-        ("C2_ACTIVE_PLAY", "ACTIVE PLAY"),
-        ("C3_MAINTENANCE_NON_SPORTING", "MAINTENANCE"),
-    ]
-    lights = [("day", "daylight"), ("night", "floodlit")]
-    biggest = max(c.values())
-
-    cw, ch, x0, y0 = 150, 74, 168, 54
-    cells = ""
-    for r, (ck, cl) in enumerate(classes):
-        for k, (lk, _) in enumerate(lights):
-            n = c.get((ck, lk), 0)
-            x, y = x0 + k * cw, y0 + r * ch
-            frac = (n / biggest) ** 0.5 if n else 0
-            w, h = max(4, cw * 0.86 * frac), max(4, ch * 0.74 * frac)
-            hot = n / biggest > 0.3
-            fill = "var(--accent)" if hot else "currentColor"
-            op = "0.9" if hot else "0.22"
-            cells += (
-                f'<rect x="{x + (cw - w) / 2:.0f}" y="{y + (ch - h) / 2:.0f}" '
-                f'width="{w:.0f}" height="{h:.0f}" rx="3" fill="{fill}" opacity="{op}"/>'
-                f'<text class="dg-l" x="{x + cw / 2:.0f}" y="{y + ch / 2 + 4:.0f}" '
-                f'text-anchor="middle" fill="{"#fff" if hot else "currentColor"}">{n}</text>'
-            )
-        cells += (
-            f'<text class="dg-t" x="{x0 - 14}" y="{y0 + r * ch + ch / 2 + 4}" '
-            f'text-anchor="end">{cl}</text>'
-        )
-    heads = "".join(
-        f'<text class="dg-t" x="{x0 + k * cw + cw / 2}" y="{y0 - 14}" '
-        f'text-anchor="middle">{ll}</text>'
-        for k, (_, ll) in enumerate(lights)
-    )
-    h = y0 + len(classes) * ch + 56
-    diag = (
-        f'<path class="dg-hot" d="M {x0 + cw * 0.5} {y0 + ch} '
-        f'L {x0 + cw * 1.5} {y0 + ch}" stroke-dasharray="5 4"/>'
-    )
-    return f"""<figure>
-<svg viewBox="0 0 {x0 + 2 * cw + 20} {h}" role="img"
-  aria-label="Frame counts by class and lighting: empty pitches are almost all daylight and
-  active play almost all floodlit, so lighting alone separates the two classes.">
-  {heads}{cells}{diag}
-  <text class="dg-s" x="{x0}" y="{h - 22}">A rule reading only the clock separates these
-  two cells &mdash; and scores 98.4%.</text>
-</svg>
-<figcaption>Area is proportional to frame count. The two large cells sit on a diagonal:
-lighting predicts the class without any image being examined. This is why accuracy measured
-on this data cannot separate classifying occupancy from recognising the time of day.</figcaption>
 </figure>"""
 
 
@@ -588,82 +514,4 @@ def schema() -> str:
 <figcaption>The schema exists to keep a verdict connected to its evidence. The highlighted
 tables are the two that make it auditable: every sampled minute behind a decision, and every
 disagreement with the booking record.</figcaption>
-</figure>"""
-
-
-def empty_blindness() -> str:
-    """Why adding the clip venues stops the model seeing an empty pitch.
-
-    The mechanism is a class imbalance that is invisible in the headline metric: the clip
-    venues contribute 282 frames, every one of them ACTIVE_PLAY, and the cross-venue test
-    folds are also 100% ACTIVE_PLAY - so a probe that has learned to say PLAY scores
-    perfectly and nothing in the evaluation objects. Drawn as the two training sets and
-    what each does to a held-out empty pitch, because the contrast is the whole point.
-    """
-    w, h = 840, 300
-    left, right = 60, 470
-    box_w, box_h = 300, 96
-
-    def stack(x: int, y: int, label: str, play: int, empty: int, note: str) -> str:
-        total = play + empty
-        play_w = round(box_w * play / total)
-        return (
-            f'<text class="dg-t" x="{x}" y="{y - 10}">{label}</text>'
-            f'<rect x="{x}" y="{y}" width="{play_w}" height="30" rx="3" '
-            f'fill="currentColor" opacity="0.30"/>'
-            f'<rect x="{x + play_w}" y="{y}" width="{box_w - play_w}" height="30" rx="3" '
-            f'fill="currentColor" opacity="0.72"/>'
-            f'<text class="dg-s" x="{x + 6}" y="{y + 20}">{play} play</text>'
-            f'<text class="dg-s" x="{x + box_w - 6}" y="{y + 20}" text-anchor="end">'
-            f'{empty} empty</text>'
-            f'<text class="dg-s" x="{x}" y="{y + 46}">{note}</text>'
-        )
-
-    def outcome(x: int, y: int, rate: str, verdict: str, bad: bool) -> str:
-        colour = "var(--warn)" if bad else "var(--accent)"
-        return (
-            f'<rect x="{x}" y="{y}" width="{box_w}" height="62" rx="6" '
-            f'class="dg-box" stroke="{colour}" stroke-width="2"/>'
-            f'<text x="{x + 14}" y="{y + 28}" fill="{colour}" '
-            f'font-family="JetBrains Mono,monospace" font-size="19" font-weight="700">'
-            f'{rate}</text>'
-            f'<text class="dg-s" x="{x + 14}" y="{y + 47}">{verdict}</text>'
-        )
-
-    # defs must live *inside* the svg, or the fragment-internal url(#eb-arrow) does not
-    # resolve and every connector loses its head
-    arrow = (
-        '<defs><marker id="eb-arrow" viewBox="0 0 10 10" refX="9" refY="5" '
-        'markerWidth="6" markerHeight="6" orient="auto-start-reverse">'
-        '<path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/></marker></defs>'
-    )
-    return f"""<figure>
-<svg viewBox="0 0 {w} {h}" role="img"
-  aria-label="Training on venue_01 alone leaves a 23% false-play rate on held-out empty
-  frames; adding the clip venues, which contain no empty frames at all, raises it to 100%.">
-  {arrow}
-  <text class="dg-s" x="{left}" y="24">what the probe is trained on</text>
-  <text class="dg-s" x="{right}" y="24">what it then does with an unseen empty pitch</text>
-
-  {stack(left, 56, "venue_01 camera A", 518, 251, "both classes present")}
-  {outcome(right, 42, "23%", "of empty pitches called a match", False)}
-  <line x1="{left + box_w + 14}" y1="71" x2="{right - 14}" y2="71"
-        class="dg-line" marker-end="url(#eb-arrow)"/>
-
-  {stack(left, 186, "+ the nine clip venues", 800, 251, "282 frames added, none of them empty")}
-  {outcome(right, 172, "100%", "every empty pitch called a match", True)}
-  <line x1="{left + box_w + 14}" y1="201" x2="{right - 14}" y2="201"
-        class="dg-line" marker-end="url(#eb-arrow)"/>
-
-  <text class="dg-s" x="{left}" y="278">
-    <tspan opacity="0.72">&#9632;</tspan> empty frames &nbsp;
-    <tspan opacity="0.4">&#9632;</tspan> active-play frames
-  </text>
-</svg>
-<figcaption>Every cross-venue test fold is also 100% active play, so a probe that has simply
-learned to answer &ldquo;playing&rdquo; scores perfectly and the evaluation raises no
-objection. The high cross-venue recall is real; it was never evidence that the model can
-recognise an empty pitch. This is a missing-data problem rather than a modelling one &mdash;
-restricted to a venue that contains both classes, the same probe reaches a 2% false-play
-rate.</figcaption>
 </figure>"""

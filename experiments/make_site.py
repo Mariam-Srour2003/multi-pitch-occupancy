@@ -1134,42 +1134,24 @@ def build(d: dict) -> str:
 
 
 TEMPLATE = """<title>Pitch Occupancy Thesis</title>
+<meta name="color-scheme" content="dark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
 <style>
 :root {{
-  color-scheme: light;
-  --ground:#f6f8f7; --surface:#ffffff; --surface-2:#eef2f1; --line:#dde4e2;
-  --ink:#111817; --ink-2:#4d5c5a; --ink-3:#7a8886;
-  --accent:#0d6d78; --accent-soft:#d7ebed;
-  --up:#2c7a52; --up-soft:#dcefe3; --down:#a8512f;
-  --warn:#8a6d1f; --warn-soft:#f6ecd4;
-  /* The frozen/trained split, which the models page turns on. Cool and desaturated for
-     what never learned, warm and saturated for what did - and never colour alone: every
-     block also carries a lock or spark glyph and a literal parameter count. */
-  --frozen:#4a5f77; --frozen-soft:#e7ecf2; --frozen-line:#c3cfdd;
-  --trained:#a8562a; --trained-soft:#fbeadf; --trained-line:#eccdb7;
-}}
-@media (prefers-color-scheme: dark) {{
-  :root:not([data-theme="light"]) {{
-    color-scheme: dark;
-    --ground:#0e1414; --surface:#161e1e; --surface-2:#1c2625; --line:#2b3736;
-    --ink:#eaf1ef; --ink-2:#a3b2af; --ink-3:#7b8a88;
-    --accent:#4fb3bf; --accent-soft:#12363a;
-    --up:#5cb884; --up-soft:#152f24; --down:#d98a63;
-    --warn:#cfae57; --warn-soft:#2c2614;
-    --frozen:#93a8c2; --frozen-soft:#18212c; --frozen-line:#31404f;
-    --trained:#e09a6d; --trained-soft:#2a1c13; --trained-line:#4a3325;
-  }}
-}}
-:root[data-theme="dark"] {{
+  /* Dark only. The site is read on projectors and in dim rooms, and a daylight
+     macOS switching the page to white mid-defence is not a trade worth having,
+     so there is no light palette and no prefers-color-scheme branch. */
   color-scheme: dark;
   --ground:#0e1414; --surface:#161e1e; --surface-2:#1c2625; --line:#2b3736;
   --ink:#eaf1ef; --ink-2:#a3b2af; --ink-3:#7b8a88;
   --accent:#4fb3bf; --accent-soft:#12363a;
   --up:#5cb884; --up-soft:#152f24; --down:#d98a63;
   --warn:#cfae57; --warn-soft:#2c2614;
+  /* The frozen/trained split, which the models page turns on. Cool and desaturated for
+     what never learned, warm and saturated for what did - and never colour alone: every
+     block also carries a lock or spark glyph and a literal parameter count. */
   --frozen:#93a8c2; --frozen-soft:#18212c; --frozen-line:#31404f;
   --trained:#e09a6d; --trained-soft:#2a1c13; --trained-line:#4a3325;
 }}

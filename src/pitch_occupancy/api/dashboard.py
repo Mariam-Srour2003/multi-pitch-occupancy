@@ -19,28 +19,15 @@ __all__ = ["DASHBOARD_HTML"]
 DASHBOARD_HTML = """<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
 <title>Pitch Occupancy - Operator Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
 <style>
 :root{
-  color-scheme:light;
-  --ground:#f6f8f7;--surface:#fff;--surface-2:#eef2f1;--line:#dde4e2;
-  --ink:#111817;--ink-2:#4d5c5a;--ink-3:#7a8886;
-  --accent:#0d6d78;--accent-soft:#d7ebed;
-  --used:#2c7a52;--used-soft:#dcefe3;--notused:#5c6a6d;--notused-soft:#e7ebea;
-  --review:#8a6d1f;--review-soft:#f6ecd4;--serious:#a8402f;--serious-soft:#f6dfda;
-}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  color-scheme:dark;
-  --ground:#0e1414;--surface:#161e1e;--surface-2:#1c2625;--line:#2b3736;
-  --ink:#eaf1ef;--ink-2:#a3b2af;--ink-3:#7b8a88;
-  --accent:#4fb3bf;--accent-soft:#12363a;
-  --used:#5cb884;--used-soft:#152f24;--notused:#8b9a97;--notused-soft:#222c2b;
-  --review:#cfae57;--review-soft:#2c2614;--serious:#e08a76;--serious-soft:#331d18;
-}}
-:root[data-theme="dark"]{
+  /* Dark only - no light palette and no prefers-color-scheme branch, so a
+     daylight OS cannot flip the operator view to white mid-shift. */
   color-scheme:dark;
   --ground:#0e1414;--surface:#161e1e;--surface-2:#1c2625;--line:#2b3736;
   --ink:#eaf1ef;--ink-2:#a3b2af;--ink-3:#7b8a88;

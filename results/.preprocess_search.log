@@ -117,3 +117,345 @@ classifier.weight | UNEXPECTED |  |
 
 Notes:
 - UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    clahe=on                     recall nan worst nan falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 3755.58it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    clahe=auto                   recall nan worst nan falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4342.66it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    gamma=0.7                    recall nan worst nan falsePlay 0.3803
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4946.41it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    gamma=1.4                    recall nan worst nan falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5097.86it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    saturation=0.0               recall nan worst nan falsePlay 0.3239
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4947.17it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    saturation=0.5               recall nan worst nan falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4796.48it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    denoise=25.0                 recall nan worst nan falsePlay 0.0141
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 10590.60it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    sharpen=0.6                  recall nan worst nan falsePlay 1.0000
+  round 1: adopt undistort=0.15 -> nan
+
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4089.73it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    centre_crop=0.5              recall nan worst nan falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6044.37it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    centre_crop=0.7              recall nan worst nan falsePlay 0.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 3944.30it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    top_crop=0.2                 recall nan worst nan falsePlay 0.0141
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 3435.15it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    top_crop=0.35                recall nan worst nan falsePlay 0.5211
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4380.17it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    letterbox=False              recall nan worst nan falsePlay 0.0141
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4783.61it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    per_image_standardise=True   recall nan worst nan falsePlay 0.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4934.65it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    clahe=on                     recall nan worst nan falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4737.89it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    clahe=auto                   recall nan worst nan falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4283.88it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    gamma=0.7                    recall nan worst nan falsePlay 0.0141
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4399.20it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    gamma=1.4                    recall nan worst nan falsePlay 0.0986
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4657.31it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    saturation=0.0               recall nan worst nan falsePlay 0.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4279.90it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    saturation=0.5               recall nan worst nan falsePlay 0.0141
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5743.87it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    denoise=25.0                 recall nan worst nan falsePlay 0.0141
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5346.78it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    sharpen=0.6                  recall nan worst nan falsePlay 1.0000
+  round 2: adopt centre_crop=0.5 -> nan
+
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5134.87it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    top_crop=0.2                 recall nan worst nan falsePlay 0.9155
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5705.91it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    top_crop=0.35                recall nan worst nan falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4522.92it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    letterbox=False              recall nan worst nan falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4607.62it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    per_image_standardise=True   recall nan worst nan falsePlay 0.9155
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4172.35it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    clahe=on                     recall nan worst nan falsePlay 0.0141
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4664.58it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    clahe=auto                   recall nan worst nan falsePlay 0.6056
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5464.82it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    gamma=0.7                    recall nan worst nan falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4744.74it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    gamma=1.4                    recall nan worst nan falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4517.41it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    saturation=0.0               recall nan worst nan falsePlay 0.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4414.92it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    saturation=0.5               recall nan worst nan falsePlay 0.1690
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4705.92it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    denoise=25.0                 recall nan worst nan falsePlay 0.3239
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4506.65it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    sharpen=0.6                  recall nan worst nan falsePlay 0.8169
+  round 3: adopt top_crop=0.2 -> nan
+
+
+  BEST for convnextv2: undistort=0.15 centre_crop=0.5 top_crop=0.2
+    recall nan  worst nan  false-play 0.9155
+
+wrote C:\Users\maria\Desktop\football\results\preprocess_search.json
