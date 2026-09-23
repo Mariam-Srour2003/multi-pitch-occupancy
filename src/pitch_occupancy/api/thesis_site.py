@@ -124,12 +124,12 @@ def _prompt_summary() -> str:
 
 
 def _augmentation() -> str:
-    """The augmentation tab: the argument, then the sheet that tests it.
+    """The augmentation tab: the sheets, and the few numbers that check them.
 
-    The grid is the point of the tab. Augmentation code fails silently - a preset that
+    The grids are the point of the tab. Augmentation code fails silently - a preset that
     does nothing, a fog veil that flattens the pitch, streaks the wrong size - and every
     one of those still passes a shape and dtype check. The only reliable check is a person
-    looking, so the sheet is what the page leads with.
+    looking, so the page is the pictures and as little prose as they need.
     """
     def figure(name: str, alt: str, caption: str) -> str:
         """One sheet, or the command that would produce it.
@@ -152,102 +152,54 @@ def _augmentation() -> str:
         "augmentation_grid.jpg",
         "Each augmentation preset applied three times to a night active-play frame and a "
         "day empty frame",
-        "Every preset, three draws each, over a night play frame and a day empty frame. "
-        "Probability is forced to 1 so the sheet shows the effect rather than the coin flip "
-        "that gates it; in training each effect fires with probability <code>p</code>, so a "
-        "real batch mixes these with untouched originals.",
+        "Every preset, three draws each, on a night play frame and a day empty frame. "
+        "Probability forced to 1, so the sheet shows the effect and not the coin flip.",
     )
     effects = figure(
         "augmentation_effects.jpg",
         "Each of the nine augmentation effects applied on its own, three draws each",
-        "<strong>One effect at a time</strong>, at the magnitude the <code>full</code> "
-        "preset uses for it - brightness 0.2, contrast 0.2, saturation 0.35, hue 6&deg;, "
-        "gamma 0.3, noise &sigma;=5, fog 0.3, rain 0.3, and the horizontal flip. The magnitudes "
-        "are read off the preset rather than retyped, so this sheet cannot drift from the "
-        "config it illustrates. <code>flip</code> is shown once because a mirror is "
-        "deterministic; every other row is three draws. This is the sheet that says "
-        "<em>which knob</em> - a preset row compounds up to nine effects, so when one is "
-        "wrong it shows that something is wrong and not what.",
+        "One effect at a time, at the magnitude <code>full</code> uses - brightness 0.2, "
+        "contrast 0.2, saturation 0.35, hue 6&deg;, gamma 0.3, noise &sigma;=5, fog 0.3, "
+        "rain 0.3, flip. Magnitudes are read off the preset. <code>flip</code> is shown "
+        "once; every other row is three draws.",
     )
     removal = figure(
         "preprocess_effects.jpg",
         "Every preprocessing switch applied to the same two frames, at the model's 224x224 "
         "input size",
-        "<strong>Every preprocessing switch the search tries</strong>, rendered at the real "
-        "224&times;224 the backbone receives rather than scaled up. The grey bands are the "
-        "letterbox padding; <code>letterbox=False</code> is the squashing resize it is "
-        "measured against. Look at <code>blur_sigma=4.0</code> and "
-        "<code>centre_crop=0.5</code> on the night frame: the first has removed the people, "
-        "the second the goalmouth - which is what a false-play rate of 100% and an empty "
-        "accuracy of 0.000 look like before they are numbers. <code>roi</code> is absent "
-        "deliberately: no pitch polygon has been drawn yet, so a tile captioned ROI would "
-        "sit beside an unmodified frame.",
+        "Every preprocessing switch the search tries, at the real 224&times;224 the backbone "
+        "receives. Grey bands are letterbox padding. <code>blur_sigma=4.0</code> has removed "
+        "the people and <code>centre_crop=0.5</code> the goalmouth. <code>roi</code> is "
+        "absent: no pitch polygon drawn yet.",
     )
     return (
         "<h1>Augmentation</h1>"
         "<p><strong>Preprocessing removes information permanently; augmentation varies it "
-        "and keeps every pixel at inference.</strong> That difference is why both exist. The "
-        "input ablation established that removal has a floor and that <em>one</em> removal is "
-        "above it: grayscale gains recall <em>and</em> takes false-play from 0.230 to "
-        "<strong>0.021</strong> at 0.979 empty accuracy. A centre crop appeared to gain more "
-        "and did not - 0.998 recall with <strong>empty accuracy 0.000</strong>, a variant that "
-        "never identifies an empty pitch on an axis whose folds contain none to catch it. The "
-        "two together fall below the untouched baseline and call 98.8% of empty pitches a "
-        "match. Augmentation cannot cross that floor, because nothing is discarded when a "
-        "prediction is made.</p>"
-        "<h2>What removal looks like</h2>"
-        "<p>The floor is easier to see than to read. These are the same two frames under every preprocessing switch, at the size the model actually receives them.</p>" + removal +
-        "<p>So the same shortcut is targeted from the other side. Turf hue encodes venue "
-        "identity and does not transfer; grayscale answered that by throwing colour away, "
-        "jitter answers it by making colour unreliable. The pixels stay.</p>"
-        + augmentation_axes() +
-        "<h2>The two geometric decisions</h2>"
-        "<p><strong>No rotations, warps or perspective changes.</strong> The cameras are "
-        "bolted to a post and see one view forever. A rotated pitch is not a harder example, "
-        "it is an impossible one, and training on it spends capacity on a case that never "
-        "arrives.</p>"
-        "<p><strong>Horizontal flip is the one exception, deliberately.</strong> It produces "
-        "a mirror the camera never sees, which is exactly why it helps: flipping cannot "
-        "change whether people are playing, but it breaks memorisation of <em>this</em> "
-        "pitch's layout - the failure the cross-venue evaluation exists to catch. Both rules "
-        "are pinned by tests, not left in a comment.</p>"
-        "<h2>What the sheets are for</h2>" + image + effects +
-        "<h2>What it caught on the first run</h2>"
-        "<p>Rain streak geometry was written in absolute pixels. At 320&times;180 that drew "
-        "white poles spanning a tenth of the frame; on 1080p source they would have been "
-        "hairlines, invisible the moment preprocessing resized to 224. Density was then a "
-        "26% whiteout at full strength, now 4.6% at the heaviest preset. <strong>No shape or "
-        "dtype assertion could have found either.</strong> Every dimension is now a fraction "
-        "of frame height, and a test compares 180p against 1080p output to keep it so.</p>"
-        "<h2>Measured on one boundary, and the headline was retracted</h2>"
-        "<p>Augmentation is <strong>not</strong> a flag in the main benchmark, and that is a "
-        "budget decision rather than an oversight: every experiment here fits a probe on "
-        "<strong>cached</strong> embeddings, one vector per frame, and augmentation happens "
-        "before the backbone - so each augmented view needs its own forward pass and the "
-        "cache stops being a cache. Instead it was spent on one question, on one boundary: "
-        "<em>a probe trained on camera A scores 0.441 macro-F1 on camera B and 0.9895 once "
-        "it has seen one labelled frame of B - can augmentation close that with no labels at "
-        "all?</em></p>"
-        "<p><strong>The first answer was yes, and it was wrong.</strong> One draw of the "
-        "<code>light</code> preset - brightness, gamma, sensor noise - reached 0.8550 "
-        "macro-F1 with empty-pitch recall 0.687, and it was written up as a finding with a "
-        "note that only one draw had been taken. That note was the finding. Four further "
-        "draws, differing in <em>nothing</em> but the random draw - same frames, same preset, "
-        "same probe seed, same test set - score 0.3479, 0.3501, 0.3510 and 0.4136.</p>"
-        "<p>Median <strong>0.3510</strong>, standard deviation <strong>0.2206</strong>, and "
-        "<strong>four of the five draws land below the 0.4406 the probe reaches with no "
-        "augmentation at all</strong>. The published number was the maximum of five. Three of "
-        "those draws score exactly 0.3479, which is not a coincidence and not a measurement "
-        "of augmentation: it is the macro-F1 of answering ACTIVE_PLAY to all 521 test frames. "
-        "What moves between draws is whether the fitted boundary reaches camera B's empty "
-        "pitch at all, so the result does not degrade gracefully - it is a working classifier "
-        "or the trivial one.</p>"
-        "<p>The honest reading is a negative result with one bright draw in it. Augmentation "
-        "<em>can</em> do this here; it cannot be relied on to, and nothing in a run tells you "
-        "in advance which draw you are in. The five-frame recipe reaches 0.9895 every time.</p>"
-        "<p>There is also an ordering trap worth naming. <strong>No footage in this dataset "
-        "is wet</strong>, so synthetic rain can only be validated against synthetic rain - "
-        "which would test the generator, not the weather.</p>"
+        "and keeps every pixel at inference.</strong> That is why both exist, and why "
+        "removal has a floor that variation cannot cross.</p>"
+        "<h2>What removal looks like</h2>" + removal
+        + augmentation_axes()
+        + "<h2>The preset sheets</h2>" + image + effects
+        + "<h2>The rules, and what the sheets caught</h2>"
+        "<ul>"
+        "<li><strong>No rotations, warps or perspective.</strong> The cameras are bolted to "
+        "a post; a rotated pitch is an impossible example, not a harder one.</li>"
+        "<li><strong>Horizontal flip is the one exception</strong> &mdash; it cannot change "
+        "whether people are playing, but it breaks memorisation of <em>this</em> layout. "
+        "Both rules are pinned by tests.</li>"
+        "<li>Rain streak geometry was written in absolute pixels: white poles a tenth of the "
+        "frame wide, 26% whiteout. Now a fraction of frame height, 4.6% at the heaviest "
+        "preset. <strong>No shape or dtype assertion could have found it.</strong></li>"
+        "</ul>"
+        "<h2>Measured on one boundary &mdash; and retracted</h2>"
+        "<p>Cross-camera, no labels: five draws of <code>light</code> score 0.8550, 0.4136, "
+        "0.3510, 0.3501, 0.3479. Standard deviation <strong>0.2206</strong>; the published "
+        "number was the <strong>maximum of five</strong>, and four draws land below the "
+        "<strong>0.4406</strong> the probe reaches with no augmentation at all. The "
+        "five-frame recipe reaches 0.9895 every time.</p>"
+        "<p><strong>No footage in this dataset is wet</strong>, so synthetic rain can only "
+        "be validated against synthetic rain &mdash; which tests the generator, not the "
+        "weather.</p>"
     )
 
 

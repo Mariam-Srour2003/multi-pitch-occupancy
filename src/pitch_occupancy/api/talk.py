@@ -428,25 +428,22 @@ STYLES = """
 
 
 # What each switch *is*, in one phrase - keyed by the `switch` column of
-# preprocess_pairs.csv. The csv's `hypothesis` column says why a switch was tried; it
-# assumes the reader already knows what CLAHE or gamma are. A room being talked through
-# these frames does not, and a grid of before/after pairs is unreadable without it.
+# preprocess_pairs.csv, and written only on a switch's first card: `top_crop` appears at two
+# fractions and `clahe` at two settings, so repeating the phrase under each value is the same
+# sentence three times on one screen. The values differ; what the switch does does not.
+#
+# A switch whose honest explanation needs its own paragraph - CLAHE, per-image
+# standardisation, the unsharp mask, the bilateral filter - carries no phrase at all. A
+# half-explanation of a named technique is worse than the picture on its own, and the picture
+# is what this sheet is for.
 _WHAT = {
-    "letterbox": "Pad to a square instead of squashing, so the pitch keeps its shape.",
-    "per_image_standardise": "Subtract each frame&rsquo;s own mean brightness and divide by "
-                             "its spread, so day and night start level.",
-    "top_crop": "Cut a fraction off the top of the frame, where the sky and the stands are.",
-    "centre_crop": "Keep only the middle of the frame and throw the border away.",
-    "clahe": "Contrast-limited adaptive histogram equalisation &mdash; stretches contrast "
-             "tile by tile, so a dark corner is lifted without blowing out a floodlit one.",
-    "gamma": "A brightness curve. Below 1 brightens the dark tones, above 1 deepens them.",
-    "saturation": "How strong the colours are. 0.0 is grayscale, 1.0 is untouched.",
-    "undistort": "Straighten the fisheye bulge, so lines that are straight on the pitch "
-                 "look straight in the frame.",
-    "blur_sigma": "Gaussian blur &mdash; deliberately destroys fine detail, including the "
-                  "people.",
-    "sharpen": "Unsharp mask &mdash; raises edge contrast to counter lens softness.",
-    "denoise": "Bilateral filter &mdash; smooths speckle while leaving edges intact.",
+    "letterbox": "Pad to a square instead of squashing.",
+    "top_crop": "Cut the sky and stands off the top.",
+    "centre_crop": "Keep the middle, discard the border.",
+    "gamma": "Brightness curve.",
+    "saturation": "Colour strength &mdash; 0.0 is grayscale.",
+    "undistort": "Straighten the fisheye bulge.",
+    "blur_sigma": "Blur &mdash; destroys fine detail, including people.",
 }
 
 
@@ -463,10 +460,12 @@ def preprocess_pairs() -> str:
         return ("<p class='missing'>No <code>preprocess_pairs.csv</code> yet. Run "
                 "<code>uv run python experiments/preprocess_pairs.py</code>.</p>")
     cells = []
+    explained: set[str] = set()
     for r in rows:
         area = float(r["area_retained"])
         kept = f' &middot; <b>{area:.0%}</b> kept' if area < 1.0 else ""
-        blurb = _WHAT.get(r["switch"], "")
+        blurb = "" if r["switch"] in explained else _WHAT.get(r["switch"], "")
+        explained.add(r["switch"])
         what = f'<div class="w">{blurb}</div>' if blurb else ""
         cells.append(
             f'<figure class="tk-pair{" crop" if area < 1.0 else ""}">'
@@ -481,8 +480,7 @@ def preprocess_pairs() -> str:
     loudest = max(float(r["mean_abs_change_255"]) for r in rows)
     return (
         f'<div class="tk-pairs">{"".join(cells)}</div>'
-        '<p class="tk-note"><b>A searched margin on top of a near no-op is not a margin.</b> '
-        f'<code>{quietest["label"]}</code> moves the frame by '
+        f'<p class="tk-note"><code>{quietest["label"]}</code> moves the frame '
         f'{float(quietest["mean_abs_change_255"]):.2f}/255 against {loudest:.1f} for the '
         'loudest switch &mdash; yet the search credits it with +0.016 recall.</p>'
     )
@@ -946,10 +944,9 @@ def chapter4() -> str:
                "experiment, and the data we generated.", tone="sky")
         + block("Preprocessing &mdash; every switch, before and after",
                 preprocess_pairs(),
-                note="Experiments and the live pipeline share <b>one</b> preprocessing "
-                     "module, so these are the frames the model actually receives. CLAHE, "
-                     "which the proposal expected to help with floodlight glare, "
-                     "<b>costs</b> DINOv2 0.27 macro-F1.")
+                note="One preprocessing module for the experiments and the live pipeline, "
+                     "so these are the frames the model receives. CLAHE <b>costs</b> DINOv2 "
+                     "0.27 macro-F1.")
         + block("Data augmentation &mdash; the presets", cards([
             ("<code>colour</code>", "Brightness, contrast, saturation, hue &mdash; turf hue "
                                     "encodes venue identity and does not transfer."),
@@ -957,11 +954,9 @@ def chapter4() -> str:
                                    "two cameras on one pitch actually differ."),
             ("<code>weather</code>", "Fog, rain, noise."),
             ("<code>full</code>", "Every effect at once."),
-        ]), note="<b>No rotations, warps or perspective changes.</b> The cameras are bolted "
-                 "to a post and see one view forever, so a rotated pitch is not a harder "
-                 "example &mdash; it is an impossible one. Horizontal flip is the one "
-                 "exception, because it breaks memorisation of <i>this</i> pitch&rsquo;s "
-                 "layout.")
+        ]), note="<b>No rotations, warps or perspective changes</b> &mdash; the cameras are "
+                 "bolted to a post. Horizontal flip is the one exception, because it breaks "
+                 "memorisation of <i>this</i> pitch&rsquo;s layout.")
         + block("The augmentation experiment &mdash; and its retraction", spread
                 + points([
                     f'Standard deviation <b>{a.get("sd", "?")}</b> on a metric bounded in '
@@ -970,10 +965,9 @@ def chapter4() -> str:
                     f'Four of five draws land <b>below the {a.get("baseline", "?")}</b> the '
                     'probe reaches with no augmentation at all.',
                 ], tone="bad"), tint="coral",
-                note="The row in the results file is unchanged and still reproduces exactly "
-                     "&mdash; which is the problem, not the defence. A test pinning the "
-                     "published value would have passed forever; only re-drawing the "
-                     "randomness caught it. Every headline now runs five draws.")
+                note="The row still reproduces exactly &mdash; which is the problem, not "
+                     "the defence. Only re-drawing the randomness caught it. Every headline "
+                     "now runs five draws.")
         + block("Generating data with AI, from a real starting point", cards([
             ("Real anchor first",
              "Every generated item starts from an <b>actual frame of an actual pitch</b> "
@@ -988,10 +982,9 @@ def chapter4() -> str:
              "31 generated empty frames took cross-venue false alarms from <b>0.768 to "
              "0.024</b> &mdash; while play-recall went up."),
         ]), tint="violet",
-            note="<b>Excluded from every corpus count.</b> A training aid, not evidence that "
-                 "the system works on real footage of that case. And no rain was generated: "
-                 "with no wet footage to validate against, that would test the generator "
-                 "rather than the weather.")
+            note="<b>Excluded from every corpus count</b> &mdash; a training aid, not "
+                 "evidence on real footage. No rain was generated: with no wet footage to "
+                 "validate against, that tests the generator, not the weather.")
         + block("Two configuration searches", tiles([
             ("88", "preprocessing runs &mdash; greedy", "lead"),
             ("375", "prompt sets &mdash; exhaustive, zero labels", "lead"),

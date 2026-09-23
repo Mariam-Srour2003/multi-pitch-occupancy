@@ -419,14 +419,9 @@ def augmentation_axes() -> str:
   <text class="dg-t" x="40" y="132">augmentation &mdash; varies the input, discards nothing</text>
   {b}
 </svg>
-<figcaption>The asymmetry is the whole argument. Every preprocessing arrow points away from
-the source and never returns, so what it discarded is missing at prediction time - which is
-how grayscale and a centre crop combined to score below the untouched baseline. Each box
-carries recall and the false-play rate (<code>fp</code>), because recall alone is not
-readable here: grayscale is a real gain on both axes, and the centre crop's larger apparent
-gain was a variant answering PLAY more often - 0.998 recall at <strong>empty accuracy
-0.000</strong>. Augmentation's fan exists only during training; inference still receives the
-original frame, so there is no floor to cross.</figcaption>
+<figcaption>Each box carries recall and the false-play rate (<code>fp</code>): grayscale
+gains on both axes, the crop's larger apparent gain is a variant answering PLAY more often.
+Augmentation's fan exists only in training, so there is no floor to cross.</figcaption>
 </figure>"""
 
 
