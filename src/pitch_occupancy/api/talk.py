@@ -35,7 +35,7 @@ from pitch_occupancy.api.diagrams import dinov2_stack, yolo_stack
 __all__ = [
     "STYLES", "SECTIONS", "STRANDS", "related_work_page",
     "hero", "block", "tiles", "cards", "numbered", "figure",
-    "table", "quote", "chips", "detail",
+    "table", "quote", "chips",
 ]
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -113,12 +113,6 @@ def quote(text: str) -> str:
 
 def chips(items: list[str]) -> str:
     return '<div class="tk-chips">' + "".join(f"<span>{i}</span>" for i in items) + "</div>"
-
-
-def detail(html: str, label: str) -> str:
-    """Evidence, collapsed. `<details>` so find-in-page and a saved copy still reach it."""
-    return (f'<details class="tk-detail"><summary>{label}</summary>'
-            f'<div class="tk-detail-body">{html}</div></details>')
 
 
 def _read(path: Path) -> str:
@@ -350,14 +344,6 @@ STYLES = """
 .tk-figs{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
 
 /* --- collapsed evidence and the speaker block ---------------------------------- */
-.tk-detail{border:1px solid var(--line);border-radius:12px;background:var(--surface)}
-.tk-detail > summary{cursor:pointer;padding:12px 16px;font-weight:600;font-size:13.5px;
- list-style:none;display:flex;gap:9px;align-items:center;color:var(--ink)}
-.tk-detail > summary::-webkit-details-marker{display:none}
-.tk-detail > summary::before{content:"\\25B8";color:var(--ink-3);font-size:11px}
-.tk-detail[open] > summary::before{content:"\\25BE"}
-.tk-detail[open] > summary{border-bottom:1px solid var(--line)}
-.tk-detail-body{padding:4px 18px 16px}
 
 .tk-pairs{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
 .tk-pair{background:var(--surface);border:1px solid var(--line);border-radius:12px;
@@ -408,8 +394,7 @@ def preprocess_pairs() -> str:
     Preprocessing code fails silently - a switch that does nothing, a crop that removes the
     goalmouth - and every one of those passes a shape and dtype check. The only reliable
     check is a person looking, so pairs stay on the page rather than being summarised into a
-    sentence nobody can check. All seventeen are still drawn, on `preprocess_effects.jpg`
-    further down the chapter; these six are the ones worth stopping at.
+    sentence nobody can check. These six are the ones worth stopping at.
     """
     rows = _csv("preprocess_pairs.csv")
     if not rows:
@@ -433,15 +418,7 @@ def preprocess_pairs() -> str:
             f'<b>{float(r["share_pixels_changed"]):.0%}</b> of pixels{kept}'
             "</div></div></figure>"
         )
-    quietest = min(rows, key=lambda r: float(r["mean_abs_change_255"]))
-    loudest = max(float(r["mean_abs_change_255"]) for r in rows)
-    return (
-        f'<div class="tk-pairs">{"".join(cells)}</div>'
-        f'<p class="tk-note">Six of the {len(rows)} switches measured; the full sheet is '
-        f'further down. The quietest, <code>{quietest["label"]}</code>, moves the frame '
-        f'{float(quietest["mean_abs_change_255"]):.2f}/255 against {loudest:.1f} for the '
-        'loudest &mdash; yet the search credits it with +0.016 recall.</p>'
-    )
+    return f'<div class="tk-pairs">{"".join(cells)}</div>'
 
 
 # --- the eight parts of the report ----------------------------------------------------
@@ -838,10 +815,7 @@ def chapter4() -> str:
                "The preprocessing path and the augmentation argument, in pictures.",
                tone="sky")
         + block("Preprocessing &mdash; six switches, before and after",
-                preprocess_pairs(),
-                note="One preprocessing module for the experiments and the live pipeline, "
-                     "so these are the frames the model receives. CLAHE <b>costs</b> DINOv2 "
-                     "0.27 macro-F1.")
+                preprocess_pairs())
         + "</div>"
     )
 

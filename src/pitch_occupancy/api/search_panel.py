@@ -74,8 +74,8 @@ PANEL_HTML = """
 <div class="runbar">
   <label for="sModel">Backbone</label>
   <select id="sModel">
+    <option value="dinov2" selected>DINOv2</option>
     <option value="convnextv2">ConvNeXtV2 (fastest)</option>
-    <option value="dinov2">DINOv2</option>
     <option value="vit">ViT</option>
   </select>
   <label for="sScope">Frames</label>
@@ -198,7 +198,8 @@ function renderSearch(s) {
     ? `<span class="dot live"></span>${s.evaluations} evaluated${
         s.rounds_done.length ? " \\u00b7 round " + Math.max(...s.rounds_done) : ""}`
     : s.evaluations
-      ? `${s.evaluations} evaluations \\u00b7 ${s.n_frames.join(", ")} frames`
+      ? `${s.models.length ? esc(s.models.join(", ")) + " \\u00b7 " : ""}${
+          s.evaluations} evaluations \\u00b7 ${s.n_frames.join(", ")} frames`
       : "not started";
 
   sAlert.innerHTML = s.warning ? `<div class="alert"><b>Careful.</b> ${esc(s.warning)}</div>` : "";
@@ -209,12 +210,29 @@ function renderSearch(s) {
       close this tab.</p>`;
     return;
   }
-  const best = s.results[0];
+  // An evaluation whose fold held no positive frame scores NaN, which arrives here as
+  // null. Reading `.toFixed` off one threw inside `pollSearch`'s catch, so the panel
+  // silently drew nothing while the state line still counted the evaluations - the
+  // worst of both, a page that looks loaded and is empty. Unscored rows are now
+  // excluded from the chart and said out loud.
+  const scored = s.results.filter(r => typeof r.recall === "number");
+  if (!scored.length) {
+    sChart.innerHTML = `<p class="missing">${s.results.length} stored evaluation${
+      s.results.length === 1 ? "" : "s"}, none of them scored \u2014 every
+      <code>play_recall</code> in <code>results/preprocess_search.json</code> is
+      <code>NaN</code>. There is nothing to chart until the run is repeated.</p>`;
+    return;
+  }
+  const best = scored[0];
   const head = `<div class="alert" style="background:var(--surface-2)">
-    <b>Best so far:</b> <code>${esc(best.label)}</code> at ${best.recall.toFixed(4)} recall,
+    <b>Best so far${s.models.length ? " on " + esc(s.models.join(", ")) : ""}:</b>
+    <code>${esc(best.label)}</code> at ${best.recall.toFixed(4)} recall,
     worst fold ${best.worst.toFixed(3)}${
-      best.delta ? `, ${best.delta >= 0 ? "+" : ""}${best.delta.toFixed(3)} against baseline` : ""}.</div>`;
-  sChart.innerHTML = head + barChart(s.results, s.baseline ?? 0);
+      best.delta ? `, ${best.delta >= 0 ? "+" : ""}${best.delta.toFixed(3)} against baseline` : ""}${
+      scored.length < s.results.length
+        ? `. ${s.results.length - scored.length} of ${s.results.length} evaluations scored NaN and are not charted`
+        : ""}.</div>`;
+  sChart.innerHTML = head + barChart(scored, s.baseline ?? 0);
 }
 
 async function pollSearch() {

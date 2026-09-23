@@ -32,7 +32,7 @@ router = APIRouter(prefix="/api/v1/search", tags=["search"])
 
 
 class StartRequest(BaseModel):
-    model: str = Field(default="convnextv2", description="Backbone to search with.")
+    model: str = Field(default="dinov2", description="Backbone to search with.")
     rounds: int = Field(default=3, ge=1, le=6)
     limit: int | None = Field(
         default=None,
@@ -71,6 +71,7 @@ class SearchStatus(BaseModel):
     elapsed_seconds: float = 0.0
     eta_seconds: float | None = None
     n_frames: list[int] = []
+    models: list[str] = []
     rounds_done: list[int] = []
     baseline: float | None = None
     best_label: str | None = None
@@ -116,6 +117,10 @@ def status() -> SearchStatus:
             pid = None
 
     frames = sorted({e["n_frames"] for e in evals if e.get("n_frames")})
+    # Which backbone these evaluations came from. The panel's dropdown is what the *next*
+    # run would use, so without this a stored ConvNeXtV2 chart reads as whatever happens to
+    # be selected there.
+    models = sorted({e["model"] for e in evals if e.get("model")})
     baseline = next((e["play_recall"] for e in evals if e["label"] == "baseline"), None)
 
     # Rank on the balanced score, never on recall alone. Every cross-venue fold is 100%
@@ -183,6 +188,7 @@ def status() -> SearchStatus:
         elapsed_seconds=round(elapsed, 1),
         eta_seconds=round(eta, 1) if eta is not None else None,
         n_frames=frames,
+        models=models,
         rounds_done=sorted({e["round"] for e in evals}),
         baseline=baseline,
         best_label=best["label"] if best else None,

@@ -604,36 +604,28 @@ def test_every_tab_is_a_scrollable_page_not_a_deck(client) -> None:
             assert deck not in bodies[tab], f"{tab} still carries deck markup: {deck}"
 
 
-def test_the_evidence_is_collapsed_rather_than_dropped(client) -> None:
+def test_the_evidence_is_served_open_rather_than_dropped(client) -> None:
     """Replacing the documents with the talk must not mean losing what they showed.
 
-    The model chapter keeps its comparison one click below the page: `<details>`, not a CSS
-    toggle - find-in-page and a saved copy still reach it.
+    The model chapter kept its comparison one click below the page, in a `<details>`, until
+    2026-09-23. Nothing on the site is collapsed now: the comparison is the whole of the
+    evidence for the chapter's claim about which backbone leads, and a reader who has to
+    click to reach it is a reader who does not look - the same reasoning that already put
+    the augmentation sheet in Chapter 4's body.
 
     The claims ledger was served the same way under the conclusion until 2026-09-22, when
     that tab was emptied to the two things that actually happen last - questions, and the
     demo. The ledger itself is unaffected: `verify_claims` still re-derives every claim from
     its artefact, `thesis/claims.md` still records the retractions, and `render_findings()`
     still builds the view. It is no longer on a tab.
-
-    Chapter 4 is the exception, and on purpose (2026-09-22). The augmentation argument and
-    the before/after preprocessing sheet are the chapter rather than evidence filed under
-    it - the sheet is the only reliable check on augmentation code, and a reader who has to
-    click to reach it is a reader who does not look - so they are asserted in the body
-    instead, by `test_the_augmentation_argument_reaches_chapter_four` and
-    `test_every_preprocessing_pair_reaches_the_augmentation_tab`.
     """
-    bodies = _tab_bodies(client.get("/").text)
-    # By the label each one is served under, not by a count: a count passes while the wrong
-    # thing is collapsed, and breaks on a cosmetic change that costs nothing.
-    expected = {
-        "ch2": ["The full model comparison"],
-    }
-    for tab, labels in expected.items():
-        for label in labels:
-            assert f"<summary>{label}</summary>" in bodies[tab], (
-                f"{tab} dropped its evidence instead of collapsing it: {label!r}"
-            )
+    body = _tab_bodies(client.get("/").text)["ch2"]
+    # By what is served under the heading, not by a count: a count passes while the wrong
+    # thing is on the page, and breaks on a cosmetic change that costs nothing.
+    assert "The full model comparison" in body, "ch2 dropped its evidence"
+    assert "<summary>" not in body, "the comparison is behind a toggle again"
+    for model in ("DINOv2", "ConvNeXtV2", "ViT", "Clock rule"):
+        assert model in body, f"the comparison lost {model}"
 
 
 def test_the_page_is_slides_first_and_the_walls_are_gone(client) -> None:

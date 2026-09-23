@@ -29,7 +29,7 @@ from pitch_occupancy.api.findings_summary import render_summary as render_findin
 from pitch_occupancy.api.models_view import STYLES as MODEL_STYLES
 from pitch_occupancy.api.models_view import render as render_models
 from pitch_occupancy.api.search_panel import PANEL_HTML, PANEL_SCRIPT, PANEL_STYLES
-from pitch_occupancy.api.talk import SECTIONS, detail
+from pitch_occupancy.api.talk import SECTIONS
 from pitch_occupancy.api.talk import STYLES as TALK_STYLES
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -204,12 +204,15 @@ def page() -> str:
     views = []
     for key, (_, build) in SECTIONS.items():
         body = build()
-        # The evidence each chapter's claims rest on, collapsed underneath it. Nothing here
-        # is part of the report's argument - it is what an examiner opens to check one row.
+        # The evidence each chapter's claims rest on, underneath it.
         if key == "ch2":
-            # The full protocol-by-protocol comparison. The chapter states which backbone
-            # leads; this is the table that shows it.
-            body += detail(render_models(), "The full model comparison")
+            # The chapter states which backbone leads; this is the table that shows it, and
+            # it is the whole of the evidence for the claim - so it sits open in the body
+            # rather than behind a toggle a reader has to think to click.
+            body += (
+                '<section class="tk-block"><h2 class="tk-h">The full model '
+                'comparison</h2>' + render_models() + "</section>"
+            )
         if key == "ch4":
             # The two searches and the augmentation argument all belong to this chapter, so
             # their evidence does too.
