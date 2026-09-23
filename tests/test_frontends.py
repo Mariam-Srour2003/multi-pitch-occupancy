@@ -425,35 +425,6 @@ def test_the_served_page_contains_no_double_escaped_entities(client) -> None:
 # collect() loaded those files and dropped the columns.
 
 
-def test_the_models_table_renders_confidence_intervals() -> None:
-    import re
-
-    from pitch_occupancy.api.models_view import render
-
-    intervals = re.findall(r"\[\d\.\d{3}, \d\.\d{3}\]", render())
-    assert len(intervals) >= 6, f"expected intervals beside the estimates, found {intervals}"
-
-
-def test_the_recommendation_carries_its_interval() -> None:
-    from pitch_occupancy.api.models_view import collect, render
-
-    winner = max(
-        (r for r in collect()["rows"] if r.get("cross")), key=lambda r: float(r["cross"])
-    )
-    html = render()
-    assert f"{float(winner['cross_lo']):.3f}" in html
-    assert f"{float(winner['cross_hi']):.3f}" in html
-
-
-def test_a_missing_interval_renders_nothing_rather_than_a_dash() -> None:
-    """An absent CI must not look like a measured one."""
-    from pitch_occupancy.api.models_view import _ci
-
-    assert _ci(None, None) == ""
-    assert _ci("", "") == ""
-    assert "0.100" in _ci("0.1", "0.9")
-
-
 # --- the findings summary ---------------------------------------------------
 
 
@@ -637,15 +608,16 @@ def test_the_page_is_slides_first_and_the_walls_are_gone(client) -> None:
     pre-registration - are no longer served at all.
     """
     html = client.get("/").text
-    # Was 30, then 24, 22, 21. The chapters were cut back to the model, the detector and
-    # the data work on 2026-09-22, and the conclusion was emptied to questions and the demo;
-    # on 2026-09-23 the augmentation retraction, the generated-data slide and the
-    # probe-versus-fine-tuning slide were withdrawn, then the preset cards, the two
-    # searches, the applications beats, the detector settings table and the YOLOv8n model
-    # cards. The number is a tripwire against the wall coming back, not a content floor - it
-    # moves down with a deliberate cut and never up on its own. What is asserted is that the
-    # page is still made of blocks of the same kind.
-    assert html.count('<section class="tk-block') >= 20, "the page is not made of blocks"
+    # Was 30, then 24, 22, 21, 20. The chapters were cut back to the model, the detector
+    # and the data work on 2026-09-22, and the conclusion was emptied to questions and the
+    # demo; through 2026-09-23 the augmentation retraction, the generated-data slide, the
+    # probe-versus-fine-tuning slide, the preset cards, the two searches, the applications
+    # beats, the detector settings table, the YOLOv8n model cards and the DINOv2 walkthrough
+    # were withdrawn, against one block gained when the model comparison came out of its
+    # `<details>`. The number is a tripwire against the wall coming back, not a content
+    # floor - it moves down with a deliberate cut and never up on its own. What is asserted
+    # is that the page is still made of blocks of the same kind.
+    assert html.count('<section class="tk-block') >= 19, "the page is not made of blocks"
     for wall in ("The full document &mdash;", "preregistration.md", "CODEBASE.md",
                  "data_layout.md", "rq_matrix.md"):
         assert wall not in html, f"a source document is still being served: {wall!r}"

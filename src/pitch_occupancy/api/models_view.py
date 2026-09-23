@@ -47,26 +47,6 @@ def _num(v, d=3) -> str:
         return "—"
 
 
-def _ci(lo, hi, d: int = 3) -> str:
-    """A 95% interval, or nothing when the source did not carry one.
-
-    Rendered small and beside its estimate rather than in its own column: the point is that
-    the reader cannot see the estimate without seeing its width.
-    """
-    try:
-        return f'<span class="ci">[{float(lo):.{d}f}, {float(hi):.{d}f}]</span>'
-    except (TypeError, ValueError):
-        return ""
-
-
-def _bar(value: float | None, *, lo: float = 0.0, hi: float = 1.0, tone: str = "accent") -> str:
-    """A bar on a shared scale, so two rows are comparable by length alone."""
-    if value is None:
-        return '<span class="mbar"></span>'
-    frac = max(0.0, min(1.0, (value - lo) / (hi - lo)))
-    return (f'<span class="mbar"><i class="t-{tone}" style="width:{frac * 100:.1f}%"></i></span>')
-
-
 def collect() -> dict:
     h1h2 = _csv("h1_h2_baseline_floor.csv")
     h3 = {r["model"]: r for r in _csv("h3_cross_venue_recall.csv")
@@ -124,6 +104,31 @@ def _balanced(row: dict) -> float | None:
     return float(row["cross"]) - float(row["false_play"])
 
 
+#: One column of the table: heading, what the number is, and which direction is better.
+#: Kept beside the markup rather than in prose above it - a legend a reader has to hold in
+#: their head while scanning a row is a legend they do not read.
+COLUMNS = (
+    ("Random split", "macro-F1, frames shuffled &mdash; the leaky protocol", "up"),
+    ("Grouped split", "macro-F1, no venue in both train and test", "up"),
+    ("Cross-venue recall", "playing frames found at an unseen venue", "up"),
+    ("Worst fold", "the lowest single fold behind that recall", "up"),
+    ("False-play", "held-out empty pitches called a match", "down"),
+    ("Balanced", "recall minus false-play", "up"),
+    ("ms/frame", "time to score one frame", "down"),
+)
+
+
+def _head() -> str:
+    cells = "".join(
+        f'<th class="num"><div class="th-n">{name}</div>'
+        f'<div class="th-w">{what}</div>'
+        f'<div class="th-d {d}">{"&uarr; higher" if d == "up" else "&darr; lower"} '
+        f'is better</div></th>'
+        for name, what, d in COLUMNS
+    )
+    return f"<thead><tr><th>Model</th>{cells}</tr></thead>"
+
+
 def render() -> str:
     d = collect()
     rows = d["rows"]
@@ -141,18 +146,14 @@ def render() -> str:
             "<code>uv run python experiments/reproduce_all.py</code>.</p>"
         )
 
-    # --- the comparison table, with bars on a shared scale ---
+    # --- the comparison table: one plain number per cell ---
     body = ""
     for r in rows:
-        cross = float(r["cross"]) if r.get("cross") else None
-        tone = "accent" if r["key"] in TRAINED else "muted"
         body += f"""<tr>
           <td><div class="mn">{r['label']}</div><div class="mt">{r['nature']}</div></td>
-          <td class="num">{_num(r['random'])}{_ci(r.get('random_lo'), r.get('random_hi'))}</td>
-          <td class="num">{_num(r['grouped'])}{_ci(r.get('grouped_lo'), r.get('grouped_hi'))}</td>
-          <td class="cell">{_bar(cross, lo=0.0, hi=1.0, tone=tone)}
-            <span class="cv">{_num(r['cross'])}</span>
-            {_ci(r.get('cross_lo'), r.get('cross_hi'))}</td>
+          <td class="num">{_num(r['random'])}</td>
+          <td class="num">{_num(r['grouped'])}</td>
+          <td class="num">{_num(r['cross'])}</td>
           <td class="num">{_num(r['worst'])}</td>
           <td class="num {'bad' if r.get('false_play') and float(r['false_play']) > 0.5 else ''}">{_num(r['false_play'])}</td>
           <td class="num">{_num(_balanced(r))}</td>
@@ -161,14 +162,8 @@ def render() -> str:
 
     return f"""
 <h1>Which model, and why</h1>
-<p>Macro-F1 for the split protocols, play recall for cross-venue. Bars share one scale, so
-lengths are comparable down the column. <b>False-play</b> is how often a model calls a
-held-out empty pitch a match, and <b>balanced</b> is recall minus that.</p>
 <div class="scroll"><table>
-  <thead><tr><th>Model</th><th class="num">Random split</th><th class="num">Grouped split</th>
-  <th>Cross-venue recall</th><th class="num">Worst fold</th>
-  <th class="num">False-play</th><th class="num">Balanced</th>
-  <th class="num">ms/frame</th></tr></thead>
+  {_head()}
   <tbody>{body}</tbody>
 </table></div>
 """
@@ -176,15 +171,11 @@ held-out empty pitch a match, and <b>balanced</b> is recall minus that.</p>
 
 STYLES = """
 td.bad{color:var(--warn);font-weight:600}
-.mbar{display:inline-block;width:96px;height:8px;border-radius:2px;background:var(--surface-2);
- vertical-align:middle;overflow:hidden}
-.mbar i{display:block;height:100%;border-radius:2px}
-.t-accent{background:var(--accent)} .t-muted{background:var(--ink-3)}
-.cell{white-space:nowrap}
-.cv{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:13px;
- margin-left:9px;color:var(--ink);font-weight:600}
-.ci{display:block;font:500 10.5px 'JetBrains Mono',monospace;color:var(--ink-3);
- letter-spacing:-.01em;margin-top:2px;white-space:nowrap}
 .mn{font-weight:600;color:var(--ink)}
 .mt{font-size:12px;color:var(--ink-3);margin-top:1px}
+.th-n{font-weight:600;color:var(--ink)}
+.th-w{font-weight:400;font-size:11.5px;color:var(--ink-3);margin-top:3px;
+ max-width:15ch;white-space:normal;line-height:1.35}
+.th-d{font:500 10.5px 'JetBrains Mono',monospace;margin-top:4px;white-space:nowrap}
+.th-d.up{color:var(--up,#2c7a52)} .th-d.down{color:var(--down,#a8512f)}
 """

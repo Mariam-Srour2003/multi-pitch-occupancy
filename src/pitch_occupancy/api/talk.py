@@ -702,44 +702,6 @@ def chapter2() -> str:
             note="Freezing is a <b>defence against overfitting</b> first, and an efficiency "
                  "win second.")
         + block("DINOv2 &mdash; what actually runs", dinov2_stack())
-        + block("What the backbone does with a frame", cards([
-            ("It was never taught football",
-             "DINOv2 is pretrained on 142M images with <b>no labels at all</b>. It has no "
-             "classifier and no notion of <i>empty</i> or <i>playing</i>; what it learned "
-             "is how to describe an image so that similar images get similar numbers."),
-            ("The frame becomes patches",
-             "The 224&#215;224 crop is cut into <b>14&#215;14</b> squares &mdash; 256 of "
-             "them &mdash; and each becomes a vector. Attention then lets every patch see "
-             "every other, which is how a transformer reads context a convolution cannot."),
-            ("Twelve layers, one description",
-             "12 blocks, 12 attention heads, width 768. The 256 output tokens are averaged "
-             "into a single <b>768-number</b> vector: the whole frame, as one point in "
-             "768-dimensional space."),
-            ("Then, and only then, a decision",
-             "Those 768 numbers are the input to a logistic regression with 3 outputs. "
-             "<b>That regression is the model this project trains</b> &mdash; everything "
-             "before it is downloaded and left alone."),
-        ], wide=True))
-        + block("Frozen and trained, stage by stage", table(
-            ["Stage", "What happens", "Parameters", "Updated here"],
-            [["Crop", "Resize shortest edge to 256, centre-crop 224 &mdash; discards 23.4% "
-                      "of the frame", "&mdash;", "no"],
-             ["Patch embedding", "14&#215;14 patches &rarr; 256 tokens, plus a CLS token",
-              "included below", "<b>never</b>"],
-             ["Transformer &#215; 12", "12 heads, width 768, self-attention over all tokens",
-              "86,580,480", "<b>never</b> &mdash; 0 gradients received"],
-             ["Mean over tokens", "256 token vectors &rarr; one 768-number embedding, "
-                                  "cached to disk", "0", "&mdash;"],
-             ["<b>Linear probe</b>", "<b>StandardScaler &rarr; LogisticRegression</b>, "
-                                     "class_weight balanced, seed 42",
-              "<b>2,307</b>", "<b>yes &mdash; refit from scratch in under a second</b>"]],
-            hi=4),
-            note="The embedding is computed <b>once per frame</b> and cached, which is why "
-                 "the probe can be refit for every backbone, protocol and seed in seconds "
-                 "&mdash; and why a frozen backbone is what made the experiment programme "
-                 "affordable at all. <code>class_weight=&quot;balanced&quot;</code> is "
-                 "there because MAINTENANCE has six frames in the whole dataset; an "
-                 "unweighted fit never predicts it.")
         + "</div>"
     )
 
