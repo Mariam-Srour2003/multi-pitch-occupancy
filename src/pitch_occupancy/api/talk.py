@@ -582,7 +582,7 @@ def introduction() -> str:
             ("Was this hour booked?",
              "The sheet says the slot was sold. That is the only thing it says."),
             ("Did they come?",
-             "A booking is a promise. Nothing in the system records whether anyone arrived."),
+             "A booking is a promise... Nothing in the system records whether anyone arrived."),
             ("Did they actually play?",
              "Two people crossing the pitch is not a match, and the record cannot tell the "
              "difference."),
