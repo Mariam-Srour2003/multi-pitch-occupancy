@@ -60,16 +60,6 @@ def _ci(lo, hi, d: int = 3) -> str:
         return ""
 
 
-def _overlap(a: dict, b: dict, lo: str, hi: str) -> bool:
-    """Do two intervals overlap? Used to stop "leads" being claimed on point estimates."""
-    try:
-        a_lo, a_hi = float(a[lo]), float(a[hi])
-        b_lo, b_hi = float(b[lo]), float(b[hi])
-    except (KeyError, TypeError, ValueError):
-        return False
-    return a_lo <= b_hi and b_lo <= a_hi
-
-
 def _bar(value: float | None, *, lo: float = 0.0, hi: float = 1.0, tone: str = "accent") -> str:
     """A bar on a shared scale, so two rows are comparable by length alone."""
     if value is None:
@@ -144,100 +134,6 @@ def collect() -> dict:
     return {"rows": rows, "best_prompt": best_prompt, "challenge": challenge}
 
 
-def _input_path_note(challenge: dict) -> str:
-    """The panel saying the recommendation was challenged, and how the challenge fared.
-
-    Every figure and the verdict word come from `input_path_protocol.csv`. The two camera
-    directions are what decides it: a finding that holds in one and reverses in the other is
-    a property of the camera pair, not of the input path.
-    """
-    if not challenge:
-        return ""
-
-    def cell(key: str, cam: str, field: str) -> float | None:
-        try:
-            return float(challenge[(key, f"train_{cam}")][field])
-        except (KeyError, TypeError, ValueError):
-            return None
-
-    def delta(key: str, cam: str) -> float | None:
-        return cell(key, cam, "estimate")
-
-    lines, reversed_any = [], []
-    for key in TRAINED:
-        a, b = delta(key, "camera_A"), delta(key, "camera_B")
-        if a is None or b is None:
-            continue
-        if a == 0.0 or b == 0.0:
-            verdict, tone = "no effect on one side", "muted"
-        elif (a > 0) == (b > 0):
-            verdict, tone = "same direction", "ok"
-        else:
-            verdict, tone = "reverses", "bad"
-            reversed_any.append(LABELS[key])
-        lines.append(
-            f'<tr><td class="mn">{LABELS[key]}</td>'
-            f'<td class="num">{a:+.4f}</td><td class="num">{b:+.4f}</td>'
-            f'<td class="num {tone}">{verdict}</td></tr>'
-        )
-    if not lines:
-        return ""
-
-    held = " and ".join(reversed_any)
-    outcome = (
-        f"<b>{held} reverses outright.</b> An effect that changes sign when the two cameras "
-        f"are swapped is a property of the camera pair, not of the input path."
-        if reversed_any else
-        "<b>The effect keeps its direction under the swap.</b>"
-    )
-
-    # The challenge's own headline, named by whichever model actually shows it rather than
-    # by the one that showed it the day the paragraph was written.
-    lead = max(
-        (k for k in TRAINED if delta(k, "camera_A") is not None),
-        key=lambda k: abs(delta(k, "camera_A")), default=None,
-    )
-    headline = ""
-    if lead is not None:
-        raw_a, pre_a = cell(lead, "camera_A", "raw"), cell(lead, "camera_A", "preproc")
-        raw_b = cell(lead, "camera_B", "raw")
-        if None not in (raw_a, pre_a):
-            headline = (
-                f" Letterboxing the frame first moves {LABELS[lead]}&rsquo;s false-play from "
-                f"{raw_a:.2f} to {pre_a:.2f}, which would hand it the recommendation."
-            )
-        if raw_b is not None:
-            outcome += (
-                f" And {LABELS[lead]} has nothing to repair in the other direction: trained "
-                f"on camera&nbsp;B its raw false-play is already {raw_b:.3f}."
-            )
-
-    return f"""<div class="callout warn">
-    <p><b>This recommendation was challenged, and the challenge was tested.</b> Every cached
-    feature behind the table below comes from a raw frame handed to the model&rsquo;s own
-    processor, which resizes shortest-edge to 256 and centre-crops 224 &mdash; keeping
-    roughly the middle <i>half</i> of a 16:9 pitch.{headline}</p>
-    <p>But that whole column is <b>one measurement in one direction</b>: train on venue_01
-    camera&nbsp;A, score camera&nbsp;B. Swapping the cameras is the only replication this
-    dataset allows, because every empty frame in it is venue_01.</p>
-    <div class="scroll"><table>
-      <thead><tr><th>Model</th><th class="num">&Delta; false-play, train A</th>
-      <th class="num">&Delta; false-play, train B</th><th class="num">under the swap</th></tr></thead>
-      <tbody>{''.join(lines)}</tbody>
-    </table></div>
-    <p>{outcome} <b>The recommendation stands, and the reason is no longer &ldquo;pending a
-    test&rdquo; but &ldquo;tested&rdquo;.</b> What would settle the input-path question is
-    empty-pitch footage from a second venue, not a better statistic.</p></div>"""
-
-
-def _rank(rows: list[dict], field: str, *, lower_is_better: bool = False) -> dict[str, int]:
-    ranked = sorted(
-        (r for r in rows if r["key"] in TRAINED and r.get(field)),
-        key=lambda r: (1 if lower_is_better else -1) * float(r[field]),
-    )
-    return {r["key"]: i + 1 for i, r in enumerate(ranked)}
-
-
 def _balanced(row: dict) -> float | None:
     """Recall minus false-play.
 
@@ -267,99 +163,6 @@ def render() -> str:
             "<code>uv run python experiments/reproduce_all.py</code>.</p>"
         )
 
-    ranks = {
-        "random split (leaky)": _rank(rows, "random"),
-        "grouped split": _rank(rows, "grouped"),
-        "cross-venue recall": _rank(rows, "cross"),
-        "false-play (lower is better)": _rank(rows, "false_play", lower_is_better=True),
-    }
-    winner = max(
-        (r for r in trained if r.get("cross")), key=lambda r: float(r["cross"]), default=None
-    )
-    leaky_winner = max(
-        (r for r in trained if r.get("random")), key=lambda r: float(r["random"]), default=None
-    )
-    fastest = min(
-        (r for r in trained if r.get("ms")), key=lambda r: float(r["ms"]), default=None
-    )
-    inverted = [k for k in TRAINED
-                if ranks["random split (leaky)"].get(k) == 1
-                and ranks["cross-venue recall"].get(k) == len(TRAINED)]
-
-    # --- the recommendation ---
-    bp = d["best_prompt"]
-    zero_recall = bp.get("play_recall")
-    zero_line = ""
-    if zero_recall and winner and float(zero_recall) > float(winner["cross"]):
-        zero_line = (
-            f"<p><b>And a zero-shot prompt beats all of them</b> at "
-            f"{_num(zero_recall)} with no labels at all &mdash; a development result, since "
-            f"the prompt was chosen on the same venues it is scored on, but it reframes what "
-            f"onboarding a new site costs.</p>"
-        )
-
-    rec = ""
-    if winner and fastest:
-        same = winner["key"] == fastest["key"]
-        # "Leads" was asserted from point estimates alone. The runner-up's interval overlaps
-        # the winner's across most of its width, and a paired test on the grouped split
-        # returns *inconclusive* (H4, macro-F1 difference CI [-0.231, +0.003]). The
-        # recommendation stands - something has to be deployed, and this is the best
-        # estimate - but it must not read as an established gap.
-        rivals = [
-            r for r in rows
-            if r["key"] in TRAINED and r["key"] != winner["key"]
-            and _overlap(winner, r, "cross_lo", "cross_hi")
-        ]
-        overlap_note = ""
-        if rivals:
-            names = " and ".join(r["label"] for r in rivals)
-            overlap_note = (
-                f"<p class=\"vcav\"><b>The lead is not established by the intervals.</b> "
-                f"{names} overlap{'s' if len(rivals) == 1 else ''} this one's 95% interval, "
-                f"and a paired test on the grouped split returns <i>inconclusive</i> rather "
-                f"than a difference. This is the best available estimate and something has "
-                f"to be deployed &mdash; it is not a measured gap.</p>"
-            )
-        rec = f"""
-        <div class="verdict">
-          <div class="vk">Use this one</div>
-          <div class="vname">{winner['label']}</div>
-          <p>Leads the honest protocols at <b>{_num(winner['cross'])}</b>
-          {_ci(winner.get('cross_lo'), winner.get('cross_hi'))} cross-venue recall
-          and holds <b>{_num(winner['merged'])}</b>
-          {_ci(winner.get('merged_lo'), winner.get('merged_hi'))} when the two audited
-          venues are merged.
-          {"It is also the fastest." if same else
-           f"It is the slowest of the three at {_num(winner['ms'], 0)} ms/frame &mdash; which "
-           f"does not matter: 20 cameras take {_num(winner['conc'], 1)} s of a 60-second cycle, "
-           f"so latency is not the binding constraint and the choice falls to accuracy."}</p>
-          {overlap_note}
-          {zero_line}
-          <p class="vfall">Fall back to <b>{fastest['label']}</b> only if the target hardware
-          proves far slower than the development machine.</p>
-        </div>"""
-
-    # --- rank strip: the inversion, seen rather than described ---
-    strips = ""
-    for protocol, rank in ranks.items():
-        cells = "".join(
-            f'<div class="rc r{rank.get(k, 0)}"><span class="rn">{rank.get(k, "—")}</span>'
-            f'<span class="rl">{LABELS[k]}</span></div>'
-            for k in sorted(TRAINED, key=lambda k: rank.get(k, 9))
-        )
-        strips += f'<div class="strip"><div class="sp">{protocol}</div>{cells}</div>'
-
-    inversion_note = ""
-    if inverted:
-        name = LABELS[inverted[0]]
-        inversion_note = (
-            f'<div class="callout warn"><p><b>{name} is first under the leaky protocol and '
-            f'last under the honest one.</b> The evaluation does not merely deflate scores, '
-            f'it reverses the decision: anyone following the pilot&rsquo;s protocol would have '
-            f'shipped the weakest generaliser of the three.</p></div>'
-        )
-
     # --- the comparison table, with bars on a shared scale ---
     body = ""
     for r in rows:
@@ -378,63 +181,8 @@ def render() -> str:
           <td class="num">{_num(r['ms'], 0)}</td>
         </tr>"""
 
-    # --- the false-play inversion ---
-    worst_fp = max(
-        (r for r in trained if r.get("false_play")),
-        key=lambda r: float(r["false_play"]), default=None,
-    )
-    clock = next((r for r in rows if r["key"] == "clock_rule"), {})
-    false_play_note = ""
-    if worst_fp and clock.get("false_play"):
-        best_bal = max(
-            (r for r in trained if _balanced(r) is not None), key=_balanced, default=None
-        )
-        false_play_note = f"""<div class="callout warn">
-        <p><b>Cross-venue recall is measured on folds that contain no empty pitch at all</b>,
-        so it can be earned by answering &ldquo;playing&rdquo; to everything &mdash; and
-        {worst_fp['label']} very nearly does: it calls
-        <b>{float(worst_fp['false_play']):.1%}</b> of held-out empty frames a match. The
-        clock rule, the straw man that never looks at the image, calls
-        <b>{float(clock['false_play']):.1%}</b>.</p>
-        <p>Ranked on recall minus false-play the table inverts, and
-        <b>{best_bal['label']}</b> is the only backbone that survives it. The two terms come
-        from different fits &mdash; no cross-venue fold holds a single empty frame to measure
-        against &mdash; so read them side by side rather than as one number; every model
-        faces the identical pair.</p>
-        <p><b>This is observed behaviour on one pitch, not an established ranking.</b> The
-        243 held-out empty frames are consecutive views of a single camera and amount to
-        three to ten <i>distinct scenes</i>; once that is accounted for, none of the six
-        pairwise comparisons survives a Holm correction. The gap is large enough that the
-        failure is a lack of power rather than evidence of equivalence &mdash; but settling
-        it needs empty footage from more than one scene.</p></div>"""
-
-    # --- latency against the budget ---
-    budget = 60.0
-    lat_rows = "".join(
-        f"""<tr><td class="mn">{r['label']}</td>
-        <td class="cell"><span class="mbar wide"><i class="t-ok"
-          style="width:{min(float(r['conc']) / budget, 1) * 100:.1f}%"></i></span>
-          <span class="cv">{_num(r['conc'], 1)}s</span></td>
-        <td class="num">{_num(float(r['conc']) and budget / float(r['conc']), 1)}x</td></tr>"""
-        for r in trained if r.get("conc")
-    )
-
     return f"""
 <h1>Which model, and why</h1>
-<p>Four candidates under three evaluation protocols. The protocols disagree, so the order
-they are read in decides the answer.</p>
-
-{rec}
-
-<h2>The protocols rank them differently</h2>
-<div class="strips">{strips}</div>
-{inversion_note}
-
-{false_play_note}
-
-{_input_path_note(d.get("challenge", {}))}
-
-<h2>Every score</h2>
 <p>Macro-F1 for the split protocols, play recall for cross-venue. Bars share one scale, so
 lengths are comparable down the column. <b>False-play</b> is how often a model calls a
 held-out empty pitch a match, and <b>balanced</b> is recall minus that.</p>
@@ -445,19 +193,6 @@ held-out empty pitch a match, and <b>balanced</b> is recall minus that.</p>
   <th class="num">ms/frame</th></tr></thead>
   <tbody>{body}</tbody>
 </table></div>
-<p class="foot">The clock rule uses no image data. It is competitive under both split
-protocols and collapses across venues &mdash; which is how we know the split protocols were
-measuring the dataset rather than the models.</p>
-
-<h2>Latency is not the constraint</h2>
-<p>Time for 20 cameras against the 60-second sampling cycle. Every model finishes with room
-to spare, which is why the recommendation is decided on accuracy.</p>
-<div class="scroll"><table>
-  <thead><tr><th>Model</th><th>20 cameras, of a 60s cycle</th><th class="num">Headroom</th></tr></thead>
-  <tbody>{lat_rows}</tbody>
-</table></div>
-<p class="foot">Measured on a 4-thread development laptop, not the target Mini-PC. Nothing
-here settles the deployment claim.</p>
 """
 
 

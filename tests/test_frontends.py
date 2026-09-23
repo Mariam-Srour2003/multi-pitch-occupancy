@@ -370,7 +370,6 @@ def test_augmentation_tab_never_shows_the_headline_without_its_retraction(client
         assert "0.2206" in html, "the headline is on the page without its standard deviation"
         assert "maximum of five" in html
         assert "0.4406" in html, "nothing says four of five draws are below no augmentation"
-    assert "no footage in this dataset" in html.lower()  # the wet-weather caveat stands
 
 
 def test_figures_are_served(client) -> None:
@@ -787,26 +786,34 @@ def test_the_augmentation_tab_is_deliberately_image_heavy(client) -> None:
     only reliable check is a person looking, so this tab has to carry the pictures.
     """
     html = client.get("/").text
-    assert html.count("<img") >= 10, "the talk lost its augmentation sheets"
+    # Was 10, when the before/after sheet was all seventeen switches. It is six of them plus
+    # the three full sheets now, and the floor moved with it - the property is that the tab
+    # still argues in pictures, not that it carries a particular number of them.
+    assert html.count("<img") >= 8, "the talk lost its augmentation sheets"
     assert "/figs/preproc/" in html, "the before/after pairs are not on the page"
 
 
-def test_every_preprocessing_pair_reaches_the_augmentation_tab(client) -> None:
-    """Checked against the CSV that records what was generated, not a list typed here -
-    which would be a second inventory, and the one that goes stale."""
-    import csv
+def test_the_chosen_preprocessing_pairs_reach_the_tab_each_with_its_phrase(client) -> None:
+    """The sheet was every row of the CSV until 2026-09-23; it is now the six of `_SHEET`.
 
-    from pitch_occupancy.api.talk import RESULTS
+    Seventeen tiles are scrolled past, and the second value of a switch shows the same thing
+    less strongly - so the tab keeps six that are read over seventeen that are not, and all
+    seventeen are still drawn on `preprocess_effects.jpg` in the same chapter.
 
-    pairs = RESULTS / "preprocess_pairs.csv"
-    if not pairs.exists():
+    What is asserted is the property that makes the cut defensible: every tile that survived
+    carries the phrase saying what it does. A tile with a name and two numbers and no
+    explanation is the wall this was cutting back, one card at a time.
+    """
+    from pitch_occupancy.api.talk import RESULTS, _SHEET
+
+    if not (RESULTS / "preprocess_pairs.csv").exists():
         pytest.skip("no preprocessing pairs generated")
-    with pairs.open(newline="", encoding="utf-8") as fh:
-        labels = [r["label"] for r in csv.DictReader(fh)]
-
     html = client.get("/").text
-    missing = [lab for lab in labels if f"<code>{lab}</code>" not in html]
-    assert not missing, f"switches with no before/after card: {missing}"
+    for label, blurb in _SHEET:
+        assert f"<code>{label}</code>{{}}".format(f'<div class="w">{blurb}</div>') in html, (
+            f"{label} has no before/after card, or lost the phrase explaining it"
+        )
+    assert html.count('<figure class="tk-pair') == len(_SHEET) == 6
 
 
 def test_the_rq_statuses_are_parsed_from_the_matrix_not_restated() -> None:

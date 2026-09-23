@@ -233,26 +233,6 @@ def search_resolution() -> dict:
     return {}
 
 
-def augmentation_spread() -> dict:
-    """The `light` preset across every draw, plus the no-augmentation control.
-
-    Read rather than restated for a specific reason: this is the number the project
-    retracted, and a hard-coded copy of a retracted headline is exactly the failure the
-    retraction was about.
-    """
-    out: dict[str, str] = {}
-    for row in _csv("augmentation_transfer_spread.csv"):
-        if row.get("preset") == "light":
-            out = {"n": row.get("n_seeds", ""), "sd": row.get("macro_f1_sd", ""),
-                   "min": row.get("macro_f1_min", ""), "max": row.get("macro_f1_max", "")}
-            break
-    for row in _csv("augmentation_transfer.csv"):
-        if row.get("preset") == "baseline":
-            out["baseline"] = row.get("macro_f1", "")
-            break
-    return out
-
-
 # --- the look -------------------------------------------------------------------------
 
 #: Scoped under `.tk` so nothing here reaches anything else on the page.
@@ -427,46 +407,51 @@ STYLES = """
 """
 
 
-# What each switch *is*, in one phrase - keyed by the `switch` column of
-# preprocess_pairs.csv, and written only on a switch's first card: `top_crop` appears at two
-# fractions and `clahe` at two settings, so repeating the phrase under each value is the same
-# sentence three times on one screen. The values differ; what the switch does does not.
+# The six pairs the sheet shows, in order, each with the phrase that says what it does. The
+# csv records seventeen; a wall of seventeen tiles is scrolled past, and the second value of
+# a switch (`top_crop=0.2` after `top_crop=0.35`) shows the same thing less strongly. Six
+# that can be read is worth more than seventeen that are not, and the full seventeen are
+# still on `preprocess_effects.jpg` and in the csv.
 #
-# A switch whose honest explanation needs its own paragraph - CLAHE, per-image
-# standardisation, the unsharp mask, the bilateral filter - carries no phrase at all. A
-# half-explanation of a named technique is worse than the picture on its own, and the picture
-# is what this sheet is for.
-_WHAT = {
-    "letterbox": "Pad to a square instead of squashing.",
-    "top_crop": "Cut the sky and stands off the top.",
-    "centre_crop": "Keep the middle, discard the border.",
-    "gamma": "Brightness curve.",
-    "saturation": "Colour strength &mdash; 0.0 is grayscale.",
-    "undistort": "Straighten the fisheye bulge.",
-    "blur_sigma": "Blur &mdash; destroys fine detail, including people.",
-}
+# Chosen on what each one has to prove: the resize, a crop of the sky, the crop that looked
+# like a mild zoom and scored empty accuracy 0.000, the brightness curve, the grayscale that
+# is the one removal above the floor, and the blur that removes the people. Switches whose
+# honest explanation needs a paragraph of its own - CLAHE, per-image standardisation, the
+# unsharp mask, the bilateral filter - are not here: a half-explained named technique is
+# worse than no tile, and undistort is dropped as the quietest geometric one.
+_SHEET = (
+    ("letterbox=False", "Pad to a square instead of squashing."),
+    ("top_crop=0.35", "Cut the sky and stands off the top."),
+    ("centre_crop=0.5", "Keep the middle, discard the border."),
+    ("gamma=0.7", "Brightness curve."),
+    ("saturation=0.0", "Colour strength &mdash; 0.0 is grayscale."),
+    ("blur_sigma=4.0", "Blur &mdash; destroys fine detail, including people."),
+)
+_WHAT = dict(_SHEET)
 
 
 def preprocess_pairs() -> str:
-    """Every preprocessing switch, before and after, with how much it actually moved.
+    """The six switches of `_SHEET`, before and after, with how much each actually moved.
 
     Preprocessing code fails silently - a switch that does nothing, a crop that removes the
     goalmouth - and every one of those passes a shape and dtype check. The only reliable
-    check is a person looking, so the sheet stays on the page (collapsed) rather than being
-    summarised into a sentence nobody can check.
+    check is a person looking, so pairs stay on the page rather than being summarised into a
+    sentence nobody can check. All seventeen are still drawn, on `preprocess_effects.jpg`
+    further down the chapter; these six are the ones worth stopping at.
     """
     rows = _csv("preprocess_pairs.csv")
     if not rows:
         return ("<p class='missing'>No <code>preprocess_pairs.csv</code> yet. Run "
                 "<code>uv run python experiments/preprocess_pairs.py</code>.</p>")
+    by_label = {r["label"]: r for r in rows}
     cells = []
-    explained: set[str] = set()
-    for r in rows:
+    for label, blurb in _SHEET:
+        r = by_label.get(label)
+        if r is None:
+            continue
         area = float(r["area_retained"])
         kept = f' &middot; <b>{area:.0%}</b> kept' if area < 1.0 else ""
-        blurb = "" if r["switch"] in explained else _WHAT.get(r["switch"], "")
-        explained.add(r["switch"])
-        what = f'<div class="w">{blurb}</div>' if blurb else ""
+        what = f'<div class="w">{blurb}</div>'
         cells.append(
             f'<figure class="tk-pair{" crop" if area < 1.0 else ""}">'
             f'<img src="/figs/preproc/{Path(r["file"]).name}" loading="lazy" '
@@ -480,9 +465,10 @@ def preprocess_pairs() -> str:
     loudest = max(float(r["mean_abs_change_255"]) for r in rows)
     return (
         f'<div class="tk-pairs">{"".join(cells)}</div>'
-        f'<p class="tk-note"><code>{quietest["label"]}</code> moves the frame '
+        f'<p class="tk-note">Six of the {len(rows)} switches measured; the full sheet is '
+        f'further down. The quietest, <code>{quietest["label"]}</code>, moves the frame '
         f'{float(quietest["mean_abs_change_255"]):.2f}/255 against {loudest:.1f} for the '
-        'loudest switch &mdash; yet the search credits it with +0.016 recall.</p>'
+        'loudest &mdash; yet the search credits it with +0.016 recall.</p>'
     )
 
 
@@ -561,11 +547,6 @@ def summary() -> str:
              "published figure was simply the best of five, so it was withdrawn the same "
              "day and restated as a property of that one draw."),
         ], wide=True))
-        + block("What the evaluation was actually measuring", tiles([
-            ("99.1%", "correct by reading only the clock &mdash; no pixels", "bad"),
-            ("1.000", "macro-F1 for a constant predictor, cross-venue", "bad"),
-            ("0", "of 243 held-out empty frames DINOv2 gets right", "bad"),
-        ]))
         + "</div>"
     )
 
@@ -924,14 +905,7 @@ def chapter3() -> str:
 
 def chapter4() -> str:
     """7. Chapter 4 - applications and data augmentation."""
-    a = augmentation_spread()
     res = search_resolution()
-    spread = beats([
-        (a.get("baseline", "?"), a.get("max", "?"),
-         "macro-F1: no augmentation, against the draw that was published"),
-        (a.get("max", "?"), a.get("min", "?"),
-         f'the same preset, best against worst of {a.get("n", "?")} draws'),
-    ]) if a.get("sd") else "<p class='missing'>No augmentation spread measured yet.</p>"
     floor = tiles([
         (res["floor"], "one frame in the smallest fold moves the headline this much", "bad"),
         (res["interval"], "how wide the confidence band is at the median setting", "bad"),
@@ -942,7 +916,7 @@ def chapter4() -> str:
                "What it does in practice, and what we did about the data",
                "The deployed application, the preprocessing path, the augmentation "
                "experiment, and the data we generated.", tone="sky")
-        + block("Preprocessing &mdash; every switch, before and after",
+        + block("Preprocessing &mdash; six switches, before and after",
                 preprocess_pairs(),
                 note="One preprocessing module for the experiments and the live pipeline, "
                      "so these are the frames the model receives. CLAHE <b>costs</b> DINOv2 "
@@ -957,34 +931,6 @@ def chapter4() -> str:
         ]), note="<b>No rotations, warps or perspective changes</b> &mdash; the cameras are "
                  "bolted to a post. Horizontal flip is the one exception, because it breaks "
                  "memorisation of <i>this</i> pitch&rsquo;s layout.")
-        + block("The augmentation experiment &mdash; and its retraction", spread
-                + points([
-                    f'Standard deviation <b>{a.get("sd", "?")}</b> on a metric bounded in '
-                    '[0,&nbsp;1].',
-                    f'The published number was the <b>maximum of {a.get("n", "five")}</b>.',
-                    f'Four of five draws land <b>below the {a.get("baseline", "?")}</b> the '
-                    'probe reaches with no augmentation at all.',
-                ], tone="bad"), tint="coral",
-                note="The row still reproduces exactly &mdash; which is the problem, not "
-                     "the defence. Only re-drawing the randomness caught it. Every headline "
-                     "now runs five draws.")
-        + block("Generating data with AI, from a real starting point", cards([
-            ("Real anchor first",
-             "Every generated item starts from an <b>actual frame of an actual pitch</b> "
-             "&mdash; never a text prompt alone."),
-            ("Images &mdash; Gemini and ChatGPT",
-             "Used to produce the scene the corpus lacks: an empty pitch under floodlights "
-             "at night."),
-            ("Stills into video &mdash; 2 AI tools",
-             "A still frame animated into motion, so the motion check has something to read. "
-             "<b>[tool names to be added]</b>"),
-            ("What it bought",
-             "31 generated empty frames took cross-venue false alarms from <b>0.768 to "
-             "0.024</b> &mdash; while play-recall went up."),
-        ]), tint="violet",
-            note="<b>Excluded from every corpus count</b> &mdash; a training aid, not "
-                 "evidence on real footage. No rain was generated: with no wet footage to "
-                 "validate against, that tests the generator, not the weather.")
         + block("Two configuration searches", tiles([
             ("88", "preprocessing runs &mdash; greedy", "lead"),
             ("375", "prompt sets &mdash; exhaustive, zero labels", "lead"),

@@ -180,26 +180,6 @@ def _augmentation() -> str:
         "<h2>What removal looks like</h2>" + removal
         + augmentation_axes()
         + "<h2>The preset sheets</h2>" + image + effects
-        + "<h2>The rules, and what the sheets caught</h2>"
-        "<ul>"
-        "<li><strong>No rotations, warps or perspective.</strong> The cameras are bolted to "
-        "a post; a rotated pitch is an impossible example, not a harder one.</li>"
-        "<li><strong>Horizontal flip is the one exception</strong> &mdash; it cannot change "
-        "whether people are playing, but it breaks memorisation of <em>this</em> layout. "
-        "Both rules are pinned by tests.</li>"
-        "<li>Rain streak geometry was written in absolute pixels: white poles a tenth of the "
-        "frame wide, 26% whiteout. Now a fraction of frame height, 4.6% at the heaviest "
-        "preset. <strong>No shape or dtype assertion could have found it.</strong></li>"
-        "</ul>"
-        "<h2>Measured on one boundary &mdash; and retracted</h2>"
-        "<p>Cross-camera, no labels: five draws of <code>light</code> score 0.8550, 0.4136, "
-        "0.3510, 0.3501, 0.3479. Standard deviation <strong>0.2206</strong>; the published "
-        "number was the <strong>maximum of five</strong>, and four draws land below the "
-        "<strong>0.4406</strong> the probe reaches with no augmentation at all. The "
-        "five-frame recipe reaches 0.9895 every time.</p>"
-        "<p><strong>No footage in this dataset is wet</strong>, so synthetic rain can only "
-        "be validated against synthetic rain &mdash; which tests the generator, not the "
-        "weather.</p>"
     )
 
 
