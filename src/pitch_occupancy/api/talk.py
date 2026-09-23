@@ -777,44 +777,7 @@ def chapter3() -> str:
                "The classifier says what a scene looks like. The detector says how many "
                "people are on it, whether there is a ball, and whether anything moved "
                "&mdash; and those counts can overrule the classifier.", tone="amber")
-        + block("The model", cards([
-            ("YOLOv8n, pretrained on COCO",
-             "A single-stage detector used exactly as downloaded. <b>Nothing in it is "
-             "trained here</b> &mdash; COCO already contains the two classes this system "
-             "needs."),
-            ("It is asked for two classes only",
-             "<code>person</code> (COCO 0) and <code>sports ball</code> (COCO 32). The ball "
-             "comes out of the same forward pass, so it costs nothing extra."),
-            ("Small on purpose",
-             "One pass per frame is what a <b>60-second cycle over 20&ndash;30 cameras</b> "
-             "can afford on a CPU with no GPU."),
-            ("A registry, not a string",
-             "Seven candidates are named in <code>vision/detector.py</code>, so changing "
-             "detector is a setting rather than an edit."),
-        ]))
         + block("The architecture &mdash; one forward pass", yolo_stack())
-        + block("How it is run here", table(
-            ["Setting", "Value", "Why"],
-            [["Detector", f'<b>{cfg.get("detector", "yolov8n")}</b>',
-              "Every published count in this project was measured with it"],
-             ["Input long edge", str(cfg.get("imgsz", 1280)),
-              "A far-side player is a few pixels tall at 640 &mdash; the difference between "
-              "&ldquo;finds nobody&rdquo; and a usable count"],
-             ["Tiling", f'{cfg.get("tiles", 1)} &mdash; off',
-              "Four overlapping quarters plus the whole costs ~5 passes, misses the cycle "
-              "budget, and the count error gets <i>worse</i>"],
-             ["Person confidence", str(cfg.get("person_conf", 0.25)), "A person is a big, "
-              "ordinary COCO object; the default threshold holds"],
-             ["Ball confidence", str(cfg.get("ball_conf", 0.1)),
-              "A ball at distance is a few pixels, so the bar is low &mdash; and the "
-              "burst rule below is what keeps a bright stud from counting"],
-             ["Burst", f'{cfg.get("burst_frames", 3)} frames, '
-                       f'{cfg.get("burst_spacing_s", 1.0)}s apart',
-              "One frame cannot show motion, and a ball has to recur to be a ball"],
-             ["Failure", "<code>None</code>, never <code>[]</code>",
-              "<b>&ldquo;Not checked&rdquo; is not &ldquo;nothing found&rdquo;.</b> "
-              "Collapsing them is how a broken install reports every pitch empty"]],
-            hi=6))
         + block("The three cues, and what each is allowed to decide", cards([
             ("People &mdash; counted by the foot of the box",
              "Someone at the touchline has their centre over the pitch and their feet "

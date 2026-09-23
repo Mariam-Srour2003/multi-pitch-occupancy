@@ -645,12 +645,15 @@ def test_the_page_is_slides_first_and_the_walls_are_gone(client) -> None:
     pre-registration - are no longer served at all.
     """
     html = client.get("/").text
-    # Was 30, then 24. The chapters were cut back to the model, the detector and the data
-    # work on 2026-09-22, and the conclusion was emptied to questions and the demo; on
-    # 2026-09-23 the augmentation retraction, the generated-data slide and the
-    # probe-versus-fine-tuning slide were withdrawn. What is left is fewer blocks of the
-    # same kind, which is the property this asserts.
-    assert html.count('<section class="tk-block') >= 22, "the page is not made of blocks"
+    # Was 30, then 24, 22, 21. The chapters were cut back to the model, the detector and
+    # the data work on 2026-09-22, and the conclusion was emptied to questions and the demo;
+    # on 2026-09-23 the augmentation retraction, the generated-data slide and the
+    # probe-versus-fine-tuning slide were withdrawn, then the preset cards, the two
+    # searches, the applications beats, the detector settings table and the YOLOv8n model
+    # cards. The number is a tripwire against the wall coming back, not a content floor - it
+    # moves down with a deliberate cut and never up on its own. What is asserted is that the
+    # page is still made of blocks of the same kind.
+    assert html.count('<section class="tk-block') >= 20, "the page is not made of blocks"
     for wall in ("The full document &mdash;", "preregistration.md", "CODEBASE.md",
                  "data_layout.md", "rq_matrix.md"):
         assert wall not in html, f"a source document is still being served: {wall!r}"
