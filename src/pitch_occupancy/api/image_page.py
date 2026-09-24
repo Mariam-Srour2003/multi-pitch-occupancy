@@ -491,11 +491,21 @@ function paint(s){
 
 function card(s){
   const el=document.createElement('div');
-  // Flagged on a disagreement a reader can check against the picture - the verdict says
-  // nobody is playing and yet people were found, or the reverse - rather than on the focus
-  // ratio, which needed the method to read.
+  // Flagged on a disagreement a reader can check against the picture - rather than on the
+  // focus ratio, which needed the method to read.
+  //
+  // **Both directions, which this checked only one of.** The comment here always claimed
+  // "or the reverse" and the condition never implemented it, so a confident EMPTY on a
+  // frame where the detector found people passed as an ordinary result. Reported from use
+  // on 2026-09-24: `syn_v01b_people_004.jpg`, EMPTY at 0.993 with four people found, and
+  // nothing on the card said the two halves of it disagreed. Finding people is direct
+  // evidence against EMPTY in a way that finding people is *not* evidence for play, so the
+  // two cases are not symmetric in what they mean - but both are worth a reader's eye.
   const play=s.predicted.indexOf('ACTIVE_PLAY')>=0;
-  el.className='shot'+((play&&s.n_inside===0)?' flagged':'');
+  const empty=s.predicted.indexOf('EMPTY')>=0;
+  const n=(s.n_inside===null||s.n_inside===undefined)?null:s.n_inside;
+  const odd=(play&&n===0)||(empty&&n>0);
+  el.className='shot'+(odd?' flagged':'');
   const imgs=document.createElement('div');imgs.className='imgs';
   if(s.explained){
     [[s.frame,'image'],[s.heat,'evidence map']].forEach(([src,alt])=>{
@@ -516,7 +526,7 @@ function card(s){
   body.append(name,row);
   const r2=document.createElement('div');r2.className='row';
   const ppl=document.createElement('span');
-  ppl.className='m'+((play&&s.n_inside===0)?' bad':'');
+  ppl.className='m'+(odd?' bad':'');
   ppl.innerHTML='people <b>'+
     ((s.n_inside===null||s.n_inside===undefined)?'\\u2014':s.n_inside)+'</b>';
   const ball=document.createElement('span');ball.className='m spacer';
@@ -535,10 +545,13 @@ function summarise(){
   const num=s=>(s.n_inside===null||s.n_inside===undefined)?0:s.n_inside;
   const people=results.reduce((a,s)=>a+num(s),0);
   const withBall=results.filter(s=>s.ball).length;
-  // The batch's one quality flag, and it is a disagreement a reader can check against the
-  // picture rather than the focus ratio it replaces: the verdict says a match is on and the
-  // detector found nobody on the pitch.
+  // The batch's quality flags, and they are disagreements a reader can check against the
+  // picture rather than the focus ratio they replace. Two, not one: a match with nobody
+  // found, and an empty pitch with people found. The second was missing, which is how a
+  // batch could report every image as ordinary while containing a confident EMPTY over
+  // four visible people.
   const odd=results.filter(s=>s.predicted.indexOf('ACTIVE_PLAY')>=0&&num(s)===0).length;
+  const peopled=results.filter(s=>s.predicted.indexOf('EMPTY')>=0&&num(s)>0).length;
 
   const tiles=[
     ['Images read',results.length,''],
@@ -547,6 +560,7 @@ function summarise(){
     ['Mean confidence',meanConf.toFixed(3),''],
     ['Least confident',worst.toFixed(3),''],
     ['Play, nobody on the pitch',odd,odd?'flagged':''],
+    ['Empty, people found',peopled,peopled?'flagged':''],
   ];
   Object.entries(counts).sort().forEach(([k,v])=>
     tiles.push([k.replace('C1_','').replace('C2_','').replace('C3_','').replace(/_/g,' '),

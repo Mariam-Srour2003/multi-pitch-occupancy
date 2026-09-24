@@ -441,14 +441,29 @@ def summary() -> str:
         '<div class="tk">'
         + hero("Summary",
                "Playground Activity Detection using Deep Learning",
-               "A CPU-only system that detects activity and verifies booked pitch usage.", tone="ink")
+               "A CPU-only system that detects activity and verifies booked pitch usage.",
+               tone="ink")
         + block("The abstract",
-                quote("Ideveloped this project after noticing that most AI solutions for football pitches focus on athletes, not business owners. Our system uses deep learning to automatically verify whether booked pitches were actually used, giving owners greater trust and peace of mind without relying on human monitoring. The system takes the CCTV camera stream and analyzes one picture every minute. Each picture is classified as Active Play, Empty, Maintenance, or Not Playing, so the owner doesn’t need to constantly check the cameras to know what is happening on the pitch."
-                      "It runs on a CPU-only server, so it is affordable and deployable in the real world. The system was tested on 1,200 football playgrounds in Lebanon, and it was able to accurately detect activity and verify pitch usage without any false alarms. The system is a practical solution for football pitch owners who want to ensure that their pitches are being used as intended, without relying on human monitoring."),
+                quote("I developed this project after noticing that most AI solutions for "
+                      "football pitches focus on athletes, not business owners. Our system "
+                      "uses deep learning to automatically verify whether booked pitches "
+                      "were actually used, giving owners greater trust and peace of mind "
+                      "without relying on human monitoring. The system takes the CCTV "
+                      "camera stream and analyzes one picture every minute. Each picture is "
+                      "classified as Active Play, Empty, Maintenance, or Not Playing, so "
+                      "the owner doesn’t need to constantly check the cameras to know what "
+                      "is happening on the pitch.<br><br>"
+                      "It runs on a CPU-only server, so it is affordable and deployable in "
+                      "the real world. The system was tested on 1,200 football playgrounds "
+                      "in Lebanon, and it was able to accurately detect activity and verify "
+                      "pitch usage without any false alarms. The system is a practical "
+                      "solution for football pitch owners who want to ensure that their "
+                      "pitches are being used as intended, without relying on human "
+                      "monitoring.")
                 + cards([
                     ("The owner&rsquo;s problem",
-                     "For example: Seven pitches, one person, and no way to watch them all. Checking by "
-                     "eye is a sample, not an audit."),
+                     "For example: Seven pitches, one person, and no way to watch them "
+                     "all. Checking by eye is a sample, not an audit."),
                     ("The market",
                      "~<b>1,200</b> football playgrounds in Lebanon &mdash; the "
                      "same problem, multiplied."),

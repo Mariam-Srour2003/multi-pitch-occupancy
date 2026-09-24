@@ -459,3 +459,22 @@ def test_the_page_draws_the_rules_from_the_served_table_not_from_typed_rows() ->
     assert "RULES=d.rules" in html, "the page is not reading the served table"
     for typed in ("5+ people inside", "1 to 4 people inside"):
         assert typed not in html, f"the rule table has been retyped into the page: {typed!r}"
+
+
+def test_the_gallery_flags_an_empty_verdict_with_people_found() -> None:
+    """Both halves of the disagreement, not just one.
+
+    The card's comment always said it flagged "the verdict says nobody is playing and yet
+    people were found, or the reverse", and the condition only ever implemented the first.
+    Reported from use on 2026-09-24: `syn_v01b_people_004.jpg` is a labelled
+    MAINTENANCE_NON_SPORTING frame that the probe calls EMPTY at 0.993 while the detector
+    finds four people, and the card showed it as an ordinary result.
+
+    Asserted on the condition rather than on a rendered card because the flag is one line of
+    browser JavaScript; what can go stale here is the claim, and the claim is the `empty`
+    half being present at all.
+    """
+    html = " ".join(TestClient(app).get("/images").text.split())
+    assert "const empty=s.predicted.indexOf('EMPTY')>=0;" in html
+    assert "(play&&n===0)||(empty&&n>0)" in html, "the card flags only one direction again"
+    assert "'Empty, people found'" in html, "the batch summary lost its second flag"
