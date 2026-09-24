@@ -103,6 +103,15 @@ def score(rows: list[ManifestRow], X: np.ndarray, folds) -> dict[str, float]:
     every clip-venue test set is 100% ACTIVE_PLAY. The control reports how often a genuine
     EMPTY frame is called PLAY, so a config that wins by shifting the boundary is visible
     rather than celebrated.
+
+    **A fold with no active-play frame in its test set is skipped, not scored NaN**
+    (2026-09-23). It used to contribute `nan`, which propagated through the mean and made
+    *every* evaluation NaN the day a venue with no play footage joined the folds - which is
+    what `davinci_j_maint_outdoor` did, and why the 43 stored convnextv2 evaluations are
+    all unscored. Recall is undefined where there is nothing to recall; it is not zero, and
+    it is not a reason to discard the seven folds that can measure it. `folds_scored` says
+    how many actually contributed, so a number resting on fewer venues says so itself, and
+    an evaluation where *no* fold could score is still NaN rather than invented.
     """
     pos = {r.file: i for i, r in enumerate(rows)}
     recalls = []
@@ -111,18 +120,23 @@ def score(rows: list[ManifestRow], X: np.ndarray, folds) -> dict[str, float]:
         pred = probe.predict(X[[pos[r.file] for r in fold.test]], fold.test)
         truth = [r.class3 for r in fold.test]
         play = [(p, t) for p, t in zip(pred, truth, strict=True) if t == PLAY]
-        recalls.append(sum(p == PLAY for p, _ in play) / len(play) if play else float("nan"))
+        if not play:
+            continue
+        recalls.append(sum(p == PLAY for p, _ in play) / len(play))
     arr = np.array(recalls, dtype=float)
+    mean = float(arr.mean()) if len(arr) else float("nan")
     false_play = false_play_rate(rows, X, pos)
     return {
-        "play_recall": float(arr.mean()),
-        "worst_fold": float(arr.min()),
+        "play_recall": mean,
+        "worst_fold": float(arr.min()) if len(arr) else float("nan"),
         "false_play": false_play,
+        "folds_scored": len(arr),
+        "folds_total": len(folds),
         # What the search ranks on. Recall alone cannot rank these configurations: three of
         # them reached exactly 1.0000 on test sets that are 100% ACTIVE_PLAY, and their
         # false-play rates were 0.021, 0.663 and 0.979 - the same score for a usable
         # configuration and for one that calls almost every empty pitch a match.
-        "balanced": float(arr.mean()) - (0.0 if np.isnan(false_play) else false_play),
+        "balanced": mean - (0.0 if np.isnan(false_play) else false_play),
     }
 
 
@@ -239,6 +253,18 @@ class SearchLock:
         self.path.unlink(missing_ok=True)
 
 
+def _unscored(entry: dict) -> bool:
+    """Did this evaluation end up with no usable recall?
+
+    NaN survives a JSON round trip as the bare token `NaN`, which reads back as a float
+    that compares false against everything including itself - so it cannot be found with
+    `== float("nan")` and does not raise. `v != v` is the only test that catches it in both
+    spellings, and a `None` written by a stricter encoder counts the same.
+    """
+    v = entry.get("play_recall")
+    return v is None or not isinstance(v, (int, float)) or v != v
+
+
 def load_state() -> dict:
     if OUT_JSON.exists():
         return json.loads(OUT_JSON.read_text(encoding="utf-8"))
@@ -258,6 +284,8 @@ def main() -> int:
     ap.add_argument("--rounds", type=int, default=4, help="max greedy rounds")
     ap.add_argument("--pairs", action="store_true", help="exhaustive pass over surviving pairs")
     ap.add_argument("--check", action="store_true", help="estimate cost and exit")
+    ap.add_argument("--rescore", action="store_true",
+                    help="re-score stored evaluations from cached embeddings, search nothing")
     args = ap.parse_args()
 
     rows = development_rows(read_manifest(DATASET / "manifest.csv"))
@@ -309,7 +337,42 @@ def main() -> int:
         )
 
     with SearchLock(RESULTS / ".preprocess_search.lock"):
+        if args.rescore:
+            return _rescore(args, rows, folds, state)
         return _search(args, rows, folds, state)
+
+
+def _rescore(args, rows, folds, state: dict) -> int:
+    """Re-score what is already stored, without searching for anything new.
+
+    The repair path inside `evaluate` only fires on a configuration the search happens to
+    visit again, and the greedy path changes as soon as the scores do - so after a metric
+    fix the entries that most need repairing are the ones a re-run would never look at.
+    This walks the stored evaluations instead. Every one of them was scored once, so its
+    embeddings are on disk; the cost is a probe fit per fold, not a backbone pass.
+
+    Anything whose cache has since been deleted is left exactly as it is and reported.
+    Recomputing it here would quietly turn a "re-score" into hours of embedding.
+    """
+    from pitch_occupancy.vision.preprocess import PreprocessConfig as _Cfg
+
+    repaired = skipped = 0
+    for entry in state["evaluations"]:
+        if entry.get("model") not in args.models or entry.get("n_frames") != len(rows):
+            continue
+        cfg = _Cfg(**entry["config"])
+        if not (CACHE / f"{entry['model']}_{config_hash(cfg)}.npz").exists():
+            print(f"  no cached embeddings for {entry['label']} - left as it is")
+            skipped += 1
+            continue
+        before = entry.get("play_recall")
+        entry.update({k: round(v, 4)
+                      for k, v in score(rows, embed(rows, cfg, entry["model"]), folds).items()})
+        print(f"  {entry['label']:<34} {before} -> {entry['play_recall']}")
+        repaired += 1
+    save_state(state)
+    print(f"\nre-scored {repaired} evaluation(s); {skipped} left alone")
+    return 0
 
 
 def _search(args, rows, folds, state: dict) -> int:
@@ -327,12 +390,20 @@ def _search(args, rows, folds, state: dict) -> int:
                 None,
             )
             if cached:
-                if "balanced" not in cached:
-                    # Written before the false-play control was repaired, when it read 0.0
-                    # for everything. Re-scoring is a second from the config's cached
-                    # embeddings, against sixteen minutes to recompute them, so the entry is
-                    # repaired in place rather than trusted or thrown away.
-                    print(f"    re-scoring {label} under the repaired false-play control")
+                if "balanced" not in cached or _unscored(cached):
+                    # Two repairs, one path, because both are the same thing: an entry whose
+                    # numbers cannot be trusted and whose *embeddings* can.
+                    #
+                    # `"balanced" not in cached` predates the false-play control's repair,
+                    # when it read 0.0 for everything. `_unscored` is the NaN era: a held-out
+                    # venue with no active play made its fold recall `nan`, and a mean over
+                    # any array containing `nan` is `nan` - so every evaluation of every
+                    # backbone scored nothing until folds with no positives were skipped.
+                    #
+                    # Re-scoring is a second from the config's cached embeddings, against
+                    # sixteen minutes to recompute them, so the entry is repaired in place
+                    # rather than trusted or thrown away.
+                    print(f"    re-scoring {label} from cached embeddings")
                     cached.update({
                         k: round(v, 4)
                         for k, v in score(rows, embed(rows, cfg, backbone), folds).items()

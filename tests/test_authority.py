@@ -158,6 +158,13 @@ ALLOWED_MUTATING = {
     "/slots/{slot_id}/override",
     #: The preprocessing search control, which acts on this project's own experiment state.
     "/preprocess",
+    #: Copying a finished preprocessing search into the saved-run grid (WP3-T8). The same
+    #: category as `/preprocess`: it writes this project's own experiment results, under
+    #: `results/search_runs/`, and nothing it touches is a client record. The write is a
+    #: copy of a state file the search itself wrote, and the destination is one of six
+    #: fixed filenames - an unknown backbone or frame count is refused rather than
+    #: sanitised, because both halves arrive from a URL path.
+    "/runs",
     #: An operator editing this system's *own* capture configuration (WP6-T6). Not the same
     #: category as writing to a client system: `bookings.py` has no write method at all,
     #: because a booking sheet is the facility's financial record. This is defensible, and it

@@ -1,0 +1,1420 @@
+1599 frames | 9 venue folds | 1 model(s)
+16 candidate settings across 10 switches
+  play frames per fold: a_blue_barrier=168, d_indoor_dome=18, e_pink_boards=18, f_outdoor_bldg=13, g_netting=31, h_teal_pitch=18, i_outdoor_trees=18, davinci_j_maint_outdoor=0, davinci_l_city_pitch=1
+
+  WARNING: 2/9 folds have fewer than 10 play frames (davinci_j_maint_outdoor=0, davinci_l_city_pitch=1).
+  Recall takes only a few discrete values there, the unweighted fold mean
+  over-weights them, and a result of 1.000 is mostly arithmetic.
+  Drop --limit for a ranking you can trust.
+
+
+============================================================
+convnextv2
+============================================================
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4380.89it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+  baseline           recall 0.9338
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6936.96it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+  + undistort=0.15               recall 0.9589 worst 0.778 falsePlay 0.0165
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4117.47it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    undistort=0.3                recall 0.8611 worst 0.333 falsePlay 0.0041
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6483.40it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    centre_crop=0.5              recall 0.8430 worst 0.278 falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6376.67it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    centre_crop=0.7              recall 0.8282 worst 0.056 falsePlay 0.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 8086.47it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    top_crop=0.2                 recall 0.8278 worst 0.308 falsePlay 0.0206
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6631.73it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    top_crop=0.35                recall 0.9225 worst 0.677 falsePlay 0.9959
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6353.01it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+  + letterbox=False              recall 0.9183 worst 0.742 falsePlay 0.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6642.18it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    per_image_standardise=True   recall 0.9163 worst 0.673 falsePlay 0.0123
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6567.91it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    clahe=on                     recall 0.9373 worst 0.722 falsePlay 0.6132
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6443.56it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    clahe=auto                   recall 0.9509 worst 0.667 falsePlay 0.0741
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5666.90it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    gamma=0.7                    recall 0.9288 worst 0.667 falsePlay 0.0206
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4931.87it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    gamma=1.4                    recall 0.8726 worst 0.667 falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6364.75it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    saturation=0.0               recall 0.9225 worst 0.722 falsePlay 0.2305
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6820.40it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    saturation=0.5               recall 0.9903 worst 0.923 falsePlay 0.0947
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6431.49it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    denoise=25.0                 recall 0.9368 worst 0.778 falsePlay 0.9218
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6728.39it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    sharpen=0.6                  recall 0.9751 worst 0.833 falsePlay 0.2757
+  round 1: adopt undistort=0.15 -> 0.9589
+
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6511.98it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    centre_crop=0.5              recall 0.8382 worst 0.111 falsePlay 0.0082
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6341.23it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    centre_crop=0.7              recall 0.9491 worst 0.833 falsePlay 0.1070
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5986.64it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    top_crop=0.2                 recall 0.7733 worst 0.000 falsePlay 0.0206
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6527.38it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    top_crop=0.35                recall 0.7881 worst 0.000 falsePlay 0.0247
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6646.54it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    letterbox=False              recall 0.9158 worst 0.692 falsePlay 0.0206
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6435.22it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    per_image_standardise=True   recall 0.9152 worst 0.667 falsePlay 0.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6627.18it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    clahe=on                     recall 0.8827 worst 0.444 falsePlay 0.9918
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6528.61it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    clahe=auto                   recall 0.8874 worst 0.333 falsePlay 0.9918
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5877.37it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    gamma=0.7                    recall 0.9375 worst 0.667 falsePlay 0.0782
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6660.46it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    gamma=1.4                    recall 0.9129 worst 0.692 falsePlay 0.6461
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6626.39it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    saturation=0.0               recall 0.9384 worst 0.833 falsePlay 0.0041
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6890.86it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    saturation=0.5               recall 0.9506 worst 0.661 falsePlay 0.0206
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6670.57it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    denoise=25.0                 recall 0.9418 worst 0.667 falsePlay 0.7613
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6448.07it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.bias   | UNEXPECTED |  | 
+classifier.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    sharpen=0.6                  recall 0.9274 worst 0.774 falsePlay 0.0412
+  round 2: no improvement - stopping
+
+  BEST for convnextv2: undistort=0.15
+    recall 0.9589  worst 0.778  false-play 0.0165
+
+wrote C:\Users\maria\Desktop\football\results\preprocess_search.json
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+1599 frames | 9 venue folds | 1 model(s)
+16 candidate settings across 10 switches
+  play frames per fold: a_blue_barrier=168, d_indoor_dome=18, e_pink_boards=18, f_outdoor_bldg=13, g_netting=31, h_teal_pitch=18, i_outdoor_trees=18, davinci_j_maint_outdoor=0, davinci_l_city_pitch=1
+
+  WARNING: 2/9 folds have fewer than 10 play frames (davinci_j_maint_outdoor=0, davinci_l_city_pitch=1).
+  Recall takes only a few discrete values there, the unweighted fold mean
+  over-weights them, and a result of 1.000 is mostly arithmetic.
+  Drop --limit for a ranking you can trust.
+
+
+============================================================
+dinov2
+============================================================
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 2569.79it/s]
+  baseline           recall 0.8309
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6516.75it/s]
+    undistort=0.15               recall 0.8985 worst 0.611 falsePlay 0.9959
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 3681.20it/s]
+  + undistort=0.3                recall 0.9122 worst 0.462 falsePlay 0.0412
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6271.11it/s]
+  + centre_crop=0.5              recall 0.9707 worst 0.778 falsePlay 0.3128
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 8135.07it/s]
+  + centre_crop=0.7              recall 0.9640 worst 0.821 falsePlay 0.0206
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6192.06it/s]
+    top_crop=0.2                 recall 0.9775 worst 0.903 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6317.62it/s]
+    top_crop=0.35                recall 0.7986 worst 0.000 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6374.02it/s]
+    letterbox=False              recall 0.9487 worst 0.667 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6764.17it/s]
+    per_image_standardise=True   recall 0.7960 worst 0.000 falsePlay 0.3951
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6568.14it/s]
+  + clahe=on                     recall 0.8462 worst 0.000 falsePlay 0.1605
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6463.70it/s]
+    clahe=auto                   recall 0.8404 worst 0.000 falsePlay 0.8807
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6532.32it/s]
+    gamma=0.7                    recall 0.8077 worst 0.000 falsePlay 0.9753
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6474.98it/s]
+    gamma=1.4                    recall 0.8461 worst 0.000 falsePlay 0.9630
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6594.31it/s]
+  + saturation=0.0               recall 0.8193 worst 0.000 falsePlay 0.0206
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6602.55it/s]
+  + saturation=0.5               recall 0.8486 worst 0.000 falsePlay 0.1193
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6156.85it/s]
+    denoise=25.0                 recall 0.8611 worst 0.000 falsePlay 0.2716
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6573.27it/s]
+  + sharpen=0.6                  recall 0.8215 worst 0.000 falsePlay 0.1687
+  round 1: adopt centre_crop=0.7 -> 0.9640
+
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6953.71it/s]
+    undistort=0.15               recall 0.8857 worst 0.556 falsePlay 0.1728
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6802.35it/s]
+    undistort=0.3                recall 0.8698 worst 0.000 falsePlay 0.9424
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6502.34it/s]
+    top_crop=0.2                 recall 0.7999 worst 0.000 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 4110.87it/s]
+    top_crop=0.35                recall 0.9147 worst 0.484 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6668.64it/s]
+  + letterbox=False              recall 0.9754 worst 0.871 falsePlay 0.0082
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6451.97it/s]
+    per_image_standardise=True   recall 0.9641 worst 0.845 falsePlay 0.8930
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 8250.75it/s]
+  + clahe=on                     recall 0.9762 worst 0.887 falsePlay 0.0041
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6846.01it/s]
+  + clahe=auto                   recall 0.9881 worst 0.905 falsePlay 0.0041
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6517.07it/s]
+  + gamma=0.7                    recall 0.9738 worst 0.923 falsePlay 0.0206
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 5761.73it/s]
+    gamma=1.4                    recall 0.9419 worst 0.786 falsePlay 0.6379
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6601.99it/s]
+    saturation=0.0               recall 0.9245 worst 0.462 falsePlay 0.0165
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6563.63it/s]
+  + saturation=0.5               recall 0.9774 worst 0.923 falsePlay 0.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6648.92it/s]
+    denoise=25.0                 recall 0.9856 worst 0.917 falsePlay 0.0988
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6490.12it/s]
+    sharpen=0.6                  recall 0.9421 worst 0.768 falsePlay 0.7407
+  round 2: adopt clahe=auto -> 0.9881
+
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6636.98it/s]
+    undistort=0.15               recall 0.9844 worst 0.875 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6465.04it/s]
+    undistort=0.3                recall 0.9838 worst 0.944 falsePlay 0.4568
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6482.61it/s]
+    top_crop=0.2                 recall 0.8771 worst 0.111 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6499.90it/s]
+'[Errno 11001] getaddrinfo failed' thrown while requesting HEAD https://huggingface.co/facebook/dinov2-base/resolve/main/processor_config.json
+Retrying in 1s [Retry 1/5].
+'[Errno 11001] getaddrinfo failed' thrown while requesting HEAD https://huggingface.co/facebook/dinov2-base/resolve/main/processor_config.json
+Retrying in 2s [Retry 2/5].
+'[Errno 11001] getaddrinfo failed' thrown while requesting HEAD https://huggingface.co/facebook/dinov2-base/resolve/main/processor_config.json
+Retrying in 4s [Retry 3/5].
+'[Errno 11001] getaddrinfo failed' thrown while requesting HEAD https://huggingface.co/facebook/dinov2-base/resolve/main/processor_config.json
+Retrying in 8s [Retry 4/5].
+'[Errno 11001] getaddrinfo failed' thrown while requesting HEAD https://huggingface.co/facebook/dinov2-base/resolve/main/processor_config.json
+Retrying in 8s [Retry 5/5].
+'[Errno 11001] getaddrinfo failed' thrown while requesting HEAD https://huggingface.co/facebook/dinov2-base/resolve/main/processor_config.json
+'[Errno 11001] getaddrinfo failed' thrown while requesting HEAD https://huggingface.co/facebook/dinov2-base/resolve/main/processor_config.json
+Retrying in 1s [Retry 1/5].
+'[Errno 11001] getaddrinfo failed' thrown while requesting HEAD https://huggingface.co/facebook/dinov2-base/resolve/main/processor_config.json
+Retrying in 2s [Retry 2/5].
+'[Errno 11001] getaddrinfo failed' thrown while requesting HEAD https://huggingface.co/facebook/dinov2-base/resolve/main/processor_config.json
+Retrying in 4s [Retry 3/5].
+'[Errno 11001] getaddrinfo failed' thrown while requesting HEAD https://huggingface.co/facebook/dinov2-base/resolve/main/processor_config.json
+Retrying in 8s [Retry 4/5].
+'[Errno 11001] getaddrinfo failed' thrown while requesting HEAD https://huggingface.co/facebook/dinov2-base/resolve/main/processor_config.json
+Retrying in 8s [Retry 5/5].
+'[Errno 11001] getaddrinfo failed' thrown while requesting HEAD https://huggingface.co/facebook/dinov2-base/resolve/main/processor_config.json
+    top_crop=0.35                recall 0.9718 worst 0.774 falsePlay 0.9794
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6112.71it/s]
+    letterbox=False              recall 0.9766 worst 0.889 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 4975.90it/s]
+    per_image_standardise=True   recall 0.9603 worst 0.778 falsePlay 0.0206
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6194.98it/s]
+    gamma=0.7                    recall 0.9755 worst 0.881 falsePlay 0.9383
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6680.59it/s]
+    gamma=1.4                    recall 0.9621 worst 0.774 falsePlay 0.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6314.46it/s]
+    saturation=0.0               recall 0.9637 worst 0.846 falsePlay 0.3580
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6953.81it/s]
+    saturation=0.5               recall 0.9859 worst 0.923 falsePlay 0.0247
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6256.76it/s]
+    denoise=25.0                 recall 0.9896 worst 0.917 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 7837.92it/s]
+    sharpen=0.6                  recall 0.9792 worst 0.911 falsePlay 0.0412
+  round 3: no improvement - stopping
+
+  BEST for dinov2: centre_crop=0.7 clahe=auto
+    recall 0.9881  worst 0.905  false-play 0.0041
+
+wrote C:\Users\maria\Desktop\football\results\preprocess_search.json
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+1599 frames | 9 venue folds | 1 model(s)
+16 candidate settings across 10 switches
+  play frames per fold: a_blue_barrier=168, d_indoor_dome=18, e_pink_boards=18, f_outdoor_bldg=13, g_netting=31, h_teal_pitch=18, i_outdoor_trees=18, davinci_j_maint_outdoor=0, davinci_l_city_pitch=1
+
+  WARNING: 2/9 folds have fewer than 10 play frames (davinci_j_maint_outdoor=0, davinci_l_city_pitch=1).
+  Recall takes only a few discrete values there, the unweighted fold mean
+  over-weights them, and a result of 1.000 is mostly arithmetic.
+  Drop --limit for a ranking you can trust.
+
+
+============================================================
+vit
+============================================================
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 3939.27it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+  baseline           recall 0.9082
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5789.40it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    undistort=0.15               recall 0.9204 worst 0.722 falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6414.00it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    undistort=0.3                recall 0.9107 worst 0.333 falsePlay 0.9794
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6681.14it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    centre_crop=0.5              recall 0.8613 worst 0.000 falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6629.46it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+  + centre_crop=0.7              recall 0.9321 worst 0.548 falsePlay 0.1276
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 7743.84it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    top_crop=0.2                 recall 0.8654 worst 0.000 falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6978.41it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+  + top_crop=0.35                recall 0.9352 worst 0.809 falsePlay 0.9630
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6963.25it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+  + letterbox=False              recall 0.8119 worst 0.000 falsePlay 0.0864
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6394.05it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+  + per_image_standardise=True   recall 0.8125 worst 0.000 falsePlay 0.8313
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6443.91it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+  + clahe=on                     recall 0.8522 worst 0.444 falsePlay 0.8807
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6548.43it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+  + clahe=auto                   recall 0.9187 worst 0.722 falsePlay 0.9136
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6210.11it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    gamma=0.7                    recall 0.8436 worst 0.538 falsePlay 0.9959
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5112.33it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+  + gamma=1.4                    recall 0.8393 worst 0.308 falsePlay 0.8519
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6453.53it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+  + saturation=0.0               recall 0.8996 worst 0.196 falsePlay 0.6626
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 7066.34it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    saturation=0.5               recall 0.8830 worst 0.667 falsePlay 0.9465
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6805.03it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    denoise=25.0                 recall 0.8696 worst 0.308 falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 7001.00it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+  + sharpen=0.6                  recall 0.8953 worst 0.611 falsePlay 0.0247
+  round 1: adopt sharpen=0.6 -> 0.8953
+
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6831.96it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    undistort=0.15               recall 0.8953 worst 0.278 falsePlay 0.9835
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6155.11it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    undistort=0.3                recall 0.7571 worst 0.000 falsePlay 0.9877
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6507.23it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    centre_crop=0.5              recall 0.8342 worst 0.111 falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6219.60it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+  + centre_crop=0.7              recall 0.9093 worst 0.611 falsePlay 0.0041
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6367.68it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    top_crop=0.2                 recall 0.8695 worst 0.000 falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6532.36it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    top_crop=0.35                recall 0.8788 worst 0.611 falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6149.91it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    letterbox=False              recall 0.9233 worst 0.667 falsePlay 0.1770
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6341.03it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    per_image_standardise=True   recall 0.8896 worst 0.167 falsePlay 0.9671
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 7697.04it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    clahe=on                     recall 0.8773 worst 0.611 falsePlay 0.9877
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4735.17it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    clahe=auto                   recall 0.9506 worst 0.845 falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5265.62it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    gamma=0.7                    recall 0.9214 worst 0.389 falsePlay 0.9177
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6561.37it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    gamma=1.4                    recall 0.9062 worst 0.637 falsePlay 0.3086
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 7101.57it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+  + saturation=0.0               recall 0.8894 worst 0.393 falsePlay 0.0041
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6418.41it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    saturation=0.5               recall 0.8692 worst 0.611 falsePlay 0.2346
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6304.78it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    denoise=25.0                 recall 0.9423 worst 0.722 falsePlay 0.9506
+  round 2: adopt centre_crop=0.7 -> 0.9093
+
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5929.49it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    undistort=0.15               recall 0.9487 worst 0.645 falsePlay 0.9959
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6580.40it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    undistort=0.3                recall 0.9575 worst 0.806 falsePlay 0.9959
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6882.80it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    top_crop=0.2                 recall 0.9401 worst 0.581 falsePlay 0.8930
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5783.23it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    top_crop=0.35                recall 0.7322 worst 0.000 falsePlay 0.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6885.09it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    letterbox=False              recall 0.9094 worst 0.452 falsePlay 0.9547
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 7012.46it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    per_image_standardise=True   recall 0.9366 worst 0.548 falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6749.17it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    clahe=on                     recall 0.9027 worst 0.419 falsePlay 0.4609
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6611.78it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    clahe=auto                   recall 0.9053 worst 0.516 falsePlay 0.9012
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6668.91it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    gamma=0.7                    recall 0.9114 worst 0.556 falsePlay 0.3621
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6189.33it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    gamma=1.4                    recall 0.8280 worst 0.278 falsePlay 0.4527
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6262.42it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    saturation=0.0               recall 0.9036 worst 0.538 falsePlay 0.1687
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5388.16it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    saturation=0.5               recall 0.8709 worst 0.278 falsePlay 0.9712
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 6506.87it/s]
+[transformers] [1mViTModel LOAD REPORT[0m from: google/vit-base-patch16-224
+Key                 | Status     | 
+--------------------+------------+-
+classifier.bias     | UNEXPECTED | 
+classifier.weight   | UNEXPECTED | 
+pooler.dense.bias   | MISSING    | 
+pooler.dense.weight | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+    denoise=25.0                 recall 0.9468 worst 0.774 falsePlay 0.1893
+  round 3: no improvement - stopping
+
+  BEST for vit: centre_crop=0.7 sharpen=0.6
+    recall 0.9093  worst 0.611  false-play 0.0041
+
+wrote C:\Users\maria\Desktop\football\results\preprocess_search.json
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+500 frames | 8 venue folds | 1 model(s)
+16 candidate settings across 10 switches
+  play frames per fold: a_blue_barrier=55, d_indoor_dome=8, e_pink_boards=7, f_outdoor_bldg=3, g_netting=6, h_teal_pitch=5, i_outdoor_trees=8, davinci_j_maint_outdoor=0
+
+  WARNING: 7/8 folds have fewer than 10 play frames (d_indoor_dome=8, e_pink_boards=7, f_outdoor_bldg=3, g_netting=6, h_teal_pitch=5, i_outdoor_trees=8, davinci_j_maint_outdoor=0).
+  Recall takes only a few discrete values there, the unweighted fold mean
+  over-weights them, and a result of 1.000 is mostly arithmetic.
+  Drop --limit for a ranking you can trust.
+
+
+============================================================
+convnextv2
+============================================================
+  baseline           recall 0.9610
+  + undistort=0.15               recall 0.9948 worst 0.964 falsePlay 0.0000
+    undistort=0.3                recall 0.8000 worst 0.000 falsePlay 0.0141
+    centre_crop=0.5              recall 0.9260 worst 0.625 falsePlay 1.0000
+  + centre_crop=0.7              recall 0.9714 worst 0.800 falsePlay 0.0141
+  + top_crop=0.2                 recall 0.9948 worst 0.964 falsePlay 0.0141
+    top_crop=0.35                recall 0.9350 worst 0.833 falsePlay 1.0000
+    letterbox=False              recall 0.8723 worst 0.400 falsePlay 0.0141
+  + per_image_standardise=True   recall 0.9276 worst 0.618 falsePlay 0.0141
+    clahe=on                     recall 0.9212 worst 0.667 falsePlay 1.0000
+    clahe=auto                   recall 0.9896 worst 0.927 falsePlay 1.0000
+    gamma=0.7                    recall 0.9662 worst 0.764 falsePlay 0.3803
+    gamma=1.4                    recall 0.9060 worst 0.667 falsePlay 1.0000
+    saturation=0.0               recall 0.8162 worst 0.250 falsePlay 0.3239
+    saturation=0.5               recall 0.9740 worst 0.818 falsePlay 1.0000
+    denoise=25.0                 recall 0.9120 worst 0.600 falsePlay 0.0141
+    sharpen=0.6                  recall 0.9844 worst 0.891 falsePlay 1.0000
+  round 1: adopt undistort=0.15 -> 0.9948
+
+    centre_crop=0.5              recall 0.8982 worst 0.667 falsePlay 1.0000
+  + centre_crop=0.7              recall 1.0000 worst 1.000 falsePlay 0.0000
+    top_crop=0.2                 recall 0.9974 worst 0.982 falsePlay 0.0141
+    top_crop=0.35                recall 0.8416 worst 0.000 falsePlay 0.5211
+    letterbox=False              recall 0.8815 worst 0.600 falsePlay 0.0141
+    per_image_standardise=True   recall 0.9766 worst 0.836 falsePlay 0.0000
+    clahe=on                     recall 0.9714 worst 0.800 falsePlay 1.0000
+    clahe=auto                   recall 0.9513 worst 0.750 falsePlay 1.0000
+    gamma=0.7                    recall 0.9922 worst 0.946 falsePlay 0.0141
+    gamma=1.4                    recall 0.9844 worst 0.891 falsePlay 0.0986
+    saturation=0.0               recall 0.7679 worst 0.000 falsePlay 0.0000
+    saturation=0.5               recall 0.9714 worst 0.800 falsePlay 0.0141
+    denoise=25.0                 recall 0.9022 worst 0.333 falsePlay 0.0141
+    sharpen=0.6                  recall 0.9536 worst 0.800 falsePlay 1.0000
+  round 2: adopt centre_crop=0.7 -> 1.0000
+
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4036.79it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.weight | UNEXPECTED |  | 
+classifier.bias   | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    top_crop=0.2                 recall 0.9260 worst 0.667 falsePlay 0.0141
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4403.89it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.weight | UNEXPECTED |  | 
+classifier.bias   | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    top_crop=0.35                recall 0.9524 worst 0.667 falsePlay 0.9718
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 3989.24it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.weight | UNEXPECTED |  | 
+classifier.bias   | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    letterbox=False              recall 0.9184 worst 0.429 falsePlay 0.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5169.19it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.weight | UNEXPECTED |  | 
+classifier.bias   | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    per_image_standardise=True   recall 0.9948 worst 0.964 falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4430.39it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.weight | UNEXPECTED |  | 
+classifier.bias   | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    clahe=on                     recall 0.9065 worst 0.400 falsePlay 0.0141
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5445.90it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.weight | UNEXPECTED |  | 
+classifier.bias   | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    clahe=auto                   recall 0.9458 worst 0.800 falsePlay 0.0141
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5729.13it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.weight | UNEXPECTED |  | 
+classifier.bias   | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    gamma=0.7                    recall 0.9403 worst 0.600 falsePlay 0.0141
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 5651.28it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.weight | UNEXPECTED |  | 
+classifier.bias   | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    gamma=1.4                    recall 1.0000 worst 1.000 falsePlay 0.0563
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4380.06it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.weight | UNEXPECTED |  | 
+classifier.bias   | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    saturation=0.0               recall 0.9531 worst 0.833 falsePlay 1.0000
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 3966.34it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.weight | UNEXPECTED |  | 
+classifier.bias   | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    saturation=0.5               recall 0.9762 worst 0.833 falsePlay 0.0704
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4102.64it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.weight | UNEXPECTED |  | 
+classifier.bias   | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    denoise=25.0                 recall 0.9584 worst 0.800 falsePlay 0.3099
+Loading weights:   0%|          | 0/198 [00:00<?, ?it/s]Loading weights: 100%|##########| 198/198 [00:00<00:00, 4200.31it/s]
+[transformers] [1mConvNextV2Model LOAD REPORT[0m from: facebook/convnextv2-tiny-22k-224
+Key               | Status     |  | 
+------------------+------------+--+-
+classifier.weight | UNEXPECTED |  | 
+classifier.bias   | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+    sharpen=0.6                  recall 0.9795 worst 0.875 falsePlay 0.9296
+  round 3: no improvement - stopping
+
+  BEST for convnextv2: undistort=0.15 centre_crop=0.7
+    recall 1.0000  worst 1.000  false-play 0.0000
+
+wrote C:\Users\maria\Desktop\football\results\preprocess_search.json
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+500 frames | 8 venue folds | 1 model(s)
+16 candidate settings across 10 switches
+  play frames per fold: a_blue_barrier=55, d_indoor_dome=8, e_pink_boards=7, f_outdoor_bldg=3, g_netting=6, h_teal_pitch=5, i_outdoor_trees=8, davinci_j_maint_outdoor=0
+
+  WARNING: 7/8 folds have fewer than 10 play frames (d_indoor_dome=8, e_pink_boards=7, f_outdoor_bldg=3, g_netting=6, h_teal_pitch=5, i_outdoor_trees=8, davinci_j_maint_outdoor=0).
+  Recall takes only a few discrete values there, the unweighted fold mean
+  over-weights them, and a result of 1.000 is mostly arithmetic.
+  Drop --limit for a ranking you can trust.
+
+
+============================================================
+dinov2
+============================================================
+  baseline           recall 1.0000
+  + undistort=0.15               recall 0.9429 worst 0.600 falsePlay 0.3662
+    undistort=0.3                recall 0.8000 worst 0.000 falsePlay 0.9859
+  + centre_crop=0.5              recall 0.9558 worst 0.800 falsePlay 0.0423
+    centre_crop=0.7              recall 0.9662 worst 0.800 falsePlay 1.0000
+    top_crop=0.2                 recall 0.9524 worst 0.667 falsePlay 1.0000
+    top_crop=0.35                recall 1.0000 worst 1.000 falsePlay 1.0000
+    letterbox=False              recall 0.9429 worst 0.600 falsePlay 1.0000
+  + per_image_standardise=True   recall 1.0000 worst 1.000 falsePlay 0.9577
+    clahe=on                     recall 1.0000 worst 1.000 falsePlay 1.0000
+    clahe=auto                   recall 1.0000 worst 1.000 falsePlay 1.0000
+    gamma=0.7                    recall 0.9429 worst 0.600 falsePlay 0.9859
+  + gamma=1.4                    recall 0.9429 worst 0.600 falsePlay 0.8592
+  + saturation=0.0               recall 0.9429 worst 0.600 falsePlay 0.1127
+  + saturation=0.5               recall 0.9524 worst 0.667 falsePlay 0.6620
+  + denoise=25.0                 recall 1.0000 worst 1.000 falsePlay 0.9577
+  + sharpen=0.6                  recall 1.0000 worst 1.000 falsePlay 0.9437
+  round 1: adopt centre_crop=0.5 -> 0.9558
+
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 4216.94it/s]
+    undistort=0.15               recall 0.9636 worst 0.800 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 4905.44it/s]
+    undistort=0.3                recall 0.9584 worst 0.800 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6579.79it/s]
+    top_crop=0.2                 recall 0.9446 worst 0.667 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 4279.28it/s]
+    top_crop=0.35                recall 0.9113 worst 0.545 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 3917.58it/s]
+    letterbox=False              recall 0.9636 worst 0.800 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 4653.54it/s]
+    per_image_standardise=True   recall 0.9974 worst 0.982 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 4258.99it/s]
+    clahe=on                     recall 0.9688 worst 0.800 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 4251.71it/s]
+    clahe=auto                   recall 0.9403 worst 0.600 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 5799.34it/s]
+    gamma=0.7                    recall 0.9558 worst 0.800 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6682.02it/s]
+    gamma=1.4                    recall 0.9610 worst 0.800 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 4470.26it/s]
+    saturation=0.0               recall 0.9688 worst 0.800 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 4100.76it/s]
+    saturation=0.5               recall 0.9636 worst 0.800 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 3926.43it/s]
+    denoise=25.0                 recall 0.9796 worst 0.857 falsePlay 1.0000
+Loading weights:   0%|          | 0/223 [00:00<?, ?it/s]Loading weights: 100%|##########| 223/223 [00:00<00:00, 6403.82it/s]
+    sharpen=0.6                  recall 0.9124 worst 0.714 falsePlay 0.6479
+  round 2: no improvement - stopping
+
+  BEST for dinov2: centre_crop=0.5
+    recall 0.9558  worst 0.800  false-play 0.0423
+
+wrote C:\Users\maria\Desktop\football\results\preprocess_search.json
+500 frames | 8 venue folds | 1 model(s)
+16 candidate settings across 10 switches
+  play frames per fold: a_blue_barrier=55, d_indoor_dome=8, e_pink_boards=7, f_outdoor_bldg=3, g_netting=6, h_teal_pitch=5, i_outdoor_trees=8, davinci_j_maint_outdoor=0
+
+  WARNING: 7/8 folds have fewer than 10 play frames (d_indoor_dome=8, e_pink_boards=7, f_outdoor_bldg=3, g_netting=6, h_teal_pitch=5, i_outdoor_trees=8, davinci_j_maint_outdoor=0).
+  Recall takes only a few discrete values there, the unweighted fold mean
+  over-weights them, and a result of 1.000 is mostly arithmetic.
+  Drop --limit for a ranking you can trust.
+
+
+============================================================
+vit
+============================================================
+  baseline           recall 0.9141
+    undistort=0.15               recall 0.8820 worst 0.429 falsePlay 1.0000
+    undistort=0.3                recall 0.9351 worst 0.600 falsePlay 0.9859
+    centre_crop=0.5              recall 0.8776 worst 0.143 falsePlay 1.0000
+  + centre_crop=0.7              recall 1.0000 worst 1.000 falsePlay 1.0000
+    top_crop=0.2                 recall 0.9117 worst 0.400 falsePlay 1.0000
+    top_crop=0.35                recall 0.9320 worst 0.800 falsePlay 1.0000
+  + letterbox=False              recall 0.9429 worst 0.600 falsePlay 0.4648
+    per_image_standardise=True   recall 0.9403 worst 0.600 falsePlay 1.0000
+    clahe=on                     recall 0.8619 worst 0.200 falsePlay 1.0000
+    clahe=auto                   recall 0.9143 worst 0.400 falsePlay 1.0000
+    gamma=0.7                    recall 0.8948 worst 0.500 falsePlay 1.0000
+    gamma=1.4                    recall 0.9048 worst 0.333 falsePlay 0.9296
+    saturation=0.0               recall 0.9562 worst 0.818 falsePlay 1.0000
+    saturation=0.5               recall 0.9215 worst 0.667 falsePlay 1.0000
+    denoise=25.0                 recall 0.9060 worst 0.667 falsePlay 1.0000
+  + sharpen=0.6                  recall 0.9052 worst 0.500 falsePlay 0.0282
+  round 1: adopt sharpen=0.6 -> 0.9052
+
+    undistort=0.15               recall 0.8994 worst 0.600 falsePlay 0.3099
+    undistort=0.3                recall 0.8549 worst 0.200 falsePlay 0.3380
+    centre_crop=0.5              recall 0.8750 worst 0.143 falsePlay 1.0000
+    centre_crop=0.7              recall 0.9405 worst 0.750 falsePlay 0.5915
+    top_crop=0.2                 recall 0.9974 worst 0.982 falsePlay 1.0000
+    top_crop=0.35                recall 0.9870 worst 0.909 falsePlay 1.0000
+    letterbox=False              recall 0.9351 worst 0.600 falsePlay 1.0000
+    per_image_standardise=True   recall 0.8753 worst 0.200 falsePlay 1.0000
+    clahe=on                     recall 0.8619 worst 0.200 falsePlay 1.0000
+    clahe=auto                   recall 0.9039 worst 0.400 falsePlay 1.0000
+    gamma=0.7                    recall 0.8214 worst 0.200 falsePlay 1.0000
+    gamma=1.4                    recall 0.9844 worst 0.891 falsePlay 0.8028
+    saturation=0.0               recall 0.9003 worst 0.375 falsePlay 0.8732
+    saturation=0.5               recall 0.8682 worst 0.400 falsePlay 0.8592
+    denoise=25.0                 recall 0.8580 worst 0.333 falsePlay 0.8873
+  round 2: no improvement - stopping
+
+  BEST for vit: sharpen=0.6
+    recall 0.9052  worst 0.500  false-play 0.0282
+
+wrote C:\Users\maria\Desktop\football\results\preprocess_search.json
+6 run(s), full-frame first so the 500-frame runs reuse the cache:
+  convnextv2 · all
+  dinov2 · all
+  vit · all
+  convnextv2 · 500
+  dinov2 · 500
+  vit · 500
+
+================================================================
+[1/6] convnextv2 · all
+================================================================
+  archived the previous run as convnextv2__500
+  C:\Users\maria\Desktop\football\experiments\preprocess_search.py --models convnextv2 --rounds 3
+  saved 31 evaluations (31 scored) to results\search_runs\convnextv2__all.json
+
+================================================================
+[2/6] dinov2 · all
+================================================================
+  archived the previous run as convnextv2__all
+  C:\Users\maria\Desktop\football\experiments\preprocess_search.py --models dinov2 --rounds 3
+  saved 43 evaluations (43 scored) to results\search_runs\dinov2__all.json
+
+================================================================
+[3/6] vit · all
+================================================================
+  archived the previous run as dinov2__all
+  C:\Users\maria\Desktop\football\experiments\preprocess_search.py --models vit --rounds 3
+  saved 45 evaluations (45 scored) to results\search_runs\vit__all.json
+
+================================================================
+[4/6] convnextv2 · 500
+================================================================
+  archived the previous run as vit__all
+  resuming from 43 saved evaluations
+  C:\Users\maria\Desktop\football\experiments\preprocess_search.py --models convnextv2 --rounds 3 --limit 500
+  saved 55 evaluations (55 scored) to results\search_runs\convnextv2__500.json
+
+================================================================
+[5/6] dinov2 · 500
+================================================================
+  archived the previous run as convnextv2__500
+  C:\Users\maria\Desktop\football\experiments\preprocess_search.py --models dinov2 --rounds 3 --limit 500
+  saved 31 evaluations (31 scored) to results\search_runs\dinov2__500.json
+
+================================================================
+[6/6] vit · 500
+================================================================
+  archived the previous run as dinov2__500
+  C:\Users\maria\Desktop\football\experiments\preprocess_search.py --models vit --rounds 3 --limit 500
+  saved 32 evaluations (32 scored) to results\search_runs\vit__500.json
+
+all requested cells saved - the page reads them under 'View old results'

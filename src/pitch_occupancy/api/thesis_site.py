@@ -28,7 +28,12 @@ from pitch_occupancy.api.findings_summary import STYLES as FINDINGS_STYLES
 from pitch_occupancy.api.findings_summary import render_summary as render_findings
 from pitch_occupancy.api.models_view import STYLES as MODEL_STYLES
 from pitch_occupancy.api.models_view import render as render_models
-from pitch_occupancy.api.search_panel import PANEL_HTML, PANEL_SCRIPT, PANEL_STYLES
+from pitch_occupancy.api.search_panel import (
+    ARCHIVE_HTML,
+    PANEL_HTML,
+    PANEL_SCRIPT,
+    PANEL_STYLES,
+)
 from pitch_occupancy.api.talk import SECTIONS
 from pitch_occupancy.api.talk import STYLES as TALK_STYLES
 
@@ -226,6 +231,7 @@ def page() -> str:
                   'needs a fresh embedding pass, so a full-size run takes a few hours '
                   '&mdash; it keeps going if you close the tab.</p>'
                 + PANEL_HTML
+                + ARCHIVE_HTML
             )
         views.append(
             f'<section class="view" data-view="{key}" hidden>'

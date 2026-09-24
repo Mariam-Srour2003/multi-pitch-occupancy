@@ -14,7 +14,7 @@ Two things it is built to make visible rather than leave in a column:
 
 from __future__ import annotations
 
-__all__ = ["PANEL_HTML", "PANEL_STYLES"]
+__all__ = ["PANEL_HTML", "PANEL_STYLES", "PANEL_SCRIPT", "ARCHIVE_HTML"]
 
 PANEL_STYLES = """
 .runbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--surface);
@@ -68,6 +68,17 @@ PANEL_STYLES = """
 .alert{background:var(--warn-soft);color:var(--ink-2);border-radius:9px;padding:12px 16px;
  margin:12px 0;font-size:13.5px;max-width:74ch}
 .alert b{color:var(--ink)}
+.runbar .when{font:500 12.5px 'JetBrains Mono',monospace;color:var(--ink-3)}
+/* The grid of six. Every cell is listed whether or not it has been run, because "which of
+   these is missing" is the question the selector is answering. */
+.cells{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0 0}
+.cells button{font:500 12px 'JetBrains Mono',monospace;padding:6px 10px;border-radius:7px;
+ border:1px solid var(--line);background:var(--surface);color:var(--ink-2);cursor:pointer}
+.cells button:hover{border-color:var(--accent);color:var(--accent)}
+.cells button[aria-current="true"]{background:var(--ink);color:var(--ground);
+ border-color:var(--ink)}
+.cells button.empty{color:var(--ink-3);border-style:dashed}
+.cells button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 """
 
 PANEL_HTML = """
@@ -90,6 +101,31 @@ PANEL_HTML = """
 <div id="sProg"></div>
 <div id="sAlert"></div>
 <div id="sChart"></div>
+"""
+
+#: The saved-run viewer, below the live panel. Six runs - three backbones over two frame
+#: counts - and the live state file holds one of them at a time, so without this every
+#: finished run is destroyed by the next one being started.
+ARCHIVE_HTML = """
+<h2>View old results</h2>
+<p class="note">Three backbones over two frame counts. The live panel above holds one run at a time; each finished run is saved here, so the six can be compared without re-running any of them.</p>
+<div class="runbar">
+  <label for="aModel">Backbone</label>
+  <select id="aModel">
+    <option value="dinov2">DINOv2</option>
+    <option value="convnextv2">ConvNeXtV2</option>
+    <option value="vit">ViT</option>
+  </select>
+  <label for="aScope">Frames</label>
+  <select id="aScope">
+    <option value="all">All frames</option>
+    <option value="500">500 frames</option>
+  </select>
+  <span class="when" id="aWhen"></span>
+</div>
+<div class="cells" id="aCells"></div>
+<div id="aAlert"></div>
+<div id="aChart"></div>
 """
 
 PANEL_SCRIPT = """
@@ -275,4 +311,74 @@ document.getElementById("sClear").onclick = async () => {
 };
 
 pollSearch();
+
+/* --- saved runs ----------------------------------------------------------------
+   The six cells are rendered from the server's index rather than from this list of
+   options, so a cell that has never been run says so instead of drawing an empty chart
+   that looks like a finished one. Both are empty; only one of them means "run it". */
+const aModel = document.getElementById("aModel");
+const aScope = document.getElementById("aScope");
+const aCells = document.getElementById("aCells");
+const aChart = document.getElementById("aChart");
+const aAlert = document.getElementById("aAlert");
+const aWhen = document.getElementById("aWhen");
+
+function renderCells(cells) {
+  const m = aModel.value, sc = aScope.value;
+  aCells.innerHTML = cells.map(c => `
+    <button data-model="${c.model}" data-scope="${c.scope}"
+      class="${c.saved ? "" : "empty"}"
+      aria-current="${c.model === m && c.scope === sc}">
+      ${esc(c.model_label)} · ${esc(c.scope_label)} · ${
+        c.saved ? c.scored + "/" + c.evaluations + " scored" : "not run"}
+    </button>`).join("");
+  [...aCells.children].forEach(b => {
+    b.onclick = () => {
+      aModel.value = b.dataset.model;
+      aScope.value = b.dataset.scope;
+      loadSaved();
+    };
+  });
+}
+
+async function loadSaved() {
+  const m = aModel.value, sc = aScope.value;
+  let r;
+  try {
+    r = await fetch(`/api/v1/search/runs/${m}/${sc}`).then(x => x.json());
+  } catch { return; }
+  fetch("/api/v1/search/runs").then(x => x.json()).then(g => renderCells(g.cells))
+    .catch(() => {});
+  aWhen.textContent = r.saved
+    ? `${r.evaluations} evaluations · ${r.n_frames.join(", ") || "?"} frames${
+        r.generated ? " · " + r.generated.slice(0, 16).replace("T", " ") : ""}`
+    : "";
+  aAlert.innerHTML = r.warning
+    ? `<div class="alert"><b>Careful.</b> ${esc(r.warning)}</div>` : "";
+  if (!r.saved) {
+    aChart.innerHTML = `<p class="missing"><b>${esc(r.model_label)} · ${
+      esc(r.scope_label)}</b> has not been run yet. Six runs fill this grid: three
+      backbones over two frame counts. Run it above, or
+      <code>uv run python experiments/search_all.py</code> to fill every empty cell in
+      order.</p>`;
+    return;
+  }
+  const scored = r.results.filter(x => typeof x.recall === "number");
+  if (!scored.length) {
+    aChart.innerHTML = `<p class="missing">${r.evaluations} evaluation${
+      r.evaluations === 1 ? "" : "s"} saved, none of them scored — every
+      <code>play_recall</code> in this run is <code>NaN</code>. There is nothing to chart
+      until it is re-run.</p>`;
+    return;
+  }
+  const best = scored[0];
+  aChart.innerHTML = `<div class="alert" style="background:var(--surface-2)">
+    <b>Best on ${esc(r.model_label)}, ${esc(r.scope_label).toLowerCase()}:</b>
+    <code>${esc(best.label)}</code> at ${best.recall.toFixed(4)} recall, worst fold
+    ${best.worst.toFixed(3)}.</div>` + barChart(scored, r.baseline ?? 0);
+}
+
+aModel.onchange = loadSaved;
+aScope.onchange = loadSaved;
+loadSaved();
 """

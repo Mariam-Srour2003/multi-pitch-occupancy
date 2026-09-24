@@ -21,6 +21,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from pitch_occupancy.api import search_archive
+
 ROOT = Path(__file__).resolve().parents[3]
 RESULTS = ROOT / "results"
 STATE = RESULTS / "preprocess_search.json"
@@ -81,6 +83,41 @@ class SearchStatus(BaseModel):
     rescore_warning: str | None = None
 
 
+class SavedRun(BaseModel):
+    """One cell of the saved grid, whether or not it was ever run.
+
+    It carries the same result rows as a live run so the page can draw either with one
+    renderer, plus `saved`, which is what tells "nobody has run this yet" apart from "this
+    ran and scored nothing" - two states that look identical once both are empty lists and
+    which mean opposite things about what to do next.
+    """
+
+    model: str
+    model_label: str
+    scope: str
+    scope_label: str
+    saved: bool
+    generated: str = ""
+    evaluations: int = 0
+    n_frames: list[int] = []
+    models: list[str] = []
+    baseline: float | None = None
+    best_label: str | None = None
+    best_recall: float | None = None
+    results: list[dict] = []
+    warning: str | None = None
+    rescore_warning: str | None = None
+
+
+def _archive_dir() -> Path:
+    """Where saved runs live, derived from `RESULTS` rather than fixed at import.
+
+    `RESULTS` is redirected to a temporary directory by the tests, and an archive path that
+    ignored that wrote fabricated cells into the repository's own `results/search_runs/`.
+    """
+    return RESULTS / "search_runs"
+
+
 def _read_state() -> dict:
     if not STATE.exists():
         return {}
@@ -103,19 +140,15 @@ def _pid_alive(pid: int) -> bool:
     return True
 
 
-@router.get("/preprocess", response_model=SearchStatus)
-def status() -> SearchStatus:
-    """Current state of the preprocessing search, however far it has got."""
-    state = _read_state()
-    evals = state.get("evaluations", [])
-    running = LOCK.exists()
-    pid = None
-    if running:
-        try:
-            pid = int(LOCK.read_text(encoding="utf-8").strip())
-        except (ValueError, OSError):
-            pid = None
+def summarise(evals: list[dict]) -> dict:
+    """Everything the page shows about a set of evaluations, live or saved.
 
+    Split out of `status` when the saved-run grid was added, because the ranking here is
+    not presentation - it is the safeguard. Recomputing it a second time for archived runs
+    is how a stored ConvNeXtV2 chart ends up ranked on raw recall while the live one is
+    ranked on the balanced score, and the whole point of the false-play control is that
+    those two orders differ.
+    """
     frames = sorted({e["n_frames"] for e in evals if e.get("n_frames")})
     # Which backbone these evaluations came from. The panel's dropdown is what the *next*
     # run would use, so without this a stored ConvNeXtV2 chart reads as whatever happens to
@@ -147,9 +180,9 @@ def status() -> SearchStatus:
     per_eval = durations[len(durations) // 2] if durations else None
     expected = expected_evaluations()
     elapsed = float(sum(durations))
-    eta = None
-    if running and per_eval and evals:
-        eta = max(0.0, (expected - len(evals)) * per_eval)
+    # What is left to wait for at this pace. `status` blanks it when nothing is running,
+    # and a saved run never shows it - the waiting is over by the time it is saved.
+    eta = max(0.0, (expected - len(evals)) * per_eval) if per_eval and evals else None
 
     # Kept as a separate field rather than folded into `warning`. Mixed or subsampled
     # frame counts mean the numbers are not comparable *at all* - "discard this state file
@@ -178,9 +211,7 @@ def status() -> SearchStatus:
             f"number you intend to quote."
         )
 
-    return SearchStatus(
-        running=running,
-        pid=pid,
+    return dict(
         evaluations=len(evals),
         expected=expected,
         progress=round(min(len(evals) / expected, 1.0), 4) if expected else 0.0,
@@ -214,6 +245,22 @@ def status() -> SearchStatus:
         warning=warning,
         rescore_warning=rescore_warning,
     )
+
+
+@router.get("/preprocess", response_model=SearchStatus)
+def status() -> SearchStatus:
+    """Current state of the preprocessing search, however far it has got."""
+    running = LOCK.exists()
+    pid = None
+    if running:
+        try:
+            pid = int(LOCK.read_text(encoding="utf-8").strip())
+        except (ValueError, OSError):
+            pid = None
+    summary = summarise(_read_state().get("evaluations", []))
+    if not running:
+        summary["eta_seconds"] = None
+    return SearchStatus(running=running, pid=pid, **summary)
 
 
 @router.post("/preprocess", response_model=SearchStatus)
@@ -252,8 +299,99 @@ def start(req: StartRequest) -> SearchStatus:
 
 @router.delete("/preprocess", response_model=SearchStatus)
 def clear() -> SearchStatus:
-    """Discard the current results so a run with different settings can start."""
+    """Discard the current results so a run with different settings can start.
+
+    Every backbone in the file is archived first. Clearing is the normal way to make room
+    for the next of the six runs, and hours of evaluations should not depend on someone
+    having pressed save before pressing clear.
+    """
     if LOCK.exists():
         raise HTTPException(409, "A search is running; stop it before clearing results.")
+    archive_state(_read_state())
     STATE.unlink(missing_ok=True)
     return status()
+
+
+def archive_state(state: dict) -> list[str]:
+    """Save each backbone in `state` into its cell, keyed by the frame count it used.
+
+    The scope is read from the evaluations rather than from whatever was typed into the
+    panel: what a run *is* is what it scored on, and a mislabelled cell is worse than an
+    empty one.
+    """
+    evals = state.get("evaluations", [])
+    saved = []
+    for model in sorted({e.get("model") for e in evals if e.get("model")}):
+        frames = sorted({e["n_frames"] for e in evals
+                         if e.get("model") == model and e.get("n_frames")})
+        if len(frames) != 1:
+            continue  # mixed or unknown: the frame-count guard exists to prevent this
+        scope = search_archive.scope_of(None if frames[0] > 500 else frames[0])
+        try:
+            search_archive.save(model, scope, state, base=_archive_dir())
+        except ValueError:
+            continue  # a backbone the grid does not offer
+        saved.append(f"{model}__{scope}")
+    return saved
+
+
+# --- saved runs ---------------------------------------------------------------------
+#
+# Three backbones over two frame counts is six runs, and the live state file holds exactly
+# one of them. Each finished run is copied into `results/search_runs/` and read back here,
+# so the six can be compared without re-running any of them.
+
+
+@router.get("/runs")
+def runs() -> dict:
+    """The whole grid: six cells, each saying whether it has been run and what it holds."""
+    return {"cells": search_archive.index(_archive_dir())}
+
+
+@router.get("/runs/{model}/{scope}", response_model=SavedRun)
+def saved_run(model: str, scope: str) -> SavedRun:
+    """One saved run, ranked and warned about by the same code as a live one."""
+    try:
+        run = search_archive.load(model, scope, _archive_dir())
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    meta = next(
+        c for c in search_archive.index(_archive_dir())
+        if c["model"] == model and c["scope"] == scope
+    )
+    summary = summarise(run.get("evaluations", []) if run else [])
+    return SavedRun(
+        model=model,
+        model_label=meta["model_label"],
+        scope=scope,
+        scope_label=meta["scope_label"],
+        saved=run is not None,
+        generated=run.get("generated", "") if run else "",
+        evaluations=summary["evaluations"],
+        n_frames=summary["n_frames"],
+        models=summary["models"],
+        baseline=summary["baseline"],
+        best_label=summary["best_label"],
+        best_recall=summary["best_recall"],
+        results=summary["results"],
+        warning=summary["warning"],
+        rescore_warning=summary["rescore_warning"],
+    )
+
+
+@router.post("/runs", response_model=SavedRun)
+def save_current(model: str, scope: str) -> SavedRun:
+    """Copy what is in the live state file into one cell of the grid.
+
+    Saving is also done by `experiments/search_all.py` as each run finishes; this is the
+    hand-operated version, for a run that was started some other way.
+    """
+    state = _read_state()
+    if not [e for e in state.get("evaluations", []) if e.get("model") == model]:
+        raise HTTPException(404, f"the current results hold nothing for {model}")
+    try:
+        search_archive.save(model, scope, state, base=_archive_dir())
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return saved_run(model, scope)
+
