@@ -476,25 +476,22 @@ def summary() -> str:
                 ]))
         + block("The study in numbers", counts, tint="sky")
         + block("Three findings", cards([
-            ("A good score here does not mean the model sees the pitch",
-             "People play in the evening and the pitch stands empty during the day, so in "
-             "this footage <i>dark means busy, daylight means empty</i> happens to be right "
-             "<b>99.1%</b> of the time. A rule that checks nothing but the time of day "
-             "&mdash; it never looks at the picture &mdash; matches all three deep models, "
-             "and beats them at venues none of them had seen. No score on this data can "
-             "separate an occupancy detector from a light sensor."),
-            ("Four minutes of footage overturned a 1,692-frame benchmark",
-             "<b>234 seconds</b> of a floodlit pitch at night with nobody on it &mdash; the "
-             "one situation the dataset never recorded. Of the 16 moments sampled from it, "
-             "the time-of-day rule called <b>all 16</b> a match in progress and was wrong "
-             "every time, while the full deployed system raised <b>no false alarm at "
-             "all</b>. The far larger benchmark had ranked the two the other way round."),
-            ("A published number turned out to be luck",
-             "An image-augmentation result of <b>0.855</b> was run four more times with "
-             "nothing changed but the random draw. The other four landed between 0.348 and "
-             "0.414 &mdash; below the <b>0.441</b> of using no augmentation at all. The "
-             "published figure was simply the best of five, so it was withdrawn the same "
-             "day and restated as a property of that one draw."),
+            ("A high score does not always mean the model understands the pitch",
+             "Most of our training data showed players at night and empty pitches during "
+             "the day. As a result, the model started associating darkness with active play "
+             "and daylight with an empty pitch, instead of detecting the actual activity. "
+             "The solution was to generate more data and use augmentation to increase the "
+             "variety."),
+            ("A new video revealed a bigger problem",
+             "When we tested the model on a new one-hour video, the results changed "
+             "significantly and the accuracy dropped. This showed that the original data "
+             "was not representative enough, revealing a major problem that needed to be "
+             "addressed."),
+            ("More augmentation did not always improve the model",
+             "We found that increasing data augmentation sometimes reduced the accuracy. "
+             "One run achieved <b>85.5%</b>, but when repeated with the same settings, the "
+             "results dropped to <b>34.8%&ndash;41.4%</b>. This showed that the high score "
+             "was caused by a random result, not a reliable improvement."),
         ], wide=True))
         + "</div>"
     )
@@ -546,7 +543,7 @@ def plan() -> str:
 
 
 def introduction() -> str:
-    """3. Introduction - the problem, the prior work, and how we resolve it."""
+    """3. Introduction - the problem the cameras are there to answer."""
     return (
         '<div class="tk">'
         + hero("Introduction",
@@ -557,38 +554,19 @@ def introduction() -> str:
                "proving the model honest as building it.", tone="green")
         + block("The problem in general", cards([
             ("Was this hour booked?",
-             "The sheet says the slot was sold. That is the only thing it says."),
-            ("Did they come?",
-             "A booking is a promise... Nothing in the system records whether anyone arrived."),
+             "The system shows the booking, but not what actually happened on the pitch."),
+            ("Did they actually come?",
+             "A customer may book the pitch but never show up."),
             ("Did they actually play?",
-             "Two people crossing the pitch is not a match, and the record cannot tell the "
-             "difference."),
+             "People may be on the pitch without actually playing a game."),
             ("Is the pitch empty right now?",
-             "The question the money rests on, and the one nobody is watching twenty pitches "
-             "to answer."),
+             "The owner cannot know unless someone checks the pitch or the camera."),
             ("Did someone play without booking?",
-             "Played, never paid &mdash; an hour the facility gave away and never saw."),
-            ("Did staff write it down wrong?",
-             "The record is filled in by hand at a busy desk. A wrong tick looks exactly "
-             "like a true one."),
+             "Someone may use the pitch without a booking, so the owner could lose money."),
+            ("Did staff record it correctly?",
+             "Manual records can be entered incorrectly or forgotten."),
         ]), note="Six questions, one source of truth: the cameras the facility already "
                  "owns. Today none of them can be answered without a person watching.")
-        + block("How we resolve it", numbered([
-            ("Sample sparsely", "One frame per camera per minute instead of decoding video "
-                                "&mdash; about <b>99% less</b> network traffic."),
-            ("Classify with frozen features",
-             "Three pretrained backbones used as fixed extractors, with a small trained head "
-             "on top."),
-            ("Count with a detector",
-             "YOLOv8 finds people and the ball inside the pitch boundary, and cheap rules "
-             "can overrule the classifier."),
-            ("Aggregate and reconcile",
-             "Sixty predictions become one verdict per hour, checked against the booking "
-             "record."),
-            ("Evaluate honestly",
-             "Splits grouped by venue, four trivial baselines in every protocol, and every "
-             "safeguard verified by breaking it."),
-        ]))
         + "</div>"
     )
 

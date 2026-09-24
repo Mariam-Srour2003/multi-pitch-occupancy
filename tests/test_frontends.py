@@ -608,16 +608,17 @@ def test_the_page_is_slides_first_and_the_walls_are_gone(client) -> None:
     pre-registration - are no longer served at all.
     """
     html = client.get("/").text
-    # Was 30, then 24, 22, 21, 20. The chapters were cut back to the model, the detector
+    # Was 30, then 24, 22, 21, 20, 19. The chapters were cut back to the model, the detector
     # and the data work on 2026-09-22, and the conclusion was emptied to questions and the
     # demo; through 2026-09-23 the augmentation retraction, the generated-data slide, the
     # probe-versus-fine-tuning slide, the preset cards, the two searches, the applications
     # beats, the detector settings table, the YOLOv8n model cards and the DINOv2 walkthrough
     # were withdrawn, against one block gained when the model comparison came out of its
     # `<details>`. The number is a tripwire against the wall coming back, not a content
-    # floor - it moves down with a deliberate cut and never up on its own. What is asserted
-    # is that the page is still made of blocks of the same kind.
-    assert html.count('<section class="tk-block') >= 19, "the page is not made of blocks"
+    # floor - it moves down with a deliberate cut and never up on its own. On 2026-09-24
+    # the introduction's "How we resolve it" steps were withdrawn. What is asserted is that
+    # the page is still made of blocks of the same kind.
+    assert html.count('<section class="tk-block') >= 18, "the page is not made of blocks"
     for wall in ("The full document &mdash;", "preregistration.md", "CODEBASE.md",
                  "data_layout.md", "rq_matrix.md"):
         assert wall not in html, f"a source document is still being served: {wall!r}"

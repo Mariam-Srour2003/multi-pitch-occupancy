@@ -20,15 +20,15 @@ Things still yours to fill in are marked **[LIKE THIS]**.
 |---|---|---|
 | 1. Summary | 0:00 | 3:00 |
 | 2. Plan | 3:00 | 0:30 |
-| 3. Introduction | 3:30 | 1:30 |
-| 4. Ch.1 State of the Art | 5:00 | 1:30 |
-| 5. Ch.2 Methods & Model | 6:30 | 3:00 |
-| 6. Ch.3 YOLOv8 | 9:30 | 2:30 |
-| 7. Ch.4 Applications | 12:00 | 2:00 |
-| 8. Conclusion | 14:00 | 1:00 |
+| 3. Introduction | 3:30 | 1:00 |
+| 4. Ch.1 State of the Art | 4:30 | 1:30 |
+| 5. Ch.2 Methods & Model | 6:00 | 3:00 |
+| 6. Ch.3 YOLOv8 | 9:00 | 2:30 |
+| 7. Ch.4 Applications | 11:30 | 2:00 |
+| 8. Conclusion | 13:30 | 1:00 |
 
-**About the timing.** The spoken text is **2,007 words** — counted, not estimated. That is
-**14:20** at 140 words a minute and **15:26** at 130, so it fits 15 minutes only if you do
+**About the timing.** The spoken text is **1,948 words** — counted, not estimated. That is
+**13:55** at 140 words a minute and **14:59** at 130, so it fits 15 minutes only if you do
 not stop to add explanations. When a slide has a picture on it, let the picture do the work
 and keep to the words here. Time yourself once. If you run long, the two cuts that cost
 least are 4.2 and 7.3.
@@ -118,27 +118,19 @@ conditions, and what I did about the data.
 
 Six questions, and today nobody can answer them without a person watching.
 
-Was this hour booked? The sheet answers that, and only that. Did they come? Nothing
-records it. Did they really play? Two people walking across a pitch is not a match. Is the
-pitch empty right now? That is the question the money sits on. Did someone play without
-booking? And did the staff write it down wrong? The sheet is filled in by hand at a busy
-desk, and a wrong tick looks exactly like a right one.
+Was this hour booked? The system shows the booking, but not what actually happened on the
+pitch. Did they actually come? A customer may book the pitch and never show up. Did they
+actually play? People may be on the pitch without actually playing a game. Is the pitch
+empty right now? The owner cannot know unless someone checks the pitch or the camera. Did
+someone play without booking? Then the owner loses money on an hour the facility gave away. And
+did the staff record it correctly? Manual records can be entered incorrectly, or
+forgotten.
 
 All six have one honest source: the cameras the facility already owns.
 
-### 3.2 · "How we resolve it"
-
-Five steps.
-
-One, take pictures, not video — one per camera per minute. That is about ninety-nine per
-cent less network traffic. Two, classify the picture with a frozen model and a small
-trained head. Three, count people and the ball with a detector. Four, turn sixty answers
-into one verdict for the hour and compare it with the booking. Five — and this is the part
-I spent the most time on — evaluate honestly.
-
 ---
 
-# Tab 4 — Ch.1 State of the Art · 5:00
+# Tab 4 — Ch.1 State of the Art · 4:30
 
 ### 4.1 · "Playgrounds — how occupancy is measured today"
 
@@ -163,7 +155,7 @@ recognised method, not a shortcut.
 
 ---
 
-# Tab 5 — Ch.2 Methods & Model · 6:30
+# Tab 5 — Ch.2 Methods & Model · 6:00
 
 ### 5.1 · "The families considered"
 
@@ -233,7 +225,7 @@ nineteen milliseconds a frame, which on a one-minute cycle does not matter.
 
 ---
 
-# Tab 6 — Ch.3 YOLOv8 · 9:30
+# Tab 6 — Ch.3 YOLOv8 · 9:00
 
 ### 6.1 · "The architecture — one forward pass"
 
@@ -284,7 +276,7 @@ not.
 
 ---
 
-# Tab 7 — Ch.4 Applications · 12:00
+# Tab 7 — Ch.4 Applications · 11:30
 
 ### 7.1 · "Preprocessing — six switches, before and after"
 
@@ -322,7 +314,7 @@ found that. A person looking at the sheet found it at once.
 
 ---
 
-# Tab 8 — Conclusion · 14:00
+# Tab 8 — Conclusion · 13:30
 
 ### 8.1 · Closing
 
