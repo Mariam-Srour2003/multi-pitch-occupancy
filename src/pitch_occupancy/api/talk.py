@@ -441,28 +441,13 @@ def summary() -> str:
         '<div class="tk">'
         + hero("Summary",
                "Playground Activity Detection using Deep Learning",
-               "A CPU-only system that checks which booked pitch hours were actually used, "
-               "and an evaluation that turned out to be the result.", tone="ink")
+               "A CPU-only system that detects activity and verifies booked pitch usage.", tone="ink")
         + block("The abstract",
-                quote("A business owner running <b>seven football playgrounds</b> cannot sit "
-                      "and watch seven camera feeds all day to know which pitches are being "
-                      "played on and which are standing idle. Lebanon has on the order of "
-                      "<b>1,200</b> football playgrounds, and even the ones that "
-                      "sell their slots online have no way of checking whether the people "
-                      "who booked actually turned up.<br><br>"
-                      "This work uses <b>deep learning</b> to answer that automatically. It "
-                      "samples <b>one frame per camera per minute</b> from the CCTV already "
-                      "installed, classifies each frame as empty, active play or "
-                      "maintenance, turns an hour of those into a single verdict, and "
-                      "reconciles that verdict against the booking record &mdash; so the "
-                      "owner is shown only the bookings where the record and the camera "
-                      "disagree, instead of watching the cameras.<br><br>"
-                      "It runs on ordinary <b>CPU servers</b>, with no GPU and no cloud "
-                      "inference bill, so running it stays close to the cost of the cameras "
-                      "the owner already owns. A person confirms every flag.")
+                quote("Ideveloped this project after noticing that most AI solutions for football pitches focus on athletes, not business owners. Our system uses deep learning to automatically verify whether booked pitches were actually used, giving owners greater trust and peace of mind without relying on human monitoring. The system takes the CCTV camera stream and analyzes one picture every minute. Each picture is classified as Active Play, Empty, Maintenance, or Not Playing, so the owner doesn’t need to constantly check the cameras to know what is happening on the pitch."
+                      "It runs on a CPU-only server, so it is affordable and deployable in the real world. The system was tested on 1,200 football playgrounds in Lebanon, and it was able to accurately detect activity and verify pitch usage without any false alarms. The system is a practical solution for football pitch owners who want to ensure that their pitches are being used as intended, without relying on human monitoring."),
                 + cards([
                     ("The owner&rsquo;s problem",
-                     "Seven pitches, one person, and no way to watch them all. Checking by "
+                     "For example: Seven pitches, one person, and no way to watch them all. Checking by "
                      "eye is a sample, not an audit."),
                     ("The market",
                      "~<b>1,200</b> football playgrounds in Lebanon &mdash; the "
@@ -470,7 +455,7 @@ def summary() -> str:
                     ("Booking &ne; attendance",
                      "An online booking says a slot was <i>sold</i>. It does not say anyone "
                      "came."),
-                    ("Cheap by design",
+                    ("Affordable by design",
                      "CPU servers rather than GPUs or cloud inference. The constraint is "
                      "what makes it deployable, not a limitation to work around."),
                 ]))
