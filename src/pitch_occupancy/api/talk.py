@@ -454,12 +454,7 @@ def summary() -> str:
                       "the owner doesn’t need to constantly check the cameras to know what "
                       "is happening on the pitch.<br><br>"
                       "It runs on a CPU-only server, so it is affordable and deployable in "
-                      "the real world. The system was tested on 1,200 football playgrounds "
-                      "in Lebanon, and it was able to accurately detect activity and verify "
-                      "pitch usage without any false alarms. The system is a practical "
-                      "solution for football pitch owners who want to ensure that their "
-                      "pitches are being used as intended, without relying on human "
-                      "monitoring.")
+                      "the real world.")
                 + cards([
                     ("The owner&rsquo;s problem",
                      "For example: Seven pitches, one person, and no way to watch them "
@@ -654,16 +649,19 @@ def chapter2() -> str:
              "CLIP / OpenCLIP / SigLIP, used <b>zero-shot</b> with written class "
              "descriptions."),
         ]))
-        + block("Why the backbones are frozen", cards([
-            ("Fine-tuning needs variety we do not have",
-             "Updating 200M parameters on <b>~150 distinct scenes</b> does not learn "
-             "football. It learns <i>these pitches</i>, under <i>these floodlights</i>."),
-            ("The data cannot simply be grown",
-             "It is footage of identifiable people, so every new venue is a consent "
-             "conversation. The bottleneck is <b>permission</b>."),
-            ("And our own numbers show the risk",
-             "98.5% of frames have a near-duplicate, and accuracy <b>falls</b> when labels "
-             "rise from 300 to 671."),
+        + block("Why the Backbones Are Frozen", cards([
+    ("Fine-Tuning Needs Variety We Do Not Have",
+     "We did not fine-tune all <b>200 million parameters</b> because we only have "
+     "<b>~150 different scenes</b>. With so little data, the model could memorize "
+     "the pictures instead of learning the game, causing <b>overfitting</b>."),
+
+    ("More Data Is Not Easy to Collect",
+     "The videos show <b>real people</b>, so collecting footage from new venues "
+     "requires <b>permission</b>."),
+
+    ("Our Numbers Show the Risk",
+     "<b>98.5%</b> of frames are very similar, and accuracy <b>dropped</b> when we "
+     "increased the data from <b>300 to 671 samples</b>."),
         ]), tint="green",
             note="Freezing is a <b>defence against overfitting</b> first, and an efficiency "
                  "win second.")
