@@ -30,7 +30,6 @@ from pitch_occupancy.api.models_view import STYLES as MODEL_STYLES
 from pitch_occupancy.api.models_view import render as render_models
 from pitch_occupancy.api.search_panel import (
     ARCHIVE_HTML,
-    PANEL_HTML,
     PANEL_SCRIPT,
     PANEL_STYLES,
 )
@@ -227,10 +226,6 @@ def page() -> str:
             body += (
                 '<section class="tk-block"><h2 class="tk-h">The augmentation '
                 'argument in full</h2>' + _augmentation() + "</section>"
-                + '<p class="run-note">Run the preprocessing search here. Each candidate '
-                  'needs a fresh embedding pass, so a full-size run takes a few hours '
-                  '&mdash; it keeps going if you close the tab.</p>'
-                + PANEL_HTML
                 + ARCHIVE_HTML
             )
         views.append(

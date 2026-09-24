@@ -16,8 +16,8 @@ already answers any 500-frame subset of them - the 500-frame run after a full on
 seconds instead of hours. In the other order, nothing is reused and the 500-frame cache
 cannot serve the full run at all.
 
-Each run is a subprocess, exactly as the browser launches it, so the lock, the resume from
-cache and the state-file guards all behave the way they do in the live panel. A failure
+Each run is a subprocess launched the same way the search control does, so the lock, the
+resume from cache and the state-file guards all behave as they do there. A failure
 stops the sequence rather than moving on: the usual cause is a stale lock or a state file
 from a different frame count, and both affect every run after it.
 """

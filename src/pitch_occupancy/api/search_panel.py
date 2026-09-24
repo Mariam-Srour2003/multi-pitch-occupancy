@@ -1,7 +1,8 @@
-"""The interactive preprocessing-search panel (WP3-T8).
+"""The saved preprocessing searches (WP3-T8).
 
-Run the search from the page and watch it fill in. The chart is the point: which switch
-helps, by how much, and whether it bought that recall honestly.
+Six finished runs - three backbones over two frame counts - each charted on demand. The
+chart is the point: which switch helps, by how much, and whether it bought that recall
+honestly.
 
 Two things it is built to make visible rather than leave in a column:
 
@@ -14,7 +15,7 @@ Two things it is built to make visible rather than leave in a column:
 
 from __future__ import annotations
 
-__all__ = ["PANEL_HTML", "PANEL_STYLES", "PANEL_SCRIPT", "ARCHIVE_HTML"]
+__all__ = ["PANEL_STYLES", "PANEL_SCRIPT", "ARCHIVE_HTML"]
 
 PANEL_STYLES = """
 .runbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--surface);
@@ -23,33 +24,6 @@ PANEL_STYLES = """
  letter-spacing:.06em;text-transform:uppercase}
 .runbar select{font:13px Archivo,sans-serif;padding:7px 10px;border:1px solid var(--line);
  border-radius:7px;background:var(--ground);color:var(--ink)}
-.runbar .go{font:600 13px Archivo,sans-serif;padding:9px 18px;border-radius:8px;border:0;
- background:var(--accent);color:#fff;cursor:pointer}
-.runbar .go:hover{filter:brightness(1.08)}
-.runbar .go:disabled{opacity:.5;cursor:not-allowed}
-.runbar .go:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-.runbar .ghost{background:none;border:1px solid var(--line);color:var(--ink-2);
- font:500 12.5px Archivo,sans-serif;padding:8px 13px;border-radius:8px;cursor:pointer}
-.runbar .ghost:hover{border-color:var(--accent);color:var(--accent)}
-.runbar .state{margin-left:auto;font:500 12.5px 'JetBrains Mono',monospace;color:var(--ink-3)}
-.prog{background:var(--surface);border:1px solid var(--line);border-radius:11px;
- padding:15px 18px;margin:14px 0}
-.prog .top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:11px}
-.prog .eta{font:700 21px 'JetBrains Mono',monospace;letter-spacing:-.02em;color:var(--ink)}
-.prog .of{font:500 12.5px 'JetBrains Mono',monospace;color:var(--ink-3);margin-left:auto}
-.ptrack{height:9px;border-radius:3px;background:var(--surface-2);overflow:hidden}
-.ptrack i{display:block;height:100%;background:var(--accent);border-radius:3px;
- transition:width .4s ease}
-@media (prefers-reduced-motion:reduce){.ptrack i{transition:none}}
-.prog .meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12.5px;
- color:var(--ink-3)}
-.prog .meta b{color:var(--ink-2);font-family:'JetBrains Mono',monospace;font-weight:600}
-.runbar .state.live{color:var(--accent)}
-.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);
- margin-right:6px;vertical-align:middle}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-.dot.live{animation:pulse 1.4s ease-in-out infinite}
-@media (prefers-reduced-motion:reduce){.dot.live{animation:none}}
 .chart{background:var(--surface);border:1px solid var(--line);border-radius:11px;
  padding:18px 20px;margin:16px 0;overflow-x:auto}
 .chart h4{margin:0 0 3px;font-size:14.5px;font-weight:600}
@@ -81,34 +55,12 @@ PANEL_STYLES = """
 .cells button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 """
 
-PANEL_HTML = """
-<div class="runbar">
-  <label for="sModel">Backbone</label>
-  <select id="sModel">
-    <option value="dinov2" selected>DINOv2</option>
-    <option value="convnextv2">ConvNeXtV2 (fastest)</option>
-    <option value="vit">ViT</option>
-  </select>
-  <label for="sScope">Frames</label>
-  <select id="sScope">
-    <option value="">All 1,578 - quotable</option>
-    <option value="500">500 - quick check only</option>
-  </select>
-  <button class="go" id="sRun">Run search</button>
-  <button class="ghost" id="sClear">Clear results</button>
-  <span class="state" id="sState"></span>
-</div>
-<div id="sProg"></div>
-<div id="sAlert"></div>
-<div id="sChart"></div>
-"""
-
-#: The saved-run viewer, below the live panel. Six runs - three backbones over two frame
-#: counts - and the live state file holds one of them at a time, so without this every
-#: finished run is destroyed by the next one being started.
+#: The saved-run viewer. Six runs - three backbones over two frame counts - and the live
+#: state file holds one of them at a time, so without this every finished run would be
+#: destroyed by the next one being started.
 ARCHIVE_HTML = """
 <h2>View old results</h2>
-<p class="note">Three backbones over two frame counts. The live panel above holds one run at a time; each finished run is saved here, so the six can be compared without re-running any of them.</p>
+<p class="note">Three backbones over two frame counts. Each finished run is saved here, so the six can be compared without re-running any of them.</p>
 <div class="runbar">
   <label for="aModel">Backbone</label>
   <select id="aModel">
@@ -129,13 +81,6 @@ ARCHIVE_HTML = """
 """
 
 PANEL_SCRIPT = """
-const sState = document.getElementById("sState");
-const sProg = document.getElementById("sProg");
-const sChart = document.getElementById("sChart");
-const sAlert = document.getElementById("sAlert");
-const sRun = document.getElementById("sRun");
-let poller = null;
-
 const esc = s => String(s).replace(/[&<>"]/g, c =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -198,120 +143,6 @@ function barChart(rows, baseline) {
   </div>`;
 }
 
-function dur(sec) {
-  if (sec == null) return "—";
-  const m = Math.round(sec / 60);
-  if (m < 60) return m + " min";
-  return Math.floor(m / 60) + "h " + String(m % 60).padStart(2, "0") + "m";
-}
-
-function renderProgress(s) {
-  if (!s.evaluations && !s.running) { sProg.innerHTML = ""; return; }
-  const pct = (s.progress * 100).toFixed(0);
-  sProg.innerHTML = `<div class="prog">
-    <div class="top">
-      ${s.running
-        ? `<span class="dot live"></span><span class="eta">${dur(s.eta_seconds)} left</span>`
-        : `<span class="eta">Finished</span>`}
-      <span class="of">${s.evaluations} of ~${s.expected} evaluations · ${pct}%</span>
-    </div>
-    <div class="ptrack"><i style="width:${pct}%"></i></div>
-    <div class="meta">
-      <span>elapsed <b>${dur(s.elapsed_seconds)}</b></span>
-      <span>per evaluation <b>${s.seconds_per_eval ? Math.round(s.seconds_per_eval) + "s" : "—"}</b></span>
-      <span>round <b>${s.rounds_done.length ? Math.max(...s.rounds_done) : 0}</b> of 3</span>
-      <span>frames <b>${s.n_frames.join(", ") || "—"}</b></span>
-    </div>
-  </div>`;
-}
-
-function renderSearch(s) {
-  renderProgress(s);
-  sRun.disabled = s.running;
-  sRun.textContent = s.running ? "Running\\u2026" : "Run search";
-  sState.className = "state" + (s.running ? " live" : "");
-  sState.innerHTML = s.running
-    ? `<span class="dot live"></span>${s.evaluations} evaluated${
-        s.rounds_done.length ? " \\u00b7 round " + Math.max(...s.rounds_done) : ""}`
-    : s.evaluations
-      ? `${s.models.length ? esc(s.models.join(", ")) + " \\u00b7 " : ""}${
-          s.evaluations} evaluations \\u00b7 ${s.n_frames.join(", ")} frames`
-      : "not started";
-
-  sAlert.innerHTML = s.warning ? `<div class="alert"><b>Careful.</b> ${esc(s.warning)}</div>` : "";
-
-  if (!s.results.length) {
-    sChart.innerHTML = `<p class="missing">No results yet. Pick a backbone and press
-      <b>Run search</b> \\u2014 a full-size run takes a few hours and keeps going if you
-      close this tab.</p>`;
-    return;
-  }
-  // An evaluation whose fold held no positive frame scores NaN, which arrives here as
-  // null. Reading `.toFixed` off one threw inside `pollSearch`'s catch, so the panel
-  // silently drew nothing while the state line still counted the evaluations - the
-  // worst of both, a page that looks loaded and is empty. Unscored rows are now
-  // excluded from the chart and said out loud.
-  const scored = s.results.filter(r => typeof r.recall === "number");
-  if (!scored.length) {
-    sChart.innerHTML = `<p class="missing">${s.results.length} stored evaluation${
-      s.results.length === 1 ? "" : "s"}, none of them scored \u2014 every
-      <code>play_recall</code> in <code>results/preprocess_search.json</code> is
-      <code>NaN</code>. There is nothing to chart until the run is repeated.</p>`;
-    return;
-  }
-  const best = scored[0];
-  const head = `<div class="alert" style="background:var(--surface-2)">
-    <b>Best so far${s.models.length ? " on " + esc(s.models.join(", ")) : ""}:</b>
-    <code>${esc(best.label)}</code> at ${best.recall.toFixed(4)} recall,
-    worst fold ${best.worst.toFixed(3)}${
-      best.delta ? `, ${best.delta >= 0 ? "+" : ""}${best.delta.toFixed(3)} against baseline` : ""}${
-      scored.length < s.results.length
-        ? `. ${s.results.length - scored.length} of ${s.results.length} evaluations scored NaN and are not charted`
-        : ""}.</div>`;
-  sChart.innerHTML = head + barChart(scored, s.baseline ?? 0);
-}
-
-async function pollSearch() {
-  try {
-    const s = await fetch("/api/v1/search/preprocess").then(r => r.json());
-    renderSearch(s);
-    if (s.running && !poller) poller = setInterval(pollSearch, 5000);
-    if (!s.running && poller) { clearInterval(poller); poller = null; }
-  } catch { /* the server may be reloading; the next tick retries */ }
-}
-
-sRun.onclick = async () => {
-  sRun.disabled = true;
-  const limit = document.getElementById("sScope").value;
-  const r = await fetch("/api/v1/search/preprocess", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: document.getElementById("sModel").value,
-      rounds: 3,
-      limit: limit ? Number(limit) : null,
-    }),
-  });
-  if (!r.ok) {
-    const e = await r.json().catch(() => ({}));
-    sAlert.innerHTML = `<div class="alert"><b>Not started.</b> ${esc(e.detail || "Unknown error")}</div>`;
-    sRun.disabled = false;
-    return;
-  }
-  pollSearch();
-};
-
-document.getElementById("sClear").onclick = async () => {
-  const r = await fetch("/api/v1/search/preprocess", { method: "DELETE" });
-  if (!r.ok) {
-    const e = await r.json().catch(() => ({}));
-    sAlert.innerHTML = `<div class="alert"><b>Not cleared.</b> ${esc(e.detail || "")}</div>`;
-    return;
-  }
-  pollSearch();
-};
-
-pollSearch();
-
 /* --- saved runs ----------------------------------------------------------------
    The six cells are rendered from the server's index rather than from this list of
    options, so a cell that has never been run says so instead of drawing an empty chart
@@ -358,7 +189,7 @@ async function loadSaved() {
   if (!r.saved) {
     aChart.innerHTML = `<p class="missing"><b>${esc(r.model_label)} · ${
       esc(r.scope_label)}</b> has not been run yet. Six runs fill this grid: three
-      backbones over two frame counts. Run it above, or
+      backbones over two frame counts. Run
       <code>uv run python experiments/search_all.py</code> to fill every empty cell in
       order.</p>`;
     return;
