@@ -69,7 +69,7 @@ from pitch_occupancy.data.taxonomy import Class3, Label
 from pitch_occupancy.vision.counting import PitchCount
 
 __all__ = [
-    "MinuteState", "FrameVerdict", "RuleConfig", "RULES_PATH", "decide",
+    "MinuteState", "FrameVerdict", "RuleConfig", "RULES_PATH", "decide", "rule_table",
     "from_class3", "from_label", "to_class3",
 ]
 
@@ -374,3 +374,79 @@ def decide(
     return verdict(MinuteState.ACTIVE_PLAY, min(1.0, 0.8 + 0.05 * (n - cfg.play_min)), 6,
                    f"{n} > {cfg.small_group_max} people"
                    + (" with " + " and ".join(shown) if shown else ""))
+
+
+def rule_table(cfg: RuleConfig, *, motion_available: bool = True,
+               require_boundary: bool = True) -> list[dict[str, object]]:
+    """The decision table as data, with this config's numbers substituted in.
+
+    Written for the review pages, which used to draw the table as seven lines of typed HTML
+    with `5` and `4` spelled out in them. Those are `play_min` and `small_group_max`, they
+    live in `configs/rules.json`, and a page that restates them is a second copy that is
+    right until the file changes - the failure this project keeps finding. The numbers come
+    from `cfg` here for the same reason `decide` reads them from `cfg`.
+
+    ``applies`` is the other half, and the reason this is not a constant. A row can be
+    unreachable *for this caller* rather than merely unmatched, and those are different
+    facts: the interactive pages pass ``require_boundary=False``, so row 2 cannot fire, and
+    a still image has no predecessor, so no motion cue exists and row 4 cannot fire either.
+    Drawn without that, a reader sees seven live rows and concludes a still was checked for
+    movement and found still - which is exactly the "not measured is not zero" confusion the
+    rest of this module is built to prevent. ``why_not`` says which it is.
+    """
+    def row(n: int, condition: str, state: MinuteState, *,
+            applies: bool = True, why_not: str = "") -> dict[str, object]:
+        return {"row": n, "condition": condition, "state": state.value,
+                "applies": applies, "why_not": why_not}
+
+    return [
+        row(1, "the detector did not run", MinuteState.UNCERTAIN),
+        row(2, "no pitch boundary", MinuteState.UNCERTAIN,
+            applies=require_boundary,
+            why_not="the whole frame is counted here, so this cannot fire"),
+        row(3, "nobody inside, nothing moving", MinuteState.EMPTY),
+        row(4, "nobody inside, but something moved", MinuteState.UNCERTAIN,
+            applies=motion_available and cfg.motion_hi is not None,
+            why_not=("one image has no predecessor to compare with, so movement cannot be "
+                     "measured" if not motion_available else
+                     "`motion_hi` is unfitted, so the cue is not consulted")),
+        row(5, f"1 to {cfg.small_group_max} people inside",
+            MinuteState.MAINTENANCE_NON_SPORTING),
+        row(6, f"{cfg.play_min}+ people inside"
+               + (", a ball" if cfg.require_ball else "")
+               + (", and movement" if cfg.require_motion else ""),
+            MinuteState.ACTIVE_PLAY),
+        row(7, f"{cfg.play_min}+ people inside, otherwise",
+            MinuteState.MAINTENANCE_NON_SPORTING),
+    ]
+
+
+def clause_status(cfg: RuleConfig, *, motion_available: bool = True) -> list[dict[str, str]]:
+    """Each cue row 6 requires, and whether it can be checked at all on this input.
+
+    The three clauses are checked inside `decide` and reported in the trace, but only once a
+    frame has reached row 6. A reader looking at an EMPTY still never sees them, and "is
+    movement part of this verdict?" is a question about the *rule*, not about one frame.
+    """
+    out = [{"cue": "people", "status": "checked",
+            "detail": f"counted inside the boundary, {cfg.play_min}+ for play"}]
+    if cfg.require_ball:
+        detail = "one seen inside the boundary"
+        if cfg.require_ball_in_play:
+            detail += (", and moving - though one image cannot show movement, so the "
+                       "in-play half is skipped" if not motion_available
+                       else ", and moving between burst frames")
+        out.append({"cue": "ball", "status": "checked", "detail": detail})
+    if cfg.require_motion:
+        if not motion_available:
+            out.append({"cue": "motion", "status": "unavailable",
+                        "detail": "a single image has no previous frame to compare with, "
+                                  "so the clause is skipped rather than passed"})
+        elif cfg.motion_play_min is None:
+            out.append({"cue": "motion", "status": "unfitted",
+                        "detail": "`motion_play_min` is null until WP9-T5, so the clause "
+                                  "is skipped rather than passed"})
+        else:
+            out.append({"cue": "motion", "status": "checked",
+                        "detail": f"burst motion at or above {cfg.motion_play_min:.3f}"})
+    return out

@@ -134,6 +134,32 @@ figcaption[title],label[title],.sub2 span[title],.note span[title]{
 .verdictbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;
   background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 14px}
 .verdictbar .spacer{margin-left:auto}
+/* The decision table, drawn from the rows the server sends rather than typed here: the
+   thresholds in them are `play_min` and `small_group_max` out of configs/rules.json. */
+.rules{margin-top:12px;background:var(--surface);border:1px solid var(--line);
+  border-radius:10px;padding:13px 15px}
+.rules h3{margin:0 0 9px;font:600 12px Archivo,sans-serif;letter-spacing:.01em}
+.rules table{border-collapse:collapse;width:100%}
+.rules td{padding:5px 8px;font-size:12.5px;color:var(--ink-2);border-bottom:1px solid var(--line)}
+.rules tr:last-child td{border-bottom:none}
+.rules td.n{font:600 11px 'JetBrains Mono',monospace;color:var(--ink-3);width:26px}
+.rules td.s{font:600 10.5px 'JetBrains Mono',monospace;text-align:right;white-space:nowrap}
+.rules tr.fired td{background:var(--play-soft);color:var(--ink)}
+.rules tr.fired td.n,.rules tr.fired td.s{color:var(--play)}
+/* A row that cannot fire on a still is dimmed and struck, never simply absent: a reader who
+   sees five live rows concludes the missing two were checked and did not match. */
+.rules tr.off td{color:var(--ink-3);opacity:.62}
+.rules tr.off td.c{text-decoration:line-through}
+.cues{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 10px}
+.cue{font:500 11px 'JetBrains Mono',monospace;padding:4px 9px;border-radius:6px;
+  background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}
+.cue.ok{background:var(--play-soft);color:var(--play);border-color:transparent}
+.cue.na{background:var(--maint-soft);color:var(--maint);border-color:transparent}
+.split{font-size:12.5px;color:var(--maint);margin-top:9px}
+.split:empty{display:none}
+.trace{margin:9px 0 0;padding-left:17px}
+.trace li{font-size:12px;color:var(--ink-3);margin-bottom:3px}
+.trace li.skip{color:var(--maint)}
 .gallery{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(212px,1fr))}
 .shot{background:var(--surface);border:1px solid var(--line);border-radius:10px;
   overflow:hidden;display:flex;flex-direction:column}
@@ -257,6 +283,15 @@ the fix for a neighbouring pitch showing up in frame.">masks outside the pitch &
       <div class="v sm" id="x-out">&mdash;</div></div>
   </div>
   <div class="note" id="focusnote"></div>
+
+  <div class="rules" id="rules" hidden>
+    <h3>The rules, applied to this image <span class="mono" id="r-det"
+      style="font-weight:400;color:var(--ink-3)"></span></h3>
+    <div class="cues" id="r-cues"></div>
+    <table><tbody id="r-rows"></tbody></table>
+    <div class="split" id="r-split"></div>
+    <ol class="trace" id="r-trace"></ol>
+  </div>
 </section>
 
 <section id="out">
@@ -352,6 +387,46 @@ async function drain(){
   summarise();
 }
 
+// Sent once with the meta record; see `vision/rules.rule_table`.
+let RULES=[],CLAUSES=[],DETECTOR='';
+
+const esc=t=>String(t).replace(/[&<>"]/g,c=>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// C2_ACTIVE_PLAY -> ACTIVE PLAY. The prefix is a folder name, not something to read.
+const stateName=v=>String(v).split('_').slice(1).join(' ')||String(v);
+// Trace lines reporting a clause that could not be checked, as against one that failed.
+// They take the same shape every time because `decide` writes them.
+const isSkip=t=>/skipped|unmeasured|not measured|unfitted/i.test(t);
+
+function paintRules(det,predicted){
+  const box=$('rules');
+  // No table, or a detector that never ran: the panel goes away rather than showing seven
+  // rows none of which were consulted. "Not checked" is not "nothing matched".
+  if(!RULES.length||!det||!det.checked){box.hidden=true;return;}
+  box.hidden=false;
+  $('r-det').textContent=DETECTOR?'· '+DETECTOR:'';
+  $('r-cues').innerHTML=CLAUSES.map(c=>
+    '<span class="cue '+(c.status==='checked'?'ok':'na')+'" title="'+esc(c.detail)+'">'+
+    esc(c.cue)+' · '+esc(c.status)+'</span>').join('');
+  $('r-rows').innerHTML=RULES.map(r=>
+    '<tr class="'+(r.row===det.rule?'fired':(r.applies?'':'off'))+'"'+
+    (r.applies?'':' title="'+esc(r.why_not)+'"')+'>'+
+    '<td class="n">'+r.row+'</td>'+
+    '<td class="c">'+esc(r.condition)+'</td>'+
+    '<td class="s">'+esc(stateName(r.state))+'</td></tr>').join('');
+  // The path the rule actually took, in the words `decide` recorded - including the
+  // clauses it skipped, which are the ones a reader asks about.
+  $('r-trace').innerHTML=(det.trace||[]).map(t=>
+    '<li class="'+(isSkip(t)?'skip':'')+'">'+esc(t)+'</li>').join('');
+  // Two paths, one frame, and they can differ - the probe scores the whole picture, the
+  // rules count objects inside a boundary. Saying so is the point of showing both: on a
+  // frame with no boundary the rules count the pavement too, and a reader who saw only
+  // the disagreeing number would take it for a bug in one of them.
+  $('r-split').innerHTML=(predicted&&det.state!==predicted)
+    ? 'the probe says <b>'+esc(stateName(predicted))+'</b>, these rules say <b>'+
+      esc(stateName(det.state))+'</b>' : '';
+}
+
 function paint(s){
   $('stage-step').textContent='image '+(s.index+1);
   $('stage-name').textContent=s.name+'  \\u00b7  '+s.width+'\\u00d7'+s.height;
@@ -382,6 +457,7 @@ function paint(s){
         ' &middot; rule '+d.rule+' &middot; '+d.people_inside+' inside'+
         (d.people_outside_boundary?' &middot; '+d.people_outside_boundary+' outside':'')+
         ' &middot; ball '+(d.ball?d.ball_confidence.toFixed(2):'none')));
+    paintRules(d,s.predicted);
     // "Found six, counted three" is what a reader most often needs explained, so the two
     // counts sit side by side rather than being summed into one.
     const out=(d&&d.checked)?d.people_outside_boundary:null;
@@ -401,6 +477,8 @@ function paint(s){
         'not there, which for an active-play verdict is worth a look.">the model was not '+
         'looking at the people it found</span>' : '';
   } else {
+    // An unexplained image gets no detector pass, so there is no rule path to draw.
+    paintRules(null,null);
     $('x-outside').textContent='\\u2014';$('x-out').textContent='\\u2014';
     $('x-outside-tile').className='tile';$('x-out-tile').className='tile';
     $('focusnote').innerHTML='<span title="explain in detail bounds how many images get '+
@@ -526,11 +604,17 @@ $('go').onclick=async()=>{
       for(const ln of lines){
         if(!ln.trim()) continue;
         const d=JSON.parse(ln);
-        if(d.type==='meta'&&d.camera&&!d.boundary){
-          $('err').textContent='No saved boundary for '+d.camera+
-            ' — these were analysed on the whole frame, which is the case the '+
-            'boundary exists to avoid. Draw one in the boundary editor first.';
-          $('err').className='note warn';$('err').style.display='block';
+        if(d.type==='meta'){
+          // The decision table arrives once, with this deployment's thresholds already in
+          // it. Held rather than drawn now: it is drawn against each image's verdict, so
+          // the row that fired can be marked.
+          RULES=d.rules||[];CLAUSES=d.clauses||[];DETECTOR=d.detector||'';
+          if(d.camera&&!d.boundary){
+            $('err').textContent='No saved boundary for '+d.camera+
+              ' — these were analysed on the whole frame, which is the case the '+
+              'boundary exists to avoid. Draw one in the boundary editor first.';
+            $('err').className='note warn';$('err').style.display='block';
+          }
         }
         else if(d.type==='shot') queue.push(d);
         else if(d.type==='done'&&d.n_unreadable>0){

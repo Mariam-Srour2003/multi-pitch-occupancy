@@ -377,3 +377,85 @@ def test_the_detector_pane_says_not_checked_rather_than_nobody(monkeypatch) -> N
     assert found["state"] == "UNCERTAIN" and found["rule"] == 1
     assert canvas.shape == frame.shape
     assert np.array_equal(canvas, frame), "nothing found is not something to draw"
+
+
+# --- the decision table on a still ------------------------------------------
+
+
+def _meta(tmp_path, monkeypatch) -> dict:
+    """The meta record alone, with nothing heavy loaded.
+
+    `walk_records` yields it before the first image is read, so taking one record off the
+    generator never reaches the backbone - but it does ask the classifier for its name, so
+    the stub stands in for a 15-second model load the table does not depend on.
+    """
+    from pitch_occupancy.api import image_walkthrough as iw
+
+    monkeypatch.setattr(iw, "_classifier", lambda: _StubClassifier())
+    monkeypatch.setattr(iw, "_gates", lambda: (None, None))
+    path = tmp_path / "f.jpg"
+    cv2.imwrite(str(path), np.full((90, 160, 3), 120, np.uint8))
+    record = next(iter(iw.walk_records([path], names=["f.jpg"], explain_n=0, redact=False)))
+    return json.loads(record)
+
+
+def test_the_rule_table_reaches_the_page_with_the_configured_numbers(
+    tmp_path, monkeypatch
+) -> None:
+    """The thresholds are `play_min` and `small_group_max` from `configs/rules.json`, and
+    the page must not restate them.
+
+    It used to draw the seven rows as typed HTML with `5` and `4` spelled out in it, which
+    is right until the file changes and silently wrong afterwards. The rows now arrive with
+    the meta record, built by `rules.rule_table` from the same config `decide` reads.
+    """
+    from pitch_occupancy.config import settings
+    from pitch_occupancy.vision.rules import RuleConfig
+
+    cfg = RuleConfig.load(settings.rules_path)
+    meta = _meta(tmp_path, monkeypatch)
+
+    assert meta["type"] == "meta"
+    rows = {r["row"]: r for r in meta["rules"]}
+    assert set(rows) == {1, 2, 3, 4, 5, 6, 7}
+    assert str(cfg.small_group_max) in rows[5]["condition"]
+    assert str(cfg.play_min) in rows[6]["condition"]
+    assert rows[6]["state"] == "C2_ACTIVE_PLAY"
+
+
+def test_the_rows_that_cannot_fire_on_a_still_say_so_rather_than_being_drawn_live(
+    tmp_path, monkeypatch
+) -> None:
+    """The point of the whole panel, and the reason it is data rather than a picture.
+
+    Row 4 is "nobody found, but something moved". One image has no predecessor, so movement
+    cannot be measured at all - and a reader shown seven live rows would conclude the still
+    was checked for movement and found still. That is the "not measured is not zero"
+    confusion the rest of the rule module exists to prevent. Row 2 is the same kind of fact
+    for a different reason: the interactive path counts the whole frame, so no-boundary
+    cannot fire here either.
+    """
+    meta = _meta(tmp_path, monkeypatch)
+
+    rows = {r["row"]: r for r in meta["rules"]}
+    assert rows[4]["applies"] is False
+    assert "predecessor" in rows[4]["why_not"]
+    assert rows[2]["applies"] is False
+    assert all(rows[n]["applies"] for n in (1, 3, 5, 6, 7))
+
+    motion = [c for c in meta["clauses"] if c["cue"] == "motion"]
+    assert motion and motion[0]["status"] == "unavailable"
+    assert "skipped rather than passed" in motion[0]["detail"]
+
+
+def test_the_page_draws_the_rules_from_the_served_table_not_from_typed_rows() -> None:
+    """A second copy of the table in the page source is the failure this guards.
+
+    The panel and its renderer have to be there, and the thresholds must not be: if `5` and
+    `4` appear as rule text in the HTML, someone has retyped the table.
+    """
+    html = TestClient(app).get("/images").text
+    assert 'id="rules"' in html and "paintRules(" in html
+    assert "RULES=d.rules" in html, "the page is not reading the served table"
+    for typed in ("5+ people inside", "1 to 4 people inside"):
+        assert typed not in html, f"the rule table has been retyped into the page: {typed!r}"

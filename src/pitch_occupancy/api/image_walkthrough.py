@@ -89,9 +89,11 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
     index to stop two uploads of the same name from colliding, and reporting that prefixed
     name back would show the reader a filename they never chose.
     """
+    from pitch_occupancy.config import settings
     from pitch_occupancy.vision import roi
     from pitch_occupancy.vision.explain import overlay_heatmap
     from pitch_occupancy.vision.overlay import detector_pane
+    from pitch_occupancy.vision.rules import RuleConfig, clause_status, rule_table
     from pitch_occupancy.vision.walkthrough import walk_images
 
     # Whether a boundary was actually found is reported rather than assumed. Asking for one
@@ -107,6 +109,7 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
     # inferred, because on this project's footage the motion gate is what catches most empty
     # frames - so a still is judged with the weaker half of the deployed path.
     _, person_gate = _gates()
+    cfg = RuleConfig.load(settings.rules_path)
     yield json.dumps({
         "type": "meta", "backbone": getattr(classifier, "backbone", "?"),
         "n_train": getattr(classifier, "n_train", 0), "redacted": redact,
@@ -114,6 +117,15 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
         "boundary": bool(polygon),
         "coverage": roi.coverage(polygon) if polygon else 1.0,
         "gated": person_gate is not None, "motion_gate": False,
+        "detector": cfg.detector,
+        # The decision table with this deployment's numbers in it, sent once rather than
+        # typed into the page. `require_boundary=False` because that is what `detector_pane`
+        # passes - the whole frame is counted here, so row 2 cannot fire and the page must
+        # not draw it as though it could. `motion_available=False` says the same about
+        # movement: a still has no predecessor, so rows and clauses that rest on the motion
+        # cue are marked unreachable rather than shown as passed.
+        "rules": rule_table(cfg, motion_available=False, require_boundary=False),
+        "clauses": clause_status(cfg, motion_available=False),
     }) + "\n"
 
     seen = 0
