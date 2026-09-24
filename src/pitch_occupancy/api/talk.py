@@ -526,18 +526,6 @@ def plan() -> str:
             ("Conclusion and perspectives",
              "What was achieved, what it cannot claim, and what would change that."),
         ]))
-        + block("What each chapter answers", cards([
-            ("Chapter 1", "What is already done, and what is missing?"),
-            ("Chapter 2", "Which deep learning model, and why that one?"),
-            ("Chapter 3",
-             "How do we count people and a ball on a pitch, and how do the two models talk "
-             "to each other? The classifier reads the whole frame, a motion check asks "
-             "whether anything moved since the last one, and YOLOv8 counts who is standing "
-             "inside the boundary &mdash; the detector overrules the classifier in one "
-             "direction only."),
-            ("Chapter 4",
-             "Does it work in real-world conditions, and what did we do about the data?"),
-        ]), tint="violet")
         + "</div>"
     )
 
