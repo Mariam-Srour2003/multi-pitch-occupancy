@@ -529,13 +529,11 @@ def introduction() -> str:
     """3. Introduction - the problem the cameras are there to answer."""
     return (
         '<div class="tk">'
-        + hero("Introduction",
-               "A booking says an hour was sold. Only the camera knows if anyone came.",
-               "What is really being sold here is <b>trust</b>, and today it rests on a "
-               "handwritten sheet nobody can check. A model has no stake in the answer "
-               "&mdash; but trust is earned, not assumed, so this work spends as much care "
-               "proving the model honest as building it.", tone="green")
-        + block("The problem in general", cards([
+        + hero("The main idea of the project is:",
+               "The booking says an hour was sold. Only the camera knows if anyone came.",
+               "What is really being sold here is <b>trust</b>, and today this information can depend on a paper or a manual record made by employees. The problem is that nobody can check this information all the time. "
+               , tone="green")
+        + block("Our system tries to answer simple questions:", cards([
             ("Was this hour booked?",
              "The system shows the booking, but not what actually happened on the pitch."),
             ("Did they actually come?",
@@ -548,8 +546,8 @@ def introduction() -> str:
              "Someone may use the pitch without a booking, so the owner could lose money."),
             ("Did staff record it correctly?",
              "Manual records can be entered incorrectly or forgotten."),
-        ]), note="Six questions, one source of truth: the cameras the facility already "
-                 "owns. Today none of them can be answered without a person watching.")
+        ]), note="The CCTV camera gives us real visual evidence.")
+                 
         + "</div>"
     )
 
@@ -650,18 +648,18 @@ def chapter2() -> str:
              "descriptions."),
         ]))
         + block("Why the Backbones Are Frozen", cards([
-    ("Fine-Tuning Needs Variety We Do Not Have",
-     "We did not fine-tune all <b>200 million parameters</b> because we only have "
-     "<b>~150 different scenes</b>. With so little data, the model could memorize "
-     "the pictures instead of learning the game, causing <b>overfitting</b>."),
+        ("Fine-Tuning Needs Variety We Do Not Have",
+         "We did not fine-tune all <b>200 million parameters</b> because we only have "
+         "<b>~150 different scenes</b>. With so little data, the model could memorize "
+          "the pictures instead of learning the game, causing <b>overfitting</b>."),
 
-    ("More Data Is Not Easy to Collect",
-     "The videos show <b>real people</b>, so collecting footage from new venues "
-     "requires <b>permission</b>."),
+          ("More Data Is Not Easy to Collect",
+         "The videos show <b>real people</b>, so collecting footage from new venues "
+         "requires <b>permission</b>."),
 
-    ("Our Numbers Show the Risk",
-     "<b>98.5%</b> of frames are very similar, and accuracy <b>dropped</b> when we "
-     "increased the data from <b>300 to 671 samples</b>."),
+         ("Our Numbers Show the Risk",
+         "<b>98.5%</b> of frames are very similar, and accuracy <b>dropped</b> when we "
+         "increased the data from <b>300 to 671 samples</b>."),
         ]), tint="green",
             note="Freezing is a <b>defence against overfitting</b> first, and an efficiency "
                  "win second.")
