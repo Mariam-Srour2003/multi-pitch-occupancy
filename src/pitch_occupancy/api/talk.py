@@ -472,21 +472,17 @@ def summary() -> str:
         + block("The study in numbers", counts, tint="sky")
         + block("Three findings", cards([
             ("A high score does not always mean the model understands the pitch",
-             "Most of our training data showed players at night and empty pitches during "
-             "the day. As a result, the model started associating darkness with active play "
-             "and daylight with an empty pitch, instead of detecting the actual activity. "
-             "The solution was to generate more data and use augmentation to increase the "
-             "variety."),
-            ("A new video revealed a bigger problem",
-             "When we tested the model on a new one-hour video, the results changed "
-             "significantly and the accuracy dropped. This showed that the original data "
-             "was not representative enough, revealing a major problem that needed to be "
-             "addressed."),
-            ("More augmentation did not always improve the model",
-             "We found that increasing data augmentation sometimes reduced the accuracy. "
-             "One run achieved <b>85.5%</b>, but when repeated with the same settings, the "
-             "results dropped to <b>34.8%&ndash;41.4%</b>. This showed that the high score "
-             "was caused by a random result, not a reliable improvement."),
+             "For example, the model learned that dark images mean playing and bright images mean empty."
+             "So, it learned the lighting instead of the real activity. "),
+            ("When we tested a new video, we found a bigger problem.",
+             "The original dataset did not contain enough different situations."
+             "So, the model could work well on the original data, but not always on new data."),
+             
+            ("Data augmentation did not always improve the model",
+             
+             "One experiment gave us <b>85.5%</b>, but when repeated the same experiment, the "
+             "results dropped to <b>34.8%&ndash;41.4%</b>."
+             "This showed us that the high score was not stable, it was a random result."),
         ], wide=True))
         + "</div>"
     )
@@ -603,8 +599,8 @@ def chapter1() -> str:
         '<div class="tk">'
         + hero("Chapter 1 &mdash; State of the art",
                "Playgrounds, and deep learning",
-               "How sports facilities are monitored today, what deep learning has "
-               "established, and the gap between them.", tone="violet")
+               "There are already different ways to monitor activity." 
+               "But each solution has limitations.", tone="violet")
         + block("Playgrounds &mdash; how occupancy is measured today", table(
             ["Approach", "Cost per pitch", "What it measures", "How it fails"],
             [["PIR / motion sensor", "~&euro;20", "Motion in a cone",
