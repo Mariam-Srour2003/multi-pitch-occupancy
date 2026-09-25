@@ -473,10 +473,11 @@ def summary() -> str:
         + block("Three findings", cards([
             ("A high score does not always mean the model understands the pitch",
              "For example, the model learned that dark images mean playing and bright images mean empty."
-             "So, it learned the lighting instead of the real activity. "),
+             " So, it learned the lighting instead of the real activity. "),
+
             ("When we tested a new video, we found a bigger problem.",
              "The original dataset did not contain enough different situations."
-             "So, the model could work well on the original data, but not always on new data."),
+             " So the model could work well on the original data, but not always on new data."),
              
             ("Data augmentation did not always improve the model",
              
@@ -603,20 +604,20 @@ def chapter1() -> str:
                "But each solution has limitations.", tone="violet")
         + block("Playgrounds &mdash; how occupancy is measured today", table(
             ["Approach", "Cost per pitch", "What it measures", "How it fails"],
-            [["PIR / motion sensor", "~&euro;20", "Motion in a cone",
-              "Rain, wind-blown netting, foxes, staff crossing &mdash; and no evidence "
+            [["PIR / motion sensor", "~&euro;20", "Detect movements",
+              "Gave us false alarm, Rain, wind-blown netting, foxes, staff crossing &mdash; and no evidence "
               "trail"],
-             ["Door counter / turnstile", "&euro;300&ndash;2,000", "People through a gate",
-              "Multi-pitch venues share an entrance; nobody counts <i>out</i>"],
+             ["Door counter / turnstile", "&euro;300&ndash;2,000", "Count people entering",
+              "Cannot tell us if they actually played, nobody counts <i>out</i>"],
              ["Floodlight power draw", "~&euro;60", "Lights on",
               "Daylight slots invisible; lights left on; shared circuits"],
-             ["App check-in", "~&euro;0", "That someone tapped a button",
-              "Measures compliance with the app &mdash; the no-show is exactly when nobody "
-              "taps"],
+             ["Mobile App check-in", "~&euro;0", "ask customers to check in",
+              "It depends on the customer, and they may not do it"],
+              
              ["Manual logging", "Staff time", "What staff wrote down",
               "<b>It is one of the three records being audited</b>"],
              ["<b>This system</b>", "<b>Reuses existing CCTV</b>",
-              "<b>Scene state per minute, with evidence</b>",
+              "<b>Give us real images using CCTV, with evidence</b>",
               "<b>Needs a camera view; classification error</b>"]], hi=5))
         + block("Deep learning &mdash; what the field must establish", strand_cards())
         + "</div>"
@@ -631,7 +632,7 @@ def chapter2() -> str:
                "The families considered, and the model we built",
                "Three frozen backbones, a classifier small enough to read on one screen, and "
                "the reason it is that way round.", tone="ink")
-        + block("The families considered", cards([
+        + block("We considered four main AI models", cards([
             ("Convolutional networks",
              "ConvNeXtV2 &mdash; a modern CNN, supervised and masked-autoencoder "
              "pretraining on ImageNet-22k."),
