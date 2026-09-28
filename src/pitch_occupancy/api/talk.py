@@ -692,16 +692,7 @@ def chapter3() -> str:
              "false ball fires once &mdash; a bright stud, a bin lid, line paint. And it "
              "must move more than <b>its own width</b>: a ball lying on the grass while "
              "three people work around it is furniture, not a game."),
-            ("One direction only",
-             "The gates turn a not-empty verdict into EMPTY when they find nobody and "
-             "nothing moving. <b>They never turn EMPTY into play.</b> Finding nobody is "
-             "strong evidence against a match; finding somebody is not evidence for one."),
-        ], wide=True),
-            note="The ball requirement is a <b>switch</b>, because it is a decision rather "
-                 "than a fact: cross-venue ball recall is <b>0.40</b>, ranging 0.06 to 0.89 "
-                 "by venue, so requiring a ball costs genuine matches wherever the detector "
-                 "cannot see one. That cost is measured in "
-                 "<code>results/rule_frame_eval.csv</code> rather than argued about.")
+        ], wide=True))
         + block("From boxes to a verdict &mdash; the rule table", table(
             ["#", "Condition", "Verdict"],
             [["1", "Detector unavailable", "Uncertain &mdash; a missing detector is not an "
