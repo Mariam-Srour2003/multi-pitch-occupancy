@@ -47,6 +47,11 @@ than *shown to work*. It is enabled because the alternative is a deployed path t
 return C3 at all, and because on the unseen clip it is right - the minute with one person
 walking and no ball is the minute a person would call not-playing.
 
+**Superseded 2026-09-29: the ball clause is off.** The facility's rule is "ACTIVE_PLAY needs five
+or more people", ball or no ball, and the gate now applies it as stated - so the 88-of-278
+per-camera cost above is the price of that rule on this path, not a number the clause still
+avoids. `PersonGate.ball_rescues_small_group=True` reproduces A18.
+
 **Failure is silence, not a guess.** A missing detector returns `None` from `detect_people`,
 and the gate leaves the verdict alone rather than treating "not checked" as "found nobody" -
 which would turn a broken install into a system that reports every pitch empty.
@@ -174,6 +179,16 @@ class PersonGate:
     measured at. Setting it to 0 disables the C3 overrule and leaves A16's behaviour exactly
     as it was.
 
+    **Since 2026-09-29 a ball no longer rescues a small group** (`ball_rescues_small_group`,
+    default False). The facility's rule is that ACTIVE_PLAY needs `play_min` = 5 people, and
+    the detector path (`rules.decide` row 5) has said "ball or no ball" since 2026-09-20 -
+    this gate was the one place left where three people and a ball could still be reported
+    as play, and it is the gate the review pages run, because the default model is the probe.
+    The cost is the one A18 measured: per camera, a camera that sees half a pitch and a
+    detector that misses distant players can show 1-4 people during a real match. That cost
+    is accepted as the facility's rule, and the switch reproduces A18 for anyone re-running
+    the numbers that were measured with it.
+
     **`always_count` changes what is reported and never what is decided** (A38). By default
     the detector is skipped on a verdict that is already EMPTY, because the gate only weakens
     and there is nothing weaker - so the count is `None`, meaning *not checked*, which is a
@@ -192,6 +207,10 @@ class PersonGate:
 
     small_group_max: int = 4
     always_count: bool = False
+    #: The facility's minimum for a game, as in `configs/rules.json`. Below it, never play.
+    play_min: int = 5
+    #: A18's clause: a found ball vetoes the C3 call. Off since 2026-09-29 - see above.
+    ball_rescues_small_group: bool = False
 
     def inspect(self, state: Class3, image_bgr,
                 polygon=None) -> tuple[Class3, Counted | None]:
@@ -207,7 +226,8 @@ class PersonGate:
         ball inside the boundary is still turned to EMPTY - a ball lying on an empty pitch is
         a ball lying on an empty pitch, and 8 of venue_01's 243 recorded EMPTY frames have one.
 
-        **It does gate the C3 overrule, and the two clauses do different jobs.** A *found*
+        **It used to gate the C3 overrule (A18), and no longer does by default** - see the
+        class docstring. The A18 reasoning, kept for `ball_rescues_small_group=True`: a *found*
         ball vetoes C3 outright, which is the sound direction - a found ball is a found ball,
         whatever the 40% cross-venue recall says. The rule does also require the ball to be
         absent, which is the unsound direction, and the count is what bounds the damage: at
@@ -225,8 +245,10 @@ class PersonGate:
             return state, None
         if counted.people == 0:
             return Class3.EMPTY, counted
-        if (state is Class3.ACTIVE_PLAY
-                and 0 < counted.people <= self.small_group_max and not counted.ball):
+        too_few = 0 < counted.people and (counted.people <= self.small_group_max
+                                          or counted.people < self.play_min)
+        if (state is Class3.ACTIVE_PLAY and self.small_group_max > 0 and too_few
+                and not (self.ball_rescues_small_group and counted.ball)):
             return Class3.MAINTENANCE_NON_SPORTING, counted
         return state, counted
 

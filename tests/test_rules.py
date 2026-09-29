@@ -130,6 +130,26 @@ def test_row_5_four_or_fewer_is_c3_with_or_without_a_ball(n: int) -> None:
         "a ball does not rescue a small group - the facility's rule, §2.7")
 
 
+def test_never_active_play_below_play_min_under_any_config_or_cue() -> None:
+    """The facility's rule as an invariant rather than as a row: fewer than `play_min`
+    people inside is never ACTIVE_PLAY - ball or none, moving or still, strict or shipped.
+
+    Found 2026-09-29: row 5 was guarded on `small_group_max` alone, so with play_min 6 and
+    small_group_max 4 five people reached row 6 and played. Adjacent today, so it never fired
+    on the shipped file - but "never" should not rest on two numbers staying one apart.
+    """
+    import itertools
+
+    configs = [CFG, STRICT, MOVING, RuleConfig(**{**CFG.to_json(), "play_min": 6}),
+               RuleConfig(**{**CFG.to_json(), "play_min": 7, "small_group_max": 3})]
+    for cfg, ball, motion in itertools.product(configs, [False, True], [None, 0.0, 5.0]):
+        for n in range(cfg.play_min):
+            verdict = decide(count(n, ball=ball), motion=motion, cfg=cfg)
+            assert verdict.state is not PLAY, (cfg.play_min, n, ball, motion, verdict.trace)
+        verdict = decide(count(cfg.play_min, ball=True), motion=5.0, cfg=cfg)
+        assert verdict.state is not C3 or verdict.rule == 7, verdict.trace
+
+
 def test_row_5_says_when_it_saw_a_vehicle_without_promising_to_tell_them_apart() -> None:
     """The four-class split is gone, so a vehicle no longer produces its own class. It is
     still worth recording, because it is the one cue for maintenance the corpus has - and

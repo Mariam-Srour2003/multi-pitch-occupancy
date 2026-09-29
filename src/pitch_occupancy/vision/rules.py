@@ -319,9 +319,15 @@ def decide(
                        "nobody standing inside the boundary and nothing moving")
 
     # --- too few for a game -------------------------------------------------------------
-    if n <= cfg.small_group_max:
+    #
+    # Guarded on `play_min` as well as `small_group_max`. They are 5 and 4, so either alone
+    # would do today - but the rule is "play needs play_min people", and checked on
+    # 2026-09-29 a config where the two stop being adjacent (play_min 6, small_group_max 4)
+    # sent five people to row 6 and ACTIVE_PLAY. Never play below play_min, whatever else.
+    if n <= cfg.small_group_max or n < cfg.play_min:
         confidence = min(0.9, 0.5 + 0.1 * (cfg.play_min - n)) - (0.2 if ball else 0.0)
-        why = f"{n} <= {cfg.small_group_max} people" + (", ball or not" if ball else "")
+        why = (f"{n} <= {cfg.small_group_max} people" if n <= cfg.small_group_max
+               else f"{n} < {cfg.play_min} people") + (", ball or not" if ball else "")
         if count.vehicles_inside or count.hi_vis_people:
             why += (f" ({count.vehicles_inside} vehicle(s), {count.hi_vis_people} hi-vis "
                     f"- maintenance, though C3 does not distinguish it)")

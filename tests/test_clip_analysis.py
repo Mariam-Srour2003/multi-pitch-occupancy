@@ -87,6 +87,39 @@ def test_the_corrected_sample_is_flagged_not_hidden(tmp_path) -> None:
     assert "corrected by its neighbours" in result.summary()
 
 
+def test_neighbours_never_smooth_a_small_group_into_play(tmp_path) -> None:
+    """Found 2026-09-29. The person gate turns a frame with three people inside into C3, and
+    majority smoothing - which reads only the states - turned it straight back into
+    ACTIVE_PLAY when its neighbours were playing. Fewer than five people is never play, so
+    the frame keeps its own verdict; and a frame with people on it is never smoothed EMPTY.
+    """
+    from pitch_occupancy.vision.people import Counted
+
+    class Scripted:
+        play_min = 5
+
+        def __init__(self, script):
+            self.script = iter(script)
+
+        def inspect(self, state, frame, polygon=None):
+            n, out = next(self.script)
+            return out, Counted(people=n, ball=True)
+
+    # frame 2: three people and a ball among a match; frame 6: two people among empties
+    script = [(9, P), (9, P), (3, M), (9, P), (9, P), (0, E), (2, M), (0, E)] + [(9, P)] * 4
+    result = analyse_clip(_video(tmp_path / "c.mp4"), lambda img, **_kw: (P, 0.9),
+                          interval_s=1.0, window=3, person_gate=Scripted(script))
+    assert _raw(result).startswith("PPMPP.M.")
+    assert _states(result).startswith("PPMPP.M."), _states(result)
+    for sample in result.samples:
+        if sample.people is not None and sample.people < 5:
+            assert sample.smoothed is not P, sample
+        if sample.people:
+            assert sample.smoothed is not E, sample
+        if sample.people == 0:
+            assert sample.smoothed is E, sample
+
+
 def test_the_raw_prediction_is_kept_beside_the_smoothed_one(tmp_path) -> None:
     cycle = iter([P, P, E, P, P, P, P, P, P, P, P, P])
     result = analyse_clip(_video(tmp_path / "c.mp4"), lambda img, **_kw: (next(cycle), 0.9),

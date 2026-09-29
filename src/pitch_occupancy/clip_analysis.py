@@ -208,6 +208,32 @@ def _segments(samples: list[ClipSample], duration_s: float,
     return out
 
 
+def _respect_the_count(smoothed: list[Class3], raw: list[Class3],
+                       people: list[int | None], play_min: int) -> list[Class3]:
+    """Stop the neighbours overruling what the detector counted on the frame itself.
+
+    Majority smoothing looks only at the states, so a frame the person gate turned into C3
+    because three people were inside the boundary came out ACTIVE_PLAY whenever its
+    neighbours were playing - found 2026-09-29, and exactly what the facility's rule forbids:
+    fewer than `play_min` people is never play. The same holds the other way: a frame with
+    people counted on it is not smoothed to EMPTY, and one with nobody counted is not
+    smoothed to anything else - a tied window (C3, EMPTY, PLAY) picks the first state, and
+    that made a counted-empty frame C3 in the test that found this.
+
+    Where the neighbours contradict the count, the frame keeps its own gated verdict rather
+    than a new one - so this can only undo a correction, never make a claim the gates did
+    not. Where the count is None nobody looked, and the smoothing stands.
+    """
+    out = []
+    for state, own, n in zip(smoothed, raw, people, strict=True):
+        if n is not None and ((state is Class3.ACTIVE_PLAY and n < play_min)
+                              or (state is Class3.EMPTY and n > 0)
+                              or (state is not Class3.EMPTY and n == 0)):
+            state = own
+        out.append(state)
+    return out
+
+
 def analyse_clip(
     path: Path | str,
     classify: _Classifier,
@@ -317,7 +343,10 @@ def analyse_clip(
     if duration_s <= 0:  # length was unknown, so derive it from what was actually read
         duration_s = raw[-1][0] + interval_s
 
-    smoothed = majority_smooth([state for _, state, _ in raw], window)
+    states = [state for _, state, _ in raw]
+    smoothed = _respect_the_count(majority_smooth(states, window), states,
+                                  [n for n, _, _ in counted],
+                                  getattr(person_gate, "play_min", 5))
     samples = [
         ClipSample(index=i, t_s=t, raw=state, confidence=conf, smoothed=smooth,
                    probed=was, people=n, ball=b, motion=cue)

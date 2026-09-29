@@ -709,16 +709,38 @@ def test_a_small_group_with_no_ball_is_not_playing(monkeypatch):
     assert state is Class3.MAINTENANCE_NON_SPORTING
 
 
-def test_a_ball_vetoes_the_not_playing_call(monkeypatch):
-    """Three people with a ball is a kickabout, and a kickabout is play. This is the clause
-    that takes the rule from wrong on 88 of 278 real matches to wrong on none."""
+def test_a_ball_no_longer_rescues_a_small_group(monkeypatch):
+    """Changed 2026-09-29. This pinned A18's clause - three people with a ball is a kickabout,
+    and a kickabout is play. The facility's rule is that play needs five or more people, ball
+    or no ball, and `rules.decide` row 5 has said so since 2026-09-20; this gate, which the
+    review pages run, was the last place three people and a ball could still be play.
+
+    Both directions stay pinned: the default obeys the facility, and the switch still gives
+    A18 exactly, for re-running the numbers measured with it."""
     from pitch_occupancy.data.taxonomy import Class3
     from pitch_occupancy.vision import people
 
-    monkeypatch.setattr(people, "detect_inside",
-                        lambda *_a, **_k: people.Counted(people=3, ball=True))
-    state, _ = people.PersonGate().inspect(Class3.ACTIVE_PLAY, _blank())
-    assert state is Class3.ACTIVE_PLAY
+    for n in (1, 3, 4):
+        monkeypatch.setattr(people, "detect_inside",
+                            lambda *_a, _n=n, **_k: people.Counted(people=_n, ball=True))
+        state, _ = people.PersonGate().inspect(Class3.ACTIVE_PLAY, _blank())
+        assert state is Class3.MAINTENANCE_NON_SPORTING, n
+        a18 = people.PersonGate(ball_rescues_small_group=True)
+        assert a18.inspect(Class3.ACTIVE_PLAY, _blank())[0] is Class3.ACTIVE_PLAY
+
+
+def test_the_gate_never_reports_play_below_five_people(monkeypatch):
+    """The facility's rule as an invariant over every count and ball, on the probe path."""
+    from pitch_occupancy.data.taxonomy import Class3
+    from pitch_occupancy.vision import people
+
+    for n in range(0, 12):
+        for ball in (False, True):
+            monkeypatch.setattr(
+                people, "detect_inside",
+                lambda *_a, _n=n, _b=ball, **_k: people.Counted(people=_n, ball=_b))
+            state, _ = people.PersonGate().inspect(Class3.ACTIVE_PLAY, _blank())
+            assert (state is Class3.ACTIVE_PLAY) is (n >= 5), (n, ball, state)
 
 
 def test_a_full_pitch_is_never_called_not_playing(monkeypatch):
