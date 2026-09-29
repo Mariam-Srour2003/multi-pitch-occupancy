@@ -69,6 +69,15 @@ class ImageIn(BaseModel):
 
 class BatchIn(BaseModel):
     images: list[ImageIn] = Field(min_length=1)
+    #: An outline drawn on the page, in normalised ``[x, y]`` pairs, used in preference to
+    #: whatever `camera` resolves to.
+    #:
+    #: Until now a boundary could only come from the store, so an uploaded still of a camera
+    #: the store has never seen was scored over the whole frame - the neighbouring pitch, the
+    #: walkway and the car park counted as this pitch. A19 measured that at 0.74 false-play
+    #: against 0.38 with an outline, and it is the same defect the clip route carried until
+    #: A35. The page now asks for the outline before it predicts, so this is how it arrives.
+    polygon: list[list[float]] | None = None
 
 
 def _decode(item: ImageIn) -> bytes:
@@ -82,7 +91,8 @@ def _decode(item: ImageIn) -> bytes:
 
 
 def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
-                 redact: bool, camera: str = "") -> Iterator[str]:
+                 redact: bool, camera: str = "",
+                 polygon: list[list[float]] | None = None) -> Iterator[str]:
     """One NDJSON line per image. A generator, because streaming it is the whole point.
 
     ``names`` carries what the user called each file. The paths on disk are prefixed with an
@@ -101,7 +111,17 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
     # answers the operator applied a boundary to avoid - the neighbouring pitch counted as
     # this one - and nothing on the page would say so. `resolve` knows production's camera
     # ids; `get` did not (A36).
-    polygon = roi.resolve(camera) if camera else None
+    # A drawn outline wins over a stored one: the operator is looking at this frame and the
+    # store is not. `validate` rather than trust - a polygon arrives over the wire and a
+    # malformed one should be refused here, not produce a mask nobody can explain.
+    drawn = bool(polygon)
+    if polygon:
+        try:
+            polygon = roi.validate(polygon)
+        except ValueError as exc:
+            raise HTTPException(422, f"the outline is not usable: {exc}") from exc
+    else:
+        polygon = roi.resolve(camera) if camera else None
     classifier = _classifier()
     # The person gate, which is the one deployed overrule a still can carry: the motion gate
     # compares a frame to the previous sample of the same camera and a folder of stills has
@@ -115,6 +135,7 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
         "n_train": getattr(classifier, "n_train", 0), "redacted": redact,
         "n_submitted": len(paths), "camera": camera or None,
         "boundary": bool(polygon),
+        "boundary_source": ("drawn" if drawn else "stored") if polygon else "none",
         "coverage": roi.coverage(polygon) if polygon else 1.0,
         "gated": person_gate is not None, "motion_gate": False,
         "detector": cfg.detector,
@@ -229,7 +250,8 @@ async def walkthrough(
     def stream() -> Iterator[str]:
         try:
             yield from walk_records(paths, names=[n for n, _ in blobs],
-                                    explain_n=explain_n, redact=redact, camera=camera)
+                                    explain_n=explain_n, redact=redact, camera=camera,
+                                    polygon=batch.polygon)
         except Exception as exc:  # noqa: BLE001 - see below; this is a reporting boundary
             # **Every** failure has to become a record, not just the expected ones.
             #

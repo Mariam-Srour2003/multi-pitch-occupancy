@@ -208,6 +208,12 @@ ALLOWED_MUTATING = {
     #: boundary before saving it. A POST because the body carries an image. Same category as
     #: `/schedule/validate`, and pinned by `test_the_preview_saves_nothing` below.
     "/roi/preview",
+    #: Writes nothing. It measures an outline from posted stills so the images page can open
+    #: its drawing step on a suggestion rather than an empty canvas - an operator facing a
+    #: blank canvas reasonably picks "whole frame", which is the thing that step exists to
+    #: stop. A POST because the body carries images, and the result is returned, never saved:
+    #: saving a boundary is `PUT /roi`, which a person does deliberately.
+    "/roi/suggest",
     #: Writes nothing either. It takes a posted video and returns its first frame, so a
     #: boundary for a clip can be drawn on the frame the analysis will actually see rather
     #: than on one the browser decoded separately. A POST because the body is a video; the

@@ -210,6 +210,35 @@ stored</p>
 <input type="file" id="file" accept="image/*" multiple hidden>
 <div class="picked" id="picked"></div>
 
+<section id="bstep" style="display:none;margin-top:14px">
+  <h2 style="margin:0 0 4px">Draw the pitch</h2>
+  <p class="sub2" style="margin-top:0">Everything outside the outline is masked before the
+  model sees it. Without one the model scores the next pitch over, the walkway and the car
+  park as if they were this pitch &mdash; measured at <b>0.74</b> false-play against
+  <b>0.38</b> with an outline. Click the corners to redraw; the suggestion below is measured
+  from your images and is a starting point, not an answer.</p>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+    <div style="position:relative;line-height:0">
+      <img id="bimg" alt="first image" style="max-width:560px;border-radius:8px">
+      <canvas id="bcv" style="position:absolute;inset:0;width:100%;height:100%;
+        cursor:crosshair;border-radius:8px"></canvas>
+    </div>
+    <div style="min-width:210px">
+      <p class="sub2" style="margin:0 0 8px">Keeps <b id="bcov">&mdash;</b> of the frame
+      &middot; <span id="bsrc">measuring&hellip;</span></p>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="ghost" id="bsuggest">Re-measure from the images</button>
+        <button class="ghost" id="bundo">Undo last point</button>
+        <button class="ghost" id="bclear">Start drawing from scratch</button>
+        <button class="ghost" id="bwhole" title="Predicts on the whole frame. A19 measured
+          that at 0.74 false-play against 0.38 with an outline.">Use the whole frame</button>
+      </div>
+      <p class="sub2" id="bwarn" style="margin:10px 0 0;display:none;color:var(--flag)">
+        No outline: the whole frame will be scored.</p>
+    </div>
+  </div>
+</section>
+
 <div class="controls">
   <div><label for="expn">Explain in detail</label>
     <select id="expn">
@@ -316,6 +345,10 @@ the fix for a neighbouring pitch showing up in frame.">masks outside the pitch &
 const $=id=>document.getElementById(id);
 const NL=String.fromCharCode(10);
 let files=[],results=[],queue=[],draining=false,delay=900,streamDone=false,redact=false;
+// The outline the operator settled on, normalised [x,y] in 0-1, or null for "whole frame".
+// Null is a *choice* here and not an absence: the step is shown before every run, so a
+// prediction over the whole frame is one somebody made rather than one that happened.
+let boundary=null,drawing=[];
 
 // --- choosing files -------------------------------------------------------------------
 function pick(list){
@@ -324,6 +357,15 @@ function pick(list){
     ? files.length+(files.length===1?' image':' images')+' chosen'
     : 'JPEG, PNG, or anything OpenCV can read \\u00b7 up to 32 images, 25 MB each';
   $('go').disabled=!files.length;
+  // The step appears with the files and before any prediction, which is the whole point:
+  // the boundary is asked for rather than defaulted. `/images` scored whole frames until
+  // 2026-09-29 and nothing on the page said so.
+  $('bstep').style.display=files.length?'':'none';
+  if(files.length){
+    drawing=[];boundary=null;
+    $('bimg').src=URL.createObjectURL(files[0]);
+    $('bimg').onload=()=>{URL.revokeObjectURL($('bimg').src);bpaint();bsuggest();};
+  }
   const box=$('picked');box.innerHTML='';
   files.forEach(f=>{
     const fig=document.createElement('figure');
@@ -583,6 +625,67 @@ function summarise(){
 $('zclose').onclick=()=>$('zoom').close();
 $('zoom').onclick=e=>{if(e.target===$('zoom')) $('zoom').close()};
 
+// --- the boundary step ------------------------------------------------------------------
+//
+// Drawn on a canvas over the image at its displayed size, stored normalised. Normalised so
+// the outline survives the resize between this preview and the frame the model reads - the
+// same reason `vision/roi.py` stores fractions rather than pixels.
+function bpaint(){
+  const cv=$('bcv'),img=$('bimg');
+  if(!img.clientWidth) return;
+  cv.width=img.clientWidth;cv.height=img.clientHeight;
+  const g=cv.getContext('2d'),pts=drawing.length?drawing:(boundary||[]);
+  g.clearRect(0,0,cv.width,cv.height);
+  if(!pts.length) return;
+  g.beginPath();
+  pts.forEach(([x,y],i)=>{const px=x*cv.width,py=y*cv.height;
+    i?g.lineTo(px,py):g.moveTo(px,py);});
+  if(pts.length>2) g.closePath();
+  g.strokeStyle='#ffd400';g.lineWidth=3;g.stroke();
+  if(pts.length>2){g.fillStyle='rgba(255,212,0,.13)';g.fill();}
+  g.fillStyle='#ffd400';
+  pts.forEach(([x,y])=>{g.beginPath();
+    g.arc(x*cv.width,y*cv.height,4.5,0,7);g.fill();});
+}
+function bshow(src){
+  const pts=drawing.length?drawing:boundary;
+  $('bcov').textContent=pts&&pts.length>2?(area(pts)*100).toFixed(0)+'%':'\u2014';
+  $('bsrc').textContent=src;
+  $('bwarn').style.display=(pts&&pts.length>2)?'none':'';
+  bpaint();
+}
+// Shoelace, so the coverage figure is the polygon's own area rather than its bounding box.
+function area(pts){
+  let a=0;
+  for(let i=0;i<pts.length;i++){const [x1,y1]=pts[i],[x2,y2]=pts[(i+1)%pts.length];
+    a+=x1*y2-x2*y1;}
+  return Math.abs(a)/2;
+}
+async function bsuggest(){
+  if(!files.length) return;
+  $('bsrc').textContent='measuring\u2026';
+  try{
+    const images=[{name:files[0].name,data:await readAsDataURL(files[0])}];
+    const r=await fetch('/api/v1/roi/suggest',{method:'POST',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({images})});
+    const d=await r.json();
+    if(r.ok&&d.polygon){boundary=d.polygon;drawing=[];bshow('measured from your image');}
+    else{boundary=null;drawing=[];bshow('no turf found \u2014 draw it yourself');}
+  }catch(_){boundary=null;drawing=[];bshow('could not measure \u2014 draw it yourself');}
+}
+$('bcv').onclick=e=>{
+  const r=e.target.getBoundingClientRect();
+  drawing.push([(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]);
+  boundary=drawing.length>2?drawing.slice():null;
+  bshow('drawn here');
+};
+$('bundo').onclick=()=>{drawing.pop();
+  boundary=drawing.length>2?drawing.slice():null;bshow('drawn here');};
+$('bclear').onclick=()=>{drawing=[];boundary=null;bshow('draw the corners');};
+$('bwhole').onclick=()=>{drawing=[];boundary=null;bshow('whole frame, chosen');};
+$('bsuggest').onclick=bsuggest;
+window.addEventListener('resize',bpaint);
+
 // --- running --------------------------------------------------------------------------
 $('go').onclick=async()=>{
   if(!files.length) return;
@@ -601,7 +704,7 @@ $('go').onclick=async()=>{
       camera:$('camera').value});
     const r=await fetch('/api/v1/images/walkthrough?'+q,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({images})});
+      body:JSON.stringify({images,polygon:boundary})});
     if(!r.ok){
       let detail='HTTP '+r.status;
       try{const b=await r.json();detail=b.detail||detail;}catch(_){}

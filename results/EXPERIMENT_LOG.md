@@ -7853,3 +7853,48 @@ clock outperforms three frozen backbones is unchanged; the "1.000" is not.
 **What this is an instance of.** Three files computed the same headline and one of them had the
 guard. The repository's own convention - a constant with its reasoning attached, in one place -
 is what would have prevented it, and the fix is that rather than three matching patches.
+
+## The boundary is asked for before the prediction, on the page that predicts (A43)
+
+`src/pitch_occupancy/api/image_page.py`, `image_walkthrough.py`, `roi_editor.py`
+
+`/images` scored **whole frames**. A boundary could only come from the store, by camera name,
+so an uploaded still of a camera the store has never seen - which is every still an operator
+actually uploads - was scored over the neighbouring pitch, the walkway and the car park. The
+page offered a link to `/roi`, a separate editor, which nobody visits before predicting.
+
+This is the same defect A35 fixed on the clip route, in the one place it was left.
+
+**The fix is a step, not a default.** Choosing files now reveals a *Draw the pitch* panel
+before anything is predicted: the first image on a canvas, an outline measured from it already
+drawn, click-to-redraw, undo, clear, and an explicit **Use the whole frame** - which stays
+available and now costs a deliberate click and carries the number it costs. A prediction over
+the whole frame is a choice somebody made rather than one that happened.
+
+**It opens on a suggestion because an empty canvas has a predictable answer.** An operator
+facing a blank canvas and a photograph of a pitch reasonably clicks "whole frame", which is
+exactly what the step exists to prevent. `POST /roi/suggest` measures one from the uploaded
+images with the routine `derive_roi.py` runs over the corpus, and the panel says where the
+outline came from - *measured from your image*, *drawn here*, or *whole frame, chosen* - so the
+three are never confused. It is a suggestion: A19, A23 and A24 between them establish that
+every boundary error left in this project is a colour error, and a person looking at the frame
+is still the best available check.
+
+**On the frame that prompted this**, t = 60 s of the operator's clip, an empty floodlit pitch:
+
+| | verdict | confidence |
+|---|---|---|
+| whole frame | **C3_MAINTENANCE_NON_SPORTING** | 0.946 |
+| the suggested outline (keeps 51%) | **C1_EMPTY** | 0.965 |
+
+Same frame, same model, one step apart.
+
+**Server side.** `BatchIn` gained `polygon`, normalised `[x, y]` pairs, taking precedence over
+whatever `camera` resolves to - the operator is looking at this frame and the store is not. It
+is passed through `roi.validate`, so a malformed outline is refused at the edge rather than
+producing a mask nobody can explain, and the meta record now carries `boundary_source` so the
+page never has to guess between *drawn*, *stored* and *none*.
+
+`test_authority.py` refused `/roi/suggest` until it was recorded with its reason, which is the
+guard working: it writes nothing, and saving a boundary is still `PUT /roi`, which a person
+does deliberately.

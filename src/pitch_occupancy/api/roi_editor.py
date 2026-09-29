@@ -210,6 +210,60 @@ def preview(body: PreviewIn) -> dict:
     return out
 
 
+@router.post("/roi/suggest", include_in_schema=False)
+async def suggest(request: Request) -> dict:
+    """Measure an outline from posted stills, so the drawing step starts from something.
+
+    The images page asks for a boundary *before* it predicts, and an operator facing an empty
+    canvas and a photograph of a pitch will reasonably click "whole frame" - which is the
+    thing the step exists to stop, since A19 measured the whole frame at 0.74 false-play
+    against 0.38 with an outline. So the canvas opens with a measured suggestion on it and the
+    operator corrects it, which is a much easier request than drawing one from nothing.
+
+    The same routine `derive_roi.py` runs over the corpus: the per-pixel median of the frames
+    removes anything that moved, and the largest connected excess-green region of that median
+    is the turf. With several stills of one camera it is a median over them; with one it is
+    that frame. A23 is why the suggestion is a convex hull - the tighter contour clips players
+    standing where the mask reads slightly less green - and A19 and A24 are why it is a
+    suggestion and not an answer: every boundary error left in this project is a colour error,
+    and a person looking at the frame is still the best available check.
+
+    Returns ``polygon: null`` when no turf is found, which is a real outcome on an indoor
+    court, and the page keeps the operator drawing rather than reporting a failure.
+    """
+    import cv2
+    import numpy as np
+
+    from pitch_occupancy.vision import roi_derive
+
+    payload = await request.json()
+    items = payload.get("images") or []
+    if not items:
+        raise HTTPException(422, "no images in the request")
+
+    frames = []
+    for item in items[:roi_derive.MAX_FRAMES]:
+        data = item.get("data", "") if isinstance(item, dict) else ""
+        if data.startswith("data:"):
+            _, _, data = data.partition(",")
+        try:
+            raw = base64.b64decode(data, validate=True)
+        except (binascii.Error, ValueError):
+            continue
+        frame = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+        if frame is not None:
+            frames.append(frame)
+    if not frames:
+        raise HTTPException(422, "none of those could be read as an image")
+
+    polygon = roi_derive.derive_from_frames(frames)
+    return {
+        "polygon": polygon,
+        "coverage": roi.coverage(polygon) if polygon else 1.0,
+        "n_frames": len(frames),
+    }
+
+
 @router.post("/roi/first-frame", include_in_schema=False)
 async def first_frame(request: Request) -> dict:
     """Return the first readable frame of a posted video, to draw a boundary on.
