@@ -30,6 +30,7 @@ from pitch_occupancy.data.feature_cache import features_for, load_cache
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.data.splits import development_rows, leave_one_group_out
 from pitch_occupancy.evaluation.experiment_log import record
+from pitch_occupancy.evaluation.metrics import MIN_VENUE_PLAY
 from pitch_occupancy.evaluation.stats import bootstrap_ci
 from pitch_occupancy.vision.backbones import BACKBONES
 from pitch_occupancy.vision.heads import ClockRule, LinearProbe
@@ -74,6 +75,7 @@ def main() -> None:
 
     for name, model, X in models:
         recalls: list[float] = []
+        thin: dict[str, tuple[float, int]] = {}
         print(f"=== {name} ===")
         for fold in folds:
             venue = fold.name.split("__")[-1]
@@ -85,8 +87,17 @@ def main() -> None:
             truth = [r.class3 for r in fold.test]
             play = [(p, t) for p, t in zip(pred, truth, strict=True) if t == PLAY]
             recall = sum(p == PLAY for p, _ in play) / len(play) if play else float("nan")
-            recalls.append(recall)
-            print(f"  {venue:<28} n={len(fold.test):>4}  play-recall {recall:.3f}")
+            # A venue enters the mean only above the floor. `davinci_l_city_pitch` arrived on
+            # 2026-09-21 with one play frame, and one frame is worth 0.000 or 1.000 and
+            # nothing between - given a vote equal to a 168-frame venue it moved this
+            # headline by an eighth. Reported below rather than dropped quietly.
+            if len(play) >= MIN_VENUE_PLAY:
+                recalls.append(recall)
+            else:
+                thin[venue] = (recall, len(play))
+            below = len(play) < MIN_VENUE_PLAY
+            thin_note = "   (below the floor, not in the mean)" if below else ""
+            print(f"  {venue:<28} n={len(fold.test):>4}  play-recall {recall:.3f}{thin_note}")
             records.append(
                 {
                     "model": name,
@@ -97,6 +108,9 @@ def main() -> None:
                 }
             )
 
+        if thin:
+            print("  below the floor and NOT in the mean: "
+                  + ", ".join(f"{v}={r:.3f}(n={n})" for v, (r, n) in sorted(thin.items())))
         arr = np.array(recalls, dtype=float)
         ci = bootstrap_ci(arr, np.mean, resamples=5000, seed=SEED)
         meets = "MEETS" if ci.estimate >= TARGET_RECALL else "below"

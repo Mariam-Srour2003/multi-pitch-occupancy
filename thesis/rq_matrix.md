@@ -286,7 +286,7 @@ rather than reported as a fitted parameter.
 |---|---|---|
 | Baseline floor | `h1_h2_baseline_floor.csv` | clock rule 0.4907 vs ConvNeXtV2 0.4975 on the grouped split |
 | Baseline floor | same | random split: ConvNeXtV2 0.9879 vs colour histogram 0.9616 — but on the 62 distinct scenes in that test set both score 1.0000 |
-| Cross-venue | `h3_cross_venue_recall.csv` | **A25: the opposite.** The lighting-only rule scores **1.000** play-recall across unseen venues at false-play **0.0206**, beating all three backbones on both axes. The old "it collapses to 0.219" was a label error |
+| Cross-venue | `h3_cross_venue_recall.csv` | **A25: the opposite.** The lighting-only rule scores **0.9844** play-recall across unseen venues at false-play **0.0206**, beating all three backbones (DINOv2 **0.9556**) on both axes. The old "it collapses to 0.219" was a label error. A42 put the one-frame venues below the floor, which moved the rule from 1.000 and DINOv2 from 0.9297 |
 
 **Answered, and the answer is conditional.** *Within* a confounded venue, no - a clock rule
 that never looks at the image comes within **0.0068** of ConvNeXtV2 and ViT, and the leaky

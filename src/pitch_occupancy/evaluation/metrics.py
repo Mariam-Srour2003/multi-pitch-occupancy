@@ -23,7 +23,37 @@ from pitch_occupancy.data.taxonomy import CLASS3_ORDER
 __all__ = [
     "ClassScore", "Report", "evaluate", "confusion_matrix",
     "MIN_SUPPORT_FOR_MACRO", "evaluable_subset",
+    "MIN_VENUE_PLAY", "venue_mean",
 ]
+
+
+#: A **venue** needs at least this many play frames before its recall joins a mean over
+#: venues. The same argument as `MIN_SUPPORT_FOR_MACRO` one level up: a recall estimated from
+#: one frame can only be 0.000 or 1.000, and averaging per venue gives that non-estimate the
+#: same vote as a venue with 168 frames.
+#:
+#: It is not hypothetical. `davinci_l_city_pitch` arrived on 2026-09-21 with a single play
+#: frame and took the clock rule from 1.000 to 0.861 and DINOv2 from 0.930 to 0.836 - an
+#: eighth of the headline, from one frame. `rule_frame_eval.py` found that and applied the
+#: floor; `h3_cross_venue_recall.py` and `h3_with_false_play.py` did not, so the published H3
+#: table and the live recomputation disagreed by 0.079 and a test had been failing on it. The
+#: constant lives here so there is one of it.
+MIN_VENUE_PLAY = 5
+
+
+def venue_mean(per_venue: dict[str, list[int]],
+               minimum: int = MIN_VENUE_PLAY) -> tuple[float, dict[str, tuple[float, int]]]:
+    """(mean over venues above the floor, {venue: (recall, n)} for those below).
+
+    The thin venues are **returned rather than dropped**, because a venue silently missing
+    from a mean is the shape of the bug this exists to prevent: the caller reports them with
+    their counts beside the headline.
+    """
+    above = {v: float(np.mean(hits)) for v, hits in per_venue.items() if len(hits) >= minimum}
+    below = {v: (float(np.mean(hits)), len(hits))
+             for v, hits in per_venue.items() if 0 < len(hits) < minimum}
+    mean = float(np.mean(list(above.values()))) if above else float("nan")
+    return mean, below
 
 
 #: A class needs at least this many test frames to enter the macro average.

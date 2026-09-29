@@ -7788,3 +7788,68 @@ published 0.9297. It fails identically with today's changes stashed, so
 folder collapse that moved 175 frames. It needs a re-run and a look, not a patch.
 
 - 2026-09-29 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 47 claims verified against their artefacts, 0 recorded as unsupported
+
+- 2026-09-29 | H3 | `python experiments/h3_cross_venue_recall.py` | seed 42 | `h3_cross_venue_recall.csv` | 9 folds x 2 models
+
+- 2026-09-29 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 45 claims verified against their artefacts, 0 recorded as unsupported
+
+## One frame of a new venue moved a headline by an eighth (A42)
+
+`src/pitch_occupancy/evaluation/metrics.py`, `experiments/h3_cross_venue_recall.py`,
+`experiments/h3_with_false_play.py`
+
+`test_h3_recall_still_reproduces_the_published_table` had been failing: DINOv2 recomputed to
+**0.8509** against a published **0.9297**. It fails identically with every recent change
+stashed, so it was not today's work - and the cause is not a model regression. Nothing about
+the model changed at all.
+
+**Two single-frame venues arrived on 2026-09-21 and changed what H3 measures.**
+
+`davinci_l_city_pitch` is one ACTIVE_PLAY frame. As its own fold it scores 0.000 or 1.000 -
+there is no third possibility - and a mean over venues gave that non-estimate the same vote as
+`clipvenue_a_blue_barrier`'s 168 frames. `davinci_j_maint_outdoor` is one C3 frame, and it did
+something less visible: it **un-blocked the venue_01 fold**.
+
+That fold had always been skipped by `if len({r.class3 for r in fold.train}) < 2` - hold out
+venue_01 and the training side is the clip venues, historically all ACTIVE_PLAY. By 2026-09-21
+five C3 frames had arrived across those venues, so the training side had two classes, the guard
+passed, and the fold ran: **804 test frames at 0.9689, silently added to a mean of seven
+venues.** Its training side still contains **no EMPTY frame at all**, so a model fitted on it
+cannot answer EMPTY and its play-recall is close to what answering PLAY always would score.
+
+**The guard was a proxy for the right question and stopped being one.** `h3_cross_venue_recall.py`
+says the real condition in prose when it excludes venue_01 by name - *"training on it leaves no
+EMPTY frames at all"* - and the code next door tested the number of distinct classes instead.
+The two agreed only while the clip venues were pure. The guard now asks what the prose asks:
+at least `MIN_TRAIN_PER_CLASS` **EMPTY** frames on the training side, because play-recall
+without a competing class is not evidence of discrimination.
+
+**And the floor existed already, in one file of three.** `rule_frame_eval.py` found this on
+2026-09-21 and wrote it down - *"that one frame took the clock rule from 1.000 to 0.861 and
+DINOv2 from 0.930 to 0.836 by being worth an eighth of the headline"* - and applied
+`MIN_VENUE_PLAY = 5` locally. `h3_cross_venue_recall.py` and `h3_with_false_play.py` did not
+get it, which is why the published table and its own test disagreed for eight days. The
+constant and a `venue_mean` helper now live in `evaluation/metrics.py`, beside the
+class-level `MIN_SUPPORT_FOR_MACRO` that is the same argument one level down, and all three
+import it.
+
+**The corrected table**, seven venues, both exclusions now for stated reasons:
+
+| model | was | now | worst venue |
+|---|---|---|---|
+| clock_rule | 1.0000 | **0.9844** | 0.923 |
+| dinov2 | 0.9297 | **0.9556** | 0.806 |
+| convnextv2 | 0.9105 | see CSV | |
+| vit | 0.8690 | see CSV | |
+
+DINOv2's 0.9556 now agrees exactly with `rule_frame_eval.py`'s dinov2 arm, which is the point:
+two files measuring the same quantity should not disagree, and they did.
+
+**A25's direction survives and its margin narrows.** The clock rule still beats every backbone
+cross-venue - 0.9844 against 0.9556 - but it is no longer perfect, because
+`clipvenue_f_outdoor_bldg` gained a frame it gets wrong. The claim that a rule reading only the
+clock outperforms three frozen backbones is unchanged; the "1.000" is not.
+
+**What this is an instance of.** Three files computed the same headline and one of them had the
+guard. The repository's own convention - a constant with its reasoning attached, in one place -
+is what would have prevented it, and the fix is that rather than three matching patches.

@@ -29,6 +29,7 @@ from pitch_occupancy.config import settings
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.data.splits import development_rows, leave_one_group_out
 from pitch_occupancy.db.seed import PHYSICAL_CAMERA
+from pitch_occupancy.evaluation.metrics import MIN_VENUE_PLAY
 from pitch_occupancy.vision.heads import ClockRule, LinearProbe
 
 PLAY, EMPTY = "C2_ACTIVE_PLAY", "C1_EMPTY"
@@ -55,18 +56,35 @@ def make_head(model: str):
     return ClockRule() if model == "clock_rule" else LinearProbe(model, seed=SEED)
 
 
+#: EMPTY frames a training side needs before its play-recall means anything. See the guard.
+MIN_TRAIN_PER_CLASS = 5
+
+
 def cross_venue_recall(model, rows, X) -> list[tuple[str, float, int]]:
     pos = {r.file: i for i, r in enumerate(rows)}
-    out = []
+    out: list[tuple[str, float, int]] = []
+    thin: list[tuple[str, int]] = []
     for fold in leave_one_group_out(rows):
         play = [r for r in fold.test if r.class3 == PLAY]
         if not play:
             continue
-        if len({r.class3 for r in fold.train}) < 2:
-            # The venue_01 fold trains on the clip venues alone, and all 282 of their
-            # development frames are ACTIVE_PLAY - a single class, which no classifier can
-            # be fitted to. This is why H3 reports seven folds and not eight, and it is the
-            # dataset gap rather than a code limitation.
+        # **The training side must contain empty pitches**, which is what
+        # `h3_cross_venue_recall.py` says when it excludes the venue_01 fold by name:
+        # "training on it leaves no EMPTY frames at all". Every EMPTY frame in the corpus is
+        # venue_01's, so holding venue_01 out leaves a model that cannot answer EMPTY - and
+        # play-recall from a model with no competing class is not evidence of discrimination.
+        # A constant PLAY predictor scores 1.000 on it.
+        #
+        # This was written as "fewer than 2 distinct classes", which said the same thing only
+        # while the clip venues were pure ACTIVE_PLAY. By 2026-09-21 they were not: five C3
+        # frames had arrived across them and davinci, so the fold had two classes, ran, and
+        # silently added 804 test frames at 0.9689 to a mean of seven venues. Counting classes
+        # was a proxy; the class that has to be there is the one being traded against.
+        if sum(1 for r in fold.train if r.class3 == EMPTY) < MIN_TRAIN_PER_CLASS:
+            continue
+        if len(play) < MIN_VENUE_PLAY:
+            # One play frame is not a recall. Reported by the caller, not averaged.
+            thin.append((fold.name, sum(1 for _ in play)))
             continue
         head = make_head(model).fit(X[[pos[r.file] for r in fold.train]], fold.train)
         pred = head.predict(X[[pos[r.file] for r in play]], play)
@@ -141,7 +159,7 @@ def main() -> None:
         print("\nWARNING: a recall column does not reproduce the published CSV.")
         print("Do not read the false-play column until that is explained.")
     else:
-        print(f"\nRecall reproduces the published H3 table, so the false-play column is")
+        print("\nRecall reproduces the published H3 table, so the false-play column is")
         print(f"measured on the same footing. Held-out empty frames: {results[0][4]}.")
 
     OUT.parent.mkdir(parents=True, exist_ok=True)

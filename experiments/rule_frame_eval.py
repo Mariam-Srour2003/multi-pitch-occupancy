@@ -62,9 +62,12 @@ from pitch_occupancy.vision import roi
 RESULTS = settings.results_dir
 EMPTY, PLAY = Class3.EMPTY.value, Class3.ACTIVE_PLAY.value
 C3 = Class3.MAINTENANCE_NON_SPORTING.value
-#: Play frames a venue needs before its recall joins the mean over venues. Every
-#: venue in the corpus except one has at least 13; see `score`.
-MIN_VENUE_PLAY = 5
+#: Play frames a venue needs before its recall joins the mean over venues. Every venue in the
+#: corpus except one has at least 13; see `score`. Imported rather than defined here since
+#: 2026-09-29: this file had the floor and `h3_cross_venue_recall.py` did not, which is how
+#: the published H3 table and its own test came to disagree by 0.079.
+from pitch_occupancy.evaluation.metrics import MIN_VENUE_PLAY  # noqa: E402
+
 PUBLISHED = RESULTS / "h3_with_false_play.csv"
 CACHE = {"dinov2": "dinov2.npz"}
 
