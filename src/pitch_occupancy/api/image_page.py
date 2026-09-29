@@ -227,8 +227,7 @@ stored</p>
         <button class="ghost" id="bsuggest">Re-measure from the images</button>
         <button class="ghost" id="bundo">Undo last point</button>
         <button class="ghost" id="bclear">Start drawing from scratch</button>
-        <button class="ghost" id="bwhole" title="Predicts on the whole frame. A19 measured
-          that at 0.74 false-play against 0.38 with an outline.">Use the whole frame</button>
+        <button class="ghost" id="bwhole">Use the whole frame</button>
       </div>
       <p class="sub2" id="bwarn" style="margin:10px 0 0;display:none;color:var(--flag)">
         No outline: the whole frame will be scored.</p>

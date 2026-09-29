@@ -192,8 +192,7 @@ reports when the state changed. The file is deleted as soon as it has been read.
       <div style="display:flex;flex-direction:column;gap:6px">
         <button class="ghost" id="bundo">Undo last point</button>
         <button class="ghost" id="bclear">Start drawing from scratch</button>
-        <button class="ghost" id="bwhole" title="Analyses the whole frame. A19 measured that
-          at 0.74 false-play against 0.38 with an outline.">Use the whole frame</button>
+        <button class="ghost" id="bwhole">Use the whole frame</button>
       </div>
       <p class="sub2" id="bwarn" style="margin:10px 0 0;display:none;color:var(--flag)">
         No outline: the whole frame will be scored.</p>
