@@ -212,8 +212,9 @@ stored</p>
 
 <section id="bstep" style="display:none;margin-top:14px">
   <h2 style="margin:0 0 4px">Draw the pitch</h2>
-  <p class="sub2" style="margin-top:0">Click the corners to redraw. Everything outside the
-  outline is masked before the model sees it.</p>
+  <p class="sub2" style="margin-top:0">Click the corners to redraw. Each image keeps its own
+  outline &mdash; use <b>Copy to all</b> when they share a camera.</p>
+  <div id="bstrip" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px"></div>
   <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
     <div style="position:relative;line-height:0">
       <img id="bimg" alt="first image" style="max-width:560px;border-radius:8px">
@@ -221,10 +222,11 @@ stored</p>
         cursor:crosshair;border-radius:8px"></canvas>
     </div>
     <div style="min-width:210px">
-      <p class="sub2" style="margin:0 0 8px">Keeps <b id="bcov">&mdash;</b> of the frame
-      &middot; <span id="bsrc">measuring&hellip;</span></p>
+      <p class="sub2" style="margin:0 0 8px"><b id="bwhich">image 1</b> &middot; keeps
+      <b id="bcov">&mdash;</b> of the frame &middot; <span id="bsrc">measuring&hellip;</span></p>
       <div style="display:flex;flex-direction:column;gap:6px">
-        <button class="ghost" id="bsuggest">Re-measure from the images</button>
+        <button class="ghost" id="bsuggest">Re-measure this image</button>
+        <button class="ghost" id="bcopy">Copy to all images</button>
         <button class="ghost" id="bundo">Undo last point</button>
         <button class="ghost" id="bclear">Start drawing from scratch</button>
         <button class="ghost" id="bwhole">Use the whole frame</button>
@@ -344,7 +346,10 @@ let files=[],results=[],queue=[],draining=false,delay=900,streamDone=false,redac
 // The outline the operator settled on, normalised [x,y] in 0-1, or null for "whole frame".
 // Null is a *choice* here and not an absence: the step is shown before every run, so a
 // prediction over the whole frame is one somebody made rather than one that happened.
-let boundary=null,drawing=[];
+// One outline per image, indexed like `files`, plus which one is being drawn on. A folder
+// of stills is routinely a folder of different cameras and nothing in the upload says which,
+// so a single outline across the batch is right only when they happen to share a view.
+let outlines=[],drawing=[],bi=0;
 
 // --- choosing files -------------------------------------------------------------------
 function pick(list){
@@ -357,11 +362,7 @@ function pick(list){
   // the boundary is asked for rather than defaulted. `/images` scored whole frames until
   // 2026-09-29 and nothing on the page said so.
   $('bstep').style.display=files.length?'':'none';
-  if(files.length){
-    drawing=[];boundary=null;
-    $('bimg').src=URL.createObjectURL(files[0]);
-    $('bimg').onload=()=>{URL.revokeObjectURL($('bimg').src);bpaint();bsuggest();};
-  }
+  if(files.length){ outlines=files.map(()=>null);drawing=[];bi=0;bgo(0); }
   const box=$('picked');box.innerHTML='';
   files.forEach(f=>{
     const fig=document.createElement('figure');
@@ -623,14 +624,15 @@ $('zoom').onclick=e=>{if(e.target===$('zoom')) $('zoom').close()};
 
 // --- the boundary step ------------------------------------------------------------------
 //
-// Drawn on a canvas over the image at its displayed size, stored normalised. Normalised so
-// the outline survives the resize between this preview and the frame the model reads - the
-// same reason `vision/roi.py` stores fractions rather than pixels.
+// Drawn on a canvas over the image at its displayed size and stored normalised, so an
+// outline survives the resize between this preview and the frame the model reads - the same
+// reason `vision/roi.py` stores fractions rather than pixels.
+function bcur(){ return drawing.length?drawing:(outlines[bi]||null); }
 function bpaint(){
   const cv=$('bcv'),img=$('bimg');
   if(!img.clientWidth) return;
   cv.width=img.clientWidth;cv.height=img.clientHeight;
-  const g=cv.getContext('2d'),pts=drawing.length?drawing:(boundary||[]);
+  const g=cv.getContext('2d'),pts=bcur()||[];
   g.clearRect(0,0,cv.width,cv.height);
   if(!pts.length) return;
   g.beginPath();
@@ -640,46 +642,80 @@ function bpaint(){
   g.strokeStyle='#ffd400';g.lineWidth=3;g.stroke();
   if(pts.length>2){g.fillStyle='rgba(255,212,0,.13)';g.fill();}
   g.fillStyle='#ffd400';
-  pts.forEach(([x,y])=>{g.beginPath();
-    g.arc(x*cv.width,y*cv.height,4.5,0,7);g.fill();});
-}
-function bshow(src){
-  const pts=drawing.length?drawing:boundary;
-  $('bcov').textContent=pts&&pts.length>2?(area(pts)*100).toFixed(0)+'%':'\u2014';
-  $('bsrc').textContent=src;
-  $('bwarn').style.display=(pts&&pts.length>2)?'none':'';
-  bpaint();
+  pts.forEach(([x,y])=>{g.beginPath();g.arc(x*cv.width,y*cv.height,4.5,0,7);g.fill();});
 }
 // Shoelace, so the coverage figure is the polygon's own area rather than its bounding box.
-function area(pts){
+function barea(pts){
   let a=0;
   for(let i=0;i<pts.length;i++){const [x1,y1]=pts[i],[x2,y2]=pts[(i+1)%pts.length];
     a+=x1*y2-x2*y1;}
   return Math.abs(a)/2;
 }
+function bstrip(){
+  const box=$('bstrip');box.innerHTML='';
+  files.forEach((f,i)=>{
+    const b=document.createElement('button');
+    b.className='ghost';b.textContent=(i+1)+(outlines[i]?' \u2713':'');
+    b.title=f.name+(outlines[i]?' - has an outline':' - whole frame');
+    b.style.cssText='padding:3px 9px'+(i===bi?';outline:2px solid var(--accent)':'');
+    b.onclick=()=>bgo(i);
+    box.appendChild(b);
+  });
+}
+function bshow(src){
+  const pts=bcur();
+  $('bwhich').textContent='image '+(bi+1)+' of '+files.length;
+  $('bcov').textContent=pts&&pts.length>2?(barea(pts)*100).toFixed(0)+'%':'\u2014';
+  $('bsrc').textContent=src;
+  $('bwarn').style.display=(pts&&pts.length>2)?'none':'';
+  bstrip();bpaint();
+}
+// Moving to another image commits whatever is being drawn, so a half-finished outline is
+// never silently lost - three points is a polygon and fewer is not.
+function bcommit(){ if(drawing.length>2) outlines[bi]=drawing.slice(); drawing=[]; }
+function bgo(i){
+  bcommit();bi=i;
+  $('bimg').onload=()=>{URL.revokeObjectURL($('bimg').src);bpaint();};
+  $('bimg').src=URL.createObjectURL(files[bi]);
+  bshow(outlines[bi]?'this image\u2019s outline':'no outline yet');
+  if(!outlines[bi]) bsuggest();
+}
 async function bsuggest(){
   if(!files.length) return;
+  const at=bi;
   $('bsrc').textContent='measuring\u2026';
   try{
-    const images=[{name:files[0].name,data:await readAsDataURL(files[0])}];
+    const images=[{name:files[at].name,data:await readAsDataURL(files[at])}];
     const r=await fetch('/api/v1/roi/suggest',{method:'POST',
       headers:{'Content-Type':'application/json'},body:JSON.stringify({images})});
     const d=await r.json();
-    if(r.ok&&d.polygon){boundary=d.polygon;drawing=[];bshow('measured from your image');}
-    else{boundary=null;drawing=[];bshow('no turf found \u2014 draw it yourself');}
-  }catch(_){boundary=null;drawing=[];bshow('could not measure \u2014 draw it yourself');}
+    // The reply may arrive after the operator has moved on; apply it to the image it was
+    // measured from, and only redraw if that is still the one on screen.
+    if(r.ok&&d.polygon){
+      outlines[at]=d.polygon;
+      if(at===bi){drawing=[];bshow('measured from this image');} else bstrip();
+    }
+    else if(at===bi){bshow('no turf found \u2014 draw it yourself');}
+  }catch(_){ if(at===bi) bshow('could not measure \u2014 draw it yourself'); }
 }
 $('bcv').onclick=e=>{
   const r=e.target.getBoundingClientRect();
   drawing.push([(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]);
-  boundary=drawing.length>2?drawing.slice():null;
+  if(drawing.length>2) outlines[bi]=drawing.slice();
   bshow('drawn here');
 };
 $('bundo').onclick=()=>{drawing.pop();
-  boundary=drawing.length>2?drawing.slice():null;bshow('drawn here');};
-$('bclear').onclick=()=>{drawing=[];boundary=null;bshow('draw the corners');};
-$('bwhole').onclick=()=>{drawing=[];boundary=null;bshow('whole frame, chosen');};
-$('bsuggest').onclick=bsuggest;
+  outlines[bi]=drawing.length>2?drawing.slice():null;bshow('drawn here');};
+$('bclear').onclick=()=>{drawing=[];outlines[bi]=null;bshow('draw the corners');};
+$('bwhole').onclick=()=>{drawing=[];outlines[bi]=null;bshow('whole frame, chosen');};
+$('bsuggest').onclick=()=>{drawing=[];outlines[bi]=null;bsuggest();};
+$('bcopy').onclick=()=>{
+  bcommit();
+  const one=outlines[bi];
+  if(!one) return;
+  for(let i=0;i<files.length;i++) outlines[i]=one.map(p=>p.slice());
+  bshow('copied to all '+files.length);
+};
 window.addEventListener('resize',bpaint);
 
 // --- running --------------------------------------------------------------------------
@@ -694,13 +730,16 @@ $('go').onclick=async()=>{
   $('stage-step').textContent='loading the model';
 
   try{
+    bcommit();
     const images=[];
-    for(const f of files) images.push({name:f.name,data:await readAsDataURL(f)});
+    for(let i=0;i<files.length;i++)
+      images.push({name:files[i].name,data:await readAsDataURL(files[i]),
+                   polygon:outlines[i]||null});
     const q=new URLSearchParams({explain_n:$('expn').value,redact:String(redact),
       camera:$('camera').value});
     const r=await fetch('/api/v1/images/walkthrough?'+q,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({images,polygon:boundary})});
+      body:JSON.stringify({images})});
     if(!r.ok){
       let detail='HTTP '+r.status;
       try{const b=await r.json();detail=b.detail||detail;}catch(_){}

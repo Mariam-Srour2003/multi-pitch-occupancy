@@ -34,7 +34,14 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
-from pitch_occupancy.api.clip_review import MAX_UPLOAD_BYTES, _classifier, _clock, _gates
+from pitch_occupancy.api.clip_review import (
+    MAX_UPLOAD_BYTES,
+    _classifier,
+    _clock,
+    _derive_boundary,
+    _gates,
+    _parse_polygon,
+)
 from pitch_occupancy.clip_analysis import DEFAULT_INTERVAL_S
 
 __all__ = ["router", "JPEG_WIDTH"]
@@ -65,7 +72,7 @@ def _jpeg(image_bgr, width: int = JPEG_WIDTH) -> str:
 
 
 def walk_records(path: Path, *, interval_s: float, explain_n: int,
-                 redact: bool, camera: str = "") -> Iterator[str]:
+                 redact: bool, camera: str = "", polygon: str = "") -> Iterator[str]:
     """One NDJSON line per step. A generator, because streaming it is the whole point.
 
     ``camera`` names a saved pitch boundary (WP3-T1), applied to every sampled frame. A
@@ -81,7 +88,16 @@ def walk_records(path: Path, *, interval_s: float, explain_n: int,
     # Reported rather than assumed, as on the image route: asking for a boundary that does
     # not exist and silently analysing the whole frame gives back exactly the answers the
     # boundary was meant to prevent. `resolve` knows production's camera ids; `get` did not.
-    polygon = roi.resolve(camera) if camera else None
+    drawn = _parse_polygon(polygon)
+    derived = False
+    polygon = drawn or (roi.resolve(camera) if camera else None)
+    if polygon is None and drawn is None:
+        # The same fallback `/clip/analyse` has: an uploaded clip names no camera, and
+        # without an outline the model scores the neighbouring pitch and the car park as if
+        # they were this one. Derived from the footage, which is what the page shows in its
+        # drawing step - so the two tabs agree even when nobody drew anything.
+        polygon = _derive_boundary(path)
+        derived = polygon is not None
     classifier = _classifier()
     # The same two gates the Analyse tab applies, through the same factory, because two tabs
     # showing different answers for one clip is the defect A35 was about. Until 2026-09-19
@@ -93,6 +109,10 @@ def walk_records(path: Path, *, interval_s: float, explain_n: int,
         "type": "meta", "backbone": getattr(classifier, "backbone", "?"),
         "n_train": getattr(classifier, "n_train", 0), "redacted": redact,
         "camera": camera or None, "boundary": bool(polygon),
+        #: Which of the three it was. "none" and "one I measured myself" are different
+        #: claims, and the page and its tests should not have to infer which happened.
+        "boundary_source": ("drawn" if drawn else "stored" if camera and not derived
+                            else "derived" if derived else "stored") if polygon else "none",
         "coverage": roi.coverage(polygon) if polygon else 1.0,
         "gated": motion_gate is not None or person_gate is not None,
     }) + "\n"
@@ -151,6 +171,11 @@ async def walkthrough(
     explain_n: int = Query(-1, ge=-1, le=360),
     redact: bool = Query(False),
     camera: str = Query("", max_length=120),
+    #: The outline drawn on the page, as a JSON array of normalised ``[x, y]`` pairs - the
+    #: same parameter `/clip/analyse` takes, because the two tabs must analyse the clip the
+    #: same way. Watching the model work over the whole frame while Analyse used a boundary
+    #: is the shape of the defect A35 was about, one tab further along.
+    polygon: str = Query("", max_length=4000),
 ) -> StreamingResponse:
     """Stream the analysis, with an evidence map for each explained frame.
 
@@ -180,7 +205,7 @@ async def walkthrough(
     def stream() -> Iterator[str]:
         try:
             yield from walk_records(path, interval_s=interval_s, explain_n=explain_n,
-                                    redact=redact, camera=camera)
+                                    redact=redact, camera=camera, polygon=polygon)
         except Exception as exc:  # noqa: BLE001 - a reporting boundary, not a swallow
             # Broadened from `ValueError` for the reason written out in
             # `image_walkthrough.stream`: the response is already committed as 200 by the

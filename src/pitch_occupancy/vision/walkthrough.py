@@ -413,6 +413,7 @@ def walk_images(
     redact: bool = False,
     max_images: int = 64,
     polygon: list[list[float]] | None = None,
+    polygons: Sequence[list[list[float]] | None] | None = None,
     roi_fill: str = "black",
     person_gate: object | None = None,
 ) -> Iterator[Shot]:
@@ -458,7 +459,18 @@ def walk_images(
 
     from pitch_occupancy.vision.roi import apply as apply_roi
 
+    # One outline per image when `polygons` is given, falling back to the batch's `polygon`
+    # for any entry that is None. A folder of stills is routinely a folder of *different
+    # cameras* - the page has no way to know otherwise - and one outline across all of them
+    # is right only when they happen to share a view. Indexed rather than zipped, so a short
+    # list is a partial answer rather than a silently truncated batch.
+    def outline_for(i: int):
+        if polygons is not None and i < len(polygons) and polygons[i] is not None:
+            return polygons[i]
+        return polygon
+
     for index, raw in enumerate(list(paths)[:max_images]):
+        shot_polygon = outline_for(index)
         source = Path(raw)
         began = time.perf_counter()
         frame = cv2.imread(str(source))
@@ -466,23 +478,23 @@ def walk_images(
             continue
 
         height, width = frame.shape[:2]
-        frame = apply_roi(frame, polygon, fill=roi_fill)
+        frame = apply_roi(frame, shot_polygon, fill=roi_fill)
         explaining = explain_n == EXPLAIN_ALL or index < explain_n
         if not explaining:
-            state, confidence = _classify(classifier, frame, polygon)
+            state, confidence = _classify(classifier, frame, shot_polygon)
             state, probed, n_inside, ball, _ = _gate(
-                state, confidence, frame, polygon, person_gate=person_gate)
+                state, confidence, frame, shot_polygon, person_gate=person_gate)
             yield Shot(
                 index=index, name=source.name, predicted=str(state),
                 confidence=confidence, width=width, height=height,
                 probed=probed, n_inside=n_inside, ball=ball,
-                elapsed_ms=(time.perf_counter() - began) * 1000, polygon=polygon,
+                elapsed_ms=(time.perf_counter() - began) * 1000, polygon=shot_polygon,
             )
             continue
 
-        explained = explain_frame(frame, classifier, redact=redact, polygon=polygon)
+        explained = explain_frame(frame, classifier, redact=redact, polygon=shot_polygon)
         state, probed, n_inside, ball, _ = _gate(
-            explained["predicted"], explained["confidence"], frame, polygon,
+            explained["predicted"], explained["confidence"], frame, shot_polygon,
             person_gate=person_gate)
         explained["predicted"] = str(state)
         yield Shot(

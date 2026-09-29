@@ -62,6 +62,10 @@ MAX_TOTAL_BYTES: int = 200 * 1024 * 1024
 
 class ImageIn(BaseModel):
     name: str = Field(default="image", max_length=260)
+    #: This image's own outline, normalised ``[x, y]`` pairs, or absent to use the batch's.
+    #: A folder of stills is routinely a folder of different cameras and the page cannot know
+    #: otherwise, so one outline across all of them is right only when they share a view.
+    polygon: list[list[float]] | None = None
     #: Base64, with or without a `data:` prefix - the browser's `FileReader.readAsDataURL`
     #: produces the prefixed form and stripping it here saves every caller doing it.
     data: str
@@ -92,7 +96,8 @@ def _decode(item: ImageIn) -> bytes:
 
 def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
                  redact: bool, camera: str = "",
-                 polygon: list[list[float]] | None = None) -> Iterator[str]:
+                 polygon: list[list[float]] | None = None,
+                 polygons: list[list[list[float]] | None] | None = None) -> Iterator[str]:
     """One NDJSON line per image. A generator, because streaming it is the whole point.
 
     ``names`` carries what the user called each file. The paths on disk are prefixed with an
@@ -114,7 +119,21 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
     # A drawn outline wins over a stored one: the operator is looking at this frame and the
     # store is not. `validate` rather than trust - a polygon arrives over the wire and a
     # malformed one should be refused here, not produce a mask nobody can explain.
-    drawn = bool(polygon)
+    # Validated here for the same reason the batch outline is: a polygon arrives over the
+    # wire, and one that could not be stored must not be analysed with either.
+    if polygons:
+        checked: list[list[list[float]] | None] = []
+        for i, one in enumerate(polygons):
+            if not one:
+                checked.append(None)
+                continue
+            try:
+                checked.append(roi.validate(one))
+            except ValueError as exc:
+                raise HTTPException(
+                    422, f"image {i + 1}: the outline is not usable: {exc}") from exc
+        polygons = checked
+    drawn = bool(polygon) or any(polygons or ())
     if polygon:
         try:
             polygon = roi.validate(polygon)
@@ -134,8 +153,12 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
         "type": "meta", "backbone": getattr(classifier, "backbone", "?"),
         "n_train": getattr(classifier, "n_train", 0), "redacted": redact,
         "n_submitted": len(paths), "camera": camera or None,
-        "boundary": bool(polygon),
-        "boundary_source": ("drawn" if drawn else "stored") if polygon else "none",
+        "boundary": bool(polygon) or any(polygons or ()),
+        "boundary_source": ("drawn" if drawn else "stored")
+                           if (polygon or any(polygons or ())) else "none",
+        #: How many of the batch carry their own outline, so the page can say "3 of 8 drawn"
+        #: rather than implying one boundary covered everything.
+        "n_outlines": sum(1 for one in (polygons or ()) if one),
         "coverage": roi.coverage(polygon) if polygon else 1.0,
         "gated": person_gate is not None, "motion_gate": False,
         "detector": cfg.detector,
@@ -152,7 +175,8 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
     seen = 0
     gated = 0
     for shot in walk_images(paths, classifier, explain_n=explain_n, redact=redact,
-                            polygon=polygon, person_gate=person_gate):
+                            polygon=polygon, polygons=polygons,
+                            person_gate=person_gate):
         seen += 1
         gated += shot.probed is not None
         record = {
@@ -251,7 +275,8 @@ async def walkthrough(
         try:
             yield from walk_records(paths, names=[n for n, _ in blobs],
                                     explain_n=explain_n, redact=redact, camera=camera,
-                                    polygon=batch.polygon)
+                                    polygon=batch.polygon,
+                                    polygons=[i.polygon for i in batch.images])
         except Exception as exc:  # noqa: BLE001 - see below; this is a reporting boundary
             # **Every** failure has to become a record, not just the expected ones.
             #

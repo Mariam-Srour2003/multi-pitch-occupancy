@@ -7929,3 +7929,83 @@ Checked end to end on the operator's clip, 848x480, suggested outline keeping 56
 The third row is the one that matters: it proves the drawn outline is *applied* rather than
 merely recorded. Malformed input is refused at the edge - `polygon=not json` and a two-point
 outline both return 422 with the reason.
+
+## Re-checking the rules after A41: three places fewer than five people could still be play (2026-09-29)
+
+Asked for after `require_ball` went off: check that **no path ever answers ACTIVE_PLAY with fewer
+than five people inside the boundary**, and that the other rows hold too. Checked by sweeping the
+inputs rather than reading the code - every count 0-11, ball / no ball, ball in play / still /
+unknown, motion none / 0 / low / high, bounded or not, strict or shipped config.
+
+**`rules.decide` on the shipped `configs/rules.json`: 0 violations.** Rows 1-7 all behave as the
+table says: no detector and no boundary abstain, 0 people is EMPTY (or UNCERTAIN on high motion
+once `motion_hi` is fitted), 1-4 is C3 with or without a ball, and only 5+ reaches row 6.
+
+Three defects, all outside the shipped table's numbers:
+
+1. **`decide` guarded row 5 on `small_group_max` alone.** With `play_min` 6 and
+   `small_group_max` 4, five people went to row 6 and played. Never fired on the shipped file,
+   where the two are adjacent, but "never" rested on that. Row 5 now also catches
+   `n < play_min`; `test_never_active_play_below_play_min_under_any_config_or_cue` sweeps it.
+2. **The probe path's `PersonGate` let a ball rescue 1-4 people (A18).** Three people and a ball
+   stayed ACTIVE_PLAY. This matters more than it looks: `settings.default_model_key` is `dinov2`,
+   so **the review pages run the probe path**, not the table. The ball clause is now off by
+   default and the gate reads `play_min`; `ball_rescues_small_group=True` reproduces A18. The
+   cost is the one A18 measured - 88 of 278 venue_01 play frames show 1-4 people *per camera* -
+   and it is accepted as the facility's rule. Probe-path numbers measured with the A18 gate
+   (`rule_frame_eval`'s probe arm, h3_with_gates, rq6) are not re-run here and would move.
+3. **Clip smoothing could undo the count.** `majority_smooth` reads only states, so a C3 frame
+   with three people among playing neighbours came out ACTIVE_PLAY; the test for that also
+   caught a tied window turning a counted-zero frame into C3. `clip_analysis._respect_the_count`
+   now keeps the frame's own gated verdict wherever the neighbours contradict its count (fewer
+   than `play_min` -> not play, people -> not EMPTY, nobody -> EMPTY). It only ever undoes a
+   correction, so the gates' "weaken, never strengthen" property is intact.
+
+Not changed, and stated: **fusion sums the two halves**, so 3 + 3 people is 6 and ACTIVE_PLAY
+though each camera alone says C3. That is the design A41 measured (venue_01 play moments
+0.7121 -> 1.0000). It over-counts anyone standing where both cameras see them. And on the probe
+path a detector that cannot load leaves the probe's verdict alone - including ACTIVE_PLAY - as
+`people.py` has always documented ("failure is silence"); the table path abstains instead.
+
+## One outline per image, and the boundary the operator drew reaches the stream (A44)
+
+`src/pitch_occupancy/vision/walkthrough.py`, `api/image_walkthrough.py`, `api/image_page.py`,
+`api/clip_walkthrough.py`, `api/clip_page.py`
+
+Two holes left over from A43, both reported from use.
+
+**1. "Watch it work" ignored the outline that had just been drawn.** A43 put the drawing step
+on `/clip`, and `/clip/analyse` used it - but `/clip/walkthrough` took no polygon at all. So
+the operator drew a boundary, watched the model step through the clip over the *whole frame*,
+and then pressed Analyse and got different answers for the same footage. That is the A35
+defect exactly, one tab further along: two surfaces disagreeing about one clip because one of
+them is a version behind. `/clip/walkthrough` now takes the same `polygon` parameter, through
+the same `_parse_polygon` (so a malformed outline is a 422 here too, not a silent whole-frame
+run), with the same derive-from-footage fallback when nothing was drawn and the camera is
+unknown. Its meta says which of the three happened - `stored`, `drawn`, `derived`, `none` -
+because "no boundary" and "one I measured myself" are different claims and a reader should not
+have to infer which.
+
+That renamed a test rather than fixing one. `test_a_clip_walkthrough_reports_the_boundary_it_applied`
+asserted that an unknown camera yields *no* boundary. It deliberately no longer does, so the
+test now asserts the source instead, which is the property that actually matters; it tolerates
+`none` because a generated test clip is flat colour and the turf threshold can legitimately
+find nothing.
+
+**2. `/images` offered one outline for the whole batch.** A folder of stills is routinely a
+folder of *different cameras* - nothing in an upload says otherwise - so one outline across the
+batch is right only by luck, and wrong in the direction that matters: an outline drawn round
+image 1's pitch, applied to image 2, masks image 2's pitch away and scores its car park.
+
+`walk_images` now takes `polygons`, one per image, falling back per image to the batch outline
+and then to the stored camera; `ImageIn.polygon` carries it, validated per image (a 422 names
+the index). The page steps through the chosen images with a numbered strip, ticking the ones
+that have an outline, measuring a suggestion for each image separately, and offering **Copy to
+all** for the common case where they *do* share a camera - the convenience is opt-in rather
+than the default, which is the same argument A43 made about *Use the whole frame*.
+
+Verified end to end on two synthetic frames whose green regions sit in different places
+(x 20-320 and x 160-460 of 480): `/roi/suggest` returned 0.04-0.66 for the first and 0.33-0.95
+for the second, each matching its own frame; a hand-drawn outline on image 2 replaced its
+measured one; the request carried `images[i].polygon` per image and no batch `polygon`; both
+images explained without error. Full suite 1433 passed.

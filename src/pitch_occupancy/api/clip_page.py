@@ -599,6 +599,8 @@ $('watch').onclick=async()=>{
 
   const q=new URLSearchParams({interval_s:$('iv').value,explain_n:$('expn').value,
     camera:$('camera').value});
+  // The outline drawn in the step above, so Watch it work and Analyse see the same pitch.
+  if(boundary) q.set('polygon',JSON.stringify(boundary));
   try{
     const r=await fetch('/api/v1/clip/walkthrough?'+q,{method:'POST',body:chosen,
       headers:{'Content-Type':'application/octet-stream'}});

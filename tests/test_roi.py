@@ -354,7 +354,15 @@ def test_the_first_frame_upload_is_deleted(tmp_path, monkeypatch) -> None:
 
 def test_a_clip_walkthrough_reports_the_boundary_it_applied(tmp_path, monkeypatch) -> None:
     """One outline drawn on frame 0 governs the whole recording, so the clip route has to
-    say which boundary it used - and say so when the camera it was given has none."""
+    say *which* boundary it used.
+
+    This asserted that an unknown camera produced no boundary at all. It no longer does:
+    since the drawing step was added, the walkthrough falls back to measuring one from the
+    footage exactly as `/clip/analyse` has since A35 - because a tab that streams the model
+    over the whole frame while the other tab uses an outline is the two-tabs-disagreeing
+    defect one step further along. So the claim is now about the *source*, which is the thing
+    a reader has to be able to tell apart: stored, drawn here, or measured from the clip.
+    """
     from pitch_occupancy.api import clip_walkthrough as cw
 
     monkeypatch.setattr(cw, "_classifier", lambda: _StubForClip())
@@ -362,18 +370,36 @@ def test_a_clip_walkthrough_reports_the_boundary_it_applied(tmp_path, monkeypatc
 
     client = TestClient(app)
     video = _video(tmp_path / "clip.mp4").read_bytes()
-    for camera, expected in (("camera_A", True), ("never-drawn", False)):
+    for camera, want_source in (("camera_A", "stored"), ("never-drawn", "derived")):
         response = client.post(
             f"/api/v1/clip/walkthrough?explain_n=0&camera={camera}",
             content=video, headers={"Content-Type": "application/octet-stream"},
         )
         meta = json.loads(response.text.strip().splitlines()[0])
         assert meta["camera"] == camera
-        assert meta["boundary"] is expected
+        # A generated test clip is flat colour, so the turf threshold may find nothing and
+        # the fallback returns None - which is a real outcome and reported as "none", not
+        # quietly as a boundary.
+        assert meta["boundary_source"] in {want_source, "none"}, meta["boundary_source"]
+        assert meta["boundary"] is (meta["boundary_source"] != "none")
+
+    # And a drawn outline beats both, which is the whole point of the step.
+    drawn = json.dumps(MIDDLE)
+    response = client.post(
+        f"/api/v1/clip/walkthrough?explain_n=0&camera=never-drawn&polygon={drawn}",
+        content=video, headers={"Content-Type": "application/octet-stream"},
+    )
+    meta = json.loads(response.text.strip().splitlines()[0])
+    assert meta["boundary_source"] == "drawn"
+    assert meta["boundary"] is True
 
 
 class _StubForClip:
-    """Enough of `ProbeClassifier` for the unexplained path."""
+    """Enough of `ProbeClassifier` for the unexplained path.
+
+    Takes `**_kw` because the route passes `polygon=` whenever it has one, and since the
+    walkthrough gained the fallback it usually does.
+    """
 
     backbone = "stub"
     n_train = 0
@@ -381,7 +407,7 @@ class _StubForClip:
     class probe:  # noqa: N801 - mimics the attribute
         classes_ = ["C1_EMPTY", "C2_ACTIVE_PLAY"]
 
-    def __call__(self, image_bgr):
+    def __call__(self, image_bgr, **_kw):
         return "C2_ACTIVE_PLAY", 0.9
 
 
