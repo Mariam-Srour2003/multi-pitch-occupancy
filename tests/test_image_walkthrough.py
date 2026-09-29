@@ -57,7 +57,11 @@ def _real_frames(n: int = 2) -> list[str]:
 
 
 class _StubClassifier:
-    """Enough of `ProbeClassifier` for the unexplained path, which touches only these two."""
+    """Enough of `ProbeClassifier` for the unexplained path, which touches only these two.
+
+    Takes `**_kw` because `walk_images` passes `polygon=` whenever a frame has one - the
+    outline is both filled and pooled out, and the second half arrives as that keyword.
+    """
 
     backbone = "stub"
     n_train = 0
@@ -65,7 +69,7 @@ class _StubClassifier:
     class probe:  # noqa: N801 - mimics the attribute, not a class being used as one
         classes_ = [E.value, P.value]
 
-    def __call__(self, image_bgr):
+    def __call__(self, image_bgr, **_kw):
         return P, 0.9
 
 
@@ -147,6 +151,66 @@ def test_focus_ratio_is_none_when_nobody_was_detected() -> None:
     as 0.00x would read as "the evidence missed the people" on a frame that has none."""
     assert Shot(index=0, name="x", predicted=P.value, confidence=1.0, elapsed_ms=0.0,
                 people_area=0.0, evidence_on_people=0.0).focus_ratio is None
+
+
+# --- one outline per image ---------------------------------------------------------------
+#
+# A folder of stills is routinely a folder of *different cameras* - nothing in an upload says
+# otherwise - so one outline across the batch is right only by luck, and wrong in the
+# direction that matters: an outline drawn round image 1's pitch, applied to image 2, masks
+# image 2's pitch away and scores its car park. `Shot.polygon` is what the model was actually
+# shown, so these assert on it rather than on what was passed in.
+
+LEFT = [[0.05, 0.05], [0.45, 0.05], [0.45, 0.95], [0.05, 0.95]]
+RIGHT = [[0.55, 0.05], [0.95, 0.05], [0.95, 0.95], [0.55, 0.95]]
+
+
+def test_each_image_is_scored_inside_its_own_outline(tmp_path) -> None:
+    paths = [_image(tmp_path / "a.jpg"), _image(tmp_path / "b.jpg", 80)]
+    shots = list(walk_images(paths, _StubClassifier(), explain_n=0,
+                             polygons=[LEFT, RIGHT]))
+    assert [shot.polygon for shot in shots] == [LEFT, RIGHT]
+
+
+def test_an_image_with_no_outline_of_its_own_falls_back_to_the_batch(tmp_path) -> None:
+    """Undecided is not the same as declined, and only the second is a choice."""
+    paths = [_image(tmp_path / "a.jpg"), _image(tmp_path / "b.jpg", 80)]
+    shots = list(walk_images(paths, _StubClassifier(), explain_n=0,
+                             polygon=RIGHT, polygons=[LEFT, None]))
+    assert [shot.polygon for shot in shots] == [LEFT, RIGHT]
+
+
+def test_choosing_the_whole_frame_for_one_image_beats_every_outline(tmp_path) -> None:
+    """*Use the whole frame* on image 2 has to survive a batch outline and its own.
+
+    The complaint this comes from: pressing the button cleared the outline on screen and the
+    image was scored inside a boundary anyway. An absent outline could not carry the choice,
+    because that is also what "not measured yet" looks like - and the page answers *that* by
+    measuring one. `wholes` says it in a way nothing else can be mistaken for.
+    """
+    paths = [_image(tmp_path / "a.jpg"), _image(tmp_path / "b.jpg", 80)]
+    shots = list(walk_images(paths, _StubClassifier(), explain_n=0,
+                             polygon=RIGHT, polygons=[LEFT, LEFT],
+                             wholes=[False, True]))
+    assert [shot.polygon for shot in shots] == [LEFT, None]
+
+
+def test_the_route_carries_the_whole_frame_choice_per_image(tmp_path) -> None:
+    """End to end, and past the stored camera: a saved boundary is not a stronger claim than
+    the operator looking at this image."""
+    from pitch_occupancy.vision import roi
+
+    roi.save("camera_A", RIGHT)
+    body = {"images": [
+        {"name": "a.jpg", "data": _b64(_image(tmp_path / "a.jpg")), "polygon": LEFT},
+        {"name": "b.jpg", "data": _b64(_image(tmp_path / "b.jpg", 80)), "whole_frame": True},
+    ]}
+    response = TestClient(app).post(
+        "/api/v1/images/walkthrough?explain_n=0&camera=camera_A", json=body)
+    assert response.status_code == 200
+    meta = json.loads(response.text.strip().splitlines()[0])
+    assert meta["n_outlines"] == 1
+    assert meta["n_whole_frame"] == 1
 
 
 # --- the route ------------------------------------------------------------------------

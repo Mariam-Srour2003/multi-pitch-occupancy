@@ -66,6 +66,11 @@ class ImageIn(BaseModel):
     #: A folder of stills is routinely a folder of different cameras and the page cannot know
     #: otherwise, so one outline across all of them is right only when they share a view.
     polygon: list[list[float]] | None = None
+    #: This image is to be scored over the whole frame, because somebody chose that. Distinct
+    #: from `polygon` being absent, which means "not decided" and is answered by the batch
+    #: outline or the stored camera - the page used to send the two the same way, so pressing
+    #: *Use the whole frame* was overridden by whatever the boundary step had suggested.
+    whole_frame: bool = False
     #: Base64, with or without a `data:` prefix - the browser's `FileReader.readAsDataURL`
     #: produces the prefixed form and stripping it here saves every caller doing it.
     data: str
@@ -97,7 +102,8 @@ def _decode(item: ImageIn) -> bytes:
 def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
                  redact: bool, camera: str = "",
                  polygon: list[list[float]] | None = None,
-                 polygons: list[list[list[float]] | None] | None = None) -> Iterator[str]:
+                 polygons: list[list[list[float]] | None] | None = None,
+                 wholes: list[bool] | None = None) -> Iterator[str]:
     """One NDJSON line per image. A generator, because streaming it is the whole point.
 
     ``names`` carries what the user called each file. The paths on disk are prefixed with an
@@ -133,6 +139,10 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
                 raise HTTPException(
                     422, f"image {i + 1}: the outline is not usable: {exc}") from exc
         polygons = checked
+    # An image that opted out of a boundary carries no outline, whatever was drawn for it.
+    if wholes:
+        polygons = [None if (i < len(wholes) and wholes[i]) else one
+                    for i, one in enumerate(polygons or [None] * len(paths))]
     drawn = bool(polygon) or any(polygons or ())
     if polygon:
         try:
@@ -141,6 +151,10 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
             raise HTTPException(422, f"the outline is not usable: {exc}") from exc
     else:
         polygon = roi.resolve(camera) if camera else None
+    # A batch every one of whose images opted out gets no fallback outline either, or the
+    # stored camera would quietly reinstate the boundary image by image.
+    if wholes and all(wholes[i] if i < len(wholes) else False for i in range(len(paths))):
+        polygon = None
     classifier = _classifier()
     # The person gate, which is the one deployed overrule a still can carry: the motion gate
     # compares a frame to the previous sample of the same camera and a folder of stills has
@@ -159,6 +173,9 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
         #: How many of the batch carry their own outline, so the page can say "3 of 8 drawn"
         #: rather than implying one boundary covered everything.
         "n_outlines": sum(1 for one in (polygons or ()) if one),
+        #: How many were scored over the whole frame on purpose. "none" and "chosen" read
+        #: the same on a page that only counts outlines, and they are not the same claim.
+        "n_whole_frame": sum(1 for one in (wholes or ()) if one),
         "coverage": roi.coverage(polygon) if polygon else 1.0,
         "gated": person_gate is not None, "motion_gate": False,
         "detector": cfg.detector,
@@ -175,7 +192,7 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
     seen = 0
     gated = 0
     for shot in walk_images(paths, classifier, explain_n=explain_n, redact=redact,
-                            polygon=polygon, polygons=polygons,
+                            polygon=polygon, polygons=polygons, wholes=wholes,
                             person_gate=person_gate):
         seen += 1
         gated += shot.probed is not None
@@ -276,7 +293,8 @@ async def walkthrough(
             yield from walk_records(paths, names=[n for n, _ in blobs],
                                     explain_n=explain_n, redact=redact, camera=camera,
                                     polygon=batch.polygon,
-                                    polygons=[i.polygon for i in batch.images])
+                                    polygons=[i.polygon for i in batch.images],
+                                    wholes=[i.whole_frame for i in batch.images])
         except Exception as exc:  # noqa: BLE001 - see below; this is a reporting boundary
             # **Every** failure has to become a record, not just the expected ones.
             #

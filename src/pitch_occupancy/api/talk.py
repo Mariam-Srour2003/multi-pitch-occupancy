@@ -676,23 +676,22 @@ def chapter3() -> str:
                "people are on it, whether there is a ball, and whether anything moved "
                "&mdash; and those counts can overrule the classifier.", tone="amber")
         + block("The architecture &mdash; one forward pass", yolo_stack())
-        + block("The three cues, and what each is allowed to decide", cards([
-            ("People &mdash; counted by the foot of the box",
-             "Someone at the touchline has their centre over the pitch and their feet "
-             "outside it, and it is the feet that say where they stand. At venue_01 an "
-             "empty pitch has <b>0</b> people in 89% of frames; a match has a median of "
-             "<b>6</b>, and 0 in 0.4%."),
-            ("Motion &mdash; did anything change",
-             "Mean absolute difference between consecutive sampled frames at "
-             "<b>160&#215;90</b>, against a threshold of <b>1.098</b> fitted on venue_01 at "
-             "a 15-second gap. Scene-level only: it answers <i>something moved</i>, never "
-             "<i>who</i>."),
-            ("Ball &mdash; and whether it is in play",
-             "A ball must be seen in at least <b>2 of the 3</b> burst frames, because a "
-             "false ball fires once &mdash; a bright stud, a bin lid, line paint. And it "
-             "must move more than <b>its own width</b>: a ball lying on the grass while "
-             "three people work around it is furniture, not a game."),
-        ], wide=True))
+        + block("The three cases", numbered([
+            ("People &mdash; How many people are on the pitch",
+             "We count the people inside the pitch.<br>"
+             "<b>0</b> people = empty<br>"
+             "A few people may be staff or non-playing people.<br>"
+             "Many people usually means a game is happening."),
+            ("Motion &mdash; Is something moving?",
+             "We compare the current frame with the previous frame.<br>"
+             "It tells us if something is moving.<br>"
+             "It does not tell us who is moving."),
+            ("Ball &mdash; Is there a ball being played?",
+             "The ball must appear in at least <b>2 of 3</b> frames.<br>"
+             "This helps avoid false detections.<br>"
+             "The ball must also be moving.<br>"
+             "A ball that is just lying on the pitch does not mean a game is happening."),
+        ]))
         + block("From boxes to a verdict &mdash; the rule table", table(
             ["#", "Condition", "Verdict"],
             [["1", "Detector unavailable", "Uncertain &mdash; a missing detector is not an "

@@ -72,7 +72,8 @@ def _jpeg(image_bgr, width: int = JPEG_WIDTH) -> str:
 
 
 def walk_records(path: Path, *, interval_s: float, explain_n: int,
-                 redact: bool, camera: str = "", polygon: str = "") -> Iterator[str]:
+                 redact: bool, camera: str = "", polygon: str = "",
+                 whole_frame: bool = False) -> Iterator[str]:
     """One NDJSON line per step. A generator, because streaming it is the whole point.
 
     ``camera`` names a saved pitch boundary (WP3-T1), applied to every sampled frame. A
@@ -90,8 +91,12 @@ def walk_records(path: Path, *, interval_s: float, explain_n: int,
     # boundary was meant to prevent. `resolve` knows production's camera ids; `get` did not.
     drawn = _parse_polygon(polygon)
     derived = False
-    polygon = drawn or (roi.resolve(camera) if camera else None)
-    if polygon is None and drawn is None:
+    # See `/clip/analyse`: pressing *Use the whole frame* used to reach the server as an
+    # absent outline, which is also what never having drawn one looks like, so the fallback
+    # below supplied one anyway and the operator watched the model run inside a boundary they
+    # had explicitly declined.
+    polygon = None if whole_frame else (drawn or (roi.resolve(camera) if camera else None))
+    if polygon is None and drawn is None and not whole_frame:
         # The same fallback `/clip/analyse` has: an uploaded clip names no camera, and
         # without an outline the model scores the neighbouring pitch and the car park as if
         # they were this one. Derived from the footage, which is what the page shows in its
@@ -111,8 +116,9 @@ def walk_records(path: Path, *, interval_s: float, explain_n: int,
         "camera": camera or None, "boundary": bool(polygon),
         #: Which of the three it was. "none" and "one I measured myself" are different
         #: claims, and the page and its tests should not have to infer which happened.
-        "boundary_source": ("drawn" if drawn else "stored" if camera and not derived
-                            else "derived" if derived else "stored") if polygon else "none",
+        "boundary_source": "whole" if whole_frame else (
+            ("drawn" if drawn else "stored" if camera and not derived
+             else "derived" if derived else "stored") if polygon else "none"),
         "coverage": roi.coverage(polygon) if polygon else 1.0,
         "gated": motion_gate is not None or person_gate is not None,
     }) + "\n"
@@ -176,6 +182,9 @@ async def walkthrough(
     #: same way. Watching the model work over the whole frame while Analyse used a boundary
     #: is the shape of the defect A35 was about, one tab further along.
     polygon: str = Query("", max_length=4000),
+    #: *Use the whole frame*, as an explicit choice rather than an absent outline - the same
+    #: parameter `/clip/analyse` takes, because the two tabs must agree about this clip.
+    whole_frame: bool = Query(False),
 ) -> StreamingResponse:
     """Stream the analysis, with an evidence map for each explained frame.
 
@@ -205,7 +214,8 @@ async def walkthrough(
     def stream() -> Iterator[str]:
         try:
             yield from walk_records(path, interval_s=interval_s, explain_n=explain_n,
-                                    redact=redact, camera=camera, polygon=polygon)
+                                    redact=redact, camera=camera, polygon=polygon,
+                                    whole_frame=whole_frame)
         except Exception as exc:  # noqa: BLE001 - a reporting boundary, not a swallow
             # Broadened from `ValueError` for the reason written out in
             # `image_walkthrough.stream`: the response is already committed as 200 by the

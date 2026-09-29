@@ -394,6 +394,89 @@ def test_a_clip_walkthrough_reports_the_boundary_it_applied(tmp_path, monkeypatc
     assert meta["boundary"] is True
 
 
+def _green_video(path, seconds: int = 3, fps: int = 10, size=(96, 96)):
+    """A clip the derive fallback can actually find turf in.
+
+    `_video` writes flat grey frames, so `derive_from_video` legitimately finds nothing and a
+    test that asserts "the fallback was skipped" passes whether or not it was skipped. This
+    puts an unmistakable green rectangle on a grey background, so the fallback *does* fire and
+    declining it is a difference a test can see.
+    """
+    import cv2
+
+    frames = []
+    for i in range(seconds * fps):
+        frame = np.full((size[1], size[0], 3), (i * 3) % 40 + 60, dtype=np.uint8)
+        frame[20:76, 20:76] = (40, 150, 40)  # BGR, excess green
+        frames.append(frame)
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"mp4v"), fps, size)
+    for frame in frames:
+        writer.write(frame)
+    writer.release()
+    return path
+
+
+def test_choosing_the_whole_frame_is_not_the_same_as_not_choosing(tmp_path, monkeypatch):
+    """*Use the whole frame* has to beat the derive fallback, and used to lose to it.
+
+    Reported from use: the operator pressed the button, the outline vanished from the panel,
+    and the clip came back analysed inside a boundary anyway. The page sent the choice by
+    *omitting* the polygon, which is also exactly what "I have not drawn one yet" looks like -
+    and the route answers that case (A35) by measuring an outline from the footage. So the two
+    were indistinguishable on the wire and the fallback won.
+
+    Both halves are asserted here, because only the pair is the claim: the same clip derives a
+    boundary when nothing is said, and derives none when the whole frame is chosen.
+    """
+    from pitch_occupancy.api import clip_walkthrough as cw
+
+    monkeypatch.setattr(cw, "_classifier", lambda: _StubForClip())
+    client = TestClient(app)
+    video = _green_video(tmp_path / "green.mp4").read_bytes()
+
+    def meta_for(query: str) -> dict:
+        response = client.post(
+            f"/api/v1/clip/walkthrough?explain_n=0&{query}",
+            content=video, headers={"Content-Type": "application/octet-stream"},
+        )
+        return json.loads(response.text.strip().splitlines()[0])
+
+    silent = meta_for("camera=")
+    assert silent["boundary_source"] == "derived", "the fallback under test did not fire"
+    assert silent["boundary"] is True
+
+    chosen = meta_for("camera=&whole_frame=true")
+    assert chosen["boundary_source"] == "whole"
+    assert chosen["boundary"] is False
+    assert chosen["coverage"] == 1.0
+
+
+def test_choosing_the_whole_frame_beats_a_stored_boundary_too(tmp_path, monkeypatch) -> None:
+    """A saved camera is not a stronger claim than the operator looking at this clip.
+
+    `/clip/analyse` is the other half of the pair: the two tabs have to treat the choice the
+    same way or they disagree about one clip, which is the defect A35 was about.
+    """
+    from pitch_occupancy.api import clip_review as cr
+
+    monkeypatch.setattr(cr, "_classifier", lambda: _StubForClip())
+    roi.save("camera_A", MIDDLE)
+    client = TestClient(app)
+    video = _green_video(tmp_path / "green.mp4").read_bytes()
+
+    stored = client.post("/api/v1/clip/analyse?interval_s=1&camera=camera_A",
+                         content=video,
+                         headers={"Content-Type": "application/octet-stream"}).json()
+    assert stored["boundary"] is True
+
+    whole = client.post(
+        "/api/v1/clip/analyse?interval_s=1&camera=camera_A&whole_frame=true",
+        content=video, headers={"Content-Type": "application/octet-stream"}).json()
+    assert whole["boundary"] is False
+    assert whole["whole_frame"] is True
+    assert whole["boundary_derived"] is False
+
+
 class _StubForClip:
     """Enough of `ProbeClassifier` for the unexplained path.
 

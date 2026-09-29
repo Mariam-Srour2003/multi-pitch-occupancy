@@ -414,6 +414,7 @@ def walk_images(
     max_images: int = 64,
     polygon: list[list[float]] | None = None,
     polygons: Sequence[list[list[float]] | None] | None = None,
+    wholes: Sequence[bool] | None = None,
     roi_fill: str = "black",
     person_gate: object | None = None,
 ) -> Iterator[Shot]:
@@ -464,7 +465,14 @@ def walk_images(
     # cameras* - the page has no way to know otherwise - and one outline across all of them
     # is right only when they happen to share a view. Indexed rather than zipped, so a short
     # list is a partial answer rather than a silently truncated batch.
+    # `wholes[i]` is the operator having pressed *Use the whole frame* for this image, and
+    # it beats every outline including the batch's. It exists because "no outline" cannot
+    # carry that meaning: an image nobody has drawn on yet looks identical, and the caller
+    # answers *that* case by supplying one. Declining a boundary and never being offered one
+    # are different, and only one of them should end in a boundary.
     def outline_for(i: int):
+        if wholes is not None and i < len(wholes) and wholes[i]:
+            return None
         if polygons is not None and i < len(polygons) and polygons[i] is not None:
             return polygons[i]
         return polygon

@@ -8009,3 +8009,53 @@ Verified end to end on two synthetic frames whose green regions sit in different
 for the second, each matching its own frame; a hand-drawn outline on image 2 replaced its
 measured one; the request carried `images[i].polygon` per image and no batch `polygon`; both
 images explained without error. Full suite 1433 passed.
+
+
+## "Use the whole frame" lost to the boundary the page had suggested (A45)
+
+`src/pitch_occupancy/api/clip_review.py`, `clip_walkthrough.py`, `image_walkthrough.py`,
+`vision/walkthrough.py`, `clip_page.py`, `image_page.py`
+
+Reported from use, on both pages: press **Use the whole frame**, watch the outline vanish from
+the panel, run it, and the clip or the image comes back analysed inside a boundary anyway.
+
+**The cause is that the choice had no way to travel.** The page expressed "whole frame" by
+*omitting* the outline - and an omitted outline is also exactly what "I have not drawn one
+yet" looks like. The routes answer that second case by measuring a boundary from the footage
+(A35, and the same fallback the walkthrough gained in A44), which is right for an API caller
+who was never offered one and wrong for an operator who has just declined it. The two were
+indistinguishable on the wire, so the fallback won and the panel and the analysis disagreed
+about the same clip - A35's defect in a new place.
+
+**A declined boundary is now its own parameter.** `whole_frame` on `/clip/analyse` and
+`/clip/walkthrough`; `images[i].whole_frame` and a matching `wholes` argument to
+`walk_images`. It beats every other source - a drawn outline, a stored camera, the derived
+fallback - because it is the one value in that list that is unambiguously a decision somebody
+made about this footage. `/clip/walkthrough` reports it as `boundary_source: "whole"`, which
+is a different claim from `"none"`, and the images meta counts it as `n_whole_frame`.
+
+**On the pages, the step is now the source of truth.** Once the boundary step has run - the
+clip's first frame is on screen, or an image has been through `/roi/suggest` - what the panel
+shows is what gets analysed, and nothing is measured server-side behind it. Before the step
+has run (the first frame could not be read) the fallback still applies, so an API caller and a
+failed read are unaffected. On `/images` this is per image, via `tried[i]`, and it fixes a
+second symptom of the same confusion: pressing the button cleared the outline, and merely
+*navigating to another image and back* re-measured one and silently reinstated it.
+
+Two related corrections fell out of writing it down:
+
+- **Every image is measured up front**, not just the one on screen. Previously only image 1
+  was suggested on load and the rest were measured when visited, so a batch run without
+  opening them all was part measured and part whole-frame by accident rather than by anyone's
+  choice. The strip now marks each image measured / whole-frame / still measuring.
+- **The clip page's two send-sites go through one `bparams`**, because Analyse and Watch it
+  work drifting apart is precisely the failure A35 and A44 were both about, and keeping them
+  together by memory has now failed twice.
+
+**Tests.** Six added, and the pair is the claim in each case rather than the half: the same
+clip derives a boundary when nothing is said (`boundary_source == "derived"`) and derives none
+when the whole frame is chosen, so the test cannot pass by the fallback never firing - which
+needed a clip with turf in it, since `_video`'s flat grey frames legitimately yield no
+outline. Per-image outlines had been verified in the browser in A44 but never in the suite;
+they are covered now, asserting on `Shot.polygon` - what the model was actually shown - rather
+than on what was passed in. Full suite 1439 passed.

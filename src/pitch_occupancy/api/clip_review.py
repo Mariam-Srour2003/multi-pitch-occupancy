@@ -134,6 +134,10 @@ class ClipOut(BaseModel):
     #: say which it had - "no boundary" and "one I guessed" are different claims.
     boundary_derived: bool = False
 
+    #: The whole frame was analysed because the operator chose that, not because no outline
+    #: could be found. The page distinguishes them; so should anything reading this.
+    whole_frame: bool = False
+
 
 def _clock(t_s: float) -> str:
     total = int(round(t_s))
@@ -206,6 +210,12 @@ async def analyse(
     #: URL carries comfortably. It wins over both the stored boundary and the derived one -
     #: the operator is looking at this clip and neither of the others is.
     polygon: str = Query("", max_length=4000),
+    #: The operator pressed *Use the whole frame*. This has to be its own parameter: an
+    #: omitted `polygon` is what "I have not drawn one yet" looks like, and the fallback
+    #: below answers that case by measuring one from the footage - so declining a boundary
+    #: and never being offered one were indistinguishable on the wire, and the clip was
+    #: analysed with the outline the operator had just rejected. Reported from use.
+    whole_frame: bool = Query(False),
 ) -> ClipOut:
     """Sample the posted video every ``interval_s`` seconds and return its timeline.
 
@@ -242,9 +252,11 @@ async def analyse(
         # `resolve`, not `get`: the camera is named the way production names it, and the
         # store's own keys are not that (A36).
         drawn = _parse_polygon(polygon)
-        polygon = drawn or (roi.resolve(camera) if camera else None)
+        # `whole_frame` beats every source, including a drawn outline and a stored one: it is
+        # the one value here that is unambiguously a decision somebody made about this clip.
+        polygon = None if whole_frame else (drawn or (roi.resolve(camera) if camera else None))
         derived_boundary = False
-        if polygon is None:
+        if polygon is None and not whole_frame:
             # An uploaded clip usually names no camera, or names one the store has never
             # seen, and the boundary was simply skipped - which is how a 234-second clip of
             # an empty floodlit pitch came back 24 of 24 ACTIVE_PLAY at confidence 1.000.
@@ -283,7 +295,8 @@ async def analyse(
         camera=camera or None,
         boundary=bool(polygon),
         boundary_derived=derived_boundary,
-        boundary_drawn=drawn is not None,
+        boundary_drawn=drawn is not None and not whole_frame,
+        whole_frame=whole_frame,
         duration_s=result.duration_s,
         interval_s=result.interval_s,
         window=result.window,

@@ -349,7 +349,13 @@ let files=[],results=[],queue=[],draining=false,delay=900,streamDone=false,redac
 // One outline per image, indexed like `files`, plus which one is being drawn on. A folder
 // of stills is routinely a folder of different cameras and nothing in the upload says which,
 // so a single outline across the batch is right only when they happen to share a view.
-let outlines=[],drawing=[],bi=0;
+//
+// `tried[i]` is what makes *Use the whole frame* stick. Without it an empty outline means two
+// different things - "not measured yet", which the page answers by measuring one, and "no
+// boundary, chosen" - and the first reading won: pressing the button cleared the outline, and
+// the next visit to that image quietly measured a new one and sent it. An image that has been
+// through the step and has no outline is a decision, and is sent as one.
+let outlines=[],tried=[],drawing=[],bi=0;
 
 // --- choosing files -------------------------------------------------------------------
 function pick(list){
@@ -362,7 +368,10 @@ function pick(list){
   // the boundary is asked for rather than defaulted. `/images` scored whole frames until
   // 2026-09-29 and nothing on the page said so.
   $('bstep').style.display=files.length?'':'none';
-  if(files.length){ outlines=files.map(()=>null);drawing=[];bi=0;bgo(0); }
+  if(files.length){
+    outlines=files.map(()=>null);tried=files.map(()=>false);drawing=[];bi=0;
+    bgo(0);bsuggestAll();
+  }
   const box=$('picked');box.innerHTML='';
   files.forEach(f=>{
     const fig=document.createElement('figure');
@@ -655,8 +664,10 @@ function bstrip(){
   const box=$('bstrip');box.innerHTML='';
   files.forEach((f,i)=>{
     const b=document.createElement('button');
-    b.className='ghost';b.textContent=(i+1)+(outlines[i]?' \u2713':'');
-    b.title=f.name+(outlines[i]?' - has an outline':' - whole frame');
+    const mark=outlines[i]?' \u2713':(tried[i]?' \u25a1':' \u2026');
+    b.className='ghost';b.textContent=(i+1)+mark;
+    b.title=f.name+(outlines[i]?' - has an outline'
+      :(tried[i]?' - whole frame, chosen':' - measuring'));
     b.style.cssText='padding:3px 9px'+(i===bi?';outline:2px solid var(--accent)':'');
     b.onclick=()=>bgo(i);
     box.appendChild(b);
@@ -677,13 +688,23 @@ function bgo(i){
   bcommit();bi=i;
   $('bimg').onload=()=>{URL.revokeObjectURL($('bimg').src);bpaint();};
   $('bimg').src=URL.createObjectURL(files[bi]);
-  bshow(outlines[bi]?'this image\u2019s outline':'no outline yet');
-  if(!outlines[bi]) bsuggest();
+  // Only an image that has never been through the step gets a suggestion. Re-measuring one
+  // the operator has already settled is how the button they pressed got undone.
+  bshow(outlines[bi]?'this image\u2019s outline'
+        :(tried[bi]?'whole frame, chosen':'measuring\u2026'));
+  if(!tried[bi]) bsuggest(bi);
 }
-async function bsuggest(){
+// Measured for every image up front, not only the one on screen, so the strip means what it
+// says from the start: an image nobody has opened is still one the page has an answer for,
+// and a batch run without opening them all is not half measured and half whole-frame by
+// accident. Sequential rather than 32 at once - it is Otsu on one frame, not a model.
+async function bsuggestAll(){
+  for(let i=0;i<files.length;i++) if(!tried[i]) await bsuggest(i);
+}
+async function bsuggest(at){
   if(!files.length) return;
-  const at=bi;
-  $('bsrc').textContent='measuring\u2026';
+  if(at===bi) $('bsrc').textContent='measuring\u2026';
+  let src='no turf found \u2014 draw it yourself';
   try{
     const images=[{name:files[at].name,data:await readAsDataURL(files[at])}];
     const r=await fetch('/api/v1/roi/suggest',{method:'POST',
@@ -691,29 +712,31 @@ async function bsuggest(){
     const d=await r.json();
     // The reply may arrive after the operator has moved on; apply it to the image it was
     // measured from, and only redraw if that is still the one on screen.
-    if(r.ok&&d.polygon){
-      outlines[at]=d.polygon;
-      if(at===bi){drawing=[];bshow('measured from this image');} else bstrip();
-    }
-    else if(at===bi){bshow('no turf found \u2014 draw it yourself');}
-  }catch(_){ if(at===bi) bshow('could not measure \u2014 draw it yourself'); }
+    if(r.ok&&d.polygon){outlines[at]=d.polygon;src='measured from this image';}
+  }catch(_){ src='could not measure \u2014 draw it yourself'; }
+  // Marked as measured either way. A suggestion that found nothing is still an answer, and
+  // the alternative is re-asking on every visit and overwriting what the operator chose.
+  tried[at]=true;
+  if(at===bi){drawing=[];bshow(src);} else bstrip();
 }
 $('bcv').onclick=e=>{
   const r=e.target.getBoundingClientRect();
   drawing.push([(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]);
   if(drawing.length>2) outlines[bi]=drawing.slice();
-  bshow('drawn here');
+  tried[bi]=true;bshow('drawn here');
 };
 $('bundo').onclick=()=>{drawing.pop();
   outlines[bi]=drawing.length>2?drawing.slice():null;bshow('drawn here');};
-$('bclear').onclick=()=>{drawing=[];outlines[bi]=null;bshow('draw the corners');};
-$('bwhole').onclick=()=>{drawing=[];outlines[bi]=null;bshow('whole frame, chosen');};
-$('bsuggest').onclick=()=>{drawing=[];outlines[bi]=null;bsuggest();};
+$('bclear').onclick=()=>{drawing=[];outlines[bi]=null;tried[bi]=true;
+  bshow('draw the corners \u2014 whole frame until you do');};
+$('bwhole').onclick=()=>{drawing=[];outlines[bi]=null;tried[bi]=true;
+  bshow('whole frame, chosen');};
+$('bsuggest').onclick=()=>{drawing=[];outlines[bi]=null;tried[bi]=false;bsuggest(bi);};
 $('bcopy').onclick=()=>{
   bcommit();
   const one=outlines[bi];
   if(!one) return;
-  for(let i=0;i<files.length;i++) outlines[i]=one.map(p=>p.slice());
+  for(let i=0;i<files.length;i++){outlines[i]=one.map(p=>p.slice());tried[i]=true;}
   bshow('copied to all '+files.length);
 };
 window.addEventListener('resize',bpaint);
@@ -734,7 +757,11 @@ $('go').onclick=async()=>{
     const images=[];
     for(let i=0;i<files.length;i++)
       images.push({name:files[i].name,data:await readAsDataURL(files[i]),
-                   polygon:outlines[i]||null});
+                   polygon:outlines[i]||null,
+                   // No outline, and the step has run: the whole frame is what the operator
+                   // is looking at, so it is what gets scored - not a boundary the server
+                   // measures for itself behind the panel.
+                   whole_frame:!!tried[i]&&!outlines[i]});
     const q=new URLSearchParams({explain_n:$('expn').value,redact:String(redact),
       camera:$('camera').value});
     const r=await fetch('/api/v1/images/walkthrough?'+q,{

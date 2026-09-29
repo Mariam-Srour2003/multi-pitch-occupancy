@@ -342,10 +342,22 @@ const $=id=>document.getElementById(id);
 const drop=$('drop'),file=$('file'),go=$('go');
 let chosen=null,last=null,rawOnly=false;
 // The outline the operator settled on, normalised [x,y] in 0-1, or null for "whole frame".
-// Null is a choice here rather than an absence: the step runs before every analysis, so a
-// whole-frame verdict is one somebody chose. The route still derives one when nothing is
-// drawn and nothing is stored (A35), so this only ever makes the fallback visible.
-let boundary=null,drawing=[];
+//
+// Null on its own could not carry that. The route derives a boundary from the footage when
+// none arrives (A35), which is right for an API caller who was never offered one and wrong
+// for an operator who has just pressed *Use the whole frame* - and on the wire those two
+// looked identical, so the clip was analysed inside the outline the panel had suggested and
+// the operator had rejected. `bready` separates them: once the step has shown this clip's
+// first frame, whatever the panel displays is what gets analysed, and no outline means no
+// outline. If the frame could not be read the step never ran, and the fallback still applies.
+let boundary=null,drawing=[],bready=false;
+// Both send-sites go through this, so Analyse and Watch it work agree by construction rather
+// than by being remembered together - which is the A35 defect in miniature.
+function bparams(q){
+  if(boundary) q.set('polygon',JSON.stringify(boundary));
+  else if(bready) q.set('whole_frame','true');
+  return q;
+}
 
 function pick(f){
   if(!f) return;
@@ -392,7 +404,7 @@ function bshow(src){
 }
 async function bload(){
   $('bstep').style.display='';
-  drawing=[];boundary=null;bshow('reading the clip\u2026');
+  drawing=[];boundary=null;bready=false;bshow('reading the clip\u2026');
   try{
     const r=await fetch('/api/v1/roi/first-frame',{method:'POST',body:chosen,
       headers:{'Content-Type':'application/octet-stream'}});
@@ -400,6 +412,10 @@ async function bload(){
     if(!r.ok) throw new Error(d.detail||('HTTP '+r.status));
     $('bimg').onload=()=>bpaint();
     $('bimg').src=d.frame;
+    // Set before either branch: the step has run on this clip either way, and "measured
+    // nothing" is an answer the operator can act on rather than a reason to measure again
+    // server-side behind the panel.
+    bready=true;
     if(d.polygon){boundary=d.polygon;bshow('measured from this clip');}
     else bshow('no turf found \u2014 draw it yourself');
   }catch(e){
@@ -414,8 +430,10 @@ $('bcv').onclick=e=>{
 };
 $('bundo').onclick=()=>{drawing.pop();
   boundary=drawing.length>2?drawing.slice():null;bshow('drawn here');};
-$('bclear').onclick=()=>{drawing=[];boundary=null;bshow('draw the corners');};
-$('bwhole').onclick=()=>{drawing=[];boundary=null;bshow('whole frame, chosen');};
+$('bclear').onclick=()=>{drawing=[];boundary=null;bready=true;
+  bshow('draw the corners \u2014 whole frame until you do');};
+$('bwhole').onclick=()=>{drawing=[];boundary=null;bready=true;
+  bshow('whole frame, chosen');};
 window.addEventListener('resize',bpaint);
 
 drop.onclick=()=>file.click();
@@ -449,7 +467,7 @@ go.onclick=async()=>{
     'the model, which takes about 15 seconds.';
   const q=new URLSearchParams({interval_s:$('iv').value,window:$('win').value,
     camera:$('camera').value});
-  if(boundary) q.set('polygon',JSON.stringify(boundary));
+  bparams(q);
   try{
     const r=await fetch('/api/v1/clip/analyse?'+q,{method:'POST',body:chosen,
       headers:{'Content-Type':'application/octet-stream'}});
@@ -600,7 +618,7 @@ $('watch').onclick=async()=>{
   const q=new URLSearchParams({interval_s:$('iv').value,explain_n:$('expn').value,
     camera:$('camera').value});
   // The outline drawn in the step above, so Watch it work and Analyse see the same pitch.
-  if(boundary) q.set('polygon',JSON.stringify(boundary));
+  bparams(q);
   try{
     const r=await fetch('/api/v1/clip/walkthrough?'+q,{method:'POST',body:chosen,
       headers:{'Content-Type':'application/octet-stream'}});
