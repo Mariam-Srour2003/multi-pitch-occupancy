@@ -212,11 +212,8 @@ stored</p>
 
 <section id="bstep" style="display:none;margin-top:14px">
   <h2 style="margin:0 0 4px">Draw the pitch</h2>
-  <p class="sub2" style="margin-top:0">Everything outside the outline is masked before the
-  model sees it. Without one the model scores the next pitch over, the walkway and the car
-  park as if they were this pitch &mdash; measured at <b>0.74</b> false-play against
-  <b>0.38</b> with an outline. Click the corners to redraw; the suggestion below is measured
-  from your images and is a starting point, not an answer.</p>
+  <p class="sub2" style="margin-top:0">Click the corners to redraw. Everything outside the
+  outline is masked before the model sees it.</p>
   <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
     <div style="position:relative;line-height:0">
       <img id="bimg" alt="first image" style="max-width:560px;border-radius:8px">

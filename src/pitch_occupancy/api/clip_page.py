@@ -178,11 +178,8 @@ reports when the state changed. The file is deleted as soon as it has been read.
 
 <section id="bstep" style="display:none;margin-top:14px">
   <h2 style="margin:0 0 4px">Draw the pitch</h2>
-  <p class="sub2" style="margin-top:0">Everything outside the outline is masked before the
-  model sees it. Without one the model scores the next pitch over, the walkway and the car
-  park as if they were this pitch &mdash; measured at <b>0.74</b> false-play against
-  <b>0.38</b> with an outline. This is the clip's own first frame, so the outline is in the
-  coordinates the analysis uses. Click the corners to redraw it.</p>
+  <p class="sub2" style="margin-top:0">Click the corners to redraw. Everything outside the
+  outline is masked before the model sees it.</p>
   <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
     <div style="position:relative;line-height:0">
       <img id="bimg" alt="first frame of the clip" style="max-width:560px;border-radius:8px">
@@ -313,8 +310,6 @@ the pitch &middot; <a href="/roi" style="color:var(--accent)">boundary editor</a
     <div class="tile"><div class="k">Segments</div><div class="v" id="m-seg"></div></div>
   </div>
 
-  <div id="bnote"></div>
-  <div id="gnote"></div>
   <div id="corrnote"></div>
 
   <h2>Segments</h2>
@@ -662,34 +657,6 @@ function render(d){
     i.title=s.clock+'  '+(rawOnly?s.raw:s.smoothed)+(s.corrected?'  (was '+s.raw+')':'');
     tl.appendChild(i);
   }
-
-  // Three states, and the warn one stays loud: a reader who does not notice that no outline
-  // was applied reads an over-report as a result.
-  const bnote=$('bnote');
-  if(d.boundary_derived){
-    bnote.className='note';
-    bnote.innerHTML='outline <b>measured from the footage</b> <span title="No stored '+
-      'outline for this camera. The median of the first frames is thresholded for turf and '+
-      'its outline used as the pitch - the same routine the corpus uses. A hand-drawn one '+
-      'is better; what this replaces is no outline at all.">why?</span>';
-  } else if(d.boundary){
-    bnote.className='note';
-    bnote.innerHTML='outline <b>'+d.camera+'</b>';
-  } else {
-    bnote.className='note warn';
-    bnote.innerHTML='<b>no pitch outline</b> &middot; <span title="Every pixel counts, '+
-      'including the next pitch over and anyone walking past.">active play '+
-      'over-reported</span>';
-  }
-
-  const gnote=$('gnote');
-  if(d.n_gated){
-    gnote.className='note';
-    gnote.innerHTML='<b>'+d.n_gated+'</b> weakened by the gates <span title="A play verdict '+
-      'with nobody inside the outline becomes empty, and a small group with no ball becomes '+
-      'not-playing. The gates only ever weaken a claim, never strengthen one - the table '+
-      'shows what the model said before each.">why?</span>';
-  } else { gnote.className='';gnote.innerHTML=''; }
 
   // The one claim on this page that must not be trimmed away: a smoothed timeline is a
   // judgement, not the answer. It keeps a count on the page and its reason a hover away -
