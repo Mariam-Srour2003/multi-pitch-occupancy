@@ -220,14 +220,28 @@ def test_an_even_window_is_refused_by_the_route() -> None:
     assert response.status_code == 422
 
 
-def test_the_page_is_served_and_names_what_smoothing_costs() -> None:
-    """The page must not present a smoothed timeline as simply the answer. If this wording
-    disappears, the reviewer loses the one thing telling them a correction is a judgement."""
+def test_the_page_is_served_and_shows_which_samples_smoothing_changed() -> None:
+    """A smoothed timeline must not be presented as simply the answer.
+
+    This asked for a *sentence* saying so - "it can equally be a real brief event" - and that
+    note was removed on request on 2026-09-29, with the rest of the explanatory prose on the
+    review pages. The requirement behind it is unchanged and is now carried by the page's
+    structure rather than its wording: the corrected samples keep their striped band and its
+    legend, the table strikes the raw prediction through beside the smoothed one, and the
+    Corrected tile counts them. So this pins those, which is what a reviewer actually reads.
+
+    If the *marks* go, the reviewer genuinely cannot tell a correction from a prediction and
+    this should fail. That is a stronger test than the wording one it replaces, and it is not
+    the reason it changed - the reason was that the sentence was noise to the person using the
+    page.
+    """
     client = TestClient(app)
     page = client.get("/clip")
     assert page.status_code == 200
-    assert "corrected by neighbours" in page.text
-    assert "real brief event" in page.text
+    assert "corrected by neighbours" in page.text, "the timeline legend"
+    assert "Show raw predictions only" in page.text, "the toggle back to what the model said"
+    assert "<del>" in page.text, "the struck-through raw prediction in the table"
+    assert "m-corr" in page.text, "the Corrected tile"
 
 
 def test_the_route_reports_the_segments_and_the_corrections(tmp_path, monkeypatch) -> None:

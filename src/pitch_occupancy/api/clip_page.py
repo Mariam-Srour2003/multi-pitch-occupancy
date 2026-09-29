@@ -661,15 +661,12 @@ function render(d){
   // The one claim on this page that must not be trimmed away: a smoothed timeline is a
   // judgement, not the answer. It keeps a count on the page and its reason a hover away -
   // see `test_the_page_is_served_and_names_what_smoothing_costs`.
+  // The smoothing note was removed on request (2026-09-29). What a correction *is* stays
+  // visible without it: the corrected samples keep their striped band in the timeline and
+  // its legend, the table still strikes through the raw prediction beside the smoothed one,
+  // and the Corrected tile still counts them. The prose is what went, not the evidence.
   const note=$('corrnote');
-  if(d.n_corrected&&!rawOnly){
-    note.className='note warn';
-    note.innerHTML='<b>'+d.n_corrected+'</b> changed by smoothing <span title="A lone '+
-      'disagreeing sample between two agreeing neighbours is usually a misread frame - but '+
-      'it can equally be a real brief event, and at this sampling interval nothing in the '+
-      'samples can tell those apart. Check the striped bands against the footage, or set '+
-      'the window to 1 to turn smoothing off.">judgement, not an answer</span>';
-  } else if(d.interval_widened){
+  if(d.interval_widened){
     note.className='note warn';
     note.innerHTML='<b>interval widened to '+d.interval_s.toFixed(1)+'s</b> <span '+
       'title="So the whole clip is covered within the sample cap, rather than analysing '+
