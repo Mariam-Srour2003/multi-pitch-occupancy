@@ -7898,3 +7898,34 @@ page never has to guess between *drawn*, *stored* and *none*.
 `test_authority.py` refused `/roi/suggest` until it was recorded with its reason, which is the
 guard working: it writes nothing, and saving a boundary is still `PUT /roi`, which a person
 does deliberately.
+
+**A43 continued: the same step on the clip page.** `/clip` derived a boundary silently since
+A35 and only reported that it had. Choosing a video now reveals the same *Draw the pitch*
+panel: the clip's **own first frame**, an outline measured across the whole file already on
+it, click-to-redraw, undo, clear, and an explicit whole-frame choice.
+
+**The frame comes from the server, and that is the point.** `/roi/first-frame` already existed
+for this and said why: a `<video>` element could paint frame 0 without any upload, but the
+browser and OpenCV can disagree about rotation, colour conversion and which frame a seek to 0
+lands on, so an outline drawn against a frame the analysis never sees is off by however much
+they disagree, silently. It now returns a suggested `polygon` alongside the frame - measured
+by `derive_from_video` across the whole clip rather than from frame 0, because frame 0 has
+whoever was standing there in it. The suggestion is additive, so the ROI editor and its tests
+are untouched.
+
+`/clip/analyse` gained a `polygon` query parameter - a query parameter because the body is the
+video, and eight points is about 120 characters. It beats the stored boundary *and* the derived
+one, since the operator is looking at this clip and neither of the others is, and it goes
+through the same `roi.validate` that `PUT /roi` applies before saving one.
+
+Checked end to end on the operator's clip, 848x480, suggested outline keeping 56%:
+
+| outline | reported as | verdicts over 12 samples |
+|---|---|---|
+| none drawn | `derived` | 11 EMPTY, 1 C3 |
+| the suggestion, drawn | `drawn` | 11 EMPTY, 1 C3 |
+| a deliberately wrong one - the top strip, which is barrier and car park | `drawn` | **10 C3, 2 EMPTY** |
+
+The third row is the one that matters: it proves the drawn outline is *applied* rather than
+merely recorded. Malformed input is refused at the edge - `polygon=not json` and a two-point
+outline both return 422 with the reason.

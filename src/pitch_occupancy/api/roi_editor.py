@@ -311,7 +311,23 @@ async def first_frame(request: Request) -> dict:
             # by eye, and a downscaled drawing surface costs them precision they cannot get
             # back. The polygon is normalised, so the size it was drawn at does not matter
             # to anything downstream - only to how accurately it can be placed.
-            return {"frame": _jpeg(frame, width=width), "width": width, "height": height}
+            # A suggested outline comes back with the frame, so the clip page can open its
+            # drawing step on something rather than an empty canvas - the same reasoning as
+            # `/roi/suggest` for stills. Measured across the *whole* clip rather than from
+            # this one frame: the per-pixel median of frames spread over the file removes
+            # the players, and frame 0 alone has whoever was standing there in it.
+            #
+            # A failure here is not a failure of the endpoint. The frame is what the caller
+            # asked for; the outline is a convenience, and `null` leaves the operator drawing.
+            try:
+                from pitch_occupancy.vision import roi_derive
+
+                polygon = roi_derive.derive_from_video(path)
+            except Exception:  # noqa: BLE001 - a suggestion is never a precondition
+                polygon = None
+            return {"frame": _jpeg(frame, width=width), "width": width, "height": height,
+                    "polygon": polygon,
+                    "coverage": roi.coverage(polygon) if polygon else 1.0}
         finally:
             capture.release()
     finally:

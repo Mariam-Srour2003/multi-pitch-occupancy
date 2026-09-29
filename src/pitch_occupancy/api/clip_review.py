@@ -28,6 +28,7 @@ and they can only do that if they are shown what changed.
 
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -124,6 +125,10 @@ class ClipOut(BaseModel):
     #: which is the case the boundary exists to avoid.
     camera: str | None = None
     boundary: bool = False
+    #: True when a person drew the outline on the page for this clip. The strongest of the
+    #: three: it beats the store and the derivation, because the operator is looking at the
+    #: footage and neither of the others is.
+    boundary_drawn: bool = False
     #: True when the outline was measured from this clip rather than read from the store.
     #: A derived boundary is a fallback and weaker than a hand-drawn one, so the page should
     #: say which it had - "no boundary" and "one I guessed" are different claims.
@@ -133,6 +138,25 @@ class ClipOut(BaseModel):
 def _clock(t_s: float) -> str:
     total = int(round(t_s))
     return f"{total // 60}:{total % 60:02d}"
+
+
+def _parse_polygon(raw: str) -> list[list[float]] | None:
+    """A drawn outline from the query string, or None. Refuses rather than repairs.
+
+    `roi.validate` is the same check `PUT /roi` applies before saving one, so an outline that
+    could not be stored cannot be analysed either - a polygon arriving over the wire is the
+    caller's claim, and this is where it stops being taken on trust.
+    """
+    if not raw.strip():
+        return None
+    try:
+        points = json.loads(raw)
+    except ValueError as exc:
+        raise HTTPException(422, f"polygon is not valid JSON: {exc}") from exc
+    try:
+        return roi.validate(points)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(422, f"the outline is not usable: {exc}") from exc
 
 
 def _gates():
@@ -177,6 +201,11 @@ async def analyse(
     interval_s: float = Query(DEFAULT_INTERVAL_S, gt=0.5, le=600),
     window: int = Query(DEFAULT_WINDOW, ge=1, le=31),
     camera: str = Query("", max_length=120),
+    #: An outline drawn on the page, as a JSON array of normalised ``[x, y]`` pairs. A query
+    #: parameter because the body is the video; eight points is about 120 characters, which a
+    #: URL carries comfortably. It wins over both the stored boundary and the derived one -
+    #: the operator is looking at this clip and neither of the others is.
+    polygon: str = Query("", max_length=4000),
 ) -> ClipOut:
     """Sample the posted video every ``interval_s`` seconds and return its timeline.
 
@@ -212,7 +241,8 @@ async def analyse(
         classify = _classifier()
         # `resolve`, not `get`: the camera is named the way production names it, and the
         # store's own keys are not that (A36).
-        polygon = roi.resolve(camera) if camera else None
+        drawn = _parse_polygon(polygon)
+        polygon = drawn or (roi.resolve(camera) if camera else None)
         derived_boundary = False
         if polygon is None:
             # An uploaded clip usually names no camera, or names one the store has never
@@ -253,6 +283,7 @@ async def analyse(
         camera=camera or None,
         boundary=bool(polygon),
         boundary_derived=derived_boundary,
+        boundary_drawn=drawn is not None,
         duration_s=result.duration_s,
         interval_s=result.interval_s,
         window=result.window,

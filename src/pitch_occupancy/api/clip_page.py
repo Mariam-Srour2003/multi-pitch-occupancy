@@ -176,6 +176,34 @@ reports when the state changed. The file is deleted as soon as it has been read.
 </div>
 <input type="file" id="file" accept="video/*" hidden>
 
+<section id="bstep" style="display:none;margin-top:14px">
+  <h2 style="margin:0 0 4px">Draw the pitch</h2>
+  <p class="sub2" style="margin-top:0">Everything outside the outline is masked before the
+  model sees it. Without one the model scores the next pitch over, the walkway and the car
+  park as if they were this pitch &mdash; measured at <b>0.74</b> false-play against
+  <b>0.38</b> with an outline. This is the clip's own first frame, so the outline is in the
+  coordinates the analysis uses. Click the corners to redraw it.</p>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+    <div style="position:relative;line-height:0">
+      <img id="bimg" alt="first frame of the clip" style="max-width:560px;border-radius:8px">
+      <canvas id="bcv" style="position:absolute;inset:0;width:100%;height:100%;
+        cursor:crosshair;border-radius:8px"></canvas>
+    </div>
+    <div style="min-width:210px">
+      <p class="sub2" style="margin:0 0 8px">Keeps <b id="bcov">&mdash;</b> of the frame
+      &middot; <span id="bsrc">reading the clip&hellip;</span></p>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="ghost" id="bundo">Undo last point</button>
+        <button class="ghost" id="bclear">Start drawing from scratch</button>
+        <button class="ghost" id="bwhole" title="Analyses the whole frame. A19 measured that
+          at 0.74 false-play against 0.38 with an outline.">Use the whole frame</button>
+      </div>
+      <p class="sub2" id="bwarn" style="margin:10px 0 0;display:none;color:var(--flag)">
+        No outline: the whole frame will be scored.</p>
+    </div>
+  </div>
+</section>
+
 <div class="controls">
   <div><label for="iv">Sample every</label>
     <input type="number" id="iv" value="1" min="1" max="600" step="1"></div>
@@ -320,13 +348,83 @@ the pitch &middot; <a href="/roi" style="color:var(--accent)">boundary editor</a
 const $=id=>document.getElementById(id);
 const drop=$('drop'),file=$('file'),go=$('go');
 let chosen=null,last=null,rawOnly=false;
+// The outline the operator settled on, normalised [x,y] in 0-1, or null for "whole frame".
+// Null is a choice here rather than an absence: the step runs before every analysis, so a
+// whole-frame verdict is one somebody chose. The route still derives one when nothing is
+// drawn and nothing is stored (A35), so this only ever makes the fallback visible.
+let boundary=null,drawing=[];
 
 function pick(f){
   if(!f) return;
   chosen=f;
   $('chosen').textContent=f.name+'  \\u00b7  '+(f.size/1048576).toFixed(1)+' MB';
   go.disabled=false;$('watch').disabled=false;
+  bload();
 }
+// --- the boundary step ------------------------------------------------------------------
+//
+// The frame comes from the server's own `cv2.VideoCapture`, not from a <video> element: the
+// browser and OpenCV can disagree about rotation, colour and which frame a seek to 0 lands
+// on, and an outline drawn against a frame the analysis never sees is off by however much
+// they disagree, silently. `/roi/first-frame` exists for exactly this and says so.
+function bpaint(){
+  const cv=$('bcv'),img=$('bimg');
+  if(!img.clientWidth) return;
+  cv.width=img.clientWidth;cv.height=img.clientHeight;
+  const g=cv.getContext('2d'),pts=drawing.length?drawing:(boundary||[]);
+  g.clearRect(0,0,cv.width,cv.height);
+  if(!pts.length) return;
+  g.beginPath();
+  pts.forEach(([x,y],i)=>{const px=x*cv.width,py=y*cv.height;
+    i?g.lineTo(px,py):g.moveTo(px,py);});
+  if(pts.length>2) g.closePath();
+  g.strokeStyle='#ffd400';g.lineWidth=3;g.stroke();
+  if(pts.length>2){g.fillStyle='rgba(255,212,0,.13)';g.fill();}
+  g.fillStyle='#ffd400';
+  pts.forEach(([x,y])=>{g.beginPath();g.arc(x*cv.width,y*cv.height,4.5,0,7);g.fill();});
+}
+// Shoelace, so the coverage figure is the polygon's own area and not its bounding box.
+function barea(pts){
+  let a=0;
+  for(let i=0;i<pts.length;i++){const [x1,y1]=pts[i],[x2,y2]=pts[(i+1)%pts.length];
+    a+=x1*y2-x2*y1;}
+  return Math.abs(a)/2;
+}
+function bshow(src){
+  const pts=drawing.length?drawing:boundary;
+  $('bcov').textContent=pts&&pts.length>2?(barea(pts)*100).toFixed(0)+'%':'\u2014';
+  $('bsrc').textContent=src;
+  $('bwarn').style.display=(pts&&pts.length>2)?'none':'';
+  bpaint();
+}
+async function bload(){
+  $('bstep').style.display='';
+  drawing=[];boundary=null;bshow('reading the clip\u2026');
+  try{
+    const r=await fetch('/api/v1/roi/first-frame',{method:'POST',body:chosen,
+      headers:{'Content-Type':'application/octet-stream'}});
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.detail||('HTTP '+r.status));
+    $('bimg').onload=()=>bpaint();
+    $('bimg').src=d.frame;
+    if(d.polygon){boundary=d.polygon;bshow('measured from this clip');}
+    else bshow('no turf found \u2014 draw it yourself');
+  }catch(e){
+    $('bsrc').textContent='could not read the first frame \u2014 '+e.message;
+  }
+}
+$('bcv').onclick=e=>{
+  const r=e.target.getBoundingClientRect();
+  drawing.push([(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]);
+  boundary=drawing.length>2?drawing.slice():null;
+  bshow('drawn here');
+};
+$('bundo').onclick=()=>{drawing.pop();
+  boundary=drawing.length>2?drawing.slice():null;bshow('drawn here');};
+$('bclear').onclick=()=>{drawing=[];boundary=null;bshow('draw the corners');};
+$('bwhole').onclick=()=>{drawing=[];boundary=null;bshow('whole frame, chosen');};
+window.addEventListener('resize',bpaint);
+
 drop.onclick=()=>file.click();
 drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();file.click();}};
 file.onchange=e=>pick(e.target.files[0]);
@@ -358,6 +456,7 @@ go.onclick=async()=>{
     'the model, which takes about 15 seconds.';
   const q=new URLSearchParams({interval_s:$('iv').value,window:$('win').value,
     camera:$('camera').value});
+  if(boundary) q.set('polygon',JSON.stringify(boundary));
   try{
     const r=await fetch('/api/v1/clip/analyse?'+q,{method:'POST',body:chosen,
       headers:{'Content-Type':'application/octet-stream'}});
