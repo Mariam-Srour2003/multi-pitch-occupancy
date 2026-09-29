@@ -310,7 +310,6 @@ the pitch &middot; <a href="/roi" style="color:var(--accent)">boundary editor</a
     <div class="tile"><div class="k">Segments</div><div class="v" id="m-seg"></div></div>
   </div>
 
-  <div id="corrnote"></div>
 
   <h2>Segments</h2>
   <p class="sub2" title="A boundary is reported as the interval it falls in: sampling
@@ -661,17 +660,11 @@ function render(d){
   // The one claim on this page that must not be trimmed away: a smoothed timeline is a
   // judgement, not the answer. It keeps a count on the page and its reason a hover away -
   // see `test_the_page_is_served_and_names_what_smoothing_costs`.
-  // The smoothing note was removed on request (2026-09-29). What a correction *is* stays
-  // visible without it: the corrected samples keep their striped band in the timeline and
-  // its legend, the table still strikes through the raw prediction beside the smoothed one,
-  // and the Corrected tile still counts them. The prose is what went, not the evidence.
-  const note=$('corrnote');
-  if(d.interval_widened){
-    note.className='note warn';
-    note.innerHTML='<b>interval widened to '+d.interval_s.toFixed(1)+'s</b> <span '+
-      'title="So the whole clip is covered within the sample cap, rather than analysing '+
-      'only its beginning.">why?</span>';
-  } else { note.className='';note.innerHTML=''; }
+  // The notes that stood here were removed on request (2026-09-29), and what they reported
+  // is still on the page as data rather than prose: corrected samples keep their striped
+  // band and its legend, the table strikes the raw prediction through beside the smoothed
+  // one, the Corrected tile counts them, and the interval actually used - widened or not -
+  // is the "resolution +/- Ns" figure above the segments, set from the same `interval_s`.
 
   const segs=$('segs');segs.innerHTML='';
   for(const g of d.segments){
