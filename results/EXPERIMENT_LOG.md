@@ -7691,3 +7691,100 @@ at scale) is where it gets settled rather than argued.
 - 2026-09-24 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
 
 - 2026-09-24 | what training on four videos costs | uv run python experiments/video_concentration_cost.py | video_concentration_cost.csv | everything (deployed) n=1599 recall 0.9556 false-play 0.3086 EMPTY 0.0000; distinct scenes n=180 recall 0.9534 false-play 0.0000 EMPTY 0.0206; capped 12/video n=351 recall 0.9966 false-play 0.0123 EMPTY 0.0041; capped 20/video n=383 recall 0.9831 false-play 0.0082 EMPTY 0.0041; capped 40/video n=463 recall 0.9886 false-play 0.0165 EMPTY 0.0000; identical held-out sides, only the training rows differ; EMPTY accuracy stays ~0 in every arm, so capping stops the probe saying PLAY without teaching it to say EMPTY
+
+- 2026-09-29 | WP9-T6 rule vs probe at frame level | uv run python experiments/rule_frame_eval.py | rule_frame_eval.csv | detector_first recall 0.308 false-play 0.000 EMPTY 0.926; detector_first_no_ball recall 0.996 false-play 0.000 EMPTY 0.926; best balanced: detector_first_no_ball; one frame per camera, no burst, no pitch sum
+
+- 2026-09-29 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 3 gate(s) met on artefacts, 2 waiting on a person
+
+- 2026-09-29 | what training on four videos costs | uv run python experiments/video_concentration_cost.py | video_concentration_cost.csv | everything (deployed) n=1599 recall 0.9556 false-play 0.3086 EMPTY 0.0000; distinct scenes n=180 recall 0.9534 false-play 0.0000 EMPTY 0.0206; capped 12/video n=351 recall 0.9966 false-play 0.0123 EMPTY 0.0041; capped 20/video n=383 recall 0.9831 false-play 0.0082 EMPTY 0.0041; capped 40/video n=463 recall 0.9886 false-play 0.0165 EMPTY 0.0000; identical held-out sides, only the training rows differ; EMPTY accuracy stays ~0 in every arm, so capping stops the probe saying PLAY without teaching it to say EMPTY
+
+- 2026-09-29 | WP9-T6 pitch-level sum against a single camera | uv run python experiments/rule_pitch_pairs.py | rule_pitch_pairs.csv | 164 paired moments at venue_01: one camera 0.790 correct, the pitch sum 0.927 [0.884, 0.963]; play moments median 7 inside one camera and 14 across the pitch against a threshold of 5
+
+- 2026-09-29 | WP9-T6 rule vs probe at frame level | uv run python experiments/rule_frame_eval.py | rule_frame_eval.csv | clock_rule recall 0.984 false-play 0.021 EMPTY 0.979; dinov2 recall 0.956 false-play 0.309 EMPTY 0.000; dinov2_gated recall 0.955 false-play 0.012 EMPTY 0.926; detector_first recall 0.308 false-play 0.000 EMPTY 0.926; detector_first_no_ball recall 0.996 false-play 0.000 EMPTY 0.926; best balanced: detector_first_no_ball; one frame per camera, no burst, no pitch sum
+
+- 2026-09-29 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
+
+## The ball requirement is off, and the whole path now has a slot number (A41, WP9-T6)
+
+`configs/rules.json`, `experiments/rule_frame_eval.py`, `experiments/rule_pitch_pairs.py`,
+`experiments/rule_slots.py`
+
+Reported from use: the rule was calling real matches C3 on both interactive pages. Three things
+came out of checking it, and the first is the one that matters.
+
+**`require_ball` cost 69 points of play-recall and bought nothing.** Both detector arms of
+`rule_frame_eval.py`, identical but for that switch:
+
+| arm | play-recall | worst venue | false-play | EMPTY acc | C3-on-empty |
+|---|---|---|---|---|---|
+| `require_ball: true` | **0.3078** | 0.1111 | 0.0000 | 0.9259 | 0.0741 |
+| `require_ball: false` | **0.9957** | 0.9702 | 0.0000 | 0.9259 | 0.0741 |
+
+The empty side is the same to four decimals. **501 of 1089 recorded play frames are
+ACTIVE_PLAY without the requirement and C3 with it.**
+
+**Why, and this is the part that settles it.** Per venue, the rule's play-recall *is* the
+ball-detection rate:
+
+| venue | ball found (A17) | rule recall |
+|---|---|---|
+| a_blue_barrier | 35% | 0.321 |
+| d_indoor_dome | 22% | 0.222 |
+| e_pink_boards | 89% | 0.889 |
+| f_outdoor_bldg | 17% | 0.154 |
+| g_netting | 30% | 0.290 |
+| h_teal_pitch | 17% | 0.167 |
+| i_outdoor_trees | 6% | 0.111 |
+
+The two columns are the same number at every venue. The clause was not measuring whether
+football was being played; it was measuring whether yolov8n could see the ball, which A17 put
+at 0.40 cross-venue. A ball twenty pixels across on a floodlit pitch is a property of the
+detector, not of the booking. The facility's rule - a game has a ball in it - is not wrong; it
+is **not observable with this detector**, and it stays a switch for one that can.
+
+**Fusion pays back what one camera loses, and the residue has a known cause.**
+`rule_pitch_pairs.py`, 164 paired moments at venue_01:
+
+| label | moments | one camera | pitch sum |
+|---|---|---|---|
+| playing | 99 | 0.7121 | **1.0000** |
+| empty | 65 | 0.9077 | 0.8154 |
+
+All 99 play moments are right once the cameras are summed, so `play_min = 5` is sound and the
+venue_01 recall loss was a per-camera artefact. **Not one empty moment becomes ACTIVE_PLAY** -
+the 12 errors are all C3, every one a frame where the detector found 1-3 people, and ten of the
+twelve put that person in camera B, whose boundary A20 recorded as reaching past the goal line
+into the car park. Most of that -0.0923 is the known boundary defect arriving at pitch level.
+
+**And the file three experiments cited now exists.** `rule_frame_eval.py` and
+`rule_pitch_pairs.py` both end by pointing at `rule_slots.py` as the thing that runs the whole
+path; it had never been written, and "it is not yet run" was doing the work of "it does not
+exist". `experiments/rule_slots.py` runs `worker.run_slot` over both recordings - per-minute
+classification, pitch-level fusion, the capture floor and `aggregate_slot`:
+
+| arm | slot | verdict | truth | minutes | per-minute |
+|---|---|---|---|---|---|
+| yolov8n (rule) | 2026-07-11 10:00 | **NOTUSED** | NOTUSED | 59/60 | 0.90 |
+| yolov8n (rule) | 2026-07-12 20:30 | **USED** | USED | 60/60 | 1.00 |
+| dinov2 (probe) | 2026-07-11 10:00 | **NOTUSED** | NOTUSED | 59/60 | 0.92 |
+| dinov2 (probe) | 2026-07-12 20:30 | **USED** | USED | 60/60 | 1.00 |
+
+**Both arms get both slot verdicts right**, which is the first end-to-end number this project
+has for the thing an operator actually receives.
+
+**Two honesties the file carries rather than hides.** The rule reads three frames a second
+apart and these recordings were sampled every **15 s**, so the burst cannot be reproduced from
+stills: the default is one frame per minute with motion unmeasured, and `--burst` runs the
+wider spacing labelled as what it is. And the per-minute column is read from `on_minute`, which
+carries the **fused** state - the first version read `run.samples`, which are per camera, and
+scored one camera's half of the pitch against a label for the whole of it. That mistake read
+0.65 on the evening slot where the fused states read 1.00, which is the same half-a-pitch
+artefact fusion exists to remove, arriving inside the measurement of fusion.
+
+**Unrelated and pre-existing**, found while running the suite and left alone:
+`test_h3_recall_still_reproduces_the_published_table` fails with dinov2 at 0.8509 against the
+published 0.9297. It fails identically with today's changes stashed, so
+`h3_cross_venue_recall.csv` is stale against the current manifest - most likely the 2026-09-21
+folder collapse that moved 175 frames. It needs a re-run and a look, not a patch.
+
+- 2026-09-29 | WP8-T5 claims ledger | `python -m experiments.verify_claims` | `thesis/claims.md` | 47 claims verified against their artefacts, 0 recorded as unsupported

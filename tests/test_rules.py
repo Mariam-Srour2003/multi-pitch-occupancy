@@ -24,7 +24,14 @@ import pytest
 from pitch_occupancy.data.taxonomy import Class3
 from pitch_occupancy.vision.counting import PitchCount
 from pitch_occupancy.vision.rules import (
-    RULES_PATH, MinuteState, RuleConfig, decide, from_class3, from_label, to_class3)
+    RULES_PATH,
+    MinuteState,
+    RuleConfig,
+    decide,
+    from_class3,
+    from_label,
+    to_class3,
+)
 
 EMPTY, PLAY, C3 = (MinuteState.EMPTY, MinuteState.ACTIVE_PLAY,
                    MinuteState.MAINTENANCE_NON_SPORTING)
@@ -35,6 +42,18 @@ CFG = RuleConfig.load()
 #: Motion required *and* checkable - `motion_play_min` is null until WP9-T5, so a test about
 #: the motion clause has to fit one itself and say that is what it is doing.
 MOVING = RuleConfig(**{**CFG.to_json(), "motion_play_min": 1.0})
+
+#: The ball clause, asked for explicitly, for the same reason and since the same date.
+#:
+#: `require_ball` was turned **off** in the shipped config on 2026-09-29: both detector arms of
+#: `rule_frame_eval.py` are identical on the empty side - false-play 0.0000, EMPTY accuracy
+#: 0.9259 - and requiring a ball cost 69 points of play-recall, 0.9957 to 0.3078. Per venue the
+#: rule's recall *was* the ball-detection rate, so the clause measured whether yolov8n could see
+#: the ball rather than whether football was being played.
+#:
+#: The clause is still code and still a switch, so it is still tested - a detector that can see
+#: the ball would make it worth turning back on, and it must work when it is.
+STRICT = RuleConfig(**{**CFG.to_json(), "require_ball": True, "motion_play_min": 1.0})
 
 
 def count(n: int, *, ball: bool = False, raw: int | None = None, vehicles: int = 0,
@@ -131,10 +150,27 @@ def test_row_6_more_than_four_with_a_ball_and_motion_is_play() -> None:
 
 def test_row_7_a_crowd_with_no_ball_is_not_playing() -> None:
     """The inversion. A36 called this ACTIVE_PLAY at lower confidence; the facility's rule
-    is that a game has a ball in it."""
-    verdict = decide(count(9), motion=5.0, cfg=MOVING)
+    is that a game has a ball in it.
+
+    Runs against `STRICT` because the shipped config no longer requires a ball - see the
+    constant. This pins the clause, not the deployment.
+    """
+    verdict = decide(count(9), motion=5.0, cfg=STRICT)
     assert verdict.state is C3 and verdict.rule == 7
     assert "no ball seen" in verdict.trace[-1]
+
+
+def test_the_shipped_rule_no_longer_requires_a_ball() -> None:
+    """What the deployment now does, pinned where someone changing it will see the reason.
+
+    Nine people, no ball, moving: ACTIVE_PLAY under the shipped config, C3 under `STRICT`.
+    That difference is worth 69 points of play-recall (0.3078 -> 0.9957) at an unchanged
+    false-play of 0.0000, measured in `results/rule_frame_eval.csv`.
+    """
+    moving_shipped = RuleConfig(**{**CFG.to_json(), "motion_play_min": 1.0})
+    assert CFG.require_ball is False
+    assert decide(count(9), motion=5.0, cfg=moving_shipped).state is PLAY
+    assert decide(count(9), motion=5.0, cfg=STRICT).state is C3
 
 
 def test_row_7_a_crowd_that_is_not_moving_is_not_playing() -> None:
@@ -144,7 +180,8 @@ def test_row_7_a_crowd_that_is_not_moving_is_not_playing() -> None:
 
 
 def test_row_7_names_every_clause_that_failed_not_just_the_first() -> None:
-    verdict = decide(count(9), motion=0.2, cfg=MOVING)
+    """`STRICT` for the same reason: two clauses have to be able to fail at once."""
+    verdict = decide(count(9), motion=0.2, cfg=STRICT)
     assert verdict.state is C3
     assert "no ball" in verdict.trace[-1] and "motion" in verdict.trace[-1]
 
@@ -178,10 +215,17 @@ def test_motion_that_was_never_measured_is_announced_too() -> None:
 
 def test_the_requirements_can_be_switched_off_and_the_cost_is_a_decision() -> None:
     """A17 measured cross-venue ball recall at 0.40, so `require_ball` loses genuine matches
-    wherever the detector cannot see the ball. The switch exists so that is somebody's call."""
-    lenient = RuleConfig(**{**CFG.to_json(), "require_ball": False})
-    assert decide(count(9), motion=5.0, cfg=CFG).state is C3
-    assert decide(count(9), motion=5.0, cfg=lenient).state is PLAY
+    wherever the detector cannot see the ball. The switch exists so that is somebody's call.
+
+    It was called on 2026-09-29, against the measurement: `rule_frame_eval.py` ran both arms
+    and they are identical on the empty side - false-play 0.0000, EMPTY accuracy 0.9259 -
+    while play-recall was 0.3078 strict against 0.9957 lenient. The clause cost 69 points and
+    bought nothing, so the shipped config is now the lenient one. Both directions stay tested
+    because both remain reachable.
+    """
+    strict = RuleConfig(**{**CFG.to_json(), "require_ball": True})
+    assert decide(count(9), motion=5.0, cfg=strict).state is C3
+    assert decide(count(9), motion=5.0, cfg=CFG).state is PLAY
 
 
 # --- the promises ---------------------------------------------------------------------------
@@ -197,11 +241,17 @@ def test_another_person_never_lowers_the_playing_confidence() -> None:
 
 
 def test_a_ball_never_lowers_the_class_and_never_raises_it_below_the_head_count() -> None:
+    """Under `STRICT`, because a ball only changes a class while it is required. With the
+    shipped config the first loop is vacuous - both arms are PLAY - and a vacuous assertion
+    is how a test stops testing without failing."""
     for n in range(5, 15):
-        with_ball = decide(count(n, ball=True), motion=5.0, cfg=MOVING)
-        without = decide(count(n), motion=5.0, cfg=MOVING)
+        with_ball = decide(count(n, ball=True), motion=5.0, cfg=STRICT)
+        without = decide(count(n), motion=5.0, cfg=STRICT)
         assert with_ball.state is PLAY and without.state is C3
     for n in range(1, 5):
+        # Below the head count a ball changes nothing either way, which is the half of this
+        # that does still hold under the shipped config - so it is checked under both.
+        assert decide(count(n, ball=True), motion=5.0, cfg=STRICT).state is C3
         assert decide(count(n, ball=True), motion=5.0, cfg=MOVING).state is C3
 
 
@@ -217,8 +267,15 @@ def test_every_verdict_carries_a_readable_trace_and_its_row() -> None:
 
 
 def test_the_requirements_are_the_facilitys_numbers_and_switches() -> None:
+    """`play_min` and `small_group_max` are the facility's rule and are not fitted.
+
+    `require_ball` is a switch and was turned off on 2026-09-29 on the measurement in
+    `results/rule_frame_eval.csv`; `require_motion` stays on and stays inert while
+    `motion_play_min` is null, which `test_row_6_...` covers.
+    """
     assert CFG.play_min == 5 and CFG.small_group_max == 4
-    assert CFG.require_ball is True and CFG.require_motion is True
+    assert CFG.require_ball is False, "turned off on measurement - see A41 in the log"
+    assert CFG.require_motion is True
 
 
 def test_the_committed_rule_file_loads_and_is_unfrozen_until_wp9_t5(tmp_path) -> None:

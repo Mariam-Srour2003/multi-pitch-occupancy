@@ -1,0 +1,5 @@
+arm,kind,slot,burst,truth,status,correct,minutes_captured,minutes_missed,play_ratio,empty_ratio,maintenance_ratio,uncertain_ratio,minute_agreement,n_minutes_scored
+yolov8n,detector,venue_01_2026-07-11_1000,False,NOTUSED,NOTUSED,True,59,1,0.0,0.8983,0.1017,0.0,0.8983,59
+yolov8n,detector,venue_01_2026-07-12_2030,False,USED,USED,True,60,0,1.0,0.0,0.0,0.0,1.0,60
+dinov2,probe,venue_01_2026-07-11_1000,False,NOTUSED,NOTUSED,True,59,1,0.0169,0.9153,0.0678,0.0,0.9153,59
+dinov2,probe,venue_01_2026-07-12_2030,False,USED,USED,True,60,0,1.0,0.0,0.0,0.0,1.0,60

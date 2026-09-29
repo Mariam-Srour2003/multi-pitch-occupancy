@@ -73,6 +73,11 @@ OUT_OF_SCOPE = {
         "was a 4-class table whose 3<->4 cell was marked as accepted; nothing was measured "
         "there. Belongs beside rule_frame_eval.csv and arrives with it."
     ),
+    "rule_slots.csv": (
+        "WP9-T6: the whole path over the two recordings, slot verdict included. Four rows "
+        "whose point is the verdict column - USED/NOTUSED against what the hour was - and "
+        "which mean nothing without the note that a still corpus cannot supply the 1 s burst."
+    ),
     "rule_pitch_pairs.csv": (
         "WP9-T6: what summing the two cameras of one pitch is worth (play 0.338 -> 0.859, "
         "EMPTY 0.892 -> 0.785). 164 paired moments at one venue, and the pairing is thin "
