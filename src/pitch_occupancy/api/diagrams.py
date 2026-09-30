@@ -152,42 +152,68 @@ def yolo_stack() -> str:
     cfg = _rules()
     if not cfg:
         return ""
-    w, h = 916, 232
-    y, bh = 58, 66
+    # (width, title, setting lines, result lines). The longer labels are broken by hand at
+    # their commas, so each box grows downwards instead of its text running out of it.
     stages = [
-        (20, 126, "the frame", f'long edge {cfg.get("imgsz", 1280)}', "one per camera-minute"),
-        (176, 168, "backbone", "CSPDarknet, C2f blocks", "features at 3 scales"),
-        (376, 150, "neck", "PAN-FPN", "small objects keep detail"),
-        (558, 158, "head", "anchor-free, decoupled", "box + class, no anchors"),
-        (748, 148, "NMS", f'person &ge; {cfg.get("person_conf", 0.25)}',
-         f'ball &ge; {cfg.get("ball_conf", 0.1)}'),
+        (136, "the frame", [f'long edge {cfg.get("imgsz", 1280)}'],
+         ["one per camera-minute"]),
+        (204, "backbone (Features &amp; layers)",
+         ["CSPDarknet (architecture),", "C2f blocks", "(features representation)"],
+         ["features at 3 scales (s,m,l)"]),
+        (164, "neck", ["PAN-FPN"], ["small objects keep detail"]),
+        (190, "head", ["anchor-free (location),", "decoupled", "(where is it?, what is it?)"],
+         ["box + class, no anchors"]),
+        (124, "NMS", [f'person &ge; {cfg.get("person_conf", 0.25)}'],
+         [f'ball &ge; {cfg.get("ball_conf", 0.1)}']),
     ]
+    gap, left, y = 26, 12, 58
+    title_h, line_h, split = 18, 15, 5
+    rows = max(len(l1) + len(l2) for _, _, l1, l2 in stages)
+    bh = 22 + title_h + rows * line_h + split  # every box the height of the tallest
+    xs, x = [], left
+    for bw, *_ in stages:
+        xs.append(x)
+        x += bw + gap
+    w, h = x - gap + left, y + bh + 70
+
     svg = ""
-    for i, (x, bw, title, l1, l2) in enumerate(stages):
+    for i, ((bw, title, l1, l2), x) in enumerate(zip(stages, xs)):
+        cx = x + bw / 2
+        # centre each box's own text block vertically, so short boxes do not float to the top
+        block_h = title_h + (len(l1) + len(l2)) * line_h + split
+        ty = y + (bh - block_h) / 2 + 13
         svg += (f'<rect class="dg-box" x="{x}" y="{y}" width="{bw}" height="{bh}" rx="8"/>'
-                f'<text class="dg-t" x="{x + bw / 2}" y="{y + 22}" text-anchor="middle">'
-                f'{title}</text>'
-                f'<text class="dg-l" x="{x + bw / 2}" y="{y + 40}" text-anchor="middle">'
-                f'{l1}</text>'
-                f'<text class="dg-s" x="{x + bw / 2}" y="{y + 55}" text-anchor="middle">'
-                f'{l2}</text>')
+                f'<text class="dg-t" x="{cx}" y="{ty}" text-anchor="middle">{title}</text>')
+        ty += title_h
+        for line in l1:
+            svg += f'<text class="dg-l" x="{cx}" y="{ty}" text-anchor="middle">{line}</text>'
+            ty += line_h
+        ty += split
+        for line in l2:
+            svg += f'<text class="dg-s" x="{cx}" y="{ty}" text-anchor="middle">{line}</text>'
+            ty += line_h
         if i < len(stages) - 1:
-            nx = stages[i + 1][0]
-            svg += (f'<path class="dg-line" d="M {x + bw} {y + bh / 2} L {nx - 6} '
+            svg += (f'<path class="dg-line" d="M {x + bw} {y + bh / 2} L {xs[i + 1] - 6} '
                     f'{y + bh / 2}" marker-end="url(#ar4)"/>')
 
-    net = (f'<rect x="160" y="{y - 30}" width="576" height="{bh + 48}" rx="12" fill="none" '
-           f'stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" opacity=".5"/>'
-           f'<text class="dg-l" x="172" y="{y - 12}">one forward pass &middot; COCO weights, '
-           f'nothing trained here &middot; {cfg.get("detector", "yolov8n")}</text>')
-    out = (f'<rect x="744" y="{y - 30}" width="158" height="{bh + 48}" rx="12" fill="none" '
-           f'stroke="var(--accent)" stroke-width="1.6"/>'
-           f'<text class="dg-l" x="756" y="{y - 12}" fill="var(--accent)">boxes out</text>')
+    # the regions: backbone to head is the network, NMS is what comes out of it
+    pad = 10
+    nx0, nx1 = xs[1] - pad, xs[3] + stages[3][0] + pad
+    ox0, ox1 = xs[4] - pad + 2, xs[4] + stages[4][0] + pad - 2
+    net = (f'<rect x="{nx0}" y="{y - 30}" width="{nx1 - nx0}" height="{bh + 44}" rx="12" '
+           f'fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" '
+           f'opacity=".5"/>'
+           f'<text class="dg-l" x="{nx0 + 12}" y="{y - 12}">one forward pass &middot; COCO '
+           f'weights, nothing trained here &middot; {cfg.get("detector", "yolov8n")}</text>')
+    out = (f'<rect x="{ox0}" y="{y - 30}" width="{ox1 - ox0}" height="{bh + 44}" rx="12" '
+           f'fill="none" stroke="var(--accent)" stroke-width="1.6"/>'
+           f'<text class="dg-l" x="{ox0 + 12}" y="{y - 12}" fill="var(--accent)">boxes out</text>')
 
     # where the network stops and the readable part starts
-    seam = (f'<path class="dg-hot" d="M 822 {y + bh} L 822 {y + bh + 30}" '
+    sx = xs[4] + stages[4][0] / 2
+    seam = (f'<path class="dg-hot" d="M {sx} {y + bh + 14} L {sx} {y + bh + 40}" '
             f'marker-end="url(#ar4)"/>'
-            f'<text class="dg-l" x="812" y="{y + bh + 46}" text-anchor="end" '
+            f'<text class="dg-l" x="{sx - 10}" y="{y + bh + 58}" text-anchor="end" '
             f'fill="var(--accent)">then the rules: foot inside the boundary, '
             f'{cfg.get("small_group_max", 4)} or fewer is not a game, '
             f'{cfg.get("play_min", 5)}+ with a moving ball is</text>')
