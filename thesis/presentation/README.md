@@ -1,6 +1,6 @@
 # The defence presentation
 
-One talk, three forms. They carry the same argument and the same numbers.
+One talk, several forms. They carry the same argument and the same numbers.
 
 | File | What it is |
 |---|---|
@@ -9,6 +9,8 @@ One talk, three forms. They carry the same argument and the same numbers.
 | The site at `/` | **The talk as nine scrollable pages**, one per template section. `uv run pitch serve` |
 | [`build_deck.js`](build_deck.js) | Regenerates the .pptx. `node build_deck.js out.pptx` |
 | [`defence_slides.html`](defence_slides.html) | A standalone 19-slide short version, one file, opens offline. |
+| `Thesis_Site_Deck.pptx` | **The site, as a PowerPoint.** 29 slides - every block the site renders, in the site's own palette and components, plus a title page. Morph between the pages of a section, push between sections, and every block rises in on its own. |
+| [`build_site_deck.js`](build_site_deck.js) | Regenerates that deck. `node build_site_deck.js [out.pptx]` |
 
 ## The rule the whole thing is built on
 
@@ -16,6 +18,61 @@ One talk, three forms. They carry the same argument and the same numbers.
 you read out — each block is a headline, a few cards, or one number. Every word you actually
 say lives in `SPEAKER_SCRIPT.md`. If you find yourself reading the screen, the block has too
 much on it; cut the block, not the script.
+
+## The PowerPoint of the site
+
+`node build_site_deck.js` writes `Thesis_Site_Deck.pptx`: **the same eight parts, the same
+words, the same palette** - one slide per block of the site, plus the title page, which is
+the only thing on it that is not on the site. It reads `results/coverage.md`,
+`results/model_inventory.json`, `configs/rules.json` and `results/preprocess_pairs.csv` at
+build time, exactly as the pages read them at request time, so a rerun of an experiment
+moves both. **The site is unchanged**; the deck is a second rendering of it, not a
+replacement.
+
+Five blocks are redrawn rather than screenshotted - the DINOv2 stack, the YOLOv8 stack, the
+augmentation axes, the six preprocessing pairs and the search panel's bar chart - so every
+box and bar is a real shape and animates like the rest. The deck is light-only: a projector
+has one colour scheme.
+
+**One slide per block, and the whole block on it.** The nine literature strands and the
+six before/after pairs are each one page here, as they are one block on the site: split
+across slides they read as separate claims, and the point of both blocks is the whole set.
+
+**What the site appends below a tab is on the deck too**, in the site's order:
+
+| Site | Deck |
+|---|---|
+| Chapter 2 + `models_view.render()` | *The full model comparison* - the four models tried, the seven columns, the arrow on each saying which way is better. A cell with no result is a dash, never a zero. |
+| Chapter 4 + `_augmentation()` | *What removal looks like*, *The augmentation argument*, *The preset sheets*, *One effect at a time* |
+| Chapter 4 + `ARCHIVE_HTML` | *The preprocessing search* |
+
+The search chart is drawn from `results/search_runs/dinov2__all.json` - the cell the panel
+opens on, of the six it offers - with the panel's own ranking (balanced = recall &minus;
+false-play) and its own colours, including the amber for a configuration that bought recall
+by answering PLAY more often. It shows the top fourteen of that run and says so, and it
+says where the untouched baseline ranks rather than quietly dropping it.
+
+**The three contact sheets are not resampled.** `preprocess_effects.jpg`,
+`augmentation_grid.jpg` and `augmentation_effects.jpg` are up to four times taller than a
+slide, and at full height on one they are a column of unreadable thumbnails. Each is placed
+several times with `srcRect` - exactly the crop PowerPoint writes when you crop a picture
+in its own UI - so the sheet reads left to right instead of top to bottom at two to four
+times the tile size. The file on the slide is still the artefact on disk, every band is
+there, in order, and dragging the crop open gives the whole sheet back. The cuts fall where
+the sheets already divide: the night frame and the day frame.
+
+**Not on the deck:** `/related-work`, the page the *sources* link on each strand card opens.
+It is `thesis/ch2_related_work.md` with its `[CITE]` slots still open - the right thing to
+have behind a link, and the wrong thing to project.
+
+Two things pptxgenjs cannot write are injected into the slide XML afterwards, at the bottom
+of the build script: the hero gradients, and the transitions and the build. Note that
+**Morph lives in the 2015/09 namespace, not the 2010 one** - a `<p14:morph/>` is accepted
+and then silently ignored, which looks like no transition at all.
+
+One thing the deck does not reproduce: `talk.py` asks for `tone="amber"` on the Chapter 3
+hero, but the stylesheet has no `.tk-hero.amber` rule, so that band renders with no
+background on the site. The deck draws the gradient the tone names.
 
 ## The site
 

@@ -225,11 +225,15 @@ stored</p>
       <p class="sub2" style="margin:0 0 8px"><b id="bwhich">image 1</b> &middot; keeps
       <b id="bcov">&mdash;</b> of the frame &middot; <span id="bsrc">measuring&hellip;</span></p>
       <div style="display:flex;flex-direction:column;gap:6px">
+        <span class="sub2" style="margin:0">This image</span>
         <button class="ghost" id="bsuggest">Re-measure this image</button>
-        <button class="ghost" id="bcopy">Copy to all images</button>
         <button class="ghost" id="bundo">Undo last point</button>
         <button class="ghost" id="bclear">Start drawing from scratch</button>
         <button class="ghost" id="bwhole">Use the whole frame</button>
+        <span class="sub2" style="margin:8px 0 0">All images</span>
+        <button class="ghost" id="bcopy">Copy this outline to all</button>
+        <button class="ghost" id="bwholeall">Use the whole frame for all</button>
+        <button class="ghost" id="bsuggestall">Re-measure all</button>
       </div>
       <p class="sub2" id="bwarn" style="margin:10px 0 0;display:none;color:var(--flag)">
         No outline: the whole frame will be scored.</p>
@@ -356,6 +360,16 @@ let files=[],results=[],queue=[],draining=false,delay=900,streamDone=false,redac
 // the next visit to that image quietly measured a new one and sent it. An image that has been
 // through the step and has no outline is a decision, and is sent as one.
 let outlines=[],tried=[],drawing=[],bi=0;
+// What stops a suggestion overwriting a choice. Measuring runs in the background, so a reply
+// can arrive after the operator has pressed *Use the whole frame* or started drawing on that
+// image - and it used to land anyway, putting back the outline they had just removed. `gen`
+// is the batch (a reply for the previous upload must not land on this one), `ver[i]` counts
+// the operator's actions on image i, and a reply is applied only if neither has moved since
+// it was asked for. `pending[i]` is the request in flight, so one image is measured once.
+let gen=0,ver=[],pending=[];
+// The operator decided something about image i: any measurement still running for it is now
+// out of date, and must not land.
+function chose(i){ver[i]++;pending[i]=null;tried[i]=true;}
 
 // --- choosing files -------------------------------------------------------------------
 function pick(list){
@@ -370,6 +384,7 @@ function pick(list){
   $('bstep').style.display=files.length?'':'none';
   if(files.length){
     outlines=files.map(()=>null);tried=files.map(()=>false);drawing=[];bi=0;
+    gen++;ver=files.map(()=>0);pending=files.map(()=>null);
     bgo(0);bsuggestAll();
   }
   const box=$('picked');box.innerHTML='';
@@ -678,7 +693,9 @@ function bshow(src){
   $('bwhich').textContent='image '+(bi+1)+' of '+files.length;
   $('bcov').textContent=pts&&pts.length>2?(barea(pts)*100).toFixed(0)+'%':'\u2014';
   $('bsrc').textContent=src;
-  $('bwarn').style.display=(pts&&pts.length>2)?'none':'';
+  // Only once this image is decided: while it is still being measured there is no outline
+  // yet, and saying "the whole frame will be scored" then would be false.
+  $('bwarn').style.display=(pts&&pts.length>2)||!tried[bi]?'none':'';
   bstrip();bpaint();
 }
 // Moving to another image commits whatever is being drawn, so a half-finished outline is
@@ -699,45 +716,71 @@ function bgo(i){
 // and a batch run without opening them all is not half measured and half whole-frame by
 // accident. Sequential rather than 32 at once - it is Otsu on one frame, not a model.
 async function bsuggestAll(){
-  for(let i=0;i<files.length;i++) if(!tried[i]) await bsuggest(i);
+  const g=gen;
+  for(let i=0;i<files.length&&g===gen;i++) if(!tried[i]) await bsuggest(i);
 }
-async function bsuggest(at){
-  if(!files.length) return;
+function bsuggest(at){
+  if(!files.length) return Promise.resolve();
+  if(pending[at]) return pending[at];
   if(at===bi) $('bsrc').textContent='measuring\u2026';
-  let src='no turf found \u2014 draw it yourself';
-  try{
-    const images=[{name:files[at].name,data:await readAsDataURL(files[at])}];
-    const r=await fetch('/api/v1/roi/suggest',{method:'POST',
-      headers:{'Content-Type':'application/json'},body:JSON.stringify({images})});
-    const d=await r.json();
-    // The reply may arrive after the operator has moved on; apply it to the image it was
-    // measured from, and only redraw if that is still the one on screen.
-    if(r.ok&&d.polygon){outlines[at]=d.polygon;src='measured from this image';}
-  }catch(_){ src='could not measure \u2014 draw it yourself'; }
-  // Marked as measured either way. A suggestion that found nothing is still an answer, and
-  // the alternative is re-asking on every visit and overwriting what the operator chose.
-  tried[at]=true;
-  if(at===bi){drawing=[];bshow(src);} else bstrip();
+  const g=gen,v=ver[at];
+  const p=(async()=>{
+    let poly=null,src='no turf found \u2014 draw it yourself';
+    try{
+      const images=[{name:files[at].name,data:await readAsDataURL(files[at])}];
+      const r=await fetch('/api/v1/roi/suggest',{method:'POST',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify({images})});
+      const d=await r.json();
+      if(r.ok&&d.polygon){poly=d.polygon;src='measured from this image';}
+    }catch(_){ src='could not measure \u2014 draw it yourself'; }
+    // A new batch, or the operator decided this image while it was being measured: what
+    // they chose stands, and the suggestion is dropped.
+    if(g!==gen||v!==ver[at]) return;
+    if(pending[at]===p) pending[at]=null;
+    // Marked as measured either way. A suggestion that found nothing is still an answer,
+    // and the alternative is re-asking on every visit and overwriting what was chosen.
+    outlines[at]=poly;tried[at]=true;
+    if(at===bi){drawing=[];bshow(src);} else bstrip();
+  })();
+  pending[at]=p;
+  return p;
 }
 $('bcv').onclick=e=>{
   const r=e.target.getBoundingClientRect();
+  chose(bi);
   drawing.push([(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]);
   if(drawing.length>2) outlines[bi]=drawing.slice();
-  tried[bi]=true;bshow('drawn here');
+  bshow('drawn here');
 };
-$('bundo').onclick=()=>{drawing.pop();
+// On a suggested outline with nothing drawn yet, undo takes that outline's last corner
+// rather than dropping the whole outline at once.
+$('bundo').onclick=()=>{
+  chose(bi);
+  if(!drawing.length&&outlines[bi]) drawing=outlines[bi].map(p=>p.slice());
+  drawing.pop();
   outlines[bi]=drawing.length>2?drawing.slice():null;bshow('drawn here');};
-$('bclear').onclick=()=>{drawing=[];outlines[bi]=null;tried[bi]=true;
+$('bclear').onclick=()=>{chose(bi);drawing=[];outlines[bi]=null;
   bshow('draw the corners \u2014 whole frame until you do');};
-$('bwhole').onclick=()=>{drawing=[];outlines[bi]=null;tried[bi]=true;
+$('bwhole').onclick=()=>{chose(bi);drawing=[];outlines[bi]=null;
   bshow('whole frame, chosen');};
-$('bsuggest').onclick=()=>{drawing=[];outlines[bi]=null;tried[bi]=false;bsuggest(bi);};
+$('bsuggest').onclick=()=>{chose(bi);drawing=[];outlines[bi]=null;tried[bi]=false;
+  bsuggest(bi);};
 $('bcopy').onclick=()=>{
   bcommit();
   const one=outlines[bi];
   if(!one) return;
-  for(let i=0;i<files.length;i++){outlines[i]=one.map(p=>p.slice());tried[i]=true;}
+  for(let i=0;i<files.length;i++){chose(i);outlines[i]=one.map(p=>p.slice());}
   bshow('copied to all '+files.length);
+};
+$('bwholeall').onclick=()=>{
+  drawing=[];
+  for(let i=0;i<files.length;i++){chose(i);outlines[i]=null;}
+  bshow('whole frame, chosen for all '+files.length);
+};
+$('bsuggestall').onclick=()=>{
+  drawing=[];
+  for(let i=0;i<files.length;i++){chose(i);outlines[i]=null;tried[i]=false;}
+  bshow('measuring\u2026');bsuggestAll();
 };
 window.addEventListener('resize',bpaint);
 
@@ -754,6 +797,14 @@ $('go').onclick=async()=>{
 
   try{
     bcommit();
+    // Finish measuring first. An image still being measured would go out undecided, the
+    // server would score it on its own terms, and the outline arriving a moment later would
+    // show on the panel for a run that never used it.
+    if(tried.some(t=>!t)||pending.some(Boolean)){
+      $('stage-step').textContent='measuring outlines';
+      for(let i=0;i<files.length;i++) if(!tried[i]||pending[i]) await bsuggest(i);
+      $('stage-step').textContent='loading the model';
+    }
     const images=[];
     for(let i=0;i<files.length;i++)
       images.push({name:files[i].name,data:await readAsDataURL(files[i]),
