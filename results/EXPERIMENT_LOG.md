@@ -8059,3 +8059,7 @@ needed a clip with turf in it, since `_video`'s flat grey frames legitimately yi
 outline. Per-image outlines had been verified in the browser in A44 but never in the suite;
 they are covered now, asserting on `Shot.polygon` - what the model was actually shown - rather
 than on what was passed in. Full suite 1439 passed.
+
+- 2026-10-03 | milestone gate check | `python -m experiments.gate_check` | `gate_status.md` | 4 gate(s) met on artefacts, 3 waiting on a person
+
+- 2026-10-03 | what training on four videos costs | uv run python experiments/video_concentration_cost.py | video_concentration_cost.csv | everything (deployed) n=1599 recall 0.9556 false-play 0.3086 EMPTY 0.0000; distinct scenes n=180 recall 0.9534 false-play 0.0000 EMPTY 0.0206; capped 12/video n=351 recall 0.9966 false-play 0.0123 EMPTY 0.0041; capped 20/video n=383 recall 0.9831 false-play 0.0082 EMPTY 0.0041; capped 40/video n=463 recall 0.9886 false-play 0.0165 EMPTY 0.0000; identical held-out sides, only the training rows differ; EMPTY accuracy stays ~0 in every arm, so capping stops the probe saying PLAY without teaching it to say EMPTY
