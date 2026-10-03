@@ -33,6 +33,7 @@ import json
 import logging
 import tempfile
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
@@ -41,6 +42,7 @@ from pydantic import BaseModel, Field
 
 from pitch_occupancy.api.clip_review import _classifier, _gates
 from pitch_occupancy.api.clip_walkthrough import _jpeg
+from pitch_occupancy.vision.people import PersonGate
 
 __all__ = ["router", "MAX_IMAGES", "MAX_IMAGE_BYTES", "MAX_TOTAL_BYTES"]
 
@@ -162,6 +164,10 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
     # inferred, because on this project's footage the motion gate is what catches most empty
     # frames - so a still is judged with the weaker half of the deployed path.
     _, person_gate = _gates()
+    # Stills only: people found on the pitch mean it is not empty. See
+    # `PersonGate.people_overrule_empty` for why this is not on for clips or the worker.
+    if isinstance(person_gate, PersonGate):
+        person_gate = replace(person_gate, people_overrule_empty=True)
     cfg = RuleConfig.load(settings.rules_path)
     yield json.dumps({
         "type": "meta", "backbone": getattr(classifier, "backbone", "?"),

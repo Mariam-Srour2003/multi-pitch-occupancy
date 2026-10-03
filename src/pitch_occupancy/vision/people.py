@@ -211,6 +211,12 @@ class PersonGate:
     play_min: int = 5
     #: A18's clause: a found ball vetoes the C3 call. Off since 2026-09-29 - see above.
     ball_rescues_small_group: bool = False
+    #: People inside the boundary make an EMPTY verdict C3. The one place this gate strengthens
+    #: a verdict, so off by default and on only for the image reviewer: a still has no motion
+    #: gate and no neighbours, and an EMPTY over people the detector found on the pitch was the
+    #: commonest wrong answer there. Never to ACTIVE_PLAY - people found are evidence against
+    #: an empty pitch, not evidence of a game.
+    people_overrule_empty: bool = False
 
     def inspect(self, state: Class3, image_bgr,
                 polygon=None) -> tuple[Class3, Counted | None]:
@@ -235,6 +241,11 @@ class PersonGate:
         boundary, so the unsound clause is only ever consulted on 9 frames out of 396 and
         fires wrongly on 3. It is protected by the count, not by the ball.
         """
+        if state is Class3.EMPTY and self.people_overrule_empty:
+            counted = detect_inside(image_bgr, polygon)
+            if counted is not None and counted.people > 0:
+                return Class3.MAINTENANCE_NON_SPORTING, counted
+            return state, counted
         if state is Class3.EMPTY:
             # Already the weakest verdict. Count only if asked to, and *return the same
             # state either way* - what the detector finds here cannot make the verdict
