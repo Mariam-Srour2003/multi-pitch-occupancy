@@ -22,6 +22,8 @@ from pydantic import BaseModel
 
 from pitch_occupancy import __version__
 from pitch_occupancy.api.clip_page import CLIP_HTML
+from pitch_occupancy.api.clip_pair import router as pair_router
+from pitch_occupancy.api.clip_pair_page import PAIR_HTML
 from pitch_occupancy.api.clip_review import router as clip_router
 from pitch_occupancy.api.clip_walkthrough import router as walkthrough_router
 from pitch_occupancy.api.dashboard import dashboard_response
@@ -52,6 +54,10 @@ app.include_router(schedule_router)
 # WP6-T6. Analyses an uploaded clip and keeps none of it - see the module docstring for
 # why a POST that stores nothing sits beside /schedule/validate rather than the override.
 app.include_router(clip_router)
+# Two videos of the same pitch, one timeline: the cameras' counts added and the ball shared
+# before the rule is applied, as `slots/fusion.fuse_pitch` does for the worker. Beside the
+# single-camera reviewer, not instead of it.
+app.include_router(pair_router)
 # WP4-T5. The same analysis streamed step by step, with the evidence map that
 # `vision/explain.py` has been able to produce since WP4-T5 and nothing showed.
 app.include_router(walkthrough_router)
@@ -95,6 +101,17 @@ def clip_reviewer() -> HTMLResponse:
     behind it: the input is a file somebody has in their hand, and nothing is kept.
     """
     return HTMLResponse(CLIP_HTML)
+
+
+@app.get("/clip/pair", response_class=HTMLResponse, include_in_schema=False)
+def pair_reviewer() -> HTMLResponse:
+    """The two-camera reviewer - both cameras of one pitch, judged together.
+
+    One camera sees half a pitch, so its own verdict is not the pitch's. This page takes
+    both videos, adds the people the two see, takes the ball from either, and applies the
+    decision table once - and shows each camera's own answer beside the pitch's.
+    """
+    return HTMLResponse(PAIR_HTML)
 
 
 @app.get("/images", response_class=HTMLResponse, include_in_schema=False)

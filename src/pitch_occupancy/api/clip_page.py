@@ -161,7 +161,7 @@ figcaption[title],label[title],.sub2 span[title],.note span[title]{
 <header><div class="hin">
   <div class="brand">Pitch Occupancy<span>.</span></div>
   <div class="sub">Clip reviewer</div>
-  <a href="/images">Image reviewer</a><a href="/client">Dashboard</a><a href="/">Findings</a>
+  <a href="/clip/pair">Two cameras</a><a href="/images">Image reviewer</a><a href="/client">Dashboard</a><a href="/">Findings</a>
 </div></header>
 <main>
 
