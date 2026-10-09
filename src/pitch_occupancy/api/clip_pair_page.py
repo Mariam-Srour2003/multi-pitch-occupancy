@@ -57,7 +57,7 @@ PAIR_HTML = """<!doctype html>
   <div class="brand">Pitch <span>Occupancy</span></div>
   <div class="sub">Two-camera reviewer</div>
   <a href="/clip">One camera</a><a href="/images">Image reviewer</a>
-  <a href="/client">Dashboard</a><a href="/">Findings</a>
+  <a href="/">Dashboard</a>
 </div></header>
 <main>
 <h2>Both cameras of one pitch</h2>

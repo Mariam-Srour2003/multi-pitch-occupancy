@@ -1,4 +1,4 @@
-"""The sampling scheduler (WP6-T2).
+"""The sampling scheduler.
 
 Runs as its own process, independent of the API. For each slot it pulls one frame per
 camera per minute, classifies it, fuses the two halves, and at slot end aggregates a
@@ -82,19 +82,19 @@ class SlotRun:
     #: one will ask.
     motion_cues: tuple[float, ...] = ()
     people_counts: tuple[int, ...] = ()
-    #: Minutes where a ball was seen inside the boundary. Since A40 this is not only a
-    #: record: with `require_ball` on, no ball means no ACTIVE_PLAY, so this column is the
-    #: one to read when a slot comes back C3 and the operator says there was a match on. A17
-    #: measured cross-venue ball recall at 0.40, which is exactly why that is worth reading.
+    #: Minutes where a ball was seen inside the boundary. This is not only a record: with
+    #: `require_ball` on, no ball means no ACTIVE_PLAY, so this column is the one to read
+    #: when a slot comes back C3 and the operator says there was a match on. Cross-venue ball
+    #: recall was measured at 0.40, which is exactly why that is worth reading.
     ball_minutes: tuple[int, ...] = ()
-    #: Minutes in which no camera could be scored because none had a boundary (A36). They
+    #: Minutes in which no camera could be scored because none had a boundary. They
     #: are also counted in `minutes_missed`, since that is what the capture floor reads;
     #: this says *why*, which "missed" alone does not.
     minutes_uncertain: int = 0
     #: The cameras that had no resolvable boundary. The first thing to fix at a new site.
     uncertain_cameras: tuple[str, ...] = ()
-    #: The state per decided minute (`vision/rules.MinuteState` values). Three classes since
-    #: A40, and identical to the `samples`' own values - kept as its own column because it is
+    #: The state per decided minute (`vision/rules.MinuteState` values). Three classes, and
+    #: identical to the `samples`' own values - kept as its own column because it is
     #: at *pitch* level, where the counts are summed, and the samples are per camera.
     minute_states: tuple[str, ...] = ()
 
@@ -138,7 +138,7 @@ def run_slot(
 ) -> SlotRun:
     """Sample, classify, fuse and aggregate one slot.
 
-    ``pipeline`` is the assembled deployment (`pipeline.assemble`, A36): it supplies the
+    ``pipeline`` is the assembled deployment (`pipeline.assemble`): it supplies the
     classifier, both gates and the per-camera boundary lookup in one object, so a caller
     cannot pass one and forget the others - which is exactly what `scheduler.run_due` did
     for as long as the gates existed. ``venue`` and ``slot_key`` narrow the boundary lookup
@@ -149,7 +149,7 @@ def run_slot(
     resolved contributes no observation: its minute is recorded as UNCERTAIN, and if no
     camera on the pitch had one the minute counts as missed, which the capture floor turns
     into REVIEW. Without a boundary the model scores the neighbouring pitch and the car park
-    as if they were this one, and A19 measured that at 0.74 false-play against 0.38 - a
+    as if they were this one, measured at 0.74 false-play against 0.38 with one - a
     verdict produced that way is not one this system should record as its own.
 
     Minutes where no camera produced a frame are counted as missed rather than filled in.
@@ -161,7 +161,7 @@ def run_slot(
     did. `EvidenceFrame.image_path` was populated with a literal ``None`` on every minute, so
     the selection machinery ran, chose three good frames, and recorded three paths to nothing.
     The dashboard's evidence inspector said "no evidence images bound" and was right; the
-    override harvest (WP6-T7) would have found every frame missing. A verdict an operator
+    override harvest (`retraining.py`) would have found every frame missing. A verdict an operator
     cannot see the evidence for is the one thing this system must not produce, since a human
     confirming every anomaly is what `slots/authority.py` rests on.
 
@@ -187,7 +187,7 @@ def run_slot(
     if classify is None:
         raise TypeError("run_slot needs a classifier or a pipeline that carries one")
     # The detector-first path reads a burst per camera-minute and fuses counts at pitch
-    # level (A36); the probe path reads one frame and fuses classes, as it always has.
+    # level; the probe path reads one frame and fuses classes, as it always has.
     burst_n, burst_spacing = pipeline.burst if pipeline is not None else (1, 0.0)
     detector_first = pipeline is not None and pipeline.kind == "detector"
 
@@ -227,9 +227,8 @@ def run_slot(
     # Minutes where a ball was seen inside the boundary. This was written when the ball was
     # recorded and never consulted - across nine unseen venues a ball is found in 40% of
     # genuine play frames against the person count's 100%, so absence carried no information.
-    # A40 made a ball a *requirement* for ACTIVE_PLAY at the facility's instruction, so that
-    # 40% is now a recall cost rather than an argument against the rule, and it is measured
-    # in `results/rule_frame_eval.csv`. See `vision/people.py` (A17).
+    # A ball is now a *requirement* for ACTIVE_PLAY at the facility's instruction, so that
+    # 40% is a recall cost rather than an argument against the rule. See `vision/people.py`.
     ball_minutes: list[int] = []
     uncertain_minutes = 0
     uncertain_cameras: set[str] = set()
@@ -249,13 +248,13 @@ def run_slot(
             if not frames:
                 continue  # a gap; never a fabricated observation
             frame = frames[-1]
-            # The pitch boundary (WP3-T1). Passed per camera because a boundary belongs to
+            # The pitch boundary. Passed per camera because a boundary belongs to
             # one, and applying another camera's outline is measurably worse than none at
             # all: on an unseen clip the wrong outline bought 0.06 of false-play where the
             # right one bought 0.42.
             polygon = polygon_for(camera) if polygon_for is not None else None
             if polygon is None and require_boundary and not detector_first:
-                # A36: no boundary, no verdict. Recorded as UNCERTAIN rather than dropped,
+                # No boundary, no verdict. Recorded as UNCERTAIN rather than dropped,
                 # so the database shows a camera that was read and not scored, which is a
                 # different fact from a camera that produced nothing.
                 abstained = True
@@ -272,7 +271,7 @@ def run_slot(
                 )
                 continue
             if detector_first:
-                # A36: the camera's burst is counted inside its boundary and decided by the
+                # The camera's burst is counted inside its boundary and decided by the
                 # table; the pitch is decided again below from every camera's count. The
                 # stored sample carries the three-class value the dashboard reads, or
                 # UNCERTAIN; the four-class state travels on the run. A camera with no
@@ -311,7 +310,7 @@ def run_slot(
             else:
                 state, confidence = classify(frame.image_bgr)
 
-            # The motion gate (A14). This loop is the only place in the system that sees one
+            # The motion gate. This loop is the only place in the system that sees one
             # camera's frames in order, so it is the only place the rule can live.
             if motion_gate is not None:
                 state, cue = motion_gate.apply(
@@ -319,7 +318,7 @@ def run_slot(
                 )
                 if cue is not None:
                     motion_seen.append(cue)
-            # The person gate (A16). After the motion gate, because it is the more expensive
+            # The person gate. After the motion gate, because it is the more expensive
             # of the two - it runs a detector - and the cheaper one may already have settled
             # the answer. Both only ever turn ACTIVE_PLAY into EMPTY, so the order changes
             # cost and not the verdict.
@@ -356,7 +355,7 @@ def run_slot(
             if not pitch.decided:
                 # The pitch as a whole abstained - no camera could be scored, or movement
                 # with nobody found. It counts against the capture floor like a minute with
-                # no frame, and is recorded as the reason (A36).
+                # no frame, and is recorded as the reason.
                 missed += 1
                 uncertain_minutes += 1
                 continue
@@ -399,7 +398,7 @@ def run_slot(
             on_minute(minute, state)
 
     # The slot's real length, so a slot that lost most of its minutes is downgraded to
-    # REVIEW rather than decided from the fragment that survived (WP7-T5).
+    # REVIEW rather than decided from the fragment that survived.
     verdict = aggregate_slot(
         fused_states, fused_conf, thresholds, minutes_expected=source.n_minutes
     )
@@ -495,7 +494,7 @@ def _confirm_live(urls: dict[str, dict[str, str]], schedule, evidence_dir: Path 
     print(f"  {len(schedule.slots)} scheduled slot(s) from configs/slots_schedule.json")
     if evidence_dir is not None:
         print(f"  evidence images WILL be written to {evidence_dir} - these are frames of "
-              f"identifiable people (thesis/ethics.md)")
+              f"identifiable people")
     else:
         print("  evidence images: off (pass --evidence-dir to save them)")
     print("  the runbook's ladder has never met a real outage: docs/runbook.md")
@@ -504,7 +503,7 @@ def _confirm_live(urls: dict[str, dict[str, str]], schedule, evidence_dir: Path 
 
 
 def _run_live(args) -> None:
-    """Follow the real schedule against real cameras (WP6-T3, WP7-T3).
+    """Follow the real schedule against real cameras.
 
     The path itself is not new — `scheduler.live_sources` and `frame_source.RTSPSource` have
     existed since 2026-09-09 and are tested against an injected capture opener. What was
@@ -566,7 +565,7 @@ def _run_live(args) -> None:
     print(f"\n{pipeline.describe()}")
 
     # Every camera's boundary, before a stream is opened. A camera without one is scored
-    # UNCERTAIN every minute (A36), and finding that out at the first slot boundary is an
+    # UNCERTAIN every minute, and finding that out at the first slot boundary is an
     # hour late. `--derive-roi` measures one from the stream now and stores it under the
     # production id; `/roi` is where a person confirms or redraws it.
     missing = _report_boundaries(
@@ -661,18 +660,11 @@ def _report(slot_id: str, outcome: object) -> None:
 
 
 def main() -> None:
-    """Run the sampler over recorded slots, with the real classifier (WP6-T2).
-
-    This is the acceptance criterion the work package was written around - *"runs
-    continuously; DB fills; verdicts correct on recorded slots"* - and until
-    `vision/classifier.py` existed it could not be met, because nothing in the repository
-    could turn a frame into a class outside an experiment. This function raised
-    `NotImplementedError` instead, and its message named the missing piece.
+    """Run the sampler over recorded slots, with the real classifier.
 
     ``--source video`` replays footage through the scheduler rather than pretending to be
     live: the same `run_due` a deployment calls, given recordings instead of cameras. The
-    live path is `scheduler.live_sources` and it has still never been pointed at a camera
-    (WP7-T3).
+    live path is `scheduler.live_sources` and it has still never been pointed at a camera.
 
     ``--dry-run`` lists what would run and exits before the backbone is loaded, which is the
     shape `pitch retention` and `pitch schedule` already use: deciding is separable from
@@ -713,7 +705,7 @@ def main() -> None:
     parser.add_argument("--derive-roi", action="store_true",
                         help="measure a boundary from the footage for any camera that has "
                              "none stored, and save it to configs/roi_derived.json under the "
-                             "production id. Without it such cameras read UNCERTAIN (A36)")
+                             "production id. Without it such cameras read UNCERTAIN")
     args = parser.parse_args()
 
     if args.source == "live":

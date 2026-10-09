@@ -1,9 +1,8 @@
-"""Retention: delete what the commitment says must be deleted, and nothing else (WP6-T8).
+"""Retention: delete what the commitment says must be deleted, and nothing else.
 
-`thesis/ethics.md` commits to *"raw frames purged after 7 days in production; evidence images
-retained 365 days for audit"*, and adds **"Code enforces this (WP6-T8)"** — which was a claim
-about code that did not exist. This is that code, and the numbers here are read from that
-commitment rather than chosen, so the two cannot drift apart.
+The project's data-protection commitment is *raw frames purged after 7 days in production;
+evidence images retained 365 days for audit*. This is the code that enforces it, and the
+numbers here are taken from that commitment rather than chosen.
 
 The dangerous half
 ------------------
@@ -15,7 +14,7 @@ is the source footage — 4.2 GB from a client facility, one copy, not regenerab
 
 So the protected roots are named, the planner refuses to consider anything under them, and a
 test asserts the refusal. "Raw frames" in the ethics commitment means *frames sampled by the
-running system*, which live in `data/interim/`; it does not mean the research corpus, and a
+running system*, which live in `data/interim/`; it does not mean the labelled corpus, and a
 worker that conflated the two would be the most expensive bug this project could ship.
 
 The cautious half
@@ -107,11 +106,10 @@ def has_room(path: Path, *, need: int = MIN_FREE_BYTES) -> tuple[bool, str]:
 
 @dataclass(frozen=True, slots=True)
 class RetentionPolicy:
-    """Periods from `thesis/ethics.md`, not from preference.
+    """Periods from the data-protection commitment, not from preference.
 
-    If the ethics document is revised, these change with it and the docstring of whichever
-    is edited second is wrong - so the numbers appear in one place in code and the test
-    checks them against the document.
+    If the commitment is revised, these change with it - so the numbers appear in one place
+    in code and a test pins them.
     """
 
     #: Frames sampled by the running system. Purged after a week.
@@ -153,7 +151,7 @@ class RetentionPlan:
             f"retention: {len(self.delete)} file(s) to delete, {mb:.1f} MB, "
             f"{self.kept} kept",
             f"  policy: sampled frames {self.policy.sampled_frame_days} d, "
-            f"evidence {self.policy.evidence_days} d  (thesis/ethics.md)",
+            f"evidence {self.policy.evidence_days} d",
             "  scanned: " + (", ".join(str(r) for r in self.scanned_roots) or "nothing"),
         ]
         for c in sorted(self.delete, key=lambda c: -c.age_days)[:10]:

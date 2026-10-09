@@ -1,4 +1,4 @@
-"""Overrides back into training data (WP6-T7).
+"""Overrides back into training data.
 
 The dangerous failure here is not a crash. It is a frame reaching the training set with a
 label nobody assigned, from the one source the project treats as ground truth. So most of

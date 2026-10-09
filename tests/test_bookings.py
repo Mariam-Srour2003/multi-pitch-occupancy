@@ -1,4 +1,4 @@
-"""The booking importer (WP6-T4).
+"""The booking importer.
 
 A booking export is the facility's financial record, and reconciliation turns it into
 statements about whether a customer used what they paid for. So the tests here are mostly
@@ -38,7 +38,7 @@ def write(tmp_path: Path, *rows: str) -> Path:
 
 
 def test_the_source_interface_offers_no_way_to_write() -> None:
-    """WP6-T4's constraint is "never write to client systems", and the way to keep it is to
+    """The importer's constraint is "never write to client systems", and the way to keep it is to
     have no write path rather than a disabled one. If this fails, someone added a method that
     would need a very good reason."""
     public = {m for m in dir(CsvBookingSource) if not m.startswith("_")}
@@ -263,18 +263,17 @@ def test_blocked_slot_sold_cannot_be_produced_from_a_real_export() -> None:
     `BLOCKED_SLOT_SOLD` fires on `maintenance_window and booked`. Both are derived from one
     `status` column - `booked = status in SOLD`, `maintenance_window = status ==
     "maintenance"` - and `SOLD` is `{confirmed, no_show}`. One column cannot hold two values,
-    so the conflict the anomaly describes is **inexpressible in the schema WP6-T4 asks the
-    client for**, and every instance of it in this repository is a hand-built fixture.
+    so the conflict the anomaly describes is **inexpressible in the schema the importer asks
+    the client for**, and every instance of it in this repository is a hand-built fixture.
 
     That is a finding about the request, not a bug in the code: detecting a blocked slot that
-    was nevertheless sold needs the export to carry the block separately from the status.
-    `thesis/data_requests.md` now asks for it. This test fails if the schema grows that field
+    was nevertheless sold needs the export to carry the block separately from the status,
+    and the data request to the client asks for it. This test fails if the schema grows that field
     and the derivation is not updated with it - which is the moment the anomaly becomes real.
     """
     from pitch_occupancy.bookings import SOLD
 
     assert "maintenance" not in SOLD, (
         "the schema can now express a sold maintenance window; update reconcile_slot's "
-        "derivation and the note in data_requests.md, because BLOCKED_SLOT_SOLD just became "
-        "reachable from a real export"
+        "derivation, because BLOCKED_SLOT_SOLD just became reachable from a real export"
     )

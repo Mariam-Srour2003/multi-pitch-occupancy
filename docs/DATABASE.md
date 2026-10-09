@@ -36,7 +36,7 @@ venues ──< fields ──< cameras          the physical estate
 | `fields` | 1 | a pitch, belonging to a venue |
 | `cameras` | 2 | **exactly two per field**, side `A` or `B`, with RTSP URL and ROI polygon |
 
-**`cameras` is its own table, and this matters.** The original blueprint put
+**`cameras` is its own table, and this matters.** An earlier design put
 `primary_camera_rtsp` / `secondary_camera_rtsp` columns on the field. Those columns cannot
 carry a per-camera ROI polygon, cannot express a third camera, and make "which half did this
 frame come from" unanswerable — which is the question the entire two-camera fusion argument
@@ -75,8 +75,8 @@ Then the override fields: `is_overridden`, `override_status`, `override_by`, `ov
 
 **A correction never overwrites the model's verdict — both are kept.** The disagreement is
 the signal: it is how model quality is monitored in production, and a corrected slot is a
-labelled slot. Those corrections are currently the cheapest route to the real slot labels
-STAN needs, since only two exist.
+labelled slot. Those corrections are currently the cheapest route to real slot-level
+labels, of which only two exist.
 
 ### `bookings` — what the records claim
 
@@ -91,8 +91,8 @@ routing to review rather than raising a discrepancy.
 facility's booking database.
 
 `entered_by` is stored for the operator's own use and is **never aggregated** by anything
-here. Per-staff discrepancy reporting is out of scope — it adds no scientific value and
-considerable ethical exposure. See `thesis/ethics.md`.
+here. Per-staff discrepancy reporting is out of scope — it adds nothing the facility needs
+from this system and considerable ethical exposure.
 
 ### `reconciliations` — what disagreed
 

@@ -1,4 +1,4 @@
-"""Reading and writing slot evidence (WP6).
+"""Reading and writing slot evidence.
 
 Thin functions over :mod:`pitch_occupancy.db.schema`. The one rule worth stating: a slot
 verdict and the samples behind it are written together or not at all, so no verdict can
@@ -130,7 +130,7 @@ def override_verdict(
 
     The original verdict is never overwritten - both are kept, because the disagreement is
     the signal. Overridden slots are the cheapest source of real slot labels the project
-    has (WP6-T7).
+    has (see `retraining.py`).
     """
     if load_verdict(conn, slot_id) is None:
         raise KeyError(f"no evaluation exists for slot {slot_id!r} to override")

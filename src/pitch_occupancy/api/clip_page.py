@@ -1,4 +1,4 @@
-"""The clip reviewer page (WP6-T6). Served at `/clip`; posts to `/api/v1/clip/analyse`.
+"""The clip reviewer page. Served at `/clip`; posts to `/api/v1/clip/analyse`.
 
 Kept apart from `dashboard.py` because it is a different job for a different moment: the
 dashboard is the daily operator view over database state, this is a one-off "tell me what is
@@ -161,7 +161,7 @@ figcaption[title],label[title],.sub2 span[title],.note span[title]{
 <header><div class="hin">
   <div class="brand">Pitch Occupancy<span>.</span></div>
   <div class="sub">Clip reviewer</div>
-  <a href="/clip/pair">Two cameras</a><a href="/images">Image reviewer</a><a href="/client">Dashboard</a><a href="/">Findings</a>
+  <a href="/clip/pair">Two cameras</a><a href="/images">Image reviewer</a><a href="/">Dashboard</a>
 </div></header>
 <main>
 
@@ -344,7 +344,7 @@ let chosen=null,last=null,rawOnly=false;
 // The outline the operator settled on, normalised [x,y] in 0-1, or null for "whole frame".
 //
 // Null on its own could not carry that. The route derives a boundary from the footage when
-// none arrives (A35), which is right for an API caller who was never offered one and wrong
+// none arrives, which is right for an API caller who was never offered one and wrong
 // for an operator who has just pressed *Use the whole frame* - and on the wire those two
 // looked identical, so the clip was analysed inside the outline the panel had suggested and
 // the operator had rejected. `bready` separates them: once the step has shown this clip's
@@ -352,7 +352,8 @@ let chosen=null,last=null,rawOnly=false;
 // outline. If the frame could not be read the step never ran, and the fallback still applies.
 let boundary=null,drawing=[],bready=false;
 // Both send-sites go through this, so Analyse and Watch it work agree by construction rather
-// than by being remembered together - which is the A35 defect in miniature.
+// than by being remembered together - two send-sites that drift apart are how surfaces came
+// to disagree about the same clip.
 function bparams(q){
   if(boundary) q.set('polygon',JSON.stringify(boundary));
   else if(bready) q.set('whole_frame','true');
@@ -704,7 +705,7 @@ function render(d){
     // should never be handed the other.
     const gate=s.gated?'<del>'+s.probed+'</del> ':'';
     // A dash here now means the detector could not be loaded at all. The review pages count
-    // on every frame (A38), so "not checked" is no longer a thing a reader has to guess at.
+    // on every frame, so "not checked" is no longer a thing a reader has to guess at.
     const ppl=(s.people===null||s.people===undefined)?'\u2014'
       :(s.people+(s.ball?' + ball':''));
     const mot=(s.motion===null||s.motion===undefined)?'\u2014':s.motion.toFixed(2);

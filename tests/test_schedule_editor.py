@@ -1,4 +1,4 @@
-"""Editing the capture schedule (WP6-T6).
+"""Editing the capture schedule.
 
 This is the API's only write path and the most dangerous endpoint in the project, because the
 schedule decides whether an hour is *observed at all*. A dropped entry is not a wrong verdict,

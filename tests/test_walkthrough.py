@@ -1,4 +1,4 @@
-"""Stepping through a clip with its evidence maps (WP4-T5).
+"""Stepping through a clip with its evidence maps.
 
 Two claims carry this feature and both are cheap to get wrong silently.
 

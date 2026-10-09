@@ -11,7 +11,7 @@ since 2026-09-21 those are the same three:
 the reasoning that the finer distinction cost nothing at labelling time and kept a four-class
 ablation available later. It cost something in the end. The corpus reached 1,692 recorded
 frames holding **6 real `3_people_not_playing` frames and 0 real `4_maintenance` frames** -
-the ablation was never runnable, the prediction path dropped the split in A40 because nothing
+the ablation was never runnable, the prediction path dropped the split because nothing
 could measure it, and two folders that no measurement could tell apart were still being
 maintained, documented and reported on. `LEGACY_FOLDERS` keeps the old names readable so
 every CSV written before the collapse still parses; nothing writes them any more.
@@ -66,7 +66,7 @@ class Label(StrEnum):
 
 
 class Class3(StrEnum):
-    """The three operational classes every thesis metric reports."""
+    """The three operational classes every metric reports."""
 
     EMPTY = "C1_EMPTY"
     ACTIVE_PLAY = "C2_ACTIVE_PLAY"

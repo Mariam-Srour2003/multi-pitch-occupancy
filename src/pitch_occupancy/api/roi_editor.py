@@ -1,4 +1,4 @@
-"""Draw a pitch boundary, and see what it does to the prediction (WP3-T1, WP6-T6).
+"""Draw a pitch boundary, and see what it does to the prediction.
 
 The storage and masking live in `vision/roi.py`; this is the surface that lets a person
 create one and, more importantly, **check it before trusting it**.
@@ -216,17 +216,17 @@ async def suggest(request: Request) -> dict:
 
     The images page asks for a boundary *before* it predicts, and an operator facing an empty
     canvas and a photograph of a pitch will reasonably click "whole frame" - which is the
-    thing the step exists to stop, since A19 measured the whole frame at 0.74 false-play
-    against 0.38 with an outline. So the canvas opens with a measured suggestion on it and the
+    thing the step exists to stop: the whole frame measured 0.74 false-play against 0.38
+    with an outline. So the canvas opens with a measured suggestion on it and the
     operator corrects it, which is a much easier request than drawing one from nothing.
 
     The same routine `derive_roi.py` runs over the corpus: the per-pixel median of the frames
     removes anything that moved, and the largest connected excess-green region of that median
     is the turf. With several stills of one camera it is a median over them; with one it is
-    that frame. A23 is why the suggestion is a convex hull - the tighter contour clips players
-    standing where the mask reads slightly less green - and A19 and A24 are why it is a
-    suggestion and not an answer: every boundary error left in this project is a colour error,
-    and a person looking at the frame is still the best available check.
+    that frame. The suggestion is a convex hull because the tighter contour clips players
+    standing where the mask reads slightly less green, and it is a suggestion and not an
+    answer because every boundary error seen so far is a colour error, and a person looking at
+    the frame is still the best available check.
 
     Returns ``polygon: null`` when no turf is found, which is a real outcome on an indoor
     court, and the page keeps the operator drawing rather than reporting a failure.
@@ -277,9 +277,8 @@ async def first_frame(request: Request) -> dict:
     with no error anywhere.
 
     So the drawing surface comes from the same `cv2.VideoCapture` that `walk_clip` reads,
-    and the outline is therefore in the coordinate system it will be applied in. Same
-    reasoning as `preprocess.py` having one entry point: the failure this project keeps
-    paying for is two paths that were supposed to agree.
+    and the outline is therefore in the coordinate system it will be applied in. The
+    failure this project keeps paying for is two paths that were supposed to agree.
 
     The upload is deleted in a `finally`, as on every other route that takes footage.
     """

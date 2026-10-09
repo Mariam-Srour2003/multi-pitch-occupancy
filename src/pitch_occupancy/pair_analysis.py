@@ -3,14 +3,14 @@
 `clip_analysis.py` answers *"what is happening in this video?"* for one camera. A pitch has
 two, each seeing roughly one half (`slots/fusion.py`), and a single camera's answer is not the
 pitch's: a half showing a goalkeeper while the match runs at the other end reads as "one
-person, not playing". The worker has fused the two since A36 - `fuse_pitch` sums the counts and
+person, not playing". The worker fuses the two - `fuse_pitch` sums the counts and
 applies the decision table once - but only over the live schedule. Nothing let a person hand
 it **two files** and watch the pitch-level rule work. This does.
 
 What crosses the cameras, and where each piece lives:
 
 * **People are added.** Camera A's count inside its boundary plus camera B's
-  (`fuse_pitch`, A36). Five people split three and two is a game; per camera it is two
+  (`fuse_pitch`). Five people split three and two is a game; per camera it is two
   small groups.
 * **The ball belongs to the pitch.** Seen by *either* camera, it is seen. `require_ball` is
   read from `configs/rules.json` like everywhere else - turned off on 2026-09-29 - so whether
@@ -19,8 +19,8 @@ What crosses the cameras, and where each piece lives:
   the pitch confidence. Both are `fuse_pitch`'s, unchanged.
 
 **And four cross-checks that only exist with two cameras.** They are *flags*, not rows of the
-table: none of them changes a verdict, because a new decision rule is an amendment and not a
-page feature. They mark the samples a reviewer should look at.
+table: none of them changes a verdict, because a new decision rule belongs in `vision/rules.py`,
+not in a page feature. They mark the samples a reviewer should look at.
 
 * ``depends_on_sum`` - neither camera alone reaches `play_min`, the two together do. The
   verdict then rests on the halves not overlapping: somebody standing in the strip both cameras
@@ -49,7 +49,7 @@ from typing import TYPE_CHECKING
 
 from pitch_occupancy.clip_analysis import DEFAULT_INTERVAL_S, DEFAULT_WINDOW, MAX_SAMPLES
 from pitch_occupancy.clip_analysis import _segments as segment_runs
-from pitch_occupancy.slots.stan import majority_smooth
+from pitch_occupancy.slots.smoothing import majority_smooth
 from pitch_occupancy.vision.rules import MinuteState, decide
 
 if TYPE_CHECKING:  # pragma: no cover - typing only

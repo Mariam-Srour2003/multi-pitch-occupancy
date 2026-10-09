@@ -1,9 +1,9 @@
-"""The detector-first classifier: frames of one camera in, a per-minute observation out (A36).
+"""The detector-first classifier: frames of one camera in, a per-minute observation out.
 
 `vision/classifier.ProbeClassifier` turns one frame into a class by embedding it. This turns a
 *burst* of frames into a count and lets `vision/rules.decide` turn the count into a state. The
 two are behind the same seam (`pipeline.Pipeline`) so the worker, the pages and the
-experiments do not know which they have - and the comparison between them is one argument.
+offline scripts do not know which they have - and the comparison between them is one argument.
 
 **What one observation is.** The detector runs on every frame of the burst (boxes only; the
 counting rule reads feet, not masks). `counting.count_inside` places each detection inside or
@@ -13,7 +13,7 @@ model produces masks, one more pass runs on the frame the verdict rests on, for 
 alone - masks change what a reader sees, never what is counted (`vision/detector.py`).
 
 **Two motion cues, kept apart.** The burst cue - frames about a second apart - is what the
-rule's thresholds are fitted at (WP9-T5). The minute cue - this burst's last frame against the
+rule's thresholds are fitted at. The minute cue - this burst's last frame against the
 previous minute's - is `vision/motion.MotionGate`'s quantity at a different gap again, and is
 recorded for the conditions record without being read by any row. A threshold fitted at one
 gap applied at another is the mistake `motion.py` documents, and mixing the two in one field

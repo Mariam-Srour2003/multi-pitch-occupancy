@@ -1,19 +1,19 @@
-"""The production classifier (WP6-T2).
+"""The production classifier.
 
 `run_slot` and `run_due` have taken a ``classify`` callable since they were written, and
 until `vision/classifier.py` nothing outside a test ever supplied one: every scheduler test
-hands the seam a stub, `end_to_end_slots.py` rebuilds each slot from the *labels*, and
-`worker.main` raised rather than running. The pipeline had no head on it and nothing failed,
-which is what makes it worth a file of tests rather than a line in a changelog.
+hands the seam a stub, and `worker.main` raised rather than running. The pipeline had no
+head on it and nothing failed, which is what makes it worth a file of tests rather than a
+line in a changelog.
 
 Two of these matter more than the rest:
 
 * **the input path** - the deployed classifier must embed a frame the way the cache was
   built, or the model is evaluated on one distribution and deployed on another. This project
-  has already been bitten by exactly that (`docs/PM_REVIEW_2026-09-08.md`), so the check is
+  has already been bitten by exactly that, so the check is
   against real cached features rather than against a description of them;
 * **the lock** - a production fit that reached the held-out venues would make the one
-  honest number in the thesis unquotable, and it would do so silently.
+  honest accuracy figure meaningless, and it would do so silently.
 """
 
 from __future__ import annotations
@@ -238,7 +238,7 @@ def test_the_deployed_input_path_reproduces_the_cached_features() -> None:
 
 @pytest.mark.slow
 def test_it_classifies_a_real_frame_as_its_label() -> None:
-    """Not an accuracy measurement - the benchmark does that, honestly, on held-out data.
+    """Not an accuracy measurement - that belongs on held-out data.
     This asks only whether the assembled thing works at all on a frame it was trained on,
     which is the failure mode of a pipeline that has never been run."""
     cv2 = pytest.importorskip("cv2")

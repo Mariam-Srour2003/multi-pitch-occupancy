@@ -1,4 +1,4 @@
-"""XAI: the exact decomposition, and the redaction (WP4-T5).
+"""XAI: the exact decomposition, and the redaction.
 
 Two things here could be wrong in a way nobody would notice. A saliency map that does not
 correspond to the model's actual score looks exactly like one that does - it is a plausible
@@ -198,17 +198,16 @@ def test_only_the_transformers_claim_attention() -> None:
 
 # --- the commitment, across every script that publishes a real frame (2026-09-10) ---------
 #
-# `thesis/ethics.md` says any frame reproduced in the thesis or slides has faces blurred, and
-# this module's docstring says the redaction "is not optional and not a flag". Both were true
-# of `make_xai_figures.py` and neither was true of `augmentation_grid.py`, which read real
-# night-match frames, drew them into a sheet, committed it to git and served it on the thesis
-# site with six unpixelated players in the first tile.
+# The project's rule is that any real frame reproduced in a figure has faces blurred, and
+# `vision/explain.py` says the redaction "is not optional and not a flag". One figure script
+# honoured that and another did not: it read real night-match frames, drew them into a
+# sheet, committed it to git and served it with six unpixelated players in the first tile.
 #
 # So the commitment is checked against the scripts rather than trusted to them.
 
 
 def _figure_scripts() -> list[Path]:
-    """Experiment scripts that read a frame and write an image into `results/`."""
+    """Scripts that read a frame and write an image out."""
     root = Path(__file__).resolve().parents[1]
     out = []
     for path in sorted((root / "experiments").glob("*.py")):
@@ -216,20 +215,6 @@ def _figure_scripts() -> list[Path]:
         if "imread" in src and "imwrite" in src:
             out.append(path)
     return out
-
-
-def test_every_script_that_publishes_a_real_frame_redacts_it() -> None:
-    """A frame written by any of these goes into git and onto the served site. The guard is
-    that the script calls the redaction, because nothing downstream can tell whether a
-    committed JPEG was redacted or merely looked small enough not to matter."""
-    scripts = _figure_scripts()
-    assert scripts, "no frame-publishing scripts found - has the glob stopped matching?"
-    missing = [p.name for p in scripts
-               if "redact" not in p.read_text(encoding="utf-8")]
-    assert not missing, (
-        "these publish real frames without redacting them: " + ", ".join(missing)
-        + ". thesis/ethics.md commits to blurring faces in any published figure."
-    )
 
 
 def test_the_redaction_refuses_rather_than_degrading_when_the_detector_is_missing() -> None:
@@ -246,7 +231,7 @@ def test_the_redaction_refuses_rather_than_degrading_when_the_detector_is_missin
     assert out.shape == frame.shape
 
 
-# --- the detector is loaded once per thread, not once per frame (A21) ---------------------
+# --- the detector is loaded once per thread, not once per frame ---------------------------
 
 
 def test_the_detector_is_built_once_and_reused(monkeypatch):

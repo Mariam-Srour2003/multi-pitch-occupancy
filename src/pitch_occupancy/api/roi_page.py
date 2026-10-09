@@ -1,4 +1,4 @@
-"""The pitch boundary editor (WP3-T1). Served at `/roi`; posts to `/api/v1/roi/*`.
+"""The pitch boundary editor. Served at `/roi`; posts to `/api/v1/roi/*`.
 
 Click the corners of the pitch, save it under a camera, and everything outside the outline
 is suppressed before the frame reaches the model. The reason it exists is the neighbouring
@@ -138,7 +138,7 @@ button.ghost{font:600 12px Archivo,sans-serif;padding:7px 11px;border-radius:6px
 <header><div class="hin">
   <div class="brand">Pitch Occupancy<span>.</span></div>
   <div class="sub">Pitch boundary</div>
-  <a href="/images">Image reviewer</a><a href="/clip">Clip reviewer</a><a href="/">Findings</a>
+  <a href="/images">Image reviewer</a><a href="/clip">Clip reviewer</a><a href="/">Dashboard</a>
 </div></header>
 <main>
 

@@ -1,4 +1,4 @@
-"""The detector registry and the counting arithmetic (A36, WP9-T2/T3).
+"""The detector registry and the counting arithmetic.
 
 No real model runs here: the registry, the cache, the tile merge and the counts are all
 testable with detections written by hand, which is why `vision/counting.py` takes detections
@@ -41,10 +41,10 @@ def ball(x1, y1, x2, y2, conf=0.3) -> Detection:
 # --- the registry -------------------------------------------------------------------------
 
 
-def test_the_default_detector_is_the_one_every_published_count_rests_on() -> None:
+def test_the_default_detector_is_yolov8n_at_1280() -> None:
     assert DEFAULT_DETECTOR == "yolov8n"
     assert DETECTORS[DEFAULT_DETECTOR].weights == "yolov8n.pt"
-    assert DETECTORS[DEFAULT_DETECTOR].imgsz == 1280, "A16's setting"
+    assert DETECTORS[DEFAULT_DETECTOR].imgsz == 1280
 
 
 def test_every_entry_names_itself_and_segmentation_is_marked() -> None:
@@ -76,7 +76,7 @@ def test_missing_weights_mean_not_checked_and_never_a_download(monkeypatch, tmp_
 
 
 def test_the_model_is_built_once_per_thread_and_reused(monkeypatch, tmp_path) -> None:
-    """A21: constructing the model cost more than the inference."""
+    """Constructing the model cost more than the inference."""
     monkeypatch.setattr(detector, "WEIGHTS_DIR", tmp_path)
     monkeypatch.setattr(detector, "_MODELS", threading.local())
     (tmp_path / "yolov8n.pt").write_bytes(b"not really weights")

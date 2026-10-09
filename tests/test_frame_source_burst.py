@@ -1,4 +1,4 @@
-"""Bursts from the frame sources (A36).
+"""Bursts from the frame sources.
 
 The detector-first path reads three frames about a second apart per camera-minute. A source
 that knows nothing about bursts gives one frame; a recording seeks to each offset; a stream

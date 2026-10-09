@@ -1,4 +1,4 @@
-"""The per-minute vocabulary and the decision table of the detector-first path (A36, WP9).
+"""The per-minute vocabulary and the decision table of the detector-first path.
 
 Three things live here.
 
@@ -14,16 +14,15 @@ else.
 **`FrameVerdict`** is what a classification *records*, as opposed to what it returns.
 `worker.Classifier` returns two values, a class and a confidence, and every surface that
 wanted to know *why* - which boundary, how many people, whether a gate spoke - rebuilt the
-answer from pieces (A35). A verdict carries the pieces, and a `trace`: the steps that led to
+answer from pieces. A verdict carries the pieces, and a `trace`: the steps that led to
 the state, in order, in words a reviewer can read.
 
-**`decide`** is the decision table registered in `thesis/preregistration.md` A36, as code,
-with `RuleConfig` holding every number it reads. Two of those numbers are requirements and
-not fits - `play_min = 5` and `small_group_max = 4` are the facility's rule - and the rest
-are fitted on venue_01 camera A alone (WP9-T5) and frozen in `configs/rules.json` with the
-commit that froze them. Until then the file says ``frozen_at: null`` and the deployed entry
-points refuse it; experiments pass through, because measuring an unfrozen rule is how it
-gets frozen.
+**`decide`** is the project's decision rule, as code, with `RuleConfig` holding every number
+it reads. Two of those numbers are requirements and not fits - `play_min = 5` and
+`small_group_max = 4` are the facility's rule - and the rest are fitted on venue_01 camera A
+alone and frozen in `configs/rules.json` with the commit that froze them. Until then the file
+says ``frozen_at: null`` and the deployed entry points refuse it; offline measurement passes
+through, because measuring an unfrozen rule is how it gets frozen.
 
 The table, first matching row wins. ``n`` is people whose feet stand inside the boundary,
 persisted over the burst and summed across the pitch's cameras (`slots/fusion.fuse_pitch`);
@@ -39,19 +38,19 @@ persisted over the burst and summed across the pitch's cameras (`slots/fusion.fu
 | 6 | n > 4, **and** a ball, **and** motion | **C2 ACTIVE_PLAY** | the only way into play |
 | 7 | n > 4, otherwise | **C3** | a crowd that is not playing |
 
-**Rows 6 and 7 are the change of 2026-09-20**, and they invert what A36 registered. A36 made
-play the default above the head count and let the ball raise confidence only, because A17
-measured cross-venue ball recall at 0.40 and reasoned that absence of a ball is not evidence
-of absence of play. The facility's rule is the opposite: a game has a ball in it and people
-moving, and a crowd standing on a pitch with no ball is not a booking being used. So play now
-has to be **shown**, not assumed - which is a stricter claim and costs recall exactly where
-the detector cannot see the ball. That cost is measured rather than argued about; see the
-amendment and `results/rule_frame_eval.csv`.
+**Rows 6 and 7 are the change of 2026-09-20**, and they invert the earlier rule. That rule
+made play the default above the head count and let the ball raise confidence only, because
+cross-venue ball recall was measured at 0.40 and absence of a ball is not evidence of absence
+of play. The facility's rule is the opposite: a game has a ball in it and people moving, and
+a crowd standing on a pitch with no ball is not a booking being used. So play now has to be
+**shown**, not assumed - which is a stricter claim and costs recall exactly where the detector
+cannot see the ball. That cost is why `require_ball` is a switch, and it is off in the shipped
+`configs/rules.json` (see the note there): with it on, play-recall was 0.31 against 0.99.
 
 **A required cue that cannot be evaluated is reported, never assumed.** If `require_ball` is
 on, the ball is checked and that is that. If `require_motion` is on but the cue was not
 measured (a still image has no predecessor) or its threshold is unfitted (`motion_play_min`
-is null until WP9-T5), the clause is **skipped and the trace says so** - because the
+is null until it is fitted), the clause is **skipped and the trace says so** - because the
 alternative is a requirement that silently never fires, which is the shape of every guard
 this project has found not guarding.
 """
@@ -86,9 +85,9 @@ class MinuteState(StrEnum):
     are the same string and no mapping can drift between them.
 
     **Why it went.** The corpus holds **6 real `3_people_not_playing` frames and 0 real
-    `4_maintenance` frames**, so nothing could ever measure the split - `make_overlay_figures`
-    reported it as the confusion A36 pre-accepted, which is a polite way of saying it was
-    never checked. A branch the data cannot evaluate is a branch that should not be in the
+    `4_maintenance` frames**, so nothing could ever measure the split - it was only ever
+    reported as an accepted confusion, which is a polite way of saying it was never
+    checked. A branch the data cannot evaluate is a branch that should not be in the
     deployed path, and the labelling folders keep the finer distinction for whenever the data
     arrives (`data/taxonomy.to_class3` still collapses them).
     """
@@ -134,8 +133,8 @@ class FrameVerdict:
 
     ``trace`` is the rule path in order - "boundary slot_..._camA keeps 49% of the frame",
     "5 people persisted over 3 frames, ball seen 0.31", "row 6 -> ACTIVE_PLAY 0.80". It is
-    the first thing an operator disputing a verdict asks for and was, until A36, rebuilt
-    by hand from four fields on three pages.
+    the first thing an operator disputing a verdict asks for and was once rebuilt by hand
+    from four fields on three pages.
 
     ``people``, ``ball`` and ``motion`` are None when the corresponding step did not run,
     which is a different fact from zero and is kept different: a detector that was not
@@ -186,9 +185,9 @@ class FrameVerdict:
 class RuleConfig:
     """Every number `decide` reads, and where each one came from.
 
-    ``play_min`` and ``small_group_max`` are requirements (A36). The detector fields name the
+    ``play_min`` and ``small_group_max`` are requirements. The detector fields name the
     model the counts come from (`vision/detector.DETECTORS`). Everything else is fitted on
-    venue_01 camera A in WP9-T5; a ``None`` threshold means the cue it gates is not consulted,
+    venue_01 camera A; a ``None`` threshold means the cue it gates is not consulted,
     which is how rows 4, 5 and 8 stay off until they have been measured rather than guessed.
     """
 
@@ -215,13 +214,13 @@ class RuleConfig:
     #: persisted across the burst but moved less than its own width does not satisfy
     #: `require_ball`. Reported from use on 2026-09-21: the operator's one clip with a
     #: rock-solid ball - six sightings of six at 0.30 - is a maintenance clip, and the ball
-    #: is furniture beside three people working. `labelling_protocol.md` §2.3 has always
-    #: said an unattended ball does not make a pitch occupied. Inert on a single frame,
+    #: is furniture beside three people working. The labelling rules have always said an
+    #: unattended ball does not make a pitch occupied. Inert on a single frame,
     #: which cannot tell movement from stillness, and the trace says so.
     require_ball_in_play: bool = True
     #: **A game has a ball in it.** With this on, ACTIVE_PLAY requires one seen inside the
-    #: boundary in at least one burst frame. It is the facility's rule and it is strict: A17
-    #: measured cross-venue ball recall at 0.40, 0.06-0.89 by venue, so the venues where the
+    #: boundary in at least one burst frame. It is the facility's rule and it is strict:
+    #: cross-venue ball recall was measured at 0.40, 0.06-0.89 by venue, so the venues where the
     #: detector cannot see the ball lose genuine matches. The switch exists because that cost
     #: is a decision, and whoever turns it off should be able to.
     require_ball: bool = True
@@ -229,7 +228,7 @@ class RuleConfig:
     #: is fitted; otherwise the clause is skipped and the verdict's trace records that it was.
     require_motion: bool = True
     #: The burst motion cue at or above which there is enough movement for a game. Fitted on
-    #: venue_01 camera A (WP9-T5); null until then, which leaves `require_motion` inert and
+    #: venue_01 camera A; null until then, which leaves `require_motion` inert and
     #: visibly so.
     motion_play_min: float | None = None
     hi_vis_min_fraction: float | None = None
@@ -358,7 +357,7 @@ def decide(
         if motion is None:
             trace.append("motion required but not measured on this frame - clause skipped")
         elif cfg.motion_play_min is None:
-            trace.append("motion required but `motion_play_min` is unfitted (WP9-T5) "
+            trace.append("motion required but `motion_play_min` is unfitted "
                          "- clause skipped")
         elif motion < cfg.motion_play_min:
             still = motion
@@ -450,7 +449,7 @@ def clause_status(cfg: RuleConfig, *, motion_available: bool = True) -> list[dic
                                   "so the clause is skipped rather than passed"})
         elif cfg.motion_play_min is None:
             out.append({"cue": "motion", "status": "unfitted",
-                        "detail": "`motion_play_min` is null until WP9-T5, so the clause "
+                        "detail": "`motion_play_min` is null until it is fitted, so the clause "
                                   "is skipped rather than passed"})
         else:
             out.append({"cue": "motion", "status": "checked",

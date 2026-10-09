@@ -1,13 +1,12 @@
-"""Populate the database from the real recorded slots (WP6).
+"""Populate the database from the real recorded slots.
 
 The dashboard reads from the database, so an empty database shows an empty dashboard - a
 shell that demonstrates nothing. This fills it with the two genuinely recorded slots, their
 per-minute samples, the verdicts the decision layer produced, and the reconciliation
 outcomes against a booking fixture.
 
-Per-minute states are rebuilt from the labelled frames, the same way
-`experiments/end_to_end_slots.py` does it, so what the dashboard shows is what the pipeline
-actually decided rather than invented demo data.
+Per-minute states are rebuilt from the labelled frames, so what the dashboard shows is what
+the pipeline actually decided rather than invented demo data.
 
     uv run pitch seed
 """
@@ -35,7 +34,7 @@ __all__ = ["seed"]
 #: The four tags are two physical cameras recorded on two days, and the `(1)` export suffix
 #: maps to the *opposite* view between them - measured, not assumed: file0 of the morning
 #: slot matches file1 of the evening slot at 0.88 view similarity against 0.70 for its
-#: own-suffix counterpart (see vision/camera_id.py and the EXPERIMENT_LOG entry).
+#: own-suffix counterpart.
 #:
 #: Getting this wrong is invisible downstream: swapped halves still fuse into a plausible
 #: verdict. The schema catches it instead - a field permits exactly two cameras, so mapping

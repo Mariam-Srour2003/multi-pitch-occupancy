@@ -1,13 +1,13 @@
-"""Turning operator overrides back into training data (WP6-T7).
+"""Turning operator overrides back into training data.
 
 When an operator disagrees with a verdict they override it, and that override is the most
 valuable label this system will ever get: a human looked at a real hour of real footage and
-said what actually happened. WP6-T7 asks for those slots' evidence frames to be copied back
-into the dataset so the head can be re-fitted on them.
+said what actually happened. Those slots' evidence frames are copied back into the dataset
+so the head can be re-fitted on them.
 
-**One deliberate departure from the task as written, and it is a correctness argument.** The
-plan says copy into ``data/dataset/_incoming/<corrected_class>/``. That cannot be done
-soundly, because *a slot override is not a frame label*. An operator overriding an hour to
+**Frames are not filed under the corrected class, and it is a correctness argument.**
+Copying straight into ``data/dataset/_incoming/<corrected_class>/`` cannot be done soundly,
+because *a slot override is not a frame label*. An operator overriding an hour to
 USED is saying roughly "there was a match here" - they are not saying that each of the three
 evidence frames shows active play, and under the tuned thresholds a slot is USED at 35% play,
 so a majority of its minutes may show an empty pitch. Filing those frames as ACTIVE_PLAY would
@@ -39,7 +39,7 @@ logistic regression over the whole cache, which is seconds rather than hours. Th
     <a human files them into 1_empty / 2_playing / 3_maintenance>
     pitch manifest                # re-index
     pitch cache                   # embed only the new frames
-    <re-run the experiments>
+    <re-fit the head>
 
 **The feedback loop is worth naming rather than leaving implicit.** Operators override the
 verdicts they notice, and they notice the ones that look wrong, so this pipeline preferentially

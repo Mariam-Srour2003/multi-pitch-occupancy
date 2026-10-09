@@ -9,8 +9,8 @@ So scenes have to be addressable. This writes `data/processed/scene_ids.csv`, on
 frame, and `splits.distinct_rows` reads it.
 
 **A sidecar rather than a manifest column, deliberately.** `build_manifest` regenerates
-`manifest.csv` from the filenames on disk, and the 189 generated rows were written into it by
-`ingest_synthetic.py` - a regeneration would drop them. Adding a field that only a
+`manifest.csv` from the filenames on disk, and the 189 generated rows were written into it
+separately - a regeneration would drop them. Adding a field that only a
 regeneration can populate would make the two files disagree the first time anyone ran it.
 
 Frames are grouped **within (venue, class)**, never across. Two venues that happen to hash
@@ -36,7 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DATASET = ROOT / "data" / "processed"
 
 #: Hamming distance between dHashes below which two frames are the same scene. 5 of 64 bits.
-#: `dedup.py` uses the same figure for the effective-sample audit, and the two numbers must
+#: `dedup.py` uses the same figure for near-duplicate detection, and the two numbers must
 #: agree or "distinct scenes" means one thing in the training set and another in the report.
 THRESHOLD = 5
 

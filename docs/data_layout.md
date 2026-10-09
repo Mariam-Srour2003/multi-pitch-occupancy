@@ -8,9 +8,9 @@ data/
 ├── raw/                          source footage — IMMUTABLE, never edited in place
 │   ├── venue_01/                 4 slot recordings, ~60 min each, 2 cameras × 2 slots
 │   ├── highlights_2026-09-04/    66 match clips, 10–14 s each, multi-venue
-│   ├── venue_unseen_2026-09-15/  1 clip, 234 s, EMPTY floodlit pitch at night (A26/A36 eval)
+│   ├── venue_unseen_2026-09-15/  1 clip, 234 s, EMPTY floodlit pitch at night (evaluation)
 │   ├── davinci_2026-09-21/       15 operator exports, 4-9 s each, + provenance.csv
-│   └── public_<source>/          CC-licensed evaluation footage, each with provenance.csv (A36)
+│   └── public_<source>/          CC-licensed evaluation footage, each with provenance.csv
 ├── interim/
 │   └── frames/<camera_tag>/      extracted frames awaiting labels
 ├── processed/                    the labelled dataset
@@ -18,7 +18,7 @@ data/
 │   ├── labels.csv                per-frame provenance from the labelling tool
 │   └── manifest.csv              generated — `uv run pitch manifest`
 ├── reference/                    14 annotated screenshots (labels burned into pixels)
-├── cache/                        frozen-backbone embeddings, keyed by backbone (WP0-T5)
+├── cache/                        frozen-backbone embeddings, keyed by backbone
 ├── evidence/                     evidence images bound to slot verdicts
 └── db/                           pitch_monitor.db
 ```
@@ -34,9 +34,8 @@ data/
 4. **`processed/` keeps three folders and metrics report three classes — the same three.**
    ~~Four folders, collapsed 4→3 for reporting, keeping a 4-class ablation available.~~
    *(Amended 2026-09-21.)* The ablation was never runnable: the corpus reached 1,692 recorded
-   frames holding **6 real `3_people_not_playing` and 0 real `4_maintenance`**. A40 dropped
-   the split from the prediction path; `scripts/collapse_label_folders.py` finished it on
-   disk. `taxonomy.Label.parse` still reads both retired folder names, because every artefact
+   frames holding **6 real `3_people_not_playing` and 0 real `4_maintenance`**. The split
+   was dropped from the prediction path and the folders were merged on disk. `taxonomy.Label.parse` still reads both retired folder names, because every artefact
    older than that date says one of them.
 5. **A manifest rebuild carries rows it cannot name.** `build_manifest` parses filenames, and
    generated frames (`syn_<batch>_<n>.jpg`) match no pattern. A rebuild used to report them
@@ -79,9 +78,8 @@ nothing to `1_empty`, `3_people_not_playing` or `4_maintenance`.
 **nobody playing at any point**: 13 of 16 samples at 15 s spacing empty, 3 with one person
 walking. The only footage holding the EMPTY × night cell. Development data, evaluation only.
 Truth is tracked at `configs/unseen_clip_truth.csv`; provenance notes in the folder's README.
-Previously referenced by an absolute Downloads path in `experiments/reproduce_all.py`.
 
-### `public_<source>/` — CC-licensed evaluation footage *(reserved 2026-09-19, A36)*
+### `public_<source>/` — CC-licensed evaluation footage *(reserved 2026-09-19)*
 The detector-first path has no training set, so evaluation footage is the only kind that
 helps, and the operator cannot easily supply more. Public clips under a Creative Commons
 licence - an empty pitch at night, a kickabout with four or fewer people, groundskeeping -
@@ -104,7 +102,7 @@ from lighting to venue, because `1_empty` still comes from a single camera-slot.
 **What actually resolves it:** empty pitches from more than one venue and both lighting
 conditions — above all, *full-length* recordings rather than highlight clips. A complete slot
 naturally contains the empty periods before and after play, and is also the only thing that can
-supply slot-level ground truth for STAN (WP5-T1), which highlight clips cannot.
+supply slot-level ground truth, which highlight clips cannot.
 
 ## After extracting the clips (2026-09-06)
 
@@ -119,13 +117,13 @@ What changed, and what did not:
 - **EMPTY is unchanged**: 494 frames, 98% from one morning recording at one venue. Its warning
   still fires, and always will with this footage.
 - **Leave-one-venue-out is now viable for one question only.** Each of the 7 development
-  clip-venues yields a fold whose test side is 100% ACTIVE_PLAY — which is precisely H3
-  (cross-venue play recall), and the "class absent from test" warning on those folds is expected
-  rather than a defect. The `venue_01` fold is degenerate in the opposite direction: it would
-  train on 282 clip frames containing no EMPTY at all, then test on all 494 EMPTY frames. Exclude
-  it from H3.
+  clip-venues yields a fold whose test side is 100% ACTIVE_PLAY — which is exactly cross-venue
+  play recall, and the "class absent from test" warning on those folds is expected rather than a
+  defect. The `venue_01` fold is degenerate in the opposite direction: it would train on 282 clip
+  frames containing no EMPTY at all, then test on all 494 EMPTY frames. Exclude it when
+  measuring cross-venue play recall.
 
-### A finding worth carrying into WP4
+### The person detector under-counts on hard footage
 
 YOLOv8n **under-counts people on hazy, distant, fisheye footage**. Eight extracted frames were
 flagged as having fewer than 3 people; on inspection every one contained a match in progress,
@@ -137,7 +135,7 @@ weakest. Worth measuring rather than assuming.
 
 `lighting` (day/night) is the only condition axis. There is **no weather field and no rain
 footage** - every frame is dry. Any claim about robustness to precipitation is therefore
-unsupported, and the weather ideas in `IDEAS.md` cannot start until such footage exists.
+unsupported, and no weather handling can be built or tested until such footage exists.
 Rain must arrive *crossed with occupancy* - rain-with-play and rain-without-play both
 present - or it will reproduce the day/night confound in a new variable.
 

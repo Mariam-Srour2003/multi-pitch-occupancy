@@ -1,6 +1,6 @@
-"""The one seam every surface classifies through (A36, WP9-T1, WP9-T3).
+"""The one seam every surface classifies through.
 
-The defect this closes was found four times before it was named. A35 found the clip review
+The defect this closes was found four times before it was named. First, the clip review
 page answering ACTIVE_PLAY at confidence 1.000, 24 times out of 24, on an empty floodlit
 pitch: the page had built its own inference from the probe alone, with no boundary and no
 gates. One layer up, `scheduler.run_due` had been calling `worker.run_slot` without
@@ -13,14 +13,14 @@ they disagreed about the same footage.
 
 So there is now one place that assembles it. :func:`assemble` takes a model key and returns
 a :class:`Pipeline`: the classifier, its gates or its rule, and the boundary lookup,
-together. The worker, the scheduler, `/clip`, `/images`, `/roi` and every experiment get
-theirs from here, and a test that proves `run_due` passes the pipeline through is a test that
-the deployed path is the measured one.
+together. The worker, the scheduler, `/clip`, `/images` and `/roi` get theirs from here,
+and a test that proves `run_due` passes the pipeline through is a test that the deployed
+path is the measured one.
 
 **Two kinds behind one seam.** A key in `vision/backbones.BACKBONES` assembles the probe path
-exactly as A14-A22 measured it: DINOv2 features pooled inside the camera's boundary, a
+exactly as it was measured: DINOv2 features pooled inside the camera's boundary, a
 logistic probe, then the motion gate and the person gate, each allowed only to weaken. A key
-in `vision/detector.DETECTORS` assembles the detector-first path (A36): a burst of frames per
+in `vision/detector.DETECTORS` assembles the detector-first path: a burst of frames per
 camera, a count inside the boundary, the decision table, and a pitch-level fusion that sums
 the cameras' counts. Switching the deployment is one setting; comparing the two is one
 argument to `assemble`.
@@ -73,7 +73,8 @@ class Pipeline:
     """
 
     model_key: str
-    #: ``"probe"`` for a frozen backbone with a linear head; ``"detector"`` for A36's path.
+    #: ``"probe"`` for a frozen backbone with a linear head; ``"detector"`` for the
+    #: detector-first path.
     kind: str
     classify: Callable[..., tuple[object, float]]
     motion_gate: object | None = None
@@ -289,7 +290,7 @@ def assemble(model_key: str | None = None, *, gates: bool = True,
     """Build the deployed pipeline for ``model_key``, defaulting to the configured one.
 
     A backbone key assembles the probe path; a detector key assembles the detector-first
-    path with the rule in `settings.rules_path` (or ``rules``, for an experiment that varies
+    path with the rule in `settings.rules_path` (or ``rules``, for a caller that varies
     it). Raises on an unknown key rather than guessing: a deployment that fell back to some
     other model would report verdicts no table describes.
     """

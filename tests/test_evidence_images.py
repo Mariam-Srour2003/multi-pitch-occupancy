@@ -1,4 +1,4 @@
-"""Evidence images: saving them, keeping the right ones, and serving them (WP6-T6).
+"""Evidence images: saving them, keeping the right ones, and serving them.
 
 The selection machinery had worked for weeks and chose three good minutes every time. What it
 recorded for each was a literal ``None``: `run_slot` never saved a frame, so the dashboard's

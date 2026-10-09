@@ -1,4 +1,4 @@
-"""The detector-first classifier on scripted detections (A36, WP9-T3).
+"""The detector-first classifier on scripted detections.
 
 No model runs: `Detector.detect` is replaced per test with a script, so what is pinned is the
 arithmetic between the detector and the rule - persistence over the burst, the ball seen in

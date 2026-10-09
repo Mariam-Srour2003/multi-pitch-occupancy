@@ -1,9 +1,9 @@
-"""The production classifier: one frame in, one class and a confidence out (WP6-T2).
+"""The production classifier: one frame in, one class and a confidence out.
 
 `worker.run_slot` has taken a ``classify`` callable since it was written, and
 `scheduler.run_due` passes one straight through. Until this module existed **nothing ever
-supplied a real one**. Every test hands the seam a stub, `experiments/end_to_end_slots.py`
-rebuilds each slot's per-minute sequence from the *labels* rather than from a model, and
+supplied a real one**. Every test hands the seam a stub, the end-to-end slot check rebuilt
+each slot's per-minute sequence from the *labels* rather than from a model, and
 `worker.main` raised `NotImplementedError` naming exactly this gap. So the sampling, fusion,
 aggregation, evidence selection and reconciliation had all been exercised end to end without
 a single frame ever having been classified by the system itself.
@@ -14,9 +14,9 @@ no head on it, and the missing piece was small enough to keep not noticing.
 **The input path is the whole risk here.** A classifier that embeds frames even slightly
 differently from the way the feature cache was built is a model evaluated on one
 distribution and deployed on another - and this project has already been bitten once by
-exactly that (`docs/PM_REVIEW_2026-09-08.md`: every published number comes from raw frames
-handed to the HF processor, which keeps roughly the middle half of a 16:9 pitch, and
-letterboxing instead moved ConvNeXtV2's false-play rate from 99.2% to 2.1%). So this module
+exactly that (the feature cache is built from raw frames handed to the HF processor, which
+keeps roughly the middle half of a 16:9 pitch, and letterboxing instead moved ConvNeXtV2's
+false-play rate from 99.2% to 2.1%). So this module
 does not implement its own preprocessing. It converts BGR to RGB, wraps the array in a PIL
 image and calls the same :func:`embed_batch` under the same processor geometry that
 `data/feature_cache.py` uses, and a test embeds a real frame both ways and asserts the two
@@ -30,18 +30,18 @@ second. Refitting means the deployed model is always the one the current cache a
 imply, and `pitch info` can say which rows it came from.
 
 **It trains on development rows only.** :func:`development_rows` drops the locked venues, so
-the final test set stays unevaluated (WP0-T4) even though a deployment would have every
-reason to train on everything it has. The lock is worth more than the frames: reaching those
-rows requires ``final_test_rows(..., i_have_finished_all_development=True)``, and a
-production path that quietly trained on them would make the one honest number in the thesis
-unquotable.
+the final test set stays unevaluated even though a deployment would have every reason to
+train on everything it has. The lock is worth more than the frames: reaching those rows
+requires ``final_test_rows(..., i_have_finished_all_development=True)``, and a production
+path that quietly trained on them would leave no held-out score to trust.
 
-**The confidence is not calibrated.** It is the probe's maximum class probability, and RQ6
-found these are badly behaved for some backbones - one model's calibrated confidences are
+**The confidence is not calibrated.** It is the probe's maximum class probability, and these
+were found to be badly behaved for some backbones - one model's calibrated confidences are
 890/907 identical, so a risk-coverage "curve" over them is a band. `fuse` uses it to weigh
 two cameras against each other and `aggregate_slot` never reads it, so nothing here turns a
-confidence into a verdict on its own. Anything that wants a *threshold* on it should go
-through `evaluation/calibration.py` first and say which temperature it fitted.
+confidence into a verdict on its own. Anything that wants a *threshold* on it should
+calibrate it first (temperature scaling on held-out rows) and say which temperature it
+fitted.
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ from pitch_occupancy.data.taxonomy import Class3
 __all__ = ["ProbeClassifier", "load_classifier"]
 
 #: The probe's seed. Fixed so that two deployments built from the same cache agree, and the
-#: same value the benchmark uses so a deployed prediction is reproducible from the tables.
+#: same value the splits use so a deployed prediction is reproducible.
 SEED = 42
 
 

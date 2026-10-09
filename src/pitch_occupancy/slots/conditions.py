@@ -1,4 +1,4 @@
-"""The conditions a verdict was formed under (IDEAS #3).
+"""The conditions a verdict was formed under.
 
 `REVIEW` is currently a verdict with a sentence attached. An operator opening one has to
 work out from three images why the system hesitated, when the numbers that would answer it
@@ -36,7 +36,7 @@ class SlotConditions:
     cameras_seen: int
     lighting: str  # day | night | mixed | unknown
     mean_contrast: float | None = None
-    weather: str | None = None  # reserved; nothing measures it yet (see IDEAS #1)
+    weather: str | None = None  # reserved; nothing measures it yet
 
     @property
     def capture_rate(self) -> float:

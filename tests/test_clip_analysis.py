@@ -1,4 +1,4 @@
-"""The clip reviewer (WP6-T6): sampling, smoothing, segmentation, and what it keeps.
+"""The clip reviewer: sampling, smoothing, segmentation, and what it keeps.
 
 The behaviour worth pinning here is not "it classifies frames" - `classify` is injected and
 the model has its own tests. It is the two claims the page makes to the person reading it:
@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 from pitch_occupancy.api.app import app
 from pitch_occupancy.clip_analysis import analyse_clip
 from pitch_occupancy.data.taxonomy import Class3
-from pitch_occupancy.slots.stan import majority_smooth
+from pitch_occupancy.slots.smoothing import majority_smooth
 
 E, P, M = Class3.EMPTY, Class3.ACTIVE_PLAY, Class3.MAINTENANCE_NON_SPORTING
 

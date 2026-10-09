@@ -1,4 +1,4 @@
-"""Reading the booking sheet (WP6-T4).
+"""Reading the booking sheet.
 
 Reconciliation compares what the cameras saw against what the facility sold. `slots/reconcile.py`
 has done the comparing for some time; what was missing was the half that gets the bookings in,
@@ -7,12 +7,12 @@ and until now every booking in this repository has been a hand-written fixture.
 **This module only ever reads.** That is not a convention here, it is the interface: a
 :class:`BookingSource` exposes :meth:`~BookingSource.read` and nothing else. There is no write
 path to comment out, no ``dry_run`` flag to leave at the wrong default, and no method that a
-later change could quietly point at a client's production database. The constraint comes from
-WP6-T4 - *"READ-ONLY - never write to client systems"* - and from the same reasoning as
+later change could quietly point at a client's production database. The constraint is
+*"READ-ONLY - never write to client systems"*, for the same reasoning as
 `slots/authority.py`: a booking system is the facility's financial record, this project is a
 measurement instrument, and an instrument that can edit what it measures is not one.
 
-The normalised schema is the one WP6-T4 names::
+The normalised schema is::
 
     field_id, date, start, end, customer_ref, status, entered_by, source
 
@@ -319,7 +319,7 @@ class BookingSource(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class CsvBookingSource:
-    """The importer WP6-T4 asks for first. SQL and REST go behind this same interface."""
+    """The CSV importer. SQL and REST go behind this same interface."""
 
     path: Path | None = None
     source: str | None = None

@@ -1,4 +1,4 @@
-"""Slot aggregation: per-minute states to one verdict (WP3 of the blueprint, RQ4).
+"""Slot aggregation: per-minute states to one verdict.
 
 A rental slot yields ~60-90 fused per-minute observations. The baseline rule turns them
 into USED / NOTUSED / REVIEW by ratio thresholds:
@@ -7,9 +7,9 @@ into USED / NOTUSED / REVIEW by ratio thresholds:
     ACTIVE_PLAY ratio <  0.10 and EMPTY ratio >= 0.75 -> NOTUSED
     otherwise                                         -> REVIEW
 
-**These thresholds are hyper-parameters, not constants.** They are the baseline STAN must
-beat (WP5-T1), and a fair comparison tunes them on the same training slots rather than
-leaving them at the values someone guessed. :func:`tune_thresholds` exists so the
+**These thresholds are hyper-parameters, not constants.** Any learned alternative has to be
+compared against them, and a fair comparison tunes them on the same training slots rather
+than leaving them at the values someone guessed. :func:`tune_thresholds` exists so the
 comparison is honest.
 
 REVIEW is not a failure mode - it is the design working. A slot with intermittent activity,
@@ -39,21 +39,18 @@ class Thresholds:
     #: audit never accuses on footage it could barely read.
     #:
     #: **Zero means this guard is off, and it is off everywhere.** `conf < 0.0` is never
-    #: true, no non-test caller raises it, and `experiments/end_to_end_slots.py` passes
-    #: `review_below_confidence=0.0` explicitly. So the sentence above describes a wired
-    #: code path rather than an active protection - which is worth saying plainly, because
-    #: three claims in this project have now turned out to describe guards that were not
-    #: guarding (the final-test-set lock's cwd-relative path and the processor-geometry
-    #: fingerprint were the others).
+    #: true and no non-test caller raises it. So the sentence above describes a wired code
+    #: path rather than an active protection - which is worth saying plainly, because guards
+    #: that were not guarding have turned up in this project before (the final-test-set
+    #: lock's cwd-relative path was another).
     #:
     #: It is left at zero deliberately rather than fixed here: picking a threshold by hand
     #: is exactly the "hyper-parameters, not constants" mistake this module's own header
-    #: warns about. Calibrating it belongs with RQ6 - `evaluation/calibration.py` already
-    #: has the risk-coverage machinery - and is blocked by the same degenerate test set.
-    #: See TODO WP6-T5.
+    #: warns about. It needs calibrating against a risk-coverage curve on real slots, and the
+    #: current test set is too degenerate to do that.
     #:
-    #: The ethics commitment does **not** rest on this. A human confirms every anomaly and
-    #: the system takes no automated financial action (WP6-T12); this guard is
+    #: The no-false-accusation commitment does **not** rest on this. A human confirms every
+    #: anomaly and the system takes no automated financial action; this guard is
     #: defence-in-depth on top of that, not the thing standing between the audit and a
     #: false accusation.
     review_below_confidence: float = 0.0
@@ -63,7 +60,7 @@ class Thresholds:
     #:
     #: **Unlike `review_below_confidence`, this one is on.** That distinction is the point.
     #: A confidence threshold is a model hyper-parameter and picking one by hand is the
-    #: mistake this module's header warns about - it is blocked on RQ6's calibration, and it
+    #: mistake this module's header warns about - it is not calibrated yet, and it
     #: sits at 0.0 with a note saying so. Capture rate is not a model quantity at all: it is
     #: how much of the hour was observed, and "we saw eleven minutes of this hour" is not a
     #: statement about a pitch whatever the classifier says about those eleven minutes.
@@ -74,7 +71,7 @@ class Thresholds:
     #: against real degraded slots. `SlotConditions.concerns()` already flags anything below
     #: 0.8 for a human to look at; this is the floor below which the system stops asserting.
     #:
-    #: The failure it exists for is the one WP7-T5 asks about: a camera dies twenty minutes
+    #: The failure it exists for: a camera dies twenty minutes
     #: into a slot and the system confidently reports NOTUSED on the twenty minutes before
     #: the pitch filled up. Degraded mode is REVIEW, never a fabricated verdict.
     review_below_capture: float = 0.5
@@ -89,7 +86,7 @@ class SlotVerdict:
     maintenance_ratio: float
     n_samples: int
     mean_confidence: float
-    #: The share of the slot's minutes on which the system declined to say (A36). Abstained
+    #: The share of the slot's minutes on which the system declined to say. Abstained
     #: minutes are not samples: they lower the capture rate like a minute with no frame, and
     #: can push the verdict toward REVIEW and nowhere else.
     uncertain_ratio: float = 0.0
@@ -101,7 +98,7 @@ class SlotVerdict:
         )
 
 
-#: What a caller may write for a minute the system declined to decide (A36).
+#: What a caller may write for a minute the system declined to decide.
 UNCERTAIN = "UNCERTAIN"
 
 
@@ -137,7 +134,7 @@ def aggregate_slot(
     callers keep working, and absent rather than defaulted to ``len(states)``, which would
     make the check silently vacuous - the failure mode this project keeps meeting.
 
-    **An abstained minute is not a sample** (A36). ``None`` or ``"UNCERTAIN"`` in ``states``
+    **An abstained minute is not a sample**. ``None`` or ``"UNCERTAIN"`` in ``states``
     is a minute the system declined to decide - no boundary, no detector, movement without
     anyone found. The ratios are computed over the decided minutes only, and the abstained
     ones count against the capture floor exactly as a minute with no frame does: they can
@@ -217,8 +214,8 @@ def tune_thresholds(
 ) -> tuple[Thresholds, float]:
     """Grid-search thresholds against labelled slots; returns the best and its accuracy.
 
-    Exists so that "STAN beats the thresholds" is a real claim. Comparing a learned model
-    against *unlearned* constants would prove only that fitting beats guessing.
+    Exists so that "a learned model beats the thresholds" can be a real claim. Comparing a
+    learned model against *unlearned* constants would prove only that fitting beats guessing.
     """
     if not slots:
         raise ValueError("cannot tune thresholds without labelled slots")

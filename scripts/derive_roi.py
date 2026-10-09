@@ -43,11 +43,11 @@ import numpy as np
 from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.vision import roi
 
-# The deployed routine lives in the package since A36 (`vision/roi_derive.py`), so the worker
-# and the review page can call it without reaching into this folder. Re-exported here under
-# the names the experiments import (`from derive_roi import turf_mask, polygon_from_mask`),
-# so nothing that reads this file as a module breaks. The two measured-and-rejected variants
-# below (A19) stay here: they are compared against, never deployed.
+# The deployed routine lives in the package (`vision/roi_derive.py`), so the worker and the
+# review page can call it without reaching into this folder. Re-exported here under the names
+# older callers import (`from derive_roi import turf_mask, polygon_from_mask`), so nothing
+# that reads this file as a module breaks. The two measured-and-rejected variants below stay
+# here: they are compared against, never deployed.
 from pitch_occupancy.vision.roi_derive import (  # noqa: F401 - re-exported
     MAX_FRAMES,
     WORK,
@@ -85,13 +85,12 @@ def flat_field(exg: np.ndarray) -> np.ndarray:
 def turf_mask_flat(bgr: np.ndarray) -> np.ndarray:
     """:func:`turf_mask` with the lighting gradient removed before thresholding.
 
-    **Measured and rejected (A19).** It does what it was meant to - it recovers the far third
+    **Measured and rejected.** It does what it was meant to - it recovers the far third
     of the unseen clip's pitch, 56% coverage to 86% - and it is unusable, because it destroys
     the mask on frames that *have* no gradient. Dividing a fairly uniform image by a blurred
     copy of itself leaves near-constant noise, and Otsu then splits the noise: venue_01
     camera A, where the six recorded C3 frames live, collapses from 49% coverage to **3%**.
-    Kept as the measured alternative that `roi_flat_field.py` compares against, not as a path
-    anything calls.
+    Kept as the measured alternative to compare against, not as a path anything calls.
     """
     _, m = cv2.threshold(flat_field(_exg(bgr)), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     return _clean(m)
@@ -99,14 +98,14 @@ def turf_mask_flat(bgr: np.ndarray) -> np.ndarray:
 
 #: How far below Otsu's threshold a pixel may sit and still join the pitch, as a fraction of
 #: the threshold. Hysteresis needs two levels and this is the second; 0.6 is the value the
-#: table in `roi_flat_field.py` was measured at. It is a floor, not a fit: the growth is
+#: comparison was measured at. It is a floor, not a fit: the growth is
 #: bounded by connectivity, so a low value costs nothing where there is nothing adjacent to
 #: grow into.
 GROW_FRACTION = 0.6
 
 
 def turf_mask_grown(bgr: np.ndarray, fraction: float = GROW_FRACTION) -> np.ndarray:
-    """Otsu, then grow into whatever is connected to it and nearly as green (A19).
+    """Otsu, then grow into whatever is connected to it and nearly as green.
 
     The defect this addresses is real: one global threshold on a floodlit pitch splits the
     pitch, because the far end is dimmer than the near end. `turf_mask_flat` addressed it by
@@ -120,7 +119,7 @@ def turf_mask_grown(bgr: np.ndarray, fraction: float = GROW_FRACTION) -> np.ndar
 
     It is the same rule Canny uses on edges, applied to a region instead.
 
-    **Measured and rejected (A19), and not for the reason `turf_mask_flat` was.** It behaves:
+    **Measured and rejected, and not for the reason `turf_mask_flat` was.** It behaves:
     no camera collapses, the minimum coverage across 69 cameras rises from 26% to 43%, and on
     923 labelled frames it halves the number of cross-venue play frames sitting in the 1-4
     person band. End to end on the unseen clip it is worse - the area it recovers reaches the

@@ -1,7 +1,7 @@
-"""The pipeline reaches `run_slot` through the scheduler (A36, WP9-T1).
+"""The pipeline reaches `run_slot` through the scheduler.
 
 Until 2026-09-19 `run_due` passed `run_slot` a bare classifier and nothing else - no
-boundary, no gates - although `run_slot` had accepted all three since A14-A16. So the
+boundary, no gates - although `run_slot` had accepted all three for some time. So the
 deployed path was the configuration measured at 0.62-0.77 false-play while every table
 described the gated one. These assert on what reaches `run_slot`, because the handover is
 the part that was missing.
@@ -96,7 +96,7 @@ def test_run_due_refuses_to_run_with_neither_a_pipeline_nor_a_classifier() -> No
 
 
 def test_a_camera_with_no_boundary_reads_uncertain_through_the_scheduler() -> None:
-    """The A36 rule end to end: no boundary, no verdict. Every minute abstains, the capture
+    """The boundary rule end to end: no boundary, no verdict. Every minute abstains, the capture
     floor sees an empty slot, and the verdict is REVIEW - never a confident NOTUSED built
     from a car park."""
     runs: list[object] = []

@@ -1,12 +1,12 @@
-"""Measure a pitch boundary from footage, instead of drawing one by hand (WP3-T1, A36).
+"""Measure a pitch boundary from footage, instead of drawing one by hand.
 
-The routine `scripts/derive_roi.py` has run over the corpus since A14, moved into the package
-so the paths that need a boundary at run time can call it without `sys.path` surgery:
-`api/clip_review.py`, `scripts/run_slot_on_video.py` and `experiments/clock_rule_on_video.py`
-each carried their own copy of "insert the scripts folder, import two functions", and the
-worker - the one place a missing boundary costs a night's verdicts - had no copy at all. The
-script keeps its CLI and the two measured-and-rejected variants (`turf_mask_flat`,
-`turf_mask_grown`, A19); this module holds only what is deployed.
+The routine `scripts/derive_roi.py` runs over the corpus, moved into the package so the
+paths that need a boundary at run time can call it without `sys.path` surgery: callers such
+as `api/clip_review.py` and `scripts/run_slot_on_video.py` each carried their own copy of
+"insert the scripts folder, import two functions", and the worker - the one place a missing
+boundary costs a night's verdicts - had no copy at all. The script keeps its CLI and the two
+measured-and-rejected variants (`turf_mask_flat`, `turf_mask_grown`); this module holds only
+what is deployed.
 
 The pitch is the large connected green region, and it is the only large green region in any
 of these frames:
@@ -22,7 +22,7 @@ of these frames:
 The hull is deliberate and it is a limitation worth stating: a pitch seen from the corner is
 convex, but a hull cannot exclude a dugout or a neighbouring pitch that lies *inside* the
 outline's span. It is a floor on what the boundary achieves, not a ceiling, and it is still
-strictly better than the whole frame - A19 measured the whole frame at 0.74 false-play on the
+strictly better than the whole frame - the whole frame was measured at 0.74 false-play on the
 unseen clip against 0.38 with a derived outline.
 
 **Frames are spread over the whole recording, not taken from its start.** The previous
@@ -132,8 +132,7 @@ def polygon_from_mask(mask: np.ndarray, max_points: int = 8, *,
     tighter wherever the pitch is seen at an angle - a hull spans from the far corner of the
     pitch to the near one and swallows whatever lies between, which at venue_01 camera B is
     the car park behind the goal. It is offered rather than assumed because a ragged mask
-    makes a ragged polygon, and `roi.validate` rejects a self-intersecting one; see A23 for
-    what it is actually worth.
+    makes a ragged polygon, and `roi.validate` rejects a self-intersecting one.
     """
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:

@@ -1,8 +1,7 @@
-# Backup policy (WP0-T8)
+# Backup policy
 
-**Status: the policy is written; the backup is not yet made.** This document exists so the
-gap is stated rather than implied, and so that when it is closed there is something to close
-it against.
+**Status: the backup exists; a restore has not yet been verified** (see *Current state*).
+This document is the policy that state is checked against.
 
 ---
 
@@ -14,11 +13,10 @@ Exactly one thing.
 |---|---|---|---|
 | **`data/` — the footage and extracted frames** | ~4.2 GB | **No.** It came from a client facility on one occasion. | one machine, one copy |
 | `data/cache/` — feature caches | ~1.5 GB | Yes — ~25 min per backbone from the frames | same machine |
-| `results/` | small | Yes — `uv run python -m experiments.reproduce_all` | git |
-| code, plans, thesis text | small | Yes | git, GitHub |
+| code and configuration | small | Yes | git, GitHub |
 
-Every number this project reports is regenerable from `data/` through one pipeline. **`data/`
-is not regenerable from anything.** If it is lost, the thesis loses its subject: the 66 clips
+Everything derived — manifest, caches, fitted models — is regenerable from `data/`. **`data/`
+is not regenerable from anything.** If it is lost, the project loses its footage: the 66 clips
 were a one-off export, the two labelled venue_01 days cannot be re-recorded, and the labels
 represent work that would have to be redone by hand.
 
@@ -67,8 +65,8 @@ The footage shows identifiable people at a client facility, so:
 * the passphrase is not stored beside the backup, and not in this repository;
 * the external drive is encrypted too. A drive in a bag is the copy most likely to be lost.
 
-`thesis/ethics.md` holds the legal basis and the retention position; this document covers only
-where copies live.
+The retention worker (`uv run pitch retention`) enforces how long sampled frames and
+evidence images are kept; this document covers only where copies live.
 
 ## Cadence
 
@@ -92,16 +90,14 @@ A backup nobody has restored from is a backup nobody knows the state of.
 # 1. restore data/ from the external drive or the cloud copy
 # 2. rebuild everything derived from it
 uv sync
+uv run pitch manifest --check               # the index must match the class folders
 uv run pitch manifest                       # rebuild the index
-uv run python -m experiments.reproduce_all --check   # what is missing
-uv run python -m experiments.reproduce_all           # rebuild it
-uv run pytest                                # the suite must pass on the restored copy
+uv run pitch cache                          # rebuild the feature caches
+uv run pytest                               # the suite must pass on the restored copy
 ```
 
-The reproduction pipeline is what makes this checkable: a restore is successful when
-`reproduce_all --check` reports nothing missing and the committed CSVs are reproduced. That
-is a stronger test than "the files are there", and it is the same guard the thesis's
-reproducibility claim rests on.
+A restore is successful when the manifest rebuilds with the same frame counts as before and
+the caches rebuild from it. That is a stronger test than "the files are there".
 
 **Verify the restore once, from the off-site copy, before relying on it.** Restoring from the
 drive you can see proves less than restoring from the copy you cannot.
@@ -112,11 +108,9 @@ drive you can see proves less than restoring from the copy you cannot.
 * `data/cache/*.npz` — see above.
 * Anything already in git and pushed to GitHub. The remote is the second copy of the code;
   it is *not* a second copy of the footage, and must never become one — `.gitignore` keeps
-  `data/` out, and `WP1-T5` records that nine frames reached history before it did.
+  `data/` out — nine frames reached history before it did.
 
-## Why this is still open
+## Why this matters more than anything else here
 
-The policy costs an hour and has been the top item on the critical path since the first
-review. It is unblocked — the data layout stopped moving once WP0-T2 landed — so what remains
-is doing it. Until then, every other risk in the register is secondary to this one: the
-results are regenerable, the footage is not.
+Until a restore has been verified, every other operational risk is secondary to this one:
+everything derived is regenerable, the footage is not.

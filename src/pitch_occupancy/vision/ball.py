@@ -1,7 +1,7 @@
 """Is there a ball, and is it being played with? (2026-09-21)
 
-`count_inside` answers "was a ball detected in this frame". A40 made that answer decide
-whether a pitch is in use, which turned out to ask more of it than it can carry. Reported
+`count_inside` answers "was a ball detected in this frame". The rule makes that answer
+decide whether a pitch is in use, which turned out to ask more of it than it can carry. Reported
 from use, and then measured on the operator's own clips:
 
     clip                  truth   frames with a ball   best conf   median movement
@@ -25,9 +25,8 @@ threshold: "twice" is what distinguishes a thing from a flicker.
 set with a rock-solid ball - six sightings of six, 0.30 confidence, and it is genuinely there;
 the overlay shows it plainly on the turf. It has also not moved by a single pixel, because it
 is lying on the grass while three people work around it. The facility's rule is that a game
-has a ball **in it**, and a ball nobody is touching is furniture. `thesis/labelling_protocol.md`
-§2.3 has said the same thing from the start: "an unattended ball ... does not make a pitch
-occupied."
+has a ball **in it**, and a ball nobody is touching is furniture. The labelling rules have
+said the same thing from the start: an unattended ball does not make a pitch occupied.
 
 **Movement is measured in ball diameters**, which makes the number scale-free: it holds for a
 ball seven pixels across at the far touchline and one forty pixels across in the foreground,
@@ -74,10 +73,10 @@ MIN_FRAMES = 2
 #: not merely slow, it is **0.00**: the same 7-pixel blob in the same place across two
 #: seconds. A quarter of a diameter is under the localisation noise of a detection that
 #: small, so this asks "did it move at all, beyond jitter" rather than "did it move far",
-#: which is the question `labelling_protocol.md` §2.3 actually poses.
+#: which is the question the labelling rules actually pose.
 #:
 #: Three clips is not a calibration and this is written down as a floor to be re-checked
-#: when there is more than one maintenance recording to check it against (WP9-T5).
+#: when there is more than one maintenance recording to check it against.
 MOVED_DIAMETERS = 0.25
 
 

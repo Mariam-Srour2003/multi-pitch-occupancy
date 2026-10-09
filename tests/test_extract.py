@@ -64,12 +64,12 @@ def test_extraction_does_not_guess_the_lighting(clips, tmp_path: Path) -> None:
     below 80 is night. The measurement was real and the inference from it was not. A floodlit
     five-a-side pitch fills its frame with lit turf and reads *brighter* than an overcast
     afternoon at venue_01 - 120 against 69 - so the rule filed night football as daylight,
-    wrongly, for 216 of 396 frames including every frame of the locked final test set (A25).
+    wrongly, for 216 of 396 frames including every frame of the locked final test set.
 
     No threshold replaces it: an indoor hall has no sky to be dark, and a floodlit pitch is
     brighter than an overcast one. Extraction now records what it knows - the brightness - and
-    says `unknown` about what it does not. `scripts/relabel_clip_lighting.py` supplies the
-    value from a per-venue visual audit.
+    says `unknown` about what it does not. The value is filled in later from a per-venue
+    visual audit.
     """
     d, venues = clips
     rows = extract_clip_frames(d, tmp_path / "out", venues=venues, per_clip=2)

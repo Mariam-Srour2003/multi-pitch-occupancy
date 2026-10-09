@@ -13,9 +13,9 @@ The baseline rule is **strongest activity wins**, with EMPTY requiring agreement
 
 :func:`fuse` also returns whether the halves disagreed. That flag matters twice over: it
 is an operational signal (a dirty lens or an occluded view makes one half disagree
-persistently), and it is information the max-rule discards. STAN consumes both camera
-sequences rather than this fused output precisely so it can learn from the disagreement -
-see WP5-T6.
+persistently), and it is information the max-rule discards, so a sequence model should
+consume both camera sequences rather than this fused output if it is to learn from the
+disagreement.
 """
 
 from __future__ import annotations
@@ -83,12 +83,12 @@ def fuse(observations: dict[str, tuple[Class3 | str, float]]) -> FusedState:
     raise AssertionError("unreachable: every Class3 value appears in PRIORITY")
 
 
-# --- the detector-first path (A36) ---------------------------------------------------------
+# --- the detector-first path ---------------------------------------------------------------
 #
 # The max-rule above fuses *classes*. The detector-first path fuses *counts*, and the
-# difference is the finding A16 recorded and A36 acted on: a camera sees half a pitch, so
+# difference matters because a camera sees half a pitch, so
 # "one to four people means not playing" applied per camera is wrong on 88 of 278 real
-# matches at venue_01, while the two halves summed are not. The hand-count audit for WP9-T2
+# matches at venue_01, while the two halves summed are not. A hand-count audit of the detector
 # measured the same thing on the sample it drew - 18 of 74 play frames had fewer than five
 # people inside their own camera's boundary. So the pitch count is the sum over cameras, the
 # ball is seen by the pitch if any camera saw it, and the decision table is applied once, to

@@ -108,7 +108,8 @@ def test_reconciliation_carries_the_slot_identity() -> None:
 
 
 def test_entered_by_is_never_part_of_the_output() -> None:
-    """Per-staff attribution is deliberately out of scope (WP1-T4, thesis/ethics.md)."""
+    """Per-staff attribution is deliberately out of scope: it would make this workplace
+    monitoring."""
     r = reconcile(booking(staff_recorded_used=True, entered_by="alex"), NOTUSED)
     assert "alex" not in r.explanation
     assert not hasattr(r, "entered_by")

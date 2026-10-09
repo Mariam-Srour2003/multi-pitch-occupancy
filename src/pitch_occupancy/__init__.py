@@ -7,16 +7,15 @@ booking records.
 
 Layout::
 
-    data/        manifest, splits, taxonomy, feature cache   (WP0, WP2)
-    vision/      preprocessing, ROI, backbones, heads,
-                 and the deployed classifier                 (WP3, WP4, WP6-T2)
-    slots/       two-camera fusion, aggregation, STAN        (WP5)
-    evaluation/  metrics, statistics, calibration            (WP0-T6, WP4)
-    db/          SQLite schema and access                    (WP6)
-    api/         FastAPI app, served by uvicorn              (WP6-T1, WP6-T6)
-    worker.py    the sampling scheduler                      (WP6-T2)
+    data/        manifest, splits, taxonomy, feature cache
+    vision/      ROI, backbones, heads, detector, gates,
+                 and the deployed classifier
+    slots/       two-camera fusion, aggregation, reconciliation
+    db/          SQLite schema and access
+    api/         FastAPI app, served by uvicorn
+    worker.py    the sampling scheduler
 
-CPU-only is a design constraint of the thesis, not an implementation detail: no code
+CPU-only is a design constraint of the project, not an implementation detail: no code
 path in this package may require a GPU.
 """
 

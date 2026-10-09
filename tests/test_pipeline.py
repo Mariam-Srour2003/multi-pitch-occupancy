@@ -1,6 +1,6 @@
-"""The one seam every surface classifies through (A36, WP9-T1).
+"""The one seam every surface classifies through.
 
-A35 found the review page running a different system from the worker; the scheduler turned
+The review page was found running a different system from the worker; the scheduler turned
 out to be running a third. These pin that `pipeline.assemble` is the single place inference
 is put together, that the boundary is resolved the way production names cameras, and that
 a missing boundary is an abstention on the deployed path and a labelled whole-frame answer
@@ -55,8 +55,8 @@ class StubProbe:
 
 def test_minute_states_are_the_reporting_classes_plus_an_abstention() -> None:
     """`Sample.predicted` must read the same whether it came from a prediction or from a
-    report, so the three decided values *are* `Class3`'s values (A40). They were the four labelling folders'
-    until 2026-09-20; the corpus has 0 real maintenance frames, so the fourth branch could
+    report, so the three decided values *are* `Class3`'s values. They were the four labelling
+    folders' until 2026-09-20; the corpus has 0 real maintenance frames, so the fourth branch could
     never be measured and left the prediction path."""
     assert {s.value for s in MinuteState} - {"UNCERTAIN"} == {c.value for c in Class3}
     assert not MinuteState.UNCERTAIN.decided
@@ -190,7 +190,7 @@ def test_a_given_polygon_wins_over_the_lookup() -> None:
 
 def test_without_a_boundary_the_deployed_path_abstains_and_never_runs_the_model() -> None:
     """Scoring the neighbouring pitch and the car park as this one is the failure the
-    boundary exists to prevent (A19: 0.74 false-play against 0.38), so the deployed path
+    boundary exists to prevent (0.74 false-play against 0.38 with one), so the deployed path
     declines rather than doing it."""
     classify = scripted()
     pipeline = Pipeline("m", "probe", classify, boundaries=found(None), require_boundary=True)

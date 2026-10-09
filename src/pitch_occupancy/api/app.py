@@ -6,18 +6,20 @@ dashboard restart never interrupts sampling.
 
 Run it with::
 
-    uv run uvicorn pitch_occupancy.api.app:app --reload
+    uv run python -m uvicorn pitch_occupancy.api.app:app --reload
 
-Endpoints arrive with their work packages:
-  - WP6-T1  simulator API   ``/api/v1/cameras/{camera_id}/snapshot``
-  - WP6-T6  dashboard       fields, slots, evidence inspector, overrides
-  - WP6-T5  reconciliation  anomaly list and adjudication
+Pages:
+  - ``/``            the operator dashboard (also at ``/client``)
+  - ``/clip``        one video in, a timeline of what the pitch was doing
+  - ``/clip/pair``   both cameras of one pitch, judged together
+  - ``/images``      one still or a batch, each explained
+  - ``/roi``         draw the pitch boundary for a camera
 """
 
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from pitch_occupancy import __version__
@@ -33,10 +35,7 @@ from pitch_occupancy.api.roi_editor import router as roi_router
 from pitch_occupancy.api.roi_page import ROI_HTML
 from pitch_occupancy.api.routes import router
 from pitch_occupancy.api.schedule_editor import router as schedule_router
-from pitch_occupancy.api.search_control import router as search_router
 from pitch_occupancy.api.simulator import router as simulator_router
-from pitch_occupancy.api.talk import related_work_page
-from pitch_occupancy.api.thesis_site import page as thesis_page
 from pitch_occupancy.config import settings
 
 app = FastAPI(
@@ -45,52 +44,39 @@ app = FastAPI(
     summary="Occupancy verdicts and booking reconciliation for multi-pitch facilities",
 )
 app.include_router(router)
-app.include_router(search_router)
-# WP6-T1. Disabled unless PITCH_SIMULATOR_TOKEN is set - mounting it is not enabling it.
+# Camera simulator. Disabled unless PITCH_SIMULATOR_TOKEN is set - mounting it is not
+# enabling it.
 app.include_router(simulator_router)
-# WP6-T6. The API's only write path, and the module docstring says why that is defensible
-# here when bookings.py refuses to have one at all.
+# The API's only write path, and the module docstring says why that is defensible here when
+# bookings.py refuses to have one at all.
 app.include_router(schedule_router)
-# WP6-T6. Analyses an uploaded clip and keeps none of it - see the module docstring for
-# why a POST that stores nothing sits beside /schedule/validate rather than the override.
+# Analyses an uploaded clip and keeps none of it - see the module docstring for why a POST
+# that stores nothing sits beside /schedule/validate rather than the override.
 app.include_router(clip_router)
 # Two videos of the same pitch, one timeline: the cameras' counts added and the ball shared
-# before the rule is applied, as `slots/fusion.fuse_pitch` does for the worker. Beside the
-# single-camera reviewer, not instead of it.
+# before the rule is applied, as `slots/fusion.fuse_pitch` does for the worker.
 app.include_router(pair_router)
-# WP4-T5. The same analysis streamed step by step, with the evidence map that
-# `vision/explain.py` has been able to produce since WP4-T5 and nothing showed.
+# The same clip analysis streamed step by step, with the evidence map `vision/explain.py`
+# produces.
 app.include_router(walkthrough_router)
-# WP6-T6. The same explanation over still images. A separate surface rather than a clip of
-# length one: stills have no neighbours, so none of the temporal correction a clip gets
-# applies to them, and the page is built to say so rather than to imply otherwise.
+# The same explanation over still images. A separate surface rather than a clip of length
+# one: stills have no neighbours, so none of the temporal correction a clip gets applies to
+# them, and the page is built to say so rather than to imply otherwise.
 app.include_router(image_router)
-# WP3-T1. Pitch boundaries: `PreprocessConfig.roi` has been a switch nothing could turn on
-# since the project began, because no polygon existed to turn it on with. This is how one
-# gets drawn - and the preview runs the model twice so the boundary can be checked rather
+# Pitch boundaries. The preview runs the model twice so a boundary can be checked rather
 # than trusted.
 app.include_router(roi_router)
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-def thesis() -> HTMLResponse:
-    """The thesis frontend - every finding, experiment, search and document.
+@app.get("/client", response_class=HTMLResponse, include_in_schema=False)
+def dashboard() -> HTMLResponse:
+    """The operator dashboard - the client-facing view of live slot state.
 
-    Read from disk on each request, so rerunning an experiment and reloading is enough;
-    there is no build step to forget and no copy that can drift from the results.
+    It calls the same public `/api/v1` endpoints an integrator would, so nothing on the
+    page has privileged access: anything it can show, the API can serve.
     """
-    return HTMLResponse(thesis_page())
-
-
-@app.get("/related-work", response_class=HTMLResponse, include_in_schema=False)
-def related_work() -> HTMLResponse:
-    """The nine related-work strands, from `thesis/ch2_related_work.md`.
-
-    Chapter 1 states what each strand has to establish; this is where its *sources* link
-    lands - the strand in full, with the `[CITE]` slots still open. Rendered from the file
-    on each request, so the page cannot drift from the document being written.
-    """
-    return HTMLResponse(related_work_page())
+    return dashboard_response()
 
 
 @app.get("/clip", response_class=HTMLResponse, include_in_schema=False)
@@ -136,63 +122,6 @@ def boundary_editor() -> HTMLResponse:
     the question was under-specified. A boundary specifies it.
     """
     return HTMLResponse(ROI_HTML)
-
-
-@app.get("/client", response_class=HTMLResponse, include_in_schema=False)
-def dashboard() -> HTMLResponse:
-    """The operator dashboard - the client-facing view of live slot state.
-
-    It calls the same public `/api/v1` endpoints an integrator would, so nothing on the
-    page has privileged access: anything it can show, the API can serve.
-    """
-    return dashboard_response()
-
-
-#: Only these load from `results/figs`. An allowlist by extension rather than a static mount,
-#: because `results/figs/venue_check/` holds cropped **pitch frames** - operator-supplied
-#: footage that must never be published (see `thesis/ethics.md`). A blanket mount would put
-#: them one guessed URL away from anyone who reaches the server.
-FIGURE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml"}
-
-
-#: Subdirectories of `results/figs` that may also be served, named one at a time.
-#:
-#: The no-subpath rule exists for `results/figs/venue_check/`, which holds cropped **pitch
-#: frames** - operator footage that must never be published (`thesis/ethics.md`). That rule
-#: stays. This is an allowlist of directories known to contain only publishable output, not
-#: a relaxation of it: adding one is a decision about a specific directory's contents.
-#:
-#: `preproc` holds the before/after pair per preprocessing switch. Every frame in it was
-#: redacted by `redact_people` before it was written, and they are committed to git under
-#: their own `.gitignore` exception for that reason - so they are already published, and
-#: serving them adds no exposure.
-PUBLISHABLE_FIG_DIRS = {"preproc"}
-
-
-@app.get("/figs/{name:path}", include_in_schema=False)
-def figure(name: str) -> FileResponse:
-    """Serve one generated figure from `results/figs`, by filename.
-
-    A bare filename, or `<dir>/<filename>` for a directory on
-    :data:`PUBLISHABLE_FIG_DIRS`. The resolved path is re-checked against the allowed
-    parent afterwards, so a traversal cannot escape even if the prefix check is fooled.
-    """
-    if "\\" in name or name.startswith(".") or ".." in name:
-        raise HTTPException(404)
-
-    figs = (settings.results_dir / "figs").resolve()
-    allowed = {figs}
-    if "/" in name:
-        folder, _, leaf = name.partition("/")
-        if folder not in PUBLISHABLE_FIG_DIRS or "/" in leaf or leaf.startswith("."):
-            raise HTTPException(404)
-        allowed = {(figs / folder).resolve()}
-
-    path = (figs / name).resolve()
-    if path.parent not in allowed or path.suffix.lower() not in FIGURE_TYPES \
-            or not path.is_file():
-        raise HTTPException(404)
-    return FileResponse(path, media_type=FIGURE_TYPES[path.suffix.lower()])
 
 
 class Health(BaseModel):

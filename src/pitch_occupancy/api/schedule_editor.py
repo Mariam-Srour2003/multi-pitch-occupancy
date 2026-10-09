@@ -1,4 +1,4 @@
-"""Editing the capture schedule (WP6-T6).
+"""Editing the capture schedule.
 
 **This is the only write path in the API, and it is worth saying why that is acceptable when
 `bookings.py` refuses to have one at all.** The booking sheet is the *facility's* financial

@@ -1,4 +1,4 @@
-"""Choosing the three images that justify a verdict (WP6).
+"""Choosing the three images that justify a verdict.
 
 Every verdict is bound to three snapshots so an operator can agree or disagree in seconds
 rather than scrubbing an hour of footage. Which three matters more than it sounds - they

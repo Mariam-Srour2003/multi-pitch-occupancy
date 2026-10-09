@@ -155,7 +155,7 @@ def test_tuning_without_slots_raises() -> None:
 
 
 def test_tuned_thresholds_beat_or_match_the_defaults() -> None:
-    """The point of tuning: STAN must beat a *fitted* baseline, not a guessed one."""
+    """The point of tuning: a learned model must beat a *fitted* baseline, not a guessed one."""
     slots = [
         ([PLAY] * 20 + [EMPTY] * 40, SlotStatus.USED),  # only 33% play, but truly used
         ([EMPTY] * 60, SlotStatus.NOTUSED),

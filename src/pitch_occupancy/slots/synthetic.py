@@ -1,4 +1,4 @@
-"""Composing slot sequences from real frames (WP5-T8).
+"""Composing slot sequences from real frames.
 
 A slot classifier needs slots, and this project has **two** real labelled ones. That is not a
 sample; it is an anecdote. So training sequences are composed from manifest frames, and the
@@ -18,7 +18,7 @@ correct by construction and any comparison against it circular - the model would
 reproducing the rule it is supposed to beat. The five templates encode a semantic judgement
 about what each situation means, and the thresholds are one guess at that mapping.
 
-The templates are the ones the plan names:
+The templates:
 
 * **full match** - play throughout. USED.
 * **no show** - empty throughout. NOTUSED.
@@ -55,9 +55,8 @@ class SlotSequence:
 
     ``probabilities`` is ``(T, 3)`` over :data:`CLASS_ORDER`, ``truth`` the slot's verdict,
     and ``synthetic`` says whether the *ordering* was composed. That flag is not decoration:
-    :mod:`pitch_occupancy.slots.stan` refuses to report a headline from fewer than
-    :data:`~pitch_occupancy.slots.stan.MIN_REAL_SLOTS` real ones, and it counts them by
-    reading this field.
+    it is how anything that reports a slot-level score tells real slots from composed ones,
+    and a score over composed slots alone measures the templates, not the classifier.
     """
 
     slot_id: str
@@ -194,8 +193,8 @@ def compose_dataset(
     """Compose a balanced set of slots and fill in each minute's probabilities.
 
     ``score`` takes an array of manifest row indices and returns their ``(n, 3)`` probability
-    matrix under whatever classifier the caller is studying. Keeping it a parameter is what
-    lets the experiment feed real probe outputs while the tests feed something trivial.
+    matrix under whatever classifier the caller is using. Keeping it a parameter is what
+    lets a caller feed real probe outputs while the tests feed something trivial.
 
     Balanced by *template*, which is not balanced by verdict: two templates mean USED and two
     mean REVIEW, so NOTUSED is a quarter of the set. Left that way deliberately - the

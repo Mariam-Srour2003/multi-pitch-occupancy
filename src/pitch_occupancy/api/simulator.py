@@ -1,4 +1,4 @@
-"""The simulator snapshot API (WP6-T1).
+"""The simulator snapshot API.
 
 ``GET /api/v1/cameras/{camera_id}/snapshot?mode=simulation`` returns one JPEG, the way a real
 camera's HTTP snapshot endpoint would. It exists so the ingestion path can be exercised over a
@@ -169,7 +169,7 @@ def snapshot(
             status_code=501,
             detail=(
                 "live mode is not implemented and does not fall back to the recording. "
-                "There are no cameras to proxy yet (WP7-T3); use mode=simulation"
+                "There are no cameras to proxy yet; use mode=simulation"
             ),
         )
     source = _current()

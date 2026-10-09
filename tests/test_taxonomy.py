@@ -1,5 +1,5 @@
-"""The labelling -> reporting mapping is load-bearing: every thesis metric is reported
-through it, so a silent change here would quietly rewrite the results.
+"""The labelling -> reporting mapping is load-bearing: every metric is reported through
+it, so a silent change here would quietly rewrite the results.
 
 It was four folders onto three classes until 2026-09-21 and is now one-to-one. The test that
 used to guard the four-class ablation (`test_c3_is_reachable_from_two_folders`) is replaced

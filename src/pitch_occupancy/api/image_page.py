@@ -1,4 +1,4 @@
-"""The image reviewer page (WP6-T6). Served at `/images`; posts to `/api/v1/images/walkthrough`.
+"""The image reviewer page. Served at `/images`; posts to `/api/v1/images/walkthrough`.
 
 The still-image counterpart to `clip_page.py`, and the layout differs from it in one way that
 matters. The clip page is built around *time*: a timeline, segments, and the reviewer's
@@ -192,7 +192,7 @@ dialog .close{position:absolute;top:8px;right:10px}
 <header><div class="hin">
   <div class="brand">Pitch Occupancy<span>.</span></div>
   <div class="sub">Image reviewer</div>
-  <a href="/clip">Clip reviewer</a><a href="/client">Dashboard</a><a href="/">Findings</a>
+  <a href="/clip">Clip reviewer</a><a href="/">Dashboard</a>
 </div></header>
 <main>
 
@@ -401,7 +401,7 @@ function pick(list){
 }
 // Saved boundaries, so a batch can be masked to one pitch. At most three: the derived store
 // holds one entry per clip in the corpus, and the endpoint trims the menu rather than anything
-// being deleted, so the masking experiments still see every one of them. Failing to load them
+// being deleted, so offline masking runs still see every one of them. Failing to load them
 // leaves the selector at "whole frame", which is the behaviour the page had before boundaries
 // existed and is also its default now.
 (async()=>{

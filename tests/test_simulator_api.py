@@ -1,4 +1,4 @@
-"""The simulator snapshot API (WP6-T1).
+"""The simulator snapshot API.
 
 This endpoint serves frames of identifiable people over HTTP, so the tests that matter are the
 ones about refusing. An auth check that passes when misconfigured is the same defect class as a

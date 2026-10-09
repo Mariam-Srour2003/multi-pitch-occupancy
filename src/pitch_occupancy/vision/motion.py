@@ -1,4 +1,4 @@
-"""The motion gate: a pitch where nothing moved is not a match in progress (A14).
+"""The motion gate: a pitch where nothing moved is not a match in progress.
 
 The rule is one line - if the frame is called ACTIVE_PLAY but barely differs from the
 previous frame of the same camera, call it EMPTY instead - and it earns its place on evidence
@@ -54,8 +54,7 @@ WORK_SIZE = (160, 90)
 #: median for ACTIVE_PLAY is 1.575 at venue_01 and 2.930 at the clip venues, because cameras,
 #: compression and how busy the football is all differ. One threshold cannot be right
 #: everywhere, and this one is right where it was measured and plausible elsewhere. A
-#: per-camera threshold needs empty pitches at that camera, which is item 1 of
-#: `thesis/data_requests.md`.
+#: per-camera threshold needs recorded empty pitches at that camera.
 MOTION_THRESHOLD = 1.098
 
 #: Gap the threshold was fitted at. The cue grows with the gap - 0.891 median for EMPTY at

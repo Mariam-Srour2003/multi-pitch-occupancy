@@ -51,8 +51,8 @@ class ClockRule:
 
     For each lighting value it learns the majority training class, which on the pilot data
     reduces to "night means a match, day means an empty pitch". It scored 98.4% on the
-    labelled frames, matching the trained backbones. Its role in the thesis is to make that
-    impossible to overlook.
+    labelled frames, matching the trained backbones. It stays in the comparison so that
+    confound is impossible to overlook.
     """
 
     name = "clock_rule"

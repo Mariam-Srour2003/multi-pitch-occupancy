@@ -54,10 +54,10 @@ router = APIRouter(prefix="/api/v1", tags=["clip review"])
 MAX_UPLOAD_BYTES: int = 600 * 1024 * 1024
 
 def _classifier():
-    """The deployed classifier, from the process-wide pipeline (`pipeline.shared`, A36).
+    """The deployed classifier, from the process-wide pipeline (`pipeline.shared`).
 
     Until 2026-09-19 this loaded the probe itself, which is how the page came to run a
-    different system from the worker (A35): each surface assembled its own. Now every surface
+    different system from the worker: each surface assembled its own. Now every surface
     asks the same seam. Kept as a function so a test can swap the classifier for a script
     without assembling a pipeline; the first real call pays the probe fit once.
     """
@@ -79,16 +79,16 @@ class SampleOut(BaseModel):
     probed: str | None = None
     gated: bool = False
     #: People inside the boundary, and whether a ball was there. None means the detector did
-    #: not run, which is a different fact from zero and is why the page shows a dash. Since
-    #: A38 the review pages count on every frame, so a dash here means the detector could not
-    #: be loaded at all rather than that it was skipped.
+    #: not run, which is a different fact from zero and is why the page shows a dash. The
+    #: review pages count on every frame, so a dash here means the detector could not be
+    #: loaded at all rather than that it was skipped.
     people: int | None = None
     ball: bool | None = None
     #: The motion cue against the previous sample; None on the first, which has none.
     motion: float | None = None
     #: EMPTY, and yet somebody was found inside the outline. Not a contradiction - the gates
     #: only weaken, so EMPTY stands - but the frame where the motion gate and the detector
-    #: disagree, which is the frame worth a reviewer's attention and was invisible before A38.
+    #: disagree, which is the frame worth a reviewer's attention.
     gates_disagree: bool = False
 
 
@@ -171,7 +171,7 @@ def _gates():
     EMPTY, because a generated test frame contains no people. Patching this returns the route
     to the probe alone, which is what such a test means by "the model said".
 
-    **The review pages count on every frame and the worker does not** (A38), and that is the
+    **The review pages count on every frame and the worker does not**, and that is the
     only way these differ from `pipeline.default_gates`. By default the detector is skipped on
     a verdict already EMPTY, since the gate only weakens - correct for a worker paying a fifth
     of a second per camera per minute, wrong for a person looking at one clip, where a blank
@@ -187,11 +187,10 @@ def _gates():
 def _derive_boundary(path: Path) -> list[list[float]] | None:
     """Measure a pitch outline from the clip itself, or None if it cannot be found.
 
-    `roi.derive_from_video` - the routine `scripts/derive_roi.py` runs over the corpus, now
-    in the package (A36) rather than reached through `sys.path`. It is a fallback and not a
-    replacement: a hand-drawn or stored outline is better and is preferred above. What it
-    replaces is *no boundary at all*, which A19 measured on this exact clip at 0.74
-    false-play against 0.38 with one.
+    `roi.derive_from_video` - the routine `scripts/derive_roi.py` runs over the corpus. It is
+    a fallback and not a replacement: a hand-drawn or stored outline is better and is
+    preferred above. What it replaces is *no boundary at all*, which was measured on this
+    exact clip at 0.74 false-play against 0.38 with one.
 
     Failure returns None rather than raising. A clip this cannot find turf in is still worth
     classifying without an outline, and the response says which happened.
@@ -250,7 +249,7 @@ async def analyse(
         # and there is one masking call rather than a second code path through them.
         classify = _classifier()
         # `resolve`, not `get`: the camera is named the way production names it, and the
-        # store's own keys are not that (A36).
+        # store's own keys are not that.
         drawn = _parse_polygon(polygon)
         # `whole_frame` beats every source, including a drawn outline and a stored one: it is
         # the one value here that is unambiguously a decision somebody made about this clip.

@@ -143,12 +143,11 @@ def test_every_registered_backbone_declares_its_pooling_kind() -> None:
 
 # --- the processor-geometry convention ------------------------------------
 #
-# WP3-T3 found that ConvNeXtV2 and DINOv2 resize to 256 and centre-crop back to 224 *after*
-# preprocess.py has produced a 224x224 frame, discarding 23.4% of it. Which convention to
-# use is an open decision to be settled by measurement, so both have to be cacheable at
-# once. `thesis/protocol.md` and `EXPERIMENT_LOG.md` both stated the flag was already part
-# of the cache fingerprint; it was neither in the fingerprint nor a parameter of
-# build_cache, so the alternative convention could not be cached at all.
+# ConvNeXtV2 and DINOv2 resize to 256 and centre-crop back to 224 *after* the frame has
+# already been brought to 224x224, discarding 23.4% of it. Which convention to use is a
+# decision to be settled by measurement, so both have to be cacheable at once. The flag was
+# once documented as part of the cache fingerprint while being neither in the fingerprint
+# nor a parameter of build_cache, so the alternative convention could not be cached at all.
 
 
 def test_the_two_geometry_conventions_get_different_fingerprints() -> None:
@@ -206,7 +205,7 @@ def test_roi_pooled_cache_has_its_own_path_and_does_not_shadow_the_plain_one():
     """Two different numbers for the same frame must not share one filename.
 
     Features pooled inside a boundary and features pooled over the whole frame differ - the
-    measured cosine between them is 0.967 for DINOv2 (`results/roi_pooling_leak.csv`). Before
+    measured cosine between them is 0.967 for DINOv2. Before
     `roi_pooled` existed there was no way to cache the bounded convention at all, so the
     probe was necessarily fitted on unbounded features while `classifier.classify_batch`
     served bounded ones whenever a camera had a polygon.

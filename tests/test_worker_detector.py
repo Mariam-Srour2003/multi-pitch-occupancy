@@ -1,11 +1,11 @@
-"""`worker.run_slot` on the detector-first pipeline (A36, WP9-T3).
+"""`worker.run_slot` on the detector-first pipeline.
 
 The worker reads a burst per camera-minute, the pipeline counts each camera inside its
 boundary, and the pitch is decided from the *sum* - so two halves showing three people each
 make a match, the per-camera samples say what each half saw, and an abstained minute counts
 against the capture floor rather than toward any verdict.
 
-Since A40 the ball is part of that sum: ACTIVE_PLAY needs more than four people **and** a
+The ball is part of that sum: ACTIVE_PLAY needs more than four people **and** a
 ball, and the ball ORs across the halves, so the scripted detector below puts one on the
 pitch whenever anybody is playing on it.
 """
@@ -61,7 +61,7 @@ class BurstSource(FrameSource):
 
 def counting_detector() -> Detector:
     """Reads the person count off the frame's first pixel; a ball once anybody is on the
-    pitch (>= 3), since A40 makes the ball a requirement rather than a flourish."""
+    pitch (>= 3), since the rule makes the ball a requirement rather than a flourish."""
     det = Detector(DETECTORS["yolov8n"])
 
     def detect(image_bgr, **kwargs):

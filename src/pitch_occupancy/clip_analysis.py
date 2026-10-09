@@ -1,4 +1,4 @@
-"""Classify a short clip at a fixed interval and report when the state changed (WP6-T6).
+"""Classify a short clip at a fixed interval and report when the state changed.
 
 The slot pipeline answers *"was this booked hour used?"* over an hour, at one frame a
 minute, against a schedule. This answers a smaller question that has no schedule in it:
@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 from pitch_occupancy.data.taxonomy import Class3
-from pitch_occupancy.slots.stan import majority_smooth
+from pitch_occupancy.slots.smoothing import majority_smooth
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     import numpy as np
@@ -79,7 +79,7 @@ class ClipSample:
     #: detector did not run - the gate skips a verdict it cannot change - which is why the
     #: dashboard shows a dash rather than a zero. They are different facts. A page wanting a
     #: count on every frame passes ``PersonGate(always_count=True)``, which reports without
-    #: deciding (A38).
+    #: deciding.
     people: int | None = None
     ball: bool | None = None
     #: The motion cue against the previous sample, or ``None`` on the first, which has no
@@ -257,7 +257,7 @@ def analyse_clip(
     So they are parameters, and passing neither reproduces the old behaviour exactly. What it
     cost to leave them out: a 234-second clip of a floodlit pitch with nobody on it came back
     **24 of 24 ACTIVE_PLAY at confidence 1.000** through this path, while the same footage
-    through `worker.run_slot` - which has had the gates since A14 - returned 13 of 13 empty
+    through `worker.run_slot` - which already had the gates - returned 13 of 13 empty
     minutes correct. The two paths disagreed because one of them was still the probe alone.
 
     A frame that cannot be decoded is recorded in ``unreadable`` and skipped rather than

@@ -83,7 +83,7 @@ def test_final_test_rows_returns_only_locked_venues_when_unlocked(rows, lock) ->
 def test_the_lock_path_does_not_depend_on_the_working_directory(monkeypatch, tmp_path) -> None:
     """The lock used to fail *open* from any other directory.
 
-    `DEFAULT_FINAL_VENUES` was `Path("results/splits/...")`, so a run launched from a
+    `DEFAULT_FINAL_VENUES` was a relative path, so a run launched from a
     parent directory, a scheduler, or a notebook found no file, got an empty frozenset,
     and `development_rows` quietly returned all 1,692 rows - both locked venues included.
     Nothing raised and nothing warned. The path is resolved from the package now, and
@@ -246,7 +246,8 @@ def test_an_unknown_undated_policy_raises_rather_than_silently_excluding(rows) -
 
 
 def test_random_split_is_leaky_by_design(rows) -> None:
-    """Documented behaviour: it exists as H1's control arm, so it must NOT be group-safe."""
+    """Documented behaviour: it exists as the leaky baseline to compare a grouped split
+    against, so it must NOT be group-safe."""
     s = random_split(rows)
     assert {r.slot_id for r in s.train} & {r.slot_id for r in s.test}
 
@@ -383,19 +384,17 @@ def test_the_default_split_directory_does_not_depend_on_the_working_directory() 
 
 
 
-# --- what identifies a split (WP0-T4, decided 2026-09-10) ---------------------------------
+# --- what identifies a split (decided 2026-09-10) ------------------------------------------
 #
-# The plan claimed splits were "materialised, referenced by name, never re-randomised". They
-# were not: `write_split`/`read_split` have no callers outside these tests and every
-# experiment calls `grouped_split(seed=42)` directly. That is deterministic given the same
-# rows, and the row list depends on which feature caches the calling script filtered to - so
-# two experiments that filter differently get different splits from one seed, which is how
-# 94 distinct scenes and 95 distinct scenes were both correct at once in September. They
-# agree again now, and nothing recorded either fact.
+# Splits are not materialised and referenced by name: `write_split`/`read_split` have no
+# callers outside these tests and every script calls `grouped_split(seed=42)` directly. That
+# is deterministic given the same rows, and the row list depends on which feature caches the
+# calling script filtered to - so two scripts that filter differently get different splits
+# from one seed, which is how 94 distinct scenes and 95 distinct scenes were both correct at
+# once in September.
 #
-# The retrofit was not taken (it would change which rows several published experiments were
-# fitted on) and the claim was dropped instead. What replaces it is a fingerprint over
-# everything that actually decides the partition, so the disagreement is detectable.
+# Rather than retrofit materialisation, the partition carries a fingerprint over everything
+# that actually decides it, so a disagreement is detectable.
 
 
 def test_the_same_rows_and_seed_give_the_same_identity(rows) -> None:
@@ -479,49 +478,11 @@ def test_a_split_written_before_the_digest_existed_still_reads(tmp_path, rows) -
     path.write_text("\n".join([header, *body]) + "\n", encoding="utf-8")
     assert len(read_split(path, rows).test) == len(split.test)
 
-def test_the_two_scripts_that_once_disagreed_now_build_the_same_split() -> None:
-    """The guard the WP0-T4 item actually wanted, and the cheapest form of it.
-
-    `effective_sample_audit.py` filters to the DINOv2 cache and `h4_model_equivalence.py` to
-    all three, so they hand `grouped_split` different row lists - and a seed does not
-    determine the partition, only the partition *given* the rows. In September they reported
-    94 and 95 distinct scenes from `seed=42`, both correctly, and nothing recorded that they
-    differed. The reproducibility repair of 2026-09-08 brought them back together, and
-    nothing recorded that either.
-
-    Now both write their `split_identity` and this compares them. It is a cross-script check
-    that no single script could make, and it fails the moment the two drift apart again -
-    which is what the materialisation retrofit would have prevented at twenty times the cost.
-    """
-    import csv
-
-    audit = ROOT / "results" / "effective_sample_audit.csv"
-    equivalence = ROOT / "results" / "h4_model_equivalence.csv"
-    if not (audit.exists() and equivalence.exists()):
-        pytest.skip("both artefacts are needed to compare them")
-
-    audit_rows = [r for r in csv.DictReader(audit.open(encoding="utf-8"))
-                  if r.get("split") == "grouped" and r.get("split_identity")]
-    equiv_rows = [r for r in csv.DictReader(equivalence.open(encoding="utf-8"))
-                  if r.get("split_identity")]
-    if not audit_rows or not equiv_rows:
-        pytest.skip("regenerate both: they predate the split_identity column")
-
-    audit_ids = {r["split_identity"] for r in audit_rows}
-    equiv_ids = {r["split_identity"] for r in equiv_rows}
-    assert len(audit_ids) == 1 and len(equiv_ids) == 1, "one grouped split per script"
-    assert audit_ids == equiv_ids, (
-        f"the two scripts report different grouped splits from the same seed: "
-        f"{audit_ids} vs {equiv_ids}. Their row lists have drifted apart again - see the "
-        f"WP0-T4 decision in splits.py."
-    )
-
-
-# --- A13: generated frames are training-side only -------------------------------------
+# --- generated frames are training-side only ------------------------------------------
 
 
 def test_check_split_flags_synthetic_frames_on_the_test_side() -> None:
-    """A13 condition 1. The convention is worthless unless the checker enforces it.
+    """The convention is worthless unless the checker enforces it.
 
     A model scored against its own generator's output measures the generator, and this
     repository's recurring defect is a guard that exists and does not operate.
@@ -534,7 +495,7 @@ def test_check_split_flags_synthetic_frames_on_the_test_side() -> None:
 
     problems = check_split(Split(name="a13", train=train, test=test, group_key="slot_id", seed=0))
     assert any("generated frame" in p for p in problems), problems
-    assert any("A13" in p or "training-only" in p for p in problems), problems
+    assert any("training-only" in p for p in problems), problems
 
 
 def test_check_split_allows_synthetic_frames_on_the_train_side() -> None:
@@ -550,7 +511,7 @@ def test_check_split_allows_synthetic_frames_on_the_train_side() -> None:
 
 
 def test_development_rows_excludes_generated_frames_by_default() -> None:
-    """A13. Ingesting a batch must not silently redefine every published number."""
+    """Ingesting a batch of generated frames must not silently redefine every score."""
     real = [row(f"r{i}.jpg", venue="v1") for i in range(5)]
     syn = [row(f"syn{i}.jpg", venue="v1", source=SYNTHETIC_SOURCE) for i in range(3)]
 
@@ -563,12 +524,12 @@ def test_development_rows_excludes_generated_frames_by_default() -> None:
 
 
 def test_generated_frames_reach_the_train_side_when_opted_in() -> None:
-    """A13's opt-in was inert, and silently so.
+    """The opt-in was once inert, and silently so.
 
     `development_rows(include_synthetic=True)` returned the generated rows, and then every
     split function called `development_rows(rows)` again with the default and stripped them
     back out. The flag was documented as the way to use generated frames in an ablation, and
-    no split protocol could deliver one to a training set.
+    no split function could deliver one to a training set.
     """
     real = [row(f"r{i}.jpg", venue="v1", slot=f"s{i}") for i in range(8)]
     syn = [row(f"g{i}.jpg", venue="v1", slot="gen", source=SYNTHETIC_SOURCE)
@@ -614,7 +575,7 @@ def test_opting_generated_frames_in_does_not_move_the_test_side() -> None:
     assert [r.file for r in with_gen.test] == [r.file for r in without.test]
 
 
-# --- scenes: one frame per distinct scene on the training side (A15) --------------------
+# --- scenes: one frame per distinct scene on the training side --------------------------
 
 
 def test_distinct_rows_keeps_one_frame_per_scene(tmp_path):

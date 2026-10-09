@@ -1,11 +1,11 @@
-"""Pitch-level fusion of counts (A36): the sum decides, not the halves.
+"""Pitch-level fusion of counts: the sum decides, not the halves.
 
-A16 measured "one to four people means not playing" per camera as wrong on 88 of 278 real
+"One to four people means not playing" was measured per camera as wrong on 88 of 278 real
 matches, because a camera sees half a pitch. The hand-count audit found 18 of 74 play frames
 with fewer than five people inside their own camera's boundary. So `fuse_pitch` sums.
 
-The ball ORs across the halves for the same reason, and since A40 that matters more: play has
-to be *shown* now (more than four people **and** a ball), so a pitch whose ball is only ever
+The ball ORs across the halves for the same reason, and that matters more now that play has
+to be *shown* (more than four people **and** a ball), so a pitch whose ball is only ever
 visible to one camera would be scored C3 on both halves and ACTIVE_PLAY on the pitch. That is
 the fusion earning its place, and it is what the first two tests check.
 """

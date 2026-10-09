@@ -1,4 +1,4 @@
-"""Resolving the camera ids production actually uses (A36).
+"""Resolving the camera ids production actually uses.
 
 `configs/cameras.json` calls a camera `camera_A` under `venue_01`; the worker replaying a
 recording calls it `file0`; the derived store calls it `slot_20260711_1000_camA`. `roi.get`
@@ -100,7 +100,7 @@ def test_save_derived_writes_the_derived_store_and_a_hand_drawn_one_still_wins()
 
 def test_the_real_stores_resolve_every_production_camera_id(monkeypatch) -> None:
     """The ids the worker and the camera config actually use, against the committed stores.
-    This is the regression for the defect A36 closes: every one of these was None."""
+    This is the regression for the alias defect: every one of these used to be None."""
     configs = Path(__file__).resolve().parents[1] / "configs"
     monkeypatch.setattr(roi, "STORE", configs / "roi.json")
     monkeypatch.setattr(roi, "DERIVED_STORE", configs / "roi_derived.json")

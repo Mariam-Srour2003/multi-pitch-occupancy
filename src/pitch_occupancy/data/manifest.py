@@ -1,8 +1,8 @@
-"""Build and read the dataset manifest (WP0-T2).
+"""Build and read the dataset manifest.
 
 The manifest is the single source of truth about the dataset: one row per labelled frame,
 carrying the provenance every downstream step needs. Splits, coverage reports, feature
-caches and experiments all read it, and none of them re-derive metadata from filenames.
+caches and training runs all read it, and none of them re-derive metadata from filenames.
 
 Deliberately stdlib-only: the manifest must be buildable before any heavy dependency is
 installed, and on the Mini-PC.
@@ -64,8 +64,8 @@ class ManifestRow:
     source: str  # regular | motion
     labeled_by: str  # human | bulk
     lighting: str  # day | night
-    quality: str  # unknown until WP3-T5 runs
-    split_role: str  # assigned once by WP0-T4; never re-randomised
+    quality: str  # image-quality tag; "unknown" unless assessed
+    split_role: str  # assigned once when the split is made; never re-randomised
 
 
 def _lighting_for(t: time) -> str:
@@ -304,7 +304,7 @@ def cross_tab(rows: list[ManifestRow], row_key: str, col_key: str) -> str:
 def confound_warnings(rows: list[ManifestRow]) -> list[str]:
     """Flag classes that are concentrated in a single slot or lighting condition.
 
-    This is the check that would have caught the pilot's inflated accuracy before it was
+    This is the check that would have caught an early prototype's inflated accuracy before it was
     reported: when class and scene coincide, high accuracy measures scene recognition.
     """
     warnings: list[str] = []

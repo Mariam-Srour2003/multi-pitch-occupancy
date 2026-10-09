@@ -1,12 +1,12 @@
-"""SQLite schema and access (WP6).
+"""SQLite schema and access.
 
 Stdlib ``sqlite3`` rather than an ORM: the schema is eight tables, the queries are
 straightforward, and the target is a Mini-PC that should not carry a dependency it does
 not need.
 
-Two structural decisions carry over from the blueprint correction:
+Two structural decisions shape it:
 
-* **``cameras`` is its own table, two rows per field.** The original specification had
+* **``cameras`` is its own table, two rows per field.** An earlier design had
   ``primary_camera_rtsp`` / ``secondary_camera_rtsp`` columns on the field, which cannot
   express per-camera ROI polygons or a third camera, and makes "which half did this frame
   come from" unanswerable.
@@ -16,7 +16,7 @@ Two structural decisions carry over from the blueprint correction:
 
 Override fields on ``slot_evaluations`` are the human-in-the-loop record. They double as
 free ground truth: a corrected slot is a labelled slot, which feeds the periodic head
-re-fit (WP6-T7) and, eventually, the real slots STAN needs.
+re-fit.
 """
 
 from __future__ import annotations

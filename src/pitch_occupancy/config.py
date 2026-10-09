@@ -33,9 +33,9 @@ class SourceType(StrEnum):
 class Settings(BaseSettings):
     """Runtime configuration.
 
-    Aggregation thresholds are the *baseline* decision rule that STAN (WP5-T1) has to
-    beat. They are hyper-parameters, so they are tuned on training slots rather than
-    left at these hand-set values when reporting a fair comparison.
+    Aggregation thresholds are the slot decision rule. They are hyper-parameters, so they are
+    tuned on training slots rather than left at these hand-set values when comparing against
+    any learned alternative.
     """
 
     model_config = SettingsConfigDict(
@@ -48,10 +48,10 @@ class Settings(BaseSettings):
     source_type: SourceType = SourceType.VIDEO_SIM
     sample_interval_s: int = 60
 
-    #: DINOv2 rather than the pilot's ConvNeXtV2. Latency measurement showed no backbone is
-    #: close to the sampling budget (20 cameras in 2.5-5.7 s of a 60 s cycle), so speed does
-    #: not discriminate and the choice falls to accuracy under leakage-free evaluation,
-    #: where DINOv2 leads. See thesis/rq_matrix.md, RQ2.
+    #: DINOv2 rather than the early prototype's ConvNeXtV2. Latency measurement showed no
+    #: backbone is close to the sampling budget (20 cameras in 2.5-5.7 s of a 60 s cycle), so
+    #: speed does not discriminate and the choice falls to accuracy under leakage-free
+    #: evaluation, where DINOv2 leads.
     default_model_key: str = "dinov2"
 
     # paths - see docs/data_layout.md for what belongs in each
@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     db_path: Path = DATA_DIR / "db" / "pitch_monitor.db"
     evidence_dir: Path = DATA_DIR / "evidence"
     feature_cache_dir: Path = DATA_DIR / "cache"
-    #: The detector-first decision rule's numbers (A36, `vision/rules.RuleConfig`). Committed,
+    #: The detector-first decision rule's numbers (`vision/rules.RuleConfig`). Committed,
     #: like a boundary: a rule is part of what the deployment *is*.
     rules_path: Path = CONFIGS_DIR / "rules.json"
 
@@ -84,7 +84,7 @@ class Settings(BaseSettings):
     api_host: str = "127.0.0.1"
     api_port: int = 8000
 
-    #: Bearer token for the simulator snapshot endpoint (WP6-T1), from `PITCH_SIMULATOR_TOKEN`.
+    #: Bearer token for the simulator snapshot endpoint, from `PITCH_SIMULATOR_TOKEN`.
     #:
     #: **Empty means the endpoint is disabled, not open.** That distinction is the whole point
     #: of it being empty by default: an unset secret that defaults to "no authentication

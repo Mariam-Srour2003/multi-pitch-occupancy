@@ -1,8 +1,7 @@
-"""Retention (WP6-T8), and the deletion it must refuse to make.
+"""Retention, and the deletion it must refuse to make.
 
-`thesis/ethics.md` commits to purging sampled frames after 7 days and keeping evidence for
-365, and says "Code enforces this" — which was, until now, a claim about code that did not
-exist. This is the code; these are the reasons to believe it.
+The data-handling policy is to purge sampled frames after 7 days and keep evidence for 365.
+`retention.py` enforces it; these are the reasons to believe it does.
 
 **The important tests are the refusals.** A retention worker in this repository sits next to
 4.2 GB of irreplaceable client footage and a hand-labelled corpus. The interesting question is
@@ -42,8 +41,8 @@ def aged(directory: Path, name: str, days: float, *, now: float, size: int = 10)
 
 
 def test_the_source_footage_and_the_corpus_are_protected() -> None:
-    """The most expensive bug this project could ship. "Raw frames" in the ethics
-    commitment means frames sampled by the running system, not the 4.2 GB that came from a
+    """The most expensive bug this project could ship. "Raw frames" in the retention
+    policy means frames sampled by the running system, not the 4.2 GB that came from a
     client facility once and cannot be re-recorded."""
     assert settings.raw_dir in PROTECTED_ROOTS
     assert settings.dataset_dir in PROTECTED_ROOTS
@@ -87,15 +86,12 @@ def test_apply_does_nothing_without_confirmation(tmp_path) -> None:
 # --- the policy ------------------------------------------------------------------
 
 
-def test_the_periods_match_the_ethics_commitment() -> None:
-    """The numbers live in one place in code, and the document is the source. If they drift,
-    whichever docstring was edited second is wrong."""
-    text = (Path(__file__).resolve().parents[1] / "thesis" / "ethics.md").read_text(
-        encoding="utf-8"
-    )
+def test_the_periods_are_the_committed_ones() -> None:
+    """Sampled frames are kept a week and evidence a year. Changing either is a decision about
+    footage of identifiable people, so it should fail a test rather than slip through."""
     policy = RetentionPolicy()
-    assert f"{policy.sampled_frame_days} days" in text
-    assert f"{policy.evidence_days}" in text
+    assert policy.sampled_frame_days == 7
+    assert policy.evidence_days == 365
 
 
 def test_sampled_frames_older_than_a_week_are_swept(tmp_path) -> None:
@@ -160,7 +156,6 @@ def test_the_plan_prints_the_purge_set_which_is_the_acceptance_criterion(tmp_pat
     assert "1 file(s) to delete" in text
     assert "old.jpg" in text
     assert "sampled frames 7 d, evidence 365 d" in text
-    assert "thesis/ethics.md" in text
 
 
 def test_deletion_actually_removes_the_files_when_confirmed(tmp_path) -> None:

@@ -1,4 +1,4 @@
-# Failure-mode runbook (WP7-T5)
+# Failure-mode runbook
 
 What happens when things break, what the system does about it, and what a person has to do.
 
@@ -23,8 +23,8 @@ runbook that does not distinguish those is a wish list.
 | 6 | confidence collapses facility-wide | nothing automatic — `review_below_confidence` is **0.0 and therefore inert** | **not implemented, deliberately** |
 | 7 | disk fills | `run_slot` checks free space **once, before the first write**, and disables evidence images for that slot rather than filling the disk mid-run — the verdict is still produced. A disk it cannot measure is written to anyway | **enforced** (`retention.has_room`, 500 MB floor) |
 | 8 | the booking export is stale or absent | a day outside the export's span reconciles to **NEEDS_REVIEW (info)**, never to an anomaly — `bookings.covers` answers whether the export reaches the date, and the check runs before anything that can return SERIOUS. An empty export covers nothing rather than everything | **enforced** (`reconcile(..., records_cover_this_day=)`) |
-| 9 | **a camera has no pitch boundary** | every minute of that camera is `UNCERTAIN` — the detector never runs and no verdict is formed for it. The other camera still decides the pitch, at **half the confidence**; if neither has one, the minutes count as not captured and row 3 makes the slot `REVIEW`. The run names the cameras (`SlotRun.uncertain_cameras`) and the startup line says so before a stream is opened | **enforced** (A36, `pipeline.require_boundary`) |
-| 10 | the detector's weights are missing or will not load | the same: `UNCERTAIN`, never EMPTY. "Not checked" and "checked, found nobody" are different values throughout (`detect` returns `None` against `[]`), so a broken install cannot report every pitch empty | **enforced** (A36, `vision/detector.py`) |
+| 9 | **a camera has no pitch boundary** | every minute of that camera is `UNCERTAIN` — the detector never runs and no verdict is formed for it. The other camera still decides the pitch, at **half the confidence**; if neither has one, the minutes count as not captured and row 3 makes the slot `REVIEW`. The run names the cameras (`SlotRun.uncertain_cameras`) and the startup line says so before a stream is opened | **enforced** (`pipeline.require_boundary`) |
+| 10 | the detector's weights are missing or will not load | the same: `UNCERTAIN`, never EMPTY. "Not checked" and "checked, found nobody" are different values throughout (`detect` returns `None` against `[]`), so a broken install cannot report every pitch empty | **enforced** (`vision/detector.py`) |
 
 **Fixing row 9.** Draw the outline at `/roi`, or let the worker measure one:
 `uv run python -m pitch_occupancy.worker --source live --derive-roi` writes a boundary derived
@@ -45,18 +45,19 @@ defensible reading rather than a value calibrated against real degraded slots, o
 are none in the corpus.
 
 **A confidence threshold is a model hyper-parameter**, and picking one by hand is exactly the
-mistake `aggregate.py`'s own header warns about. It is blocked on RQ6's calibration, which is
-blocked on a test set with a real class mix. It sits at 0.0 with a note saying it is inert —
+mistake `aggregate.py`'s own header warns about. It needs calibrated confidences first, which
+need a test set with a real class mix. It sits at 0.0 with a note saying it is inert —
 because three claims in this project turned out to describe guards that were not guarding, and
 a fourth silently-zero threshold would be the same defect.
 
-**The ethics commitment does not rest on either.** A human confirms every anomaly and the
+**Protection against a false accusation does not rest on either.** A human confirms every
+anomaly and the
 system takes no automated financial action (`slots/authority.py`); these are
 defence-in-depth, not the thing standing between the audit and a false accusation.
 
 ## Camera offline — the worked case
 
-The one WP7-T5 names, and the one with a test behind it.
+The most likely outage, and the one with a test behind it.
 
 ```
 minute 0-11   camera A returns frames; pitch is empty
@@ -81,7 +82,7 @@ arrived and the check never fires.
 | a slot in `REVIEW` citing captured minutes | is the camera up? `pitch info` shows resolved paths | if the outage is over, the slot cannot be recovered — the footage was not taken. Adjudicate from the booking record. |
 | many slots in `REVIEW` on one field | that field's camera or its network leg | a single field failing is a mount, a cable or a lens |
 | many slots in `REVIEW` across all fields | the network, the disk, or the host | restart the worker; the API only reads what the worker wrote, so the dashboard stays up either way |
-| a verdict that looks wrong | open the three evidence frames | override it — the override is recorded and feeds the retraining loop (WP6-T7) |
+| a verdict that looks wrong | open the three evidence frames | override it — the override is recorded and feeds the retraining loop |
 
 **Restarting the dashboard never interrupts sampling.** The worker and the API are separate
 processes sharing a database; `api/` only reads what `worker.py` wrote. That is a design
@@ -92,32 +93,31 @@ property worth knowing during an incident, not a coincidence.
 Stated so the gaps are visible rather than discovered in production.
 
 - **Disk full.** The retention worker exists (`pitch retention`, dry run by default) and
-  bounds growth: sampled frames are purged after 7 days, evidence kept 365, both read from
-  `thesis/ethics.md`. What is still missing is a *reaction* — nothing checks free space before
-  writing evidence, and nothing runs retention on a schedule. Both belong with WP7-T2's
-  service units.
-- **Facility-wide confidence collapse.** Row 6. Needs RQ6's calibration, which needs data.
+  bounds growth: sampled frames are purged after 7 days, evidence kept 365. Row 7 stops a
+  slot writing evidence onto a full disk, but nothing runs retention on a schedule; that
+  belongs with the service units that run the worker.
+- **Facility-wide confidence collapse.** Row 6. Needs calibrated confidences, which need data.
 - **A stale booking export.** Reconciliation compares against whatever the export last said. No
   freshness check, and no alert if the export stops arriving.
-- **Camera moved or re-aimed.** The camera-fingerprint audit can detect this after the fact
-  (it found the `(1).mp4` suffix swapping between venue_01's two days) but nothing watches for
-  it live.
+- **Camera moved or re-aimed.** Comparing a camera's background against an earlier recording
+  detects this after the fact (that is how the `(1).mp4` suffix was found swapping between
+  venue_01's two days), but nothing watches for it live.
 - **None of this has run against a real outage.** The camera-offline case is tested against a
-  stub. WP7-T3's shadow-mode run is where these rows stop being predictions.
+  stub. A shadow-mode run alongside the facility's own records is where these rows stop being
+  predictions.
 
 ## Before the live run
 
 1. Verify the restore procedure works from the off-site backup (`docs/backup.md`).
-2. Run `uv run python -m experiments.reproduce_all --check` on the target machine.
-3. Re-measure latency on the target hardware (WP7-T1) — **on an idle machine**; the
-   reproduction pipeline holds that stage back from `--force` for this reason.
-4. Confirm the disk has room for 7 days of raw frames plus 365 days of evidence.
-5. Agree with the facility who adjudicates a `REVIEW` and how fast.
-6. Copy `configs/cameras.example.json` to `configs/cameras.json` and fill in one RTSP URL per
+2. Re-measure latency on the target hardware — **on an idle machine**; a busy CPU makes the
+   number meaningless.
+3. Confirm the disk has room for 7 days of raw frames plus 365 days of evidence.
+4. Agree with the facility who adjudicates a `REVIEW` and how fast.
+5. Copy `configs/cameras.example.json` to `configs/cameras.json` and fill in one RTSP URL per
    camera. The real file is gitignored: an RTSP URL usually carries the camera's credentials.
    Every camera named by a slot in `configs/slots_schedule.json` needs a URL — the run
    refuses to start otherwise, because half a pitch reported as the whole one is a wrong
    verdict rather than a missing one.
-7. `uv run python -m pitch_occupancy.worker --source live --dry-run` first. It lists what it
+6. `uv run python -m pitch_occupancy.worker --source live --dry-run` first. It lists what it
    would open and connects to nothing. The run without `--dry-run` prints each camera as
    `scheme://host` — credentials withheld — and waits for you to type `yes`.

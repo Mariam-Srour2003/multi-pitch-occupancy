@@ -1,4 +1,4 @@
-"""Step through a clip one frame at a time, showing what the model looked at (WP4-T5).
+"""Step through a clip one frame at a time, showing what the model looked at.
 
 `clip_analysis` answers *what* the model decided and when. This answers *why*, frame by
 frame, and yields each step as soon as it is computed so a caller can render it while the
@@ -25,7 +25,7 @@ disk*, which in this project means into git history, permanently, under a data-r
 decision that is still open. Nothing here is written anywhere: these frames are streamed to
 an operator who is already authorised to watch this footage, which is the same category as
 `api/routes.evidence_image` serving unredacted evidence to the same person. Turn it on with
-``redact=True`` for a screen share, a thesis figure, or anything that leaves the room - it
+``redact=True`` for a screen share, a published figure, or anything that leaves the room - it
 costs about 640 ms a frame, which is why it is not simply always on.
 """
 
@@ -94,8 +94,9 @@ class Step(_Explained):
     #: What the probe said before a gate overruled it, or None when none did. ``predicted``
     #: is the verdict *after* the gates, because that is what the system answers - while the
     #: evidence map below still decomposes the probe's own score, which is the thing it is a
-    #: decomposition of. A page showing one of those without the other is how A35 happened,
-    #: and showing the probe's verdict alone is how it happened again on this page.
+    #: decomposition of. A page showing one of those without the other is how the review page
+    #: and the worker came to disagree, and showing the probe's verdict alone is how it
+    #: happened again on this page.
     probed: str | None = None
     #: People inside the boundary and whether a ball was there, from the person gate's own
     #: detector pass. None means the gate did not run - a different fact from zero.
@@ -174,8 +175,8 @@ def _gate(state, confidence, frame, polygon, *, previous=None,
     reported from use, a clip of an empty floodlit pitch stepped through as ACTIVE_PLAY at
     confidence 0.999 on almost every frame, while the Analyse tab on the same footage and the
     same boundary answered EMPTY and said *58 verdicts were weakened by the gates*. Two tabs,
-    one clip, opposite answers. A35 closed this on the analyse path and named the walkthrough
-    endpoints as where it would surface next; it did.
+    one clip, opposite answers. The analyse path was fixed first, and the walkthrough
+    endpoints were where it surfaced next.
 
     Returns ``(state, probed, n_inside, ball, motion)`` where ``probed`` is the pre-gate
     verdict when a gate changed it and None when none did, so a caller can show the
@@ -312,7 +313,7 @@ def walk_clip(
     A frame that cannot be decoded is skipped rather than yielded as a guess, exactly as
     `clip_analysis.analyse_clip` records a gap instead of inventing one.
 
-    ``polygon`` applies a pitch boundary (WP3-T1) to **every sampled frame**, which is the
+    ``polygon`` applies a pitch boundary to **every sampled frame**, which is the
     whole reason a boundary is drawn on a still and then used on a clip: a fixed camera's
     pitch does not move between frame 0 and frame 3,000, so one outline drawn once is
     correct for the entire recording. It is applied to the full frame before the backbone's
@@ -435,7 +436,7 @@ def walk_images(
     decode is skipped in :func:`walk_clip`. The caller is told how many were skipped so the
     count on the page and the number of files chosen can be reconciled.
 
-    ``polygon`` applies a pitch boundary (WP3-T1) before anything else, so what the model
+    ``polygon`` applies a pitch boundary before anything else, so what the model
     sees is only what the camera is responsible for. It is applied to the *full* frame, ahead
     of the backbone's own resize, because the outline is expressed in fractions of the
     original frame - masking after a crop would mask the wrong region. ``width`` and

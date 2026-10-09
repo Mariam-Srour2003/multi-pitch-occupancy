@@ -1,10 +1,10 @@
 """Run a video through the deployed slot path, exactly as the worker would.
 
 Not `classify_batch` with arguments chosen by hand - `worker.run_slot`, with the pipeline the
-worker assembles (`pipeline.assemble`, A36): the same classifier, the same gates, the same
-boundary lookup. The point is to check the wiring, not to re-measure the idea: an experiment
-that reproduces a result by calling the components directly proves nothing about whether the
-system uses them - and until A36 this script *was* the only caller that wired everything,
+worker assembles (`pipeline.assemble`): the same classifier, the same gates, the same
+boundary lookup. The point is to check the wiring, not to re-measure the idea: a run that
+reproduces a result by calling the components directly proves nothing about whether the
+system uses them - and for a while this script *was* the only caller that wired everything,
 while `scheduler.run_due` wired nothing.
 
     uv run python scripts/run_slot_on_video.py VIDEO --every 15 --truth 9,12,15
@@ -89,7 +89,7 @@ def main() -> int:
     ap.add_argument("--no-gate", action="store_true", help="drop the motion gate")
     ap.add_argument("--no-person", action="store_true", help="drop the person gate")
     ap.add_argument("--no-boundary", action="store_true",
-                    help="score the whole frame, as the worker did before A36")
+                    help="score the whole frame, ignoring any boundary")
     args = ap.parse_args()
 
     frames, pool = _sample(args.video, args.every)

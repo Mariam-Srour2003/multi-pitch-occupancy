@@ -1,4 +1,4 @@
-"""Where the model is looking (WP4-T5's XAI half).
+"""Where the model is looking.
 
 Two independent views of the same frame, because one of them can be wrong in a way the other
 cannot:
@@ -23,9 +23,9 @@ same frame, which has identical geometry, so the overlay still lands where it sh
 the other way round - explaining a pixelated frame - would produce an honest picture of a
 model looking at pixelation. See :func:`redact_people`.
 
-The redaction is not optional and not a flag. Frame images written by this module go into git
-history, where they are permanent, and the data-release decision (WP1-T5) governs what may be
-published from this dataset. Redacting by default costs nothing here and cannot be undone
+The redaction is not optional and not a flag. Frame images written by this module can end up
+in git history, where they are permanent, and the footage is of identifiable people who never
+agreed to be shown. Redacting by default costs nothing here and cannot be undone
 later if it is skipped.
 """
 
@@ -64,9 +64,8 @@ class ExplainedFrame:
 
     ``evidence`` is the per-position contribution map in *score units*, before any
     normalisation for display. ``score_from_map`` is its mean plus the constant term, and
-    ``score_direct`` is what the probe itself returns. The two are printed together by
-    `make_xai_figures.py` precisely so the "exact" claim in this module's docstring is
-    checkable rather than asserted.
+    ``score_direct`` is what the probe itself returns. Keeping both means the "exact" claim in
+    this module's docstring is checkable rather than asserted.
     """
 
     file: str
@@ -87,8 +86,8 @@ def probe_weights(probe, class_name: str) -> tuple[np.ndarray, float]:
     """The scaler-adjusted weight vector and constant term for one class.
 
     Returns ``(w / sigma, b - sum(w * mu / sigma))`` so a caller can dot the first against raw
-    (unscaled) features and add the second. Unpicking the pipeline here rather than in the
-    experiment keeps one place that knows a `LinearProbe` is a StandardScaler followed by a
+    (unscaled) features and add the second. Unpicking the pipeline here rather than in each
+    caller keeps one place that knows a `LinearProbe` is a StandardScaler followed by a
     LogisticRegression - if that ever changes, this raises rather than silently explaining the
     wrong function.
     """
@@ -294,10 +293,9 @@ def attention_rollout(model, processor, image_bgr: np.ndarray, *,
 #: was costing more than the inference. At one frame per camera per minute across 20 cameras
 #: that is 2.8 s a cycle spent loading the same weights twenty times.
 #:
-#: Thread-local rather than a plain module global because `evaluation/latency.py` runs the
-#: pipeline on several threads to measure concurrency, and an ultralytics model is not
-#: documented as safe to predict on from more than one. One model per thread costs one extra
-#: load per thread and removes the question.
+#: Thread-local rather than a plain module global because the pipeline can run on several
+#: threads, and an ultralytics model is not documented as safe to predict on from more than
+#: one. One model per thread costs one extra load per thread and removes the question.
 _DETECTORS = threading.local()
 
 
@@ -326,7 +324,7 @@ def detect_objects(image_bgr: np.ndarray, *, confidence: float = 0.25,
 
     The general form of :func:`detect_people`, added so a caller that wants people *and* the
     ball gets both from one forward pass. Two calls would double the second-per-frame the
-    detector costs, and the ball measurement (A17) is only affordable because it is free -
+    detector costs, and the ball measurement is only affordable because it is free -
     the detector was already running for the person count.
     """
     detector = _detector(model_name)
@@ -384,7 +382,7 @@ def redact_people(image_bgr: np.ndarray, *, blocks: int = 16, confidence: float 
 
     **Zero detections does not mean zero people**, and the caller is told the count so it can
     say so rather than implying a frame was checked and found empty. A detector that misses a
-    distant player produces an unredacted face; that is why `make_xai_figures.py` also applies
+    distant player produces an unredacted face; that is why :func:`redact_frame` also applies
     a floor of blur to the whole frame rather than trusting this alone.
 
     Reports ``-1`` if the detector could not be loaded, so a missing model weight cannot
@@ -421,10 +419,9 @@ def redact_frame(image_bgr: np.ndarray, boxes: Sequence[tuple[int, int, int, int
                  *, blocks: int = 16, floor_kernel: int = FLOOR_BLUR_KERNEL) -> np.ndarray:
     """Pixelate the given people, then blur the whole frame. **Both, not either.**
 
-    The rule `experiments/make_xai_figures.py` has followed since it was written, lifted here
-    so every publishing path takes the same one rather than a copy of it (A36 added a second).
-    One layer is not enough: a detector that misses a distant player leaves an identifiable
-    face, and the floor of blur is what covers the miss. See `thesis/ethics.md` §2.
+    One rule here so every path that writes images out takes the same one rather than a copy
+    of it. One layer is not enough: a detector that misses a distant player leaves an
+    identifiable face, and the floor of blur is what covers the miss.
 
     Takes boxes rather than detecting again, so the redaction is about the same detections as
     whatever measurement is drawn beside it. A caller with no boxes still gets the floor.

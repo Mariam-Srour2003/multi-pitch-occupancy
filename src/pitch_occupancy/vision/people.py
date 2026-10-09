@@ -1,4 +1,4 @@
-"""The person gate: nobody standing on the pitch is not a match in progress (A16).
+"""The person gate: nobody standing on the pitch is not a match in progress.
 
 Measured on 521 recorded frames from venue_01 camera B, counting inside the camera's boundary:
 
@@ -24,7 +24,7 @@ finds nobody; it never turns EMPTY into anything. Finding nobody is strong evide
 match - 0.4% of real play frames - while finding somebody is not evidence for one, since a
 groundskeeper and a person crossing the pitch both count as somebody.
 
-**It applies to a C3 verdict as well as a play verdict (A22), and restricting it to ACTIVE_PLAY
+**It applies to a C3 verdict as well as a play verdict, and restricting it to ACTIVE_PLAY
 cost more than anything else the gate does.** The evidence behind "nobody inside means empty" -
 89% of recorded empty frames, 0.4% of recorded play frames - says nothing about what the probe
 guessed first, and the probe guesses C3 often: on 243 recorded empty frames at a held-out venue
@@ -32,7 +32,7 @@ it answers ACTIVE_PLAY or C3 and **never EMPTY**, C3 on 38% of them on average. 
 through untouched left total error at 0.4844 where overruling them gives **0.1111**, with
 false-play unchanged at 0.0123.
 
-**The C3 rule, and why the ball clause is what makes it possible (A18).** "One to four people
+**The C3 rule, and why the ball clause is what makes it possible.** "One to four people
 means not playing" on its own is wrong on **88 of 278** real matches at venue_01, because a
 camera sees part of a pitch and a detector misses distant players. Adding the clause the rule
 was actually stated with - *and no ball* - takes that to **0 of 278**, and across the nine clip
@@ -50,13 +50,13 @@ walking and no ball is the minute a person would call not-playing.
 **Superseded 2026-09-29: the ball clause is off.** The facility's rule is "ACTIVE_PLAY needs five
 or more people", ball or no ball, and the gate now applies it as stated - so the 88-of-278
 per-camera cost above is the price of that rule on this path, not a number the clause still
-avoids. `PersonGate.ball_rescues_small_group=True` reproduces A18.
+avoids. `PersonGate.ball_rescues_small_group=True` restores the clause.
 
 **Failure is silence, not a guess.** A missing detector returns `None` from `detect_people`,
 and the gate leaves the verdict alone rather than treating "not checked" as "found nobody" -
 which would turn a broken install into a system that reports every pitch empty.
 
-**The ball is recorded and decides nothing (A17).** COCO's `sports ball` comes out of the same
+**The ball is recorded and decides nothing.** COCO's `sports ball` comes out of the same
 forward pass, so it costs nothing, and at venue_01 it looks like the strongest signal in the
 project: found on 278 of 278 ACTIVE_PLAY frames and 8 of 243 EMPTY ones. It is still not used
 as a rule, for a reason the venue_01 number cannot show. Across the nine clip venues - every
@@ -170,26 +170,26 @@ class PersonGate:
     Two overrules, both in the same direction - a verdict can be weakened and never
     manufactured:
 
-    * **nobody inside the boundary** becomes EMPTY, from ACTIVE_PLAY (A16) or from C3 (A22)
-    * **a small group with no ball** becomes C3, present but not playing (A18), from
+    * **nobody inside the boundary** becomes EMPTY, from ACTIVE_PLAY or from C3
+    * **a small group with no ball** becomes C3, present but not playing, from
       ACTIVE_PLAY only - C3 is already that verdict
 
     `small_group_max` is the largest group the second rule will call not-playing. Four is the
     number the rule was stated with and the number the tables in the module docstring were
-    measured at. Setting it to 0 disables the C3 overrule and leaves A16's behaviour exactly
-    as it was.
+    measured at. Setting it to 0 disables the C3 overrule and leaves only the
+    nobody-means-empty rule.
 
     **Since 2026-09-29 a ball no longer rescues a small group** (`ball_rescues_small_group`,
     default False). The facility's rule is that ACTIVE_PLAY needs `play_min` = 5 people, and
     the detector path (`rules.decide` row 5) has said "ball or no ball" since 2026-09-20 -
     this gate was the one place left where three people and a ball could still be reported
     as play, and it is the gate the review pages run, because the default model is the probe.
-    The cost is the one A18 measured: per camera, a camera that sees half a pitch and a
+    The cost is the one measured above: per camera, a camera that sees half a pitch and a
     detector that misses distant players can show 1-4 people during a real match. That cost
-    is accepted as the facility's rule, and the switch reproduces A18 for anyone re-running
-    the numbers that were measured with it.
+    is accepted as the facility's rule, and the switch restores the ball clause for anyone
+    re-running the numbers that were measured with it.
 
-    **`always_count` changes what is reported and never what is decided** (A38). By default
+    **`always_count` changes what is reported and never what is decided**. By default
     the detector is skipped on a verdict that is already EMPTY, because the gate only weakens
     and there is nothing weaker - so the count is `None`, meaning *not checked*, which is a
     different fact from zero. That is right for the worker, where a fifth of a second times
@@ -209,7 +209,7 @@ class PersonGate:
     always_count: bool = False
     #: The facility's minimum for a game, as in `configs/rules.json`. Below it, never play.
     play_min: int = 5
-    #: A18's clause: a found ball vetoes the C3 call. Off since 2026-09-29 - see above.
+    #: The ball clause: a found ball vetoes the C3 call. Off since 2026-09-29 - see above.
     ball_rescues_small_group: bool = False
     #: People inside the boundary make an EMPTY verdict C3. The one place this gate strengthens
     #: a verdict, so off by default and on only for the image reviewer: a still has no motion
@@ -232,8 +232,8 @@ class PersonGate:
         ball inside the boundary is still turned to EMPTY - a ball lying on an empty pitch is
         a ball lying on an empty pitch, and 8 of venue_01's 243 recorded EMPTY frames have one.
 
-        **It used to gate the C3 overrule (A18), and no longer does by default** - see the
-        class docstring. The A18 reasoning, kept for `ball_rescues_small_group=True`: a *found*
+        **It used to gate the C3 overrule, and no longer does by default** - see the
+        class docstring. The reasoning, kept for `ball_rescues_small_group=True`: a *found*
         ball vetoes C3 outright, which is the sound direction - a found ball is a found ball,
         whatever the 40% cross-venue recall says. The rule does also require the ball to be
         absent, which is the unsound direction, and the count is what bounds the damage: at

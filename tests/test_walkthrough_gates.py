@@ -1,10 +1,10 @@
-"""The walkthrough pages answer with the system, not the probe (A35's sequel, 2026-09-19).
+"""The walkthrough pages answer with the system, not the probe (2026-09-19).
 
 Reported from use: the Analyse tab called a clip of an empty floodlit pitch EMPTY and noted
 *58 verdicts were weakened by the gates*, while **Watch it work**, on the same clip and the
 same boundary, stepped through it as `C2_ACTIVE_PLAY` at confidence 0.999 on almost every
-frame. Two tabs, one clip, opposite answers - the defect A35 closed on the analyse path, on
-the endpoint A35's own closing paragraph named as where it would surface next.
+frame. Two tabs, one clip, opposite answers - the same defect already closed on the analyse
+path, surfacing on the next endpoint along.
 
 The cause was that `walk_clip` took no gates and therefore streamed the probe alone. What is
 pinned here is the property, not the plumbing: **the same frames through both paths produce
@@ -36,7 +36,7 @@ def _video(path, *, seconds: int = 6, fps: int = 10):
 
 
 class AlwaysPlay:
-    """The probe on an empty floodlit pitch: confident, and wrong (A20, A26)."""
+    """The probe on an empty floodlit pitch: confident, and wrong."""
 
     backbone = "stub"
     n_train = 0

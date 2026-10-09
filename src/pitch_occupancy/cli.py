@@ -47,7 +47,7 @@ def info() -> None:
 
 @app.command("seed")
 def seed_cmd() -> None:
-    """Fill the database from the real recorded slots, so the dashboard has data (WP6)."""
+    """Fill the database from the real recorded slots, so the dashboard has data."""
     from pitch_occupancy.db.seed import seed
 
     verdicts = seed()
@@ -65,7 +65,7 @@ def seed_cmd() -> None:
 def coverage_cmd(
     out: Path | None = typer.Option(None, help="Defaults to results/coverage.md."),
 ) -> None:
-    """Report which cells of the class × lighting × venue matrix are empty (WP2-T1)."""
+    """Report which cells of the class × lighting × venue matrix are empty."""
     from pitch_occupancy.data.coverage import empty_cells, render_report
     from pitch_occupancy.data.manifest import read_manifest
 
@@ -88,7 +88,7 @@ def build_cache_cmd(
     batch_size: int = typer.Option(16, help="Frames per forward pass."),
     threads: int = typer.Option(0, help="torch CPU threads; 0 leaves the default."),
 ) -> None:
-    """Embed every manifest frame once per backbone into data/cache (WP0-T5)."""
+    """Embed every manifest frame once per backbone into data/cache."""
     import time
 
     import torch
@@ -119,7 +119,7 @@ def build_cache_cmd(
 def fetch_weights_cmd(
     keys: list[str] = typer.Argument(None, help="Detector keys; default: all registered."),
 ) -> None:
-    """Download the registered detector weights to the repository root (WP9-T2).
+    """Download the registered detector weights to the repository root.
 
     The one deliberate network access the detector path makes. Nothing downloads as a side
     effect of a prediction: a worker that reaches for the network on its first frame at 3 am
@@ -141,7 +141,7 @@ def extract_clips_cmd(
     per_clip: int = typer.Option(6, help="Frames sampled from each clip's middle 80%."),
     clips_dir: Path | None = typer.Option(None, help="Defaults to the 2026-09-04 batch."),
 ) -> None:
-    """Extract frames from the highlight clips and write the metadata sidecar (WP2-T3)."""
+    """Extract frames from the highlight clips and write the metadata sidecar."""
     from pitch_occupancy.data.extract import (
         extract_clip_frames,
         load_clip_venues,
@@ -166,7 +166,7 @@ def build_manifest_cmd(
     out: Path | None = typer.Option(None, help="Defaults to <dataset>/manifest.csv."),
     check_only: bool = typer.Option(False, "--check", help="Report only; write nothing."),
 ) -> None:
-    """Build data/dataset/manifest.csv from the class folders (WP0-T2)."""
+    """Build data/dataset/manifest.csv from the class folders."""
     from pitch_occupancy.data.manifest import (
         build_manifest,
         confound_warnings,
@@ -230,9 +230,10 @@ def retention_cmd(
         False, "--apply", help="actually delete; without this the command only reports"
     ),
 ) -> None:
-    """Report what the retention policy would delete, and optionally delete it (WP6-T8).
+    """Report what the retention policy would delete, and optionally delete it.
 
-    Dry run by default and deliberately: the periods come from `thesis/ethics.md`, and the
+    Dry run by default and deliberately: these are frames of identifiable people kept under
+    fixed retention periods (sampled frames 7 days, evidence 365 days), and the
     directories this touches sit next to the ones that must never be touched.
     """
     from pitch_occupancy.retention import apply as apply_retention
@@ -257,7 +258,7 @@ def schedule_cmd(
         help="derive the schedule from the recorded slots instead of the config",
     ),
 ) -> None:
-    """List the slots the scheduler would run (WP6-T2). Runs nothing.
+    """List the slots the scheduler would run. Runs nothing.
 
     Deciding and doing are separate on purpose: "what would run" should be answerable
     without running anything, the same shape as `pitch retention`.
@@ -297,7 +298,7 @@ def bookings_cmd(
     path: Path | None = typer.Option(None, help="Defaults to configs/bookings_example.csv."),
     venue: str = typer.Option("venue_01", help="Venue used to build slot ids."),
 ) -> None:
-    """Import a booking export and report what it contains (WP6-T4). Writes nothing.
+    """Import a booking export and report what it contains. Writes nothing.
 
     Read-only by construction, not by flag: `bookings.BookingSource` has one method. This
     command exists so a client's export can be checked before it is relied on - a booking
@@ -335,7 +336,7 @@ def retraining_cmd(
         False, "--apply", help="actually copy; without this the command only reports"
     ),
 ) -> None:
-    """Stage overridden slots' evidence frames for re-labelling (WP6-T7).
+    """Stage overridden slots' evidence frames for re-labelling.
 
     Dry run by default, the same shape as `pitch retention`. Frames are staged **unfiled**:
     an operator's override is a verdict about the whole slot, not a label for each frame, so

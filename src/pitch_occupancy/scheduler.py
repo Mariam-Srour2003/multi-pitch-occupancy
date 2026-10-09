@@ -1,4 +1,4 @@
-"""The scheduler: which slots are due, and running one when it is (WP6-T2).
+"""The scheduler: which slots are due, and running one when it is.
 
 `worker.run_slot` samples, classifies, fuses and aggregates a single slot, and has done for
 some time. What was missing is the part that decides *when* — reading a schedule, working out
@@ -8,8 +8,8 @@ Two decisions shape the whole module.
 
 **The clock is a parameter.** Every function that cares about time takes ``now``. A scheduler
 whose behaviour can only be observed by waiting an hour is a scheduler with no tests, and
-"runs continuously" is the least interesting half of the acceptance criterion — the
-interesting half is whether it starts the right slot.
+"runs continuously" is the least interesting half of the job — the interesting half is
+whether it starts the right slot.
 
 **Deciding and doing are separate.** :func:`due` is pure: a schedule and a timestamp in, a
 list of slots out. :func:`run_due` does the work. So "what would run" is answerable without
@@ -20,13 +20,13 @@ What this is not
 ----------------
 
 **Not a daemon.** There is no process supervision, no restart policy and no systemd unit;
-those are WP7-T2 and are not written. `run_forever` exists and is a plain loop with an
+those are not written. `run_forever` exists and is a plain loop with an
 injectable sleep, which is enough to run under `nohup` or a service manager but is not itself
 one.
 
 **Not a live deployment.** It has never run against a camera. The source is whatever
-`FrameSource` it is handed, and the tests hand it recorded video. WP7-T3's shadow-mode run is
-where that changes.
+`FrameSource` it is handed, and the tests hand it recorded video. A shadow-mode run against
+real cameras is where that changes.
 """
 
 from __future__ import annotations
@@ -182,14 +182,14 @@ def run_due(
 ) -> list[str]:
     """Run every slot due at ``now`` and persist its verdict. Returns the slot ids run.
 
-    ``pipeline`` is the assembled deployment (`pipeline.assemble`, A36) and is what a
+    ``pipeline`` is the assembled deployment (`pipeline.assemble`) and is what a
     deployment passes. **Until 2026-09-19 this function passed `run_slot` a bare classifier
     and nothing else** - no boundary lookup, no motion gate, no person gate - although
-    `run_slot` had accepted all three since A14-A16 and every published number for "the
-    system" was measured with them. So ``worker --source video`` and the live path ran the
-    probe alone, the configuration measured at 0.62-0.77 false-play, while the review page
-    and the experiments ran the gated one. A35 found the same shape of defect on the review
-    page; this was it one layer up, and a test now spies on what reaches `run_slot`.
+    `run_slot` accepted all three and every measured number for "the system" was taken with
+    them. So ``worker --source video`` and the live path ran the probe alone, the
+    configuration measured at 0.62-0.77 false-play, while the review page ran the gated one.
+    The review page once had the same shape of defect; this was it one layer up, and a test
+    now spies on what reaches `run_slot`.
 
     ``classify`` alone still works, for tests that script a classifier and want nothing in
     front of it. With a pipeline, the slot's venue and recording key are passed too, so the
@@ -264,7 +264,7 @@ def run_forever(
     on_slot: Callable[[str, object], None] | None = None,
     evidence_dir: Path | None = None,
 ) -> list[str]:
-    """The loop. Not a daemon - no supervision, no restart policy (WP7-T2).
+    """The loop. Not a daemon - no supervision, no restart policy.
 
     ``iterations`` bounds it so a test can run the loop rather than a single tick, and
     ``sleep`` is injectable so that test takes microseconds. A loop whose only observable
@@ -340,7 +340,7 @@ def sources_from_recordings(directory: Path) -> Callable[[ScheduledSlot, Date], 
 def live_sources(
     urls: dict[str, dict[str, str]], **kwargs
 ) -> Callable[[ScheduledSlot, Date], object]:
-    """A ``source_for`` that pulls from real cameras (WP6-T3). **Never run against a camera.**
+    """A ``source_for`` that pulls from real cameras. **Never run against a camera.**
 
     ``urls`` maps venue id -> camera id -> RTSP URL. The slot's own ``duration_minutes`` is
     handed to the source, which is the piece that was missing: `RTSPSource` used to raise on

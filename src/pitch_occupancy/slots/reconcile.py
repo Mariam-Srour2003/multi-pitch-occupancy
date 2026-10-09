@@ -1,4 +1,4 @@
-"""Reconciling what the cameras saw against what the records claim (WP6-T5, RQ4).
+"""Reconciling what the cameras saw against what the records claim.
 
 Three sources describe the same slot:
 
@@ -6,7 +6,7 @@ Three sources describe the same slot:
 * the **staff record** - what someone wrote down;
 * the **vision verdict** - what was actually observed.
 
-Disagreement between them is the operational contribution. Aggregated over weeks the log
+Disagreement between them is what this module reports. Aggregated over weeks the log
 surfaces systematic problems: a field with frequent no-shows, slots used off-system.
 
 Three rules keep this defensible as an audit rather than an accusation engine:
@@ -16,9 +16,9 @@ Three rules keep this defensible as an audit rather than an accusation engine:
 2. **Low-confidence or low-contrast slots are downgraded to REVIEW** before any rule runs,
    so a dirty lens on a wet night cannot generate a discrepancy against a member of staff.
 3. **Anomalies are per field, never per person.** Attributing discrepancies to individuals
-   adds nothing scientifically and a great deal of ethical exposure - see `thesis/ethics.md`
-   (WP1-T4). `entered_by` is carried for the operator's own use and is deliberately not
-   aggregated here.
+   adds nothing operationally and a great deal of ethical exposure: it turns a pitch
+   utilisation tool into workplace monitoring. `entered_by` is carried for the operator's
+   own use and is deliberately not aggregated here.
 
 Nothing in this module writes to a client system. Booking data is read-only.
 """
@@ -42,9 +42,8 @@ class Anomaly(StrEnum):
     #: export as the importer stands** (2026-09-11): `bookings.py` derives both `booked`
     #: and `maintenance_window` from one `status` column, and one column cannot hold two
     #: values, so every instance of this in the repository is a hand-built fixture. It
-    #: needs the export to carry the block separately - `thesis/data_requests.md` §3 now
-    #: asks for that column, and `tests/test_bookings.py` fails if the schema gains it
-    #: without the derivation being updated.
+    #: needs the export to carry the block separately, and `tests/test_bookings.py` fails
+    #: if the schema gains it without the derivation being updated.
     BLOCKED_SLOT_SOLD = "BLOCKED_SLOT_SOLD"
     NEEDS_REVIEW = "NEEDS_REVIEW"
 

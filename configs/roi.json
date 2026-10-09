@@ -21,7 +21,7 @@
     "slot_20260712_2030_camA": "venue_01_camera_B"
   },
   "_aliases_comment": [
-    "A36 (2026-09-19). Production knows venue_01's cameras as camera_A / camera_B",
+    "Added 2026-09-19. Production knows venue_01's cameras as camera_A / camera_B",
     "(configs/cameras.json, slots_schedule.json); the derived store knows them per",
     "recording as slot_<date>_<time>_camA / camB. db/seed.py PHYSICAL_CAMERA says which",
     "recording view is which physical camera. These point each production id at the",

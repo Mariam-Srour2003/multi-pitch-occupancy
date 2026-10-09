@@ -1,4 +1,4 @@
-"""Counting on every frame reports more and decides nothing (A38).
+"""Counting on every frame reports more and decides nothing.
 
 The review pages skip the detector on a verdict that is already EMPTY, because the gate only
 weakens and there is nothing weaker - so the count column showed a dash on most rows, which
@@ -6,7 +6,7 @@ reads as "nobody was found" when it means "nobody looked". Reported as confusing
 
 `PersonGate(always_count=True)` runs the detector anyway. **The thing that must hold is that
 the verdict does not move**: the review page and the worker have to answer the same about the
-same footage, and A35 and A37 were both that invariant breaking. So the first test here is the
+same footage, and that invariant has broken twice before. So the first test here is the
 one that matters, and the rest are about what is now visible.
 """
 
@@ -53,7 +53,7 @@ def test_always_count_never_changes_the_verdict(monkeypatch, state, found) -> No
     agree on the answer and differ only in whether a count comes back with it.
 
     If this ever fails, the review page and the worker have started disagreeing about the
-    same footage again - which is A35 and A37, and is the reason this file exists."""
+    same footage again - which has happened twice, and is the reason this file exists."""
     detector(monkeypatch, found)
     quiet, _ = PersonGate().inspect(state, FRAME)
     loud, counted = PersonGate(always_count=True).inspect(state, FRAME)

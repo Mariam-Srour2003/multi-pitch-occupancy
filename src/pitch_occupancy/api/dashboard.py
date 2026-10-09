@@ -1,11 +1,10 @@
-"""The operator dashboard, served at `/` (WP6-T6).
+"""The operator dashboard, served at `/`.
 
-Distinct from the project site in `results/project_site.html`: that one reports the
-research, this one is the tool a facility manager opens. It reads live database state
-through the same `/api/v1` endpoints an integrator would use - nothing here has privileged
-access, so if the page can show it, the API can serve it.
+The tool a facility manager opens. It reads live database state through the same `/api/v1`
+endpoints an integrator would use - nothing here has privileged access, so if the page can
+show it, the API can serve it.
 
-The flow it is shaped around is the one the blueprint asks for: land on what needs
+The flow it is shaped around: land on what needs
 attention, open a slot's evidence, agree or correct in one click. Anything that does not
 serve that flow is not here.
 """
@@ -128,7 +127,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 <header><div class="hin">
   <div class="brand">Pitch Occupancy<span>.</span></div>
   <div class="sub">Operator dashboard</div>
-  <a href="/">&larr; Thesis</a><a href="/clip" style="margin-left:14px">Clip reviewer</a><a href="/docs" style="margin-left:14px">API docs &rarr;</a>
+  <a href="/clip">Clip reviewer</a><a href="/clip/pair" style="margin-left:14px">Two cameras</a><a href="/images" style="margin-left:14px">Image reviewer</a><a href="/roi" style="margin-left:14px">Boundaries</a><a href="/docs" style="margin-left:14px">API docs &rarr;</a>
 </div></header>
 
 <main>

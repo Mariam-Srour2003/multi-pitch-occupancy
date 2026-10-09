@@ -1,4 +1,4 @@
-"""One detector behind one registry (A36, WP9-T2).
+"""One detector behind one registry.
 
 The detector-first path counts what stands on the pitch, so the detector is the model, and a
 model needs the two things `vision/backbones.py` gives the frozen backbones: a registry that
@@ -7,24 +7,24 @@ the repository was the string ``"yolov8n.pt"``, passed around by five callers as
 argument, with the thread-local cache that makes it affordable living in `vision/explain.py`
 beside the heatmap code.
 
-**What a registry entry says.** The key an experiment or a setting names it by, the weights
+**What a registry entry says.** The key a run or a setting names it by, the weights
 file ultralytics loads it from, whether it produces instance masks, and the long edge it runs
 at. Nothing else - the person confidence, the ball confidence and the tiling are *rule*
-parameters (`configs/rules.json`, WP9-T5), because they are what gets tuned, and a detector
+parameters (`configs/rules.json`), because they are what gets tuned, and a detector
 key must mean the same model whatever they are set to.
 
 **Detections carry a mask when a segmentation model produced one, and None otherwise.** The
 overlay draws the mask; the count never reads it - a person is placed by the foot of their
 box (`vision/people.py`), so the two model families count identically and differ only in what
-they can show. That is deliberate: the selection in WP9-T2 is on counting, and masks are for
-the reader.
+they can show. That is deliberate: detectors are chosen on counting, and masks are for the
+reader.
 
 **Tiling.** A far-side player on a fisheye 1080p frame is a few pixels tall at the detector's
-input size, and A16 measured the difference between 640 and 1280 as the difference between
-"finds nobody" and a usable count. `tiles=2` runs the frame as four overlapping quarters plus
-the whole, and merges by class-wise non-maximum suppression. It costs roughly five forward
-passes and is a candidate, not a default: `experiments/detector_audit.py` measures whether it
-buys anything on the hand counts.
+input size, and on venue_01 footage the difference between 640 and 1280 is the difference
+between "finds nobody" and a usable count. `tiles=2` runs the frame as four overlapping
+quarters plus the whole, and merges by class-wise non-maximum suppression. It costs roughly
+five forward passes and is a candidate, not a default, until it is shown to buy anything on
+hand-counted frames.
 
 **Failure is None, never an empty list.** A missing weights file, an import error or a
 prediction that raises all return ``None`` - "not checked" - and the rule engine turns that
@@ -52,12 +52,12 @@ __all__ = [
 ]
 
 #: COCO class ids the rules read. `sports ball` is 32; the vehicles are what a groundskeeping
-#: machine or a car parked on the surface would be detected as (A36 row 5, best effort).
+#: machine or a car parked on the surface would be detected as (best effort).
 PERSON = 0
 SPORTS_BALL = 32
 VEHICLES = (1, 2, 3, 5, 7)  # bicycle, car, motorcycle, bus, truck
 
-#: Where weights live: the repository root, beside the `yolov8n.pt` every published count
+#: Where weights live: the repository root, beside the `yolov8n.pt` every reference count
 #: was measured with. Gitignored there. A bare filename would make ultralytics download into
 #: whatever the working directory happens to be.
 WEIGHTS_DIR = Path(__file__).resolve().parents[3]
@@ -75,7 +75,7 @@ class DetectorSpec:
 DETECTORS: dict[str, DetectorSpec] = {
     "yolov8n": DetectorSpec(
         "yolov8n", "yolov8n.pt", False,
-        note="the gate's detector since A16; every published count was measured with it"),
+        note="the person gate's detector; every reference count was measured with it"),
     "yolo11n": DetectorSpec(
         "yolo11n", "yolo11n.pt", False,
         note="the same size class, one generation on; the like-for-like candidate"),
@@ -96,7 +96,7 @@ DETECTORS: dict[str, DetectorSpec] = {
         note="instance masks at the s size; the ceiling of what the cycle affords"),
 }
 
-#: What runs until WP9-T2's audit says otherwise: the detector the published counts rest on.
+#: What runs until a hand-count audit says otherwise: the detector the reference counts rest on.
 DEFAULT_DETECTOR = "yolov8n"
 
 
@@ -135,8 +135,8 @@ def weights_path(spec: DetectorSpec) -> Path:
 
 
 #: One model per weights file per thread, built on first use. Thread-local for the reason
-#: `vision/explain.py` gives: `evaluation/latency.py` measures concurrency on several threads
-#: and an ultralytics model is not documented as safe to predict on from more than one.
+#: `vision/explain.py` gives: callers may predict from several threads, and an ultralytics
+#: model is not documented as safe to predict on from more than one.
 _MODELS = threading.local()
 
 

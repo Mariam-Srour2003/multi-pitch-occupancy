@@ -1,4 +1,4 @@
-"""Dashboard and audit endpoints (WP6-T6).
+"""Dashboard and audit endpoints.
 
 The web layer is deliberately thin: it reads what the worker wrote and accepts operator
 corrections. **No inference happens in a request handler** - a dashboard restart must never
@@ -250,7 +250,7 @@ def anomalies(
 
 @router.get("/fields/day/{day}")
 def fields_day(day: date, conn: sqlite3.Connection = Depends(get_conn)) -> list[dict]:
-    """Every field's slots for one day - the matrix the dashboard draws (WP6-T6).
+    """Every field's slots for one day - the matrix the dashboard draws.
 
     Returned grouped by field rather than as a flat list, because the shape the operator
     reads is one row per pitch. A field with a scheduled slot and no evaluation appears with

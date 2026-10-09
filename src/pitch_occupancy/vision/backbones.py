@@ -1,4 +1,4 @@
-"""Frozen feature extractors (WP4).
+"""Frozen feature extractors.
 
 Backbones are never fine-tuned. Each produces one pooled vector per image, a small head
 is trained on those vectors, and the expensive part happens once into the feature cache.
@@ -73,14 +73,14 @@ def load_backbone(key: str):
     return model, processor, spec
 
 
-#: What each model's Hugging Face processor does to an image *after* `preprocess.py` has
-#: already produced a 224x224 letterboxed frame (WP3-T3 audit, 2026-09-07).
+#: What each model's Hugging Face processor does to an image *after* it has already been
+#: letterboxed to a 224x224 frame (audited 2026-09-07).
 #:
-#: **Two of the three re-crop the frame, and they are the two every experiment uses.** Both
+#: **Two of the three re-crop the frame, and they are the two the probe path uses.** Both
 #: upscale to 256 and centre-crop back to 224, cutting a 16-pixel border off every side and
-#: discarding **23.4% of the frame area** - precisely where the letterbox padding of WP3-T2
+#: discarding **23.4% of the frame area** - precisely where the letterbox padding
 #: lives. So the aspect-preserving resize is partly undone, and a centre crop nobody asked
-#: for is applied on top of whatever the preprocessing search chose.
+#: for is applied on top of whatever preprocessing was chosen.
 #:
 #: They express it differently, which is why it hid. DINOv2 says so plainly, with
 #: ``do_center_crop`` and ``crop_size``. ConvNeXtV2 says ``shortest_edge: 224`` and looks
@@ -111,9 +111,9 @@ def embed_batch(
 
     ``processor_geometry=False`` turns off the processor's own resize and centre crop, keeping
     only its rescale and per-model normalisation, so the frame the model sees is exactly the
-    frame ``preprocess.py`` produced. That is the coherent choice for this project, where
-    preprocessing is a searched variable and must therefore be what the model actually gets -
-    see :data:`PROCESSOR_GEOMETRY`.
+    frame that was handed in. That is the coherent choice when the preprocessing is chosen
+    deliberately and must therefore be what the model actually gets - see
+    :data:`PROCESSOR_GEOMETRY`.
 
     It is **not** the default, for two reasons worth stating rather than assuming. The
     256-then-crop transform is DINOv2's canonical inference recipe, so departing from it is a
@@ -121,7 +121,7 @@ def embed_batch(
     silently would invalidate every cached DINOv2 feature and every result built on one. The
     flag is part of the cache fingerprint, so the two conventions can never mix.
 
-    ``roi_polygon`` pools **only over the positions inside a pitch boundary** (WP3-T1). Without
+    ``roi_polygon`` pools **only over the positions inside a pitch boundary**. Without
     it, `roi.apply` blacks out the neighbouring pitch and the mean above averages the black in
     anyway - the fill reaches the probe and lights up the evidence map, which is the complaint
     a boundary was drawn to answer. With it, those positions leave the average, so what is

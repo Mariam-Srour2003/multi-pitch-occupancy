@@ -145,11 +145,11 @@ def test_on_minute_callback_sees_every_captured_minute() -> None:
     assert seen == list(range(12))
 
 
-# --- degraded mode: what happens when a camera dies mid-slot (WP7-T5) --------
+# --- degraded mode: what happens when a camera dies mid-slot --------------
 
 
 def test_a_slot_that_lost_most_of_its_minutes_is_reviewed_not_decided() -> None:
-    """The failure WP7-T5 asks about: a camera dies twenty minutes in and the system
+    """The failure degraded mode exists for: a camera dies twenty minutes in and the system
     confidently reports NOTUSED from the twenty minutes before the pitch filled up.
 
     Degraded mode is REVIEW. The verdict says how much was captured, so an operator can see
@@ -213,7 +213,7 @@ def test_the_worker_passes_the_slot_length_through() -> None:
     assert "12 of 60" in run.verdict.reason
 
 
-# --- the entry point (WP6-T2) ------------------------------------------------------------
+# --- the entry point ---------------------------------------------------------------------
 #
 # `main` raised NotImplementedError until 2026-09-10, naming the missing classifier. What
 # these check is the wiring, not the model: that the run reaches the scheduler rather than
@@ -277,7 +277,7 @@ def test_it_goes_through_the_scheduler_with_the_real_classifier(tmp_path, monkey
 
     def fake_run_due(schedule, now, *, source_for, pipeline=None, classify=None, **kwargs):
         seen["now"] = now
-        # Since A36 the classifier travels inside the assembled pipeline, with its gates and
+        # The classifier travels inside the assembled pipeline, with its gates and
         # its boundary lookup, rather than alone - the shape that let the gates go missing.
         seen["pipeline"] = pipeline
         seen["classify"] = pipeline.classify if pipeline is not None else classify
@@ -299,7 +299,7 @@ def test_it_goes_through_the_scheduler_with_the_real_classifier(tmp_path, monkey
 
     assert seen["now"].hour == 10, "the clock must stand inside the slot's own window"
     assert getattr(seen["classify"], "backbone", None) == "dinov2"
-    assert seen["pipeline"] is not None, "run_due must receive the assembled pipeline (A36)"
+    assert seen["pipeline"] is not None, "run_due must receive the assembled pipeline"
     assert seen["pipeline"].motion_gate is not None and seen["pipeline"].person_gate is not None
     assert seen["pipeline"].require_boundary, "the deployed path requires a boundary"
     assert seen["evidence_dir"] is None, "evidence images are opt-in: they show real people"
@@ -360,7 +360,7 @@ def test_a_slot_that_cannot_run_is_reported_and_the_others_continue(
     assert "0 slot(s) written" in out
 
 
-# --- the live entry point (WP6-T3, 2026-09-11) ---------------------------------------------
+# --- the live entry point (2026-09-11) -----------------------------------------------------
 #
 # `live_sources` and `RTSPSource` have existed and been tested against an injected capture
 # opener since September. What was missing was any way to *invoke* them: `--source` accepted
@@ -464,7 +464,7 @@ def test_live_says_whether_evidence_images_will_be_written(capsys, monkeypatch) 
     assert "identifiable people" in capsys.readouterr().out
 
 
-# --- the boundary and the motion gate, in the serving path (A14) ------------------------
+# --- the boundary and the motion gate, in the serving path ------------------------------
 
 
 def _blank(v: int = 30):
@@ -538,7 +538,7 @@ def test_the_motion_gate_never_turns_empty_into_play():
     assert cue is not None and cue > 0
 
 
-# --- the person gate (A16) ---------------------------------------------------------------
+# --- the person gate ---------------------------------------------------------------------
 
 
 def test_the_person_gate_overrules_play_when_nobody_is_on_the_pitch(monkeypatch):
@@ -599,7 +599,7 @@ def test_count_inside_uses_the_foot_of_the_box_not_its_centre(monkeypatch):
 
 
 def test_a_ball_is_placed_by_its_centre_and_a_person_by_their_feet(monkeypatch):
-    """The two objects are located differently on purpose (A17).
+    """The two objects are located differently on purpose.
 
     A player at the touchline stands outside the pitch while their box straddles the line, so
     the foot point decides. A ball crossing the same line is genuinely over it while it is in
@@ -641,8 +641,9 @@ def test_the_gate_only_ever_moves_a_verdict_down_the_ladder(monkeypatch):
     than argued in a comment.
 
     The three classes form a ladder of how much activity is being claimed - ACTIVE_PLAY above
-    C3 above EMPTY - and every overrule this gate makes is a step *down* it. A16 steps from
-    play to empty, A18 from play to C3, A22 from C3 to empty. Nothing steps up, so no amount
+    C3 above EMPTY - and every overrule this gate makes is a step *down* it. Nobody on the
+    pitch steps from play to empty, a small group with no ball from play to C3, and nobody from
+    C3 to empty. Nothing steps up, so no amount
     of detector noise can manufacture a busier pitch than the probe reported.
 
     `BALL_CONFIDENCE` sits below the person threshold because a football is about 400 square
@@ -666,7 +667,7 @@ def test_the_gate_only_ever_moves_a_verdict_down_the_ladder(monkeypatch):
 
 
 def test_nobody_on_the_pitch_overrules_a_maintenance_verdict_too(monkeypatch):
-    """A22. Restricting the empty-pitch rule to ACTIVE_PLAY inputs was caution, not evidence,
+    """Restricting the empty-pitch rule to ACTIVE_PLAY inputs was caution, not evidence,
     and it was the most expensive thing the gate did: on 243 recorded empty frames at a
     held-out venue the probe answers ACTIVE_PLAY or C3 and never EMPTY, C3 on 38% of them.
     Passing those through left total error at 0.4844 where overruling gives 0.1111."""
@@ -697,7 +698,7 @@ def test_an_already_empty_verdict_does_not_pay_for_the_detector(monkeypatch):
 
 
 def test_a_small_group_with_no_ball_is_not_playing(monkeypatch):
-    """A18. The clause the rule was stated with: 1-4 people *and no ball*. The count alone
+    """The clause the rule was stated with: 1-4 people *and no ball*. The count alone
     would call 88 of 278 real matches not-playing; with the ball clause it calls none."""
     from pitch_occupancy.data.taxonomy import Class3
     from pitch_occupancy.vision import people
@@ -710,13 +711,14 @@ def test_a_small_group_with_no_ball_is_not_playing(monkeypatch):
 
 
 def test_a_ball_no_longer_rescues_a_small_group(monkeypatch):
-    """Changed 2026-09-29. This pinned A18's clause - three people with a ball is a kickabout,
+    """Changed 2026-09-29. This pinned the original clause - three people with a ball is a
+    kickabout,
     and a kickabout is play. The facility's rule is that play needs five or more people, ball
     or no ball, and `rules.decide` row 5 has said so since 2026-09-20; this gate, which the
     review pages run, was the last place three people and a ball could still be play.
 
     Both directions stay pinned: the default obeys the facility, and the switch still gives
-    A18 exactly, for re-running the numbers measured with it."""
+    the original clause exactly, for re-running the numbers measured with it."""
     from pitch_occupancy.data.taxonomy import Class3
     from pitch_occupancy.vision import people
 
@@ -725,8 +727,8 @@ def test_a_ball_no_longer_rescues_a_small_group(monkeypatch):
                             lambda *_a, _n=n, **_k: people.Counted(people=_n, ball=True))
         state, _ = people.PersonGate().inspect(Class3.ACTIVE_PLAY, _blank())
         assert state is Class3.MAINTENANCE_NON_SPORTING, n
-        a18 = people.PersonGate(ball_rescues_small_group=True)
-        assert a18.inspect(Class3.ACTIVE_PLAY, _blank())[0] is Class3.ACTIVE_PLAY
+        rescuing = people.PersonGate(ball_rescues_small_group=True)
+        assert rescuing.inspect(Class3.ACTIVE_PLAY, _blank())[0] is Class3.ACTIVE_PLAY
 
 
 def test_the_gate_never_reports_play_below_five_people(monkeypatch):
@@ -756,9 +758,9 @@ def test_a_full_pitch_is_never_called_not_playing(monkeypatch):
     assert state is Class3.ACTIVE_PLAY
 
 
-def test_the_c3_rule_can_be_switched_off_leaving_a16_intact(monkeypatch):
-    """`small_group_max=0` is the pre-A18 gate exactly, so a supervisor who does not accept
-    the C3 rule can decline it without losing the empty-pitch overrule."""
+def test_the_c3_rule_can_be_switched_off_leaving_the_empty_overrule_intact(monkeypatch):
+    """`small_group_max=0` is the gate without the small-group rule, so a site that does not
+    accept the C3 rule can decline it without losing the empty-pitch overrule."""
     from pitch_occupancy.data.taxonomy import Class3
     from pitch_occupancy.vision import people
 

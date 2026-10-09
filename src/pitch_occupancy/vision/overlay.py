@@ -1,4 +1,4 @@
-"""What the detector saw, drawn on the frame (A36, WP9-T4).
+"""What the detector saw, drawn on the frame.
 
 The probe path's explanation is a heatmap, and it has to be: a logistic regression on pooled
 features has no objects in it, only positions that push the score one way or the other
@@ -12,7 +12,7 @@ per-instance mask and the overlay fills it; a detection model gives a rectangle 
 outlines that instead of filling it, because a filled rectangle over a person claims a precision
 the box does not have. The count is the same either way - a person is placed by the foot of
 their box in both (`vision/counting.py`) - so the overlay is the only thing a segmentation model
-changes, and that is the trade WP9-T2 measured.
+changes, and the cost of that model is the price of the filled outline.
 
 **Inside and outside the boundary are drawn differently.** A detection whose feet fall outside
 the outline is drawn dimmed, because "the detector found six people and counted three" is the
@@ -22,8 +22,8 @@ only the counted three cannot explain it.
 **Redaction is separate and composes.** :func:`draw_verdict` draws; :func:`publishable`
 redacts first and then draws. The overlay is computed from a verdict taken on the *original*
 frame and drawn over the redacted copy, which has identical geometry - so the explanation stays
-faithful while the picture stays publishable, which is the rule `experiments/make_xai_figures.py`
-has followed since it was written (`thesis/ethics.md` §2). Streamed frames to an operator are
+faithful while the picture stays publishable: any frame that leaves the room has its people
+redacted. Streamed frames to an operator are
 not redacted, as they are not today (`vision/walkthrough.py`).
 """
 
@@ -211,7 +211,7 @@ def publishable(
     """:func:`draw_verdict` over a redacted copy: pixelated people, then a floor of blur.
 
     Two layers, because one is not enough - a missed detection must still not be an
-    identifiable face (`thesis/ethics.md` §2). The boxes come from the verdict rather than a
+    identifiable face. The boxes come from the verdict rather than a
     second detector run, so the redaction and the drawing are about the same detections.
 
     The overlay is drawn *after* the blur so the outline, the masks and the text stay sharp;
@@ -253,8 +253,8 @@ def detector_pane(
     it, only regions that push a score, so its explanation can only ever be a heatmap; the
     detector has objects, so its explanation is **a box round each person, one at a time,
     and a ring round the ball**. Put side by side, "the model is reading the floodlights"
-    and "the model found six people and a ball" are distinguishable at a glance, which was
-    the whole complaint that started A35.
+    and "the model found six people and a ball" are distinguishable at a glance, which is
+    what an operator disputing a verdict needs to see.
 
     **Every person is boxed separately, on purpose.** A single region covering a group
     would show the same picture for six players and for one player standing near a bag, and

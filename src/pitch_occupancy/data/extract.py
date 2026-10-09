@@ -1,4 +1,4 @@
-"""Frame extraction from source footage (WP2-T3).
+"""Frame extraction from source footage.
 
 Two kinds of source produce two kinds of frame, and they carry different metadata:
 
@@ -8,11 +8,11 @@ camera. All of that is already in the filename, so extracted frames keep the est
 
 **Clips** (``raw/highlights_2026-09-04/``) are 10-14 s highlights whose filenames encode
 only the export session. Venue comes from ``configs/clip_venues.csv`` (assigned by
-background fingerprint plus visual confirmation). Since a filename cannot carry all of that,
+matching each clip's background, then confirmed by eye). Since a filename cannot carry all of that,
 extraction writes a sidecar - ``data/interim/clip_frames.csv`` - that the manifest joins on,
 exactly as it already joins ``labels.csv`` for provenance.
 
-**Lighting is no longer inferred here, and that is the correction A25 exists for.** This
+**Lighting is no longer inferred here.** This
 module used to set ``lighting`` from mean frame brightness, below 80 being night, "calibrated
 against the known day/night recordings in raw/venue_01". The calibration does not survive
 leaving venue_01: a floodlit five-a-side pitch fills its frame with intensely lit turf and
@@ -22,8 +22,8 @@ it was wrong for **216 of 396** frames, including every frame of the locked fina
 
 The rule is not replaced by a better threshold, because no threshold works: an indoor hall has
 no sky to be dark, and a floodlit pitch is brighter than an overcast one. Clip frames now carry
-``lighting = "unknown"``, which is what extraction actually knows, and
-``scripts/relabel_clip_lighting.py`` records a per-venue judgement made by looking. The
+``lighting = "unknown"``, which is what extraction actually knows; lighting is a per-venue
+judgement made by looking, recorded after extraction. The
 ``brightness`` column is still written - it is a measurement, and it was never the problem.
 
 Frames are sampled from the middle 80% of each clip: the first and last moments of a

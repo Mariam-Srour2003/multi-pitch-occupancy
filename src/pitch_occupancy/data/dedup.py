@@ -1,11 +1,11 @@
-"""Near-duplicate detection (WP2-T4).
+"""Near-duplicate detection.
 
 Frames sampled every fifteen seconds from a fixed camera watching a mostly-static pitch are
 not independent observations. Two frames of the same empty pitch a quarter of a minute apart
 differ by a few pixels of cloud. Counting them as two labelled examples overstates the
 dataset, and putting them on opposite sides of a split turns a memorisation test into an
-apparent generalisation result - which is exactly what H1 found when a 16-bin colour
-histogram beat a deep probe under a random split.
+apparent generalisation result - which is exactly what happened here when a 16-bin
+colour histogram beat a deep probe under a random split.
 
 So this measures how much of the dataset is genuinely distinct, rather than assuming it.
 
@@ -173,9 +173,9 @@ def distinct_subset(
     five shuffles all returned the same number. Insertion order of ``hashes`` is respected,
     so a caller that wants a particular tie-break can choose it.
 
-    Lives here beside :func:`near_duplicate_pairs` rather than in the experiment that first
-    needed it, because a second experiment now needs the same rule and two greedy loops that
-    are meant to agree are two that can drift apart.
+    Lives here beside :func:`near_duplicate_pairs` rather than in a caller, because more than
+    one caller needs the same rule and two greedy loops that are meant to agree are two that
+    can drift apart.
     """
     keep: list[K] = []
     for key, h in hashes.items():

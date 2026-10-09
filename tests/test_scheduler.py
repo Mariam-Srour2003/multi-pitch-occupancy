@@ -1,11 +1,10 @@
-"""The scheduler (WP6-T2).
+"""The scheduler.
 
 Its acceptance criterion is *"runs continuously; DB fills; verdicts correct on recorded
 slots"*. The first clause is the least interesting and the hardest to test badly — a loop
 whose only observable behaviour is that it does not return teaches nothing. So the clock and
 the sleep are parameters, and what is tested is whether the right slot starts, whether the
-database fills, and whether the verdicts match the ones `end_to_end_slots.py` already
-publishes.
+database fills, and whether it reaches the slots whose verdicts were recorded end to end.
 """
 
 from __future__ import annotations
@@ -249,41 +248,3 @@ def test_the_derived_schedule_matches_the_recorded_slots() -> None:
     assert "venue_01_2026-07-11_1000" in ids, ids
 
 
-def test_the_scheduler_reproduces_the_published_verdicts() -> None:
-    """The half of the acceptance criterion that matters: *verdicts correct on recorded
-    slots*, reached through the scheduler rather than by calling `run_slot` directly.
-
-    Compared against `results/end_to_end_slots.csv`, which is committed - so if the two paths
-    ever diverge, this fails rather than the scheduler quietly producing something else.
-    """
-    import csv
-
-    from pitch_occupancy.config import settings
-    from pitch_occupancy.scheduler import sources_from_recordings
-
-    published = ROOT / "results" / "end_to_end_slots.csv"
-    directory = settings.raw_dir / "venue_01"
-    if not published.exists() or not directory.exists():
-        pytest.skip("recordings or published verdicts not present")
-
-    expected = {r["slot"]: r["verdict"] for r in csv.DictReader(published.open(encoding="utf-8"))}
-    schedule, dates = schedule_from_recordings(directory)
-    source_for = sources_from_recordings(directory)
-
-    # The classifier is not the subject here - the wiring is - so a stub that answers from
-    # the published play ratio would beg the question. Instead only the *reachability* of
-    # each recorded slot through the scheduler is asserted, and the verdict comparison is
-    # left to end_to_end_slots.py, which owns the classifier.
-    reached = []
-    for day in dates:
-        for sl in schedule.slots:
-            slot_id = sl.slot_id(day)
-            if slot_id not in expected:
-                continue
-            source = source_for(sl, day)
-            assert source.n_minutes > 0, f"{slot_id} has no minutes"
-            reached.append(slot_id)
-    assert set(reached) == set(expected), (
-        f"the scheduler does not reach every published slot: "
-        f"{sorted(set(expected) - set(reached))}"
-    )

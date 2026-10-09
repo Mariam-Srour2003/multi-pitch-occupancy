@@ -1,8 +1,8 @@
-"""The "never bill" constraint, checked rather than stated (WP6-T12).
+"""The "never bill" constraint, checked rather than stated.
 
 Reconciliation can implicate a named member of staff, so the design constraint is that the
 system produces decision support and takes no automated financial action. That sentence is
-worth very little at an examination on its own, so these tests walk the actual surface: the
+worth very little on its own, so these tests walk the actual surface: the
 advisory type, the HTTP routes and the database layer.
 
 The point is not that a test stops a determined operator - anyone with the database can do
@@ -156,16 +156,7 @@ def test_no_http_route_writes_to_a_booking() -> None:
 ALLOWED_MUTATING = {
     #: A person correcting the system. The model's verdict is retained beside the correction.
     "/slots/{slot_id}/override",
-    #: The preprocessing search control, which acts on this project's own experiment state.
-    "/preprocess",
-    #: Copying a finished preprocessing search into the saved-run grid (WP3-T8). The same
-    #: category as `/preprocess`: it writes this project's own experiment results, under
-    #: `results/search_runs/`, and nothing it touches is a client record. The write is a
-    #: copy of a state file the search itself wrote, and the destination is one of six
-    #: fixed filenames - an unknown backbone or frame count is refused rather than
-    #: sanitised, because both halves arrive from a URL path.
-    "/runs",
-    #: An operator editing this system's *own* capture configuration (WP6-T6). Not the same
+    #: An operator editing this system's *own* capture configuration. Not the same
     #: category as writing to a client system: `bookings.py` has no write method at all,
     #: because a booking sheet is the facility's financial record. This is defensible, and it
     #: is still the most dangerous route here - see `api/schedule_editor.py` for the three
@@ -175,7 +166,7 @@ ALLOWED_MUTATING = {
     #: it cannot be a GET, and returns whether the scheduler would accept it. Pinned by
     #: `test_the_validate_route_really_writes_nothing` below rather than trusted.
     "/schedule/validate",
-    #: The clip reviewer (WP6-T6). A POST because the body is a video, not because it
+    #: The clip reviewer. A POST because the body is a video, not because it
     #: persists one: the upload is streamed to a temp file, read, and deleted in a
     #: `finally`, and no database row is written. Same category as `/schedule/validate`,
     #: and pinned the same way by `test_the_clip_route_keeps_nothing` below.
@@ -185,12 +176,12 @@ ALLOWED_MUTATING = {
     #: nothing reaches the database. Pinned by `test_the_pair_route_keeps_neither_file` in
     #: test_clip_pair.
     "/clip/pair/analyse",
-    #: The same analysis streamed step by step with its evidence maps (WP4-T5). A POST for
+    #: The same analysis streamed step by step with its evidence maps. A POST for
     #: the same reason and with the same guarantee - the upload is removed in the streaming
     #: generator's `finally` rather than the handler's, because the body outlives the
     #: handler. Pinned by `test_the_walkthrough_deletes_the_upload_after_streaming`.
     "/clip/walkthrough",
-    #: The same analysis over still images (WP6-T6). A POST because the body carries the
+    #: The same analysis over still images. A POST because the body carries the
     #: images, not because it keeps them: they are written to a temp directory, read, and
     #: removed in the streaming generator's `finally`, and nothing reaches the database.
     #: Pinned by `test_the_uploads_are_deleted_after_streaming` in test_image_walkthrough.
@@ -198,7 +189,7 @@ ALLOWED_MUTATING = {
     #: It was added without ever appearing here, because this check could not see `async def`
     #: routes - see `_http_methods`. That is the entry's own small lesson.
     "/images/walkthrough",
-    #: A person configuring this system's own capture geometry (WP3-T1): which part of the
+    #: A person configuring this system's own capture geometry: which part of the
     #: frame is this camera's pitch. Same category as `/schedule` - it edits the system's
     #: configuration, never a client record - and a narrower one, because a boundary is
     #: geometry rather than money or time. PUT and DELETE share the path.

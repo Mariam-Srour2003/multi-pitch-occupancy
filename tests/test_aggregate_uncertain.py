@@ -1,4 +1,4 @@
-"""Abstained minutes in the slot aggregation (A36).
+"""Abstained minutes in the slot aggregation.
 
 An UNCERTAIN minute is not a sample. It counts against the capture floor like a minute with
 no frame, so it can push a slot toward REVIEW and nowhere else - the REVIEW-never-accuses
@@ -16,7 +16,7 @@ PLAY, EMPTY = Class3.ACTIVE_PLAY, Class3.EMPTY
 
 
 def test_abstentions_count_against_the_capture_floor_and_nothing_else() -> None:
-    """A36 registers one mechanism: an abstained minute is a minute not captured. So 40%
+    """One mechanism only: an abstained minute is a minute not captured. So 40%
     abstained still clears the 0.5 floor and the decided minutes decide; 60% abstained does
     not, and the slot is REVIEW with a reason that names the abstentions. No second
     threshold - that would be a hand-picked hyper-parameter, which the module's own header

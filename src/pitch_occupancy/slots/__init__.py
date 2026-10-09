@@ -1,13 +1,16 @@
 """From per-frame predictions to a slot verdict.
 
-Modules that belong here:
+Modules:
   fusion.py       combine the two camera halves of one pitch
   aggregate.py    threshold baseline: ratios -> USED/NOTUSED/REVIEW
-  stan.py         learned slot-temporal aggregator               (WP5-T1)
+  smoothing.py    majority smoothing over a sequence of per-sample states
+  conditions.py   the conditions a verdict was formed under
   evidence.py     pick three representative evidence frames
-  reconcile.py    verdicts vs bookings -> typed anomalies        (WP6-T5)
+  synthetic.py    compose slot sequences from real frames
+  reconcile.py    verdicts vs bookings -> typed anomalies
+  authority.py    what the system may advise, and what only a person may do
 
 Fusion note: the baseline takes the strongest activity across the two halves, but
 disagreement between halves is itself signal (occlusion, dirty lens, play confined to
-one side). STAN consumes both sequences rather than the pre-fused one - see WP5-T6.
+one side).
 """

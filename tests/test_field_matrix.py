@@ -1,4 +1,4 @@
-"""The field matrix, and what the evidence endpoint sends (WP6-T6).
+"""The field matrix, and what the evidence endpoint sends.
 
 The matrix is the operator's overview: every pitch, hour by hour, for one day. The case that
 matters in it is the one that is easy to draw wrongly — a scheduled slot with no verdict. An

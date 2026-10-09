@@ -1,4 +1,4 @@
-"""Stream a clip's analysis step by step, showing where the evidence was (WP4-T5, WP6-T6).
+"""Stream a clip's analysis step by step, showing where the evidence was.
 
 `clip_review.py` returns a finished timeline in one response. This returns the same work as
 it happens - one newline-delimited JSON record per sampled frame, flushed before the next is
@@ -8,9 +8,8 @@ complete.
 
 That distinction is the reason this exists. A dashboard that produces a verdict in one jump
 asks to be trusted; one that shows the frame, the region the evidence came from, and the
-score those regions add up to, can be argued with. `vision/explain.py` has had the machinery
-since WP4-T5 and nothing in the operator surface had ever surfaced it - it existed only in
-figures generated for the thesis.
+score those regions add up to, can be argued with. `vision/explain.py` has the machinery, and
+this is where the operator surface shows it.
 
 **Pacing is the client's, and the page says so.** The slow motion is a pause the browser adds
 between renders, and its "continue without slow motion" button drops that pause. The backbone
@@ -76,7 +75,7 @@ def walk_records(path: Path, *, interval_s: float, explain_n: int,
                  whole_frame: bool = False) -> Iterator[str]:
     """One NDJSON line per step. A generator, because streaming it is the whole point.
 
-    ``camera`` names a saved pitch boundary (WP3-T1), applied to every sampled frame. A
+    ``camera`` names a saved pitch boundary, applied to every sampled frame. A
     fixed camera's pitch does not move between the first frame and the last, so an outline
     drawn once on frame 0 is correct for the whole recording - which is why the editor takes
     a video and draws on its first frame rather than asking for a separate still.
@@ -105,7 +104,7 @@ def walk_records(path: Path, *, interval_s: float, explain_n: int,
         derived = polygon is not None
     classifier = _classifier()
     # The same two gates the Analyse tab applies, through the same factory, because two tabs
-    # showing different answers for one clip is the defect A35 was about. Until 2026-09-19
+    # showing different answers for one clip is a defect. Until 2026-09-19
     # this page passed none of them and streamed the probe alone - reported from use, an
     # empty floodlit pitch stepped through as ACTIVE_PLAY at 0.999 on almost every frame
     # while Analyse called the same footage EMPTY and said so.
@@ -180,7 +179,7 @@ async def walkthrough(
     #: The outline drawn on the page, as a JSON array of normalised ``[x, y]`` pairs - the
     #: same parameter `/clip/analyse` takes, because the two tabs must analyse the clip the
     #: same way. Watching the model work over the whole frame while Analyse used a boundary
-    #: is the shape of the defect A35 was about, one tab further along.
+    #: is the same tabs-disagree defect, one tab further along.
     polygon: str = Query("", max_length=4000),
     #: *Use the whole frame*, as an explicit choice rather than an absent outline - the same
     #: parameter `/clip/analyse` takes, because the two tabs must agree about this clip.

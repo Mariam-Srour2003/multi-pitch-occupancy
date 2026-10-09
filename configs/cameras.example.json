@@ -1,6 +1,6 @@
 {
   "_comment": [
-    "Camera URLs for the live path (WP6-T3, WP7-T2). Copy to `cameras.json` and fill in.",
+    "Camera URLs for the live path. Copy to `cameras.json` and fill in.",
     "",
     "`configs/cameras.json` is gitignored, and deliberately: an RTSP URL usually carries the",
     "credentials for a camera that watches identifiable people, and a committed one is a",

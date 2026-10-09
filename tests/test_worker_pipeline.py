@@ -1,4 +1,4 @@
-"""`worker.run_slot` given an assembled pipeline (A36, WP9-T1).
+"""`worker.run_slot` given an assembled pipeline.
 
 The pipeline supplies the classifier, both gates and the per-camera boundary lookup in one
 object, so a caller cannot pass one and forget the others - which is what `scheduler.run_due`

@@ -1,36 +1,19 @@
-"""Train/test splits, materialised and leakage-guarded (WP0-T4).
+"""Train/test splits, materialised and leakage-guarded.
 
 Three rules this module exists to enforce, none of which survive six months of good
 intentions on their own:
 
-1. **A split is identified by its rows, not by its seed** - and the machinery to
-   materialise one exists for when that is not enough. :func:`write_split` writes to
-   ``results/splits/<name>.csv`` and :func:`read_split` reads it back, re-applying the
-   final-venue lock.
-
-   **Decision, 2026-09-10 (WP0-T4).** Those two have no callers outside the tests, and
-   ``results/splits/`` holds only the lock file: every experiment calls :func:`grouped_split`
-   with ``seed=42`` directly. That is deterministic *given the same rows*, and the proviso is
-   the whole problem - the row list depends on which feature caches a script filtered to, so
-   two experiments that filter differently get different splits from one seed. In September
-   ``effective_sample_audit.py`` (DINOv2 cache only) counted 94 distinct scenes where
-   ``h4_model_equivalence.py`` (all three) counted 95 — both correct, from ``seed=42``.
-   Harmless there, and exactly the drift materialisation exists to prevent.
-
-   **Run today the two agree** (identity ``f73f5a29b425``), because the reproducibility
-   repair of 2026-09-08 brought their row lists back together. Nothing recorded that they
-   had diverged, and nothing recorded that they had converged either, which is the actual
-   gap: not that a number was wrong, but that no artefact could have told you.
-
-   The plan's intent was to retrofit ``read_split`` across some twenty scripts. That was
-   **not** taken, and the reason is worth stating rather than leaving as an omission:
-   materialising the canonical splits now would change which rows several published
-   experiments were fitted on, so it would invalidate results in order to protect them. The
-   claim was dropped instead. A split's identity is the strategy, the group key, the seed
+1. **A split is identified by its rows, not by its seed.** :func:`grouped_split` is
+   deterministic *given the same rows*, and the proviso is the whole problem - the row list
+   depends on which feature caches a caller filtered to, so two callers that filter
+   differently get different splits from one seed. Two scripts reading different caches once
+   counted 94 and 95 distinct scenes from ``seed=42``, both correct, and nothing recorded
+   that they had diverged. A split's identity is the strategy, the group key, the seed
    **and the ordered row list**, and :func:`split_identity` returns a fingerprint of exactly
    that, so a disagreement between two runs is detectable instead of surfacing as an
    unexplained difference in a count. It detects; it does not prevent. Preventing is what
-   the retrofit would have done, and it stays available for anyone who takes it.
+   :func:`write_split` (to ``configs/splits/<name>.csv``) and :func:`read_split` are for:
+   a materialised split is read back by name, with the final-venue lock re-applied.
 2. **Groups never straddle the boundary.** Frames sampled seconds apart, or the two
    cameras watching one pitch at one moment, are the same scene. Splitting them across
    train and test measures memorisation.
@@ -38,8 +21,8 @@ intentions on their own:
    rows belonging to the locked final venues. Getting at them requires calling
    :func:`final_test_rows`, which exists to be greppable: one call site, at the end.
 
-The locked venues live in ``results/splits/FINAL_TESTSET_venues.csv``, fixed before any
-model was fitted. See ``thesis/preregistration.md``.
+The locked venues live in ``configs/splits/FINAL_TESTSET_venues.csv``, fixed before any
+model was fitted.
 """
 
 from __future__ import annotations
@@ -52,7 +35,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-from pitch_occupancy.config import RESULTS_DIR
+from pitch_occupancy.config import CONFIGS_DIR, PROJECT_ROOT
 from pitch_occupancy.data.manifest import ManifestRow
 
 __all__ = [
@@ -76,21 +59,21 @@ __all__ = [
     "read_split",
 ]
 
-#: Resolved from the installed package, not the working directory. It was
-#: ``Path("results/splits/...")``, which made the lock fail **open**: launched from
+#: Resolved from the installed package, not the working directory. It was once a path
+#: relative to the working directory, which made the lock fail **open**: launched from
 #: anywhere but the repo root the file was simply not found, :func:`load_final_venues`
 #: returned an empty set, and :func:`development_rows` handed both locked venues - 114
 #: frames, 29% of the clip data - straight to training with no warning at all. `config.py`
 #: states the contract this restores: paths "work identically from a notebook, a test, the
 #: CLI, and the scheduler on the Mini-PC".
-DEFAULT_FINAL_VENUES = RESULTS_DIR / "splits" / "FINAL_TESTSET_venues.csv"
+DEFAULT_FINAL_VENUES = CONFIGS_DIR / "splits" / "FINAL_TESTSET_venues.csv"
 
 #: `group_key` of a split read from a file written before it was recorded. Not a manifest
 #: field, so the group-overlap check cannot run against it - and `check_split` says so
 #: rather than raising, which is what it used to do on every materialised split.
 LEGACY_GROUP_KEY = "<from file - not recorded>"
 
-#: `source` value marking a frame that was generated rather than recorded (A13). Generated
+#: `source` value marking a frame that was generated rather than recorded. Generated
 #: frames may be used for training only. They must never reach a test side: a model scored
 #: against its own generator's output measures the generator, and the whole point of this
 #: project is that an evaluation which looks fine can be measuring the wrong thing.
@@ -98,8 +81,8 @@ LEGACY_GROUP_KEY = "<from file - not recorded>"
 #: defect class this repository keeps finding - a guard that exists and does not operate.
 SYNTHETIC_SOURCE = "synthetic"
 
-#: Written by `scripts/assign_scene_ids.py`. One row per frame: which scene it belongs to.
-SCENE_IDS = RESULTS_DIR.parent / "data" / "processed" / "scene_ids.csv"
+#: The scene-id sidecar. One row per frame: which scene it belongs to.
+SCENE_IDS = PROJECT_ROOT / "data" / "processed" / "scene_ids.csv"
 
 
 def scene_ids(path: Path | None = None) -> dict[str, str]:
@@ -121,9 +104,8 @@ def distinct_rows(rows: list[ManifestRow], *, path: Path | None = None) -> list[
     """One frame per scene, in the order given.
 
     **This is a training-side tool and belongs nowhere near a test set.** Pruning a test set
-    to distinct scenes would change what a reported number means - `effective_sample_audit`
-    already reports the distinct count *beside* the full one for that reason, rather than
-    replacing it.
+    to distinct scenes would change what a reported number means; report the distinct
+    count *beside* the full one instead of replacing it.
 
     The corpus is 1,881 frames and 290 scenes. On the EMPTY class it is 525 and 28, and the
     five recorded ones are one venue over two days. Fitting on all of them tells the probe
@@ -160,8 +142,7 @@ def balanced_rows(rows: list[ManifestRow], *, per_video: int = 12,
     **Four videos are 75% of every recorded frame.** `slot_20260712_2030_camB` alone is 516
     of 1,720, and the four venue_01 slot recordings together are 1,296; the median source
     video contributes six. A fit on that is a fit on four afternoons at one facility, and it
-    will learn what those four afternoons look like - which is A20's finding arriving from a
-    different direction.
+    will learn what those four afternoons look like.
 
     `distinct_rows` is not enough on its own here. It takes the corpus to 197 scenes, but 103
     of those still come from the same four recordings, so venue_01 keeps half the weight. The
@@ -190,8 +171,8 @@ def balanced_rows(rows: list[ManifestRow], *, per_video: int = 12,
     ===============  ======  ======  =======  =======
 
     Twelve nearly removes the single-camera vote and leaves 21 empty frames; forty keeps 81
-    and lets four videos back to a quarter of the weight. `experiments/dataset_redundancy.py`
-    re-derives this table, so the choice is made against current numbers rather than these.
+    and lets four videos back to a quarter of the weight. Re-measure on the current corpus
+    before moving the default rather than trusting these numbers.
     """
     if per_video < 1:
         raise ValueError(f"per_video must be at least 1, got {per_video}")
@@ -220,7 +201,7 @@ def balanced_rows(rows: list[ManifestRow], *, per_video: int = 12,
 def _training_only(rows: list[ManifestRow], include_synthetic: bool) -> list[ManifestRow]:
     """The generated rows to append to a train side, or none.
 
-    A13 says generated frames are "for training only", and the only way to implement that
+    Generated frames are for training only, and the only way to implement that
     literally is to keep them out of the partition entirely and add them to train afterwards.
     Passing them *through* a split does not work and is not a near miss: handed to
     `grouped_split`, 171 of 189 landed on the **test** side, where `check_split` rejects
@@ -278,9 +259,9 @@ def load_final_venues(path: Path | None = None) -> frozenset[str]:
             f"the final-test-set lock file is missing: {path}\n"
             "Every split strategy drops locked-venue rows by consulting this file, so "
             "without it the lock is not enforced and the held-out venues silently enter "
-            "development - which invalidates the one guarantee thesis/preregistration.md "
-            "rests on. Restore results/splits/FINAL_TESTSET_venues.csv from git rather "
-            "than running without it."
+            "development - which defeats the point of holding them out. Restore "
+            "configs/splits/FINAL_TESTSET_venues.csv from git rather than running "
+            "without it."
         )
     with path.open(newline="", encoding="utf-8") as fh:
         return frozenset(
@@ -296,10 +277,10 @@ def development_rows(
 ) -> list[ManifestRow]:
     """Everything a split is allowed to touch: all rows outside the locked venues.
 
-    **Generated frames are excluded by default** (A13). They are an augmentation to be
-    reported as a with/without ablation, so the default development set has to be the one
-    every existing table describes - otherwise ingesting a batch silently redefines every
-    published number, and nobody re-reads the tables. Pass ``include_synthetic=True`` in the
+    **Generated frames are excluded by default.** They are an augmentation to be measured
+    as a with/without ablation, so the default development set has to be the one every
+    existing number describes - otherwise ingesting a batch silently redefines every number
+    already reported, and nobody re-checks them. Pass ``include_synthetic=True`` in the
     ablation itself, and only there.
     """
     locked = load_final_venues() if final_venues is None else final_venues
@@ -318,15 +299,16 @@ def final_test_rows(
     """The locked final test set. **Evaluate once, at the very end.**
 
     The keyword argument is deliberately awkward: it makes every use of the final test set
-    a conscious, greppable act rather than something that happens by autocomplete. Each
-    evaluation against these rows must be disclosed in the thesis.
+    a conscious, greppable act rather than something that happens by autocomplete. Record
+    each evaluation against these rows: a test set looked at repeatedly is no longer held
+    out.
     """
     if not i_have_finished_all_development:
         raise RuntimeError(
             "The final test set is locked. Development experiments must use "
             "development_rows(). If development is genuinely complete, pass "
-            "i_have_finished_all_development=True and disclose the evaluation in "
-            "thesis/preregistration.md."
+            "i_have_finished_all_development=True and record that the evaluation "
+            "was run."
         )
     locked = load_final_venues() if final_venues is None else final_venues
     return [r for r in rows if r.venue in locked]
@@ -360,9 +342,9 @@ def grouped_split(
 
     ``include_synthetic`` is forwarded to :func:`development_rows`, and it has to be: this
     function re-filters its input, so a caller that opted generated frames in and handed
-    the result here got them **silently stripped again**. A13 admitted generated frames
-    "for training only" and documented `include_synthetic=True` as the way to use them -
-    and no split protocol could deliver one to a training set, so the opt-in did nothing
+    the result here got them **silently stripped again**. Generated frames are admitted
+    for training only, with `include_synthetic=True` documented as the way to use them -
+    and no split strategy could deliver one to a training set, so the opt-in did nothing
     at all. `check_split` still refuses to let one reach a test side.
     """
     generated = _training_only(rows, include_synthetic)
@@ -386,11 +368,11 @@ def grouped_split(
     # **A set is a membership test here, never an ordering.** Iterating it put the test rows
     # in an order that depends on `PYTHONHASHSEED`, so `grouped_split(seed=42)` returned the
     # same *frames* in a different *sequence* on every process. Point estimates were
-    # unaffected, and that is exactly why it survived: every macro-F1 and accuracy in
-    # `h1_h2_baseline_floor.csv` reproduced exactly while the bootstrap intervals beside them
-    # did not, because `bootstrap_metric_ci` resamples positions and a reordered vector is a
-    # different resample. A seeded function that is not reproducible across processes
-    # defeats the claim the reproduction pipeline exists to back.
+    # unaffected, and that is exactly why it survived: every macro-F1 and accuracy
+    # reproduced exactly while the bootstrap intervals beside them did not, because
+    # `bootstrap_metric_ci` resamples positions and a reordered vector is a different
+    # resample. A seeded function that is not reproducible across processes defeats the
+    # point of seeding it.
     train = [r for g, rs in groups.items() if g not in test_names for r in rs] + generated
     test = [r for g, rs in groups.items() if g in test_names for r in rs]
     return Split(
@@ -407,7 +389,7 @@ def leave_one_group_out(
 ) -> Iterator[Split]:
     """One fold per group: train on every other group, test on this one.
 
-    With ``group_key="venue"`` this is the leave-one-venue-out protocol. Report the
+    With ``group_key="venue"`` this is leave-one-venue-out evaluation. Report the
     distribution across folds, not only the mean — a single venue can dominate it.
     """
     generated = _training_only(rows, include_synthetic)
@@ -430,8 +412,8 @@ def random_split(
     """Stratified-by-nothing random split — **deliberately leaky**.
 
     Frames sampled seconds apart land on both sides, so this flatters every model. It
-    exists only as the control arm of H1 (quantifying how much same-scene evaluation
-    inflates accuracy). Never report a headline number from it.
+    exists only to quantify how much same-scene evaluation inflates accuracy. Never quote a
+    model's accuracy from it.
     """
     generated = _training_only(rows, include_synthetic)
     rows = development_rows(rows)
@@ -517,11 +499,10 @@ def split_identity(split: Split) -> str:
     **A seed does not identify a split here.** `grouped_split(rows, seed=42)` is
     deterministic given the same rows, and that proviso is the whole problem: the row list
     depends on which feature caches the calling script filtered to.
-    In September `effective_sample_audit.py` read the DINOv2 cache and counted 94 distinct
-    scenes while `h4_model_equivalence.py` read all three and counted 95 - from the same
-    seed, the same function and the same manifest. Harmless that time. **Not detectable**,
-    which is the part worth fixing: the two agree again today, and nothing recorded either
-    the divergence or the return.
+    In September one script read the DINOv2 cache and counted 94 distinct scenes while
+    another read all three caches and counted 95 - from the same seed, the same function and
+    the same manifest. Harmless that time. **Not detectable**, which is the part worth
+    fixing: nothing recorded either the divergence or the later return to agreement.
 
     So the identity is the strategy, the group key, the seed **and the ordered row list**.
     Two runs that agree on all four have the same split; two that differ in any of them do
@@ -530,7 +511,7 @@ def split_identity(split: Split) -> str:
 
     Deliberately not a guarantee of reproducibility, which is a stronger claim than a hash
     can support: it detects disagreement, it does not prevent it. Preventing it is
-    `write_split`/`read_split`, and WP0-T4 records why that retrofit was not taken.
+    `write_split`/`read_split`.
     """
     partition = _partition_digest(split.train, split.test, split.group_key, split.seed)
     return hashlib.sha256(f"{split.name}|{partition}".encode()).hexdigest()[:12]
@@ -557,7 +538,7 @@ def check_split(split: Split) -> list[str]:
     # when it *cannot* run instead of skipping quietly. It used to raise AttributeError on
     # any split read from disk, because the round-trip lost the group key and left a
     # placeholder that is not a manifest field - so the validation was unavailable on
-    # exactly the splits the plan says are referenced by name and never re-randomised.
+    # exactly the splits that are meant to be referenced by name and never re-randomised.
     if split.group_key == "<none - leaky>":
         pass
     elif not hasattr(next(iter(split.train)), split.group_key):
@@ -577,14 +558,14 @@ def check_split(split: Split) -> list[str]:
     if shared := {r.file for r in split.train} & {r.file for r in split.test}:
         problems.append(f"{len(shared)} frame(s) appear in both train and test")
 
-    # A13. Generated frames are a training-side-only augmentation; on the test side they
-    # would make every headline number unreportable, so this is checked rather than trusted.
+    # Generated frames are a training-side-only augmentation; on the test side they would
+    # make every number from the split unreportable, so this is checked rather than trusted.
     if synthetic := [
         r for r in split.test if getattr(r, "source", "") == SYNTHETIC_SOURCE
     ]:
         problems.append(
             f"{len(synthetic)} generated frame(s) are on the test side - synthetic data is "
-            f"training-only under A13, and results from this split cannot be reported"
+            f"training-only, and results from this split cannot be reported"
         )
 
     train_classes = {r.class3 for r in split.train}
@@ -608,11 +589,11 @@ def check_split(split: Split) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-#: Same fix as DEFAULT_FINAL_VENUES, same reason. This was ``Path("results/splits")``, so
+#: Same fix as DEFAULT_FINAL_VENUES, same reason. This was a working-directory path, so
 #: `write_split(split)` from any other directory scattered materialised splits into
 #: whatever the working directory happened to be - and the final-test-set lock lives in
 #: this very folder.
-DEFAULT_SPLIT_DIR = RESULTS_DIR / "splits"
+DEFAULT_SPLIT_DIR = CONFIGS_DIR / "splits"
 
 
 def write_split(split: Split, out_dir: Path | None = None) -> Path:
@@ -624,7 +605,7 @@ def write_split(split: Split, out_dir: Path | None = None) -> Path:
     :func:`check_split` - the leakage validation this module exists for - raised
     ``AttributeError`` on every materialised split rather than checking it. Redundant
     columns also make the file self-describing to a human, which matters because these
-    files are cited artefacts.
+    files are referenced by name.
     """
     out_dir = out_dir or DEFAULT_SPLIT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)

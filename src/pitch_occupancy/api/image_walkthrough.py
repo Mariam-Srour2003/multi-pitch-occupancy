@@ -1,4 +1,4 @@
-"""Stream the analysis of one or more still images, showing where the evidence was (WP6-T6).
+"""Stream the analysis of one or more still images, showing where the evidence was.
 
 The still-image counterpart to `clip_walkthrough.py`, and built to the same shape: one
 newline-delimited JSON record per image, flushed before the next is computed, so the page
@@ -85,9 +85,9 @@ class BatchIn(BaseModel):
     #:
     #: Until now a boundary could only come from the store, so an uploaded still of a camera
     #: the store has never seen was scored over the whole frame - the neighbouring pitch, the
-    #: walkway and the car park counted as this pitch. A19 measured that at 0.74 false-play
-    #: against 0.38 with an outline, and it is the same defect the clip route carried until
-    #: A35. The page now asks for the outline before it predicts, so this is how it arrives.
+    #: walkway and the car park counted as this pitch. That measured 0.74 false-play against
+    #: 0.38 with an outline, and it is the same defect the clip route once carried. The page
+    #: now asks for the outline before it predicts, so this is how it arrives.
     polygon: list[list[float]] | None = None
 
 
@@ -123,7 +123,7 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
     # that does not exist and silently analysing the whole frame would produce precisely the
     # answers the operator applied a boundary to avoid - the neighbouring pitch counted as
     # this one - and nothing on the page would say so. `resolve` knows production's camera
-    # ids; `get` did not (A36).
+    # ids; `get` does not.
     # A drawn outline wins over a stored one: the operator is looking at this frame and the
     # store is not. `validate` rather than trust - a polygon arrives over the wire and a
     # malformed one should be refused here, not produce a mask nobody can explain.
@@ -232,7 +232,7 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
             # because a logistic fit on pooled features has no objects in it; the detector
             # explains itself as a box round each person and a ring round the ball. Both
             # go on the page, because "it is reading the floodlights" and "it found six
-            # people and a ball" are only distinguishable side by side (A35, WP9-T4a).
+            # people and a ball" are only distinguishable side by side.
             boxes, found = detector_pane(shot.frame_bgr, polygon=shot.polygon,
                                          redact=redact)
             record["boxes"] = _jpeg(boxes)

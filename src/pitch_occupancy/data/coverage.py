@@ -1,12 +1,11 @@
-"""Dataset coverage reporting (WP2-T1).
+"""Dataset coverage reporting.
 
 Answers one question: *which cells of the collection matrix are empty?* Class x lighting x
-venue is the design space; a cell with no frames is a claim the thesis cannot make, and it
+venue is the design space; a cell with no frames is a claim the model cannot be trusted on, and it
 is far cheaper to see that in a table than to discover it when a split turns out
 degenerate.
 
-The output is written to ``results/coverage.md`` and is meant to go into the thesis
-roughly as-is.
+The output is written to ``results/coverage.md`` by ``pitch coverage``.
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ from pitch_occupancy.data.taxonomy import CLASS3_ORDER, Class3
 
 __all__ = ["CoverageCell", "coverage_cells", "empty_cells", "render_report"]
 
-#: Working target per class per condition cell, from the thesis data plan.
+#: Working target per class per condition cell.
 TARGET_PER_CELL = 100
 
 
@@ -68,7 +67,7 @@ def _table(rows: list[ManifestRow], col_attr: str) -> str:
     return "\n".join(lines)
 
 
-#: Rows with this `source` were generated, not recorded (A13).
+#: Rows with this `source` were generated, not recorded.
 SYNTHETIC_SOURCE = "synthetic"
 
 
@@ -77,9 +76,8 @@ def recorded(rows: list[ManifestRow]) -> list[ManifestRow]:
 
     Every headline table in this report counts these and these only. A coverage report that
     silently mixed the two would answer "how many empty pitches do we have at other venues?"
-    with a number made partly of pictures - and that question is the one
-    `thesis/data_requests.md` exists to ask, the one the supervisor will ask, and the one
-    the M2 gate measures. Generated frames get their own section below, never a share of the
+    with a number made partly of pictures - and that is the question that decides where more
+    footage is needed. Generated frames get their own section below, never a share of the
     main tables.
     """
     return [r for r in rows if getattr(r, "source", "") != SYNTHETIC_SOURCE]
@@ -95,7 +93,7 @@ def render_report(rows: list[ManifestRow]) -> str:
 
     banner = (
         f"**{len(gen)} generated frame(s) are excluded from every table above the "
-        f"Generated section** (A13). They are a training-side augmentation and counting "
+        f"Generated section**. They are a training-side augmentation and counting "
         f"them here would make a gap look filled that is not."
     ) if gen else ""
 
@@ -168,7 +166,7 @@ def render_report(rows: list[ManifestRow]) -> str:
     out.append("")
 
     if gen:
-        out.append("## Generated frames (A13) - not counted above")
+        out.append("## Generated frames - not counted above")
         out.append("")
         out.append(
             "Training-side augmentation, listed apart from the recorded corpus because a "

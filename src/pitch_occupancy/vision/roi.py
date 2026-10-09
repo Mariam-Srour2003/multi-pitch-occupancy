@@ -1,9 +1,4 @@
-"""Per-camera pitch boundaries: say what is inside the pitch, and ignore the rest (WP3-T1).
-
-`vision/__init__.py` has listed this module since the project began and it has never existed,
-which is why `PreprocessConfig.roi` was a switch nothing could turn on: `roi_mask` with no
-polygon returns the frame untouched, so the preprocessing search left `roi` out rather than
-record "ROI does not help" about a no-op. This is the missing half.
+"""Per-camera pitch boundaries: say what is inside the pitch, and ignore the rest.
 
 **The problem it solves is not clutter, it is a neighbour.** Five-a-side pitches are built in
 rows, and a camera watching pitch 2 sees pitches 1 and 3 down the sides of its frame. A match
@@ -20,13 +15,13 @@ wrong for at least one of them.
 Points are fractions of width and height in 0-1. A camera swapped for a 4K one keeps its
 outline; a polygon in pixels would have quietly masked the wrong region.
 
-**Filling with black is the default and is not obviously right.** It is what `roi_mask` has
-always done and what the preprocessing search would have evaluated, so it stays the default -
-but a large black region is a thing no pretraining set contains, and the backbone's response
-to it is itself a distribution shift. `blur` keeps the frame's statistics plausible while
-destroying the detail a person is made of, and `mean` is the gentlest edge. Which is right is
-an empirical question this module deliberately does not answer: it offers the three and the
-editor shows what each does to the prediction, on the user's own frames.
+**Filling with black is the default and is not obviously right.** It is the simplest and
+hardest edge, so it stays the default - but a large black region is a thing no pretraining set
+contains, and the backbone's response to it is itself a distribution shift. `blur` keeps the
+frame's statistics plausible while destroying the detail a person is made of, and `mean` is the
+gentlest edge. Which is right is an empirical question this module deliberately does not
+answer: it offers the three and the editor shows what each does to the prediction, on the
+user's own frames.
 
 Stored in `configs/roi.json`, keyed by camera. Unlike `configs/cameras.json` - which holds
 RTSP credentials and is gitignored for that reason - a boundary is geometry, carries nothing
@@ -208,7 +203,7 @@ def get(camera: str) -> Polygon | None:
 
     This is the store's own vocabulary. A caller holding a camera id *as production names
     it* wants :func:`resolve`, which knows the aliases and the export's file keys - `get`
-    on a production id is how the boundary machinery came to be applied to nothing (A36).
+    on a production id is how the boundary machinery once came to be applied to nothing.
     """
     return load_all().get(camera)
 
@@ -231,7 +226,7 @@ def resolve_with_key(camera: str, *, venue: str | None = None,
                      slot_key: str | None = None) -> tuple[Polygon | None, str | None]:
     """The boundary for a camera as production names it, and the key it was found under.
 
-    Production knows a camera three ways and the store knew none of them (A36): the worker
+    Production knows a camera three ways and the store once knew none of them: the worker
     replaying a recording calls it ``file0``, `configs/cameras.json` calls it ``camera_A``
     under ``venue_01``, and the derived store keys it ``slot_20260711_1000_camA``. Each id is
     tried at its most specific first - ``<slot>/<camera>``, ``<slot>_<camera>``,
@@ -359,13 +354,13 @@ def apply(image_bgr: np.ndarray, polygon: Polygon | None, *,
           fill: str = DEFAULT_FILL) -> np.ndarray:
     """Suppress everything outside ``polygon``. No polygon returns the frame untouched.
 
-    That last sentence is the reason `roi` stayed out of the preprocessing search: a no-op
-    that looks like a switch will be measured as "makes no difference", and the conclusion
-    will be recorded about ROI masking rather than about the absence of a polygon.
+    That last sentence matters when comparing with and without a boundary: a no-op that
+    looks like a switch will be measured as "makes no difference", and the conclusion will
+    be drawn about ROI masking rather than about the absence of a polygon.
 
     ``fill`` is one of :data:`FILLS`:
 
-    * ``black`` - zeroes the outside. What `roi_mask` has always done, and the hardest edge.
+    * ``black`` - zeroes the outside. The default, and the hardest edge.
     * ``blur`` - a heavy Gaussian outside the outline. Destroys the detail a person is made
       of, which is what the neighbouring pitch has to lose, while leaving the frame's
       statistics closer to something the backbone has seen.

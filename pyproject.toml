@@ -53,7 +53,7 @@ dev = [
 
 # ---------------------------------------------------------------------------
 # CPU-only torch.
-# The thesis constraint is CPU-only inference on commodity edge hardware, so the
+# The design constraint is CPU-only inference on commodity edge hardware, so the
 # CUDA wheels are never installed - on any platform, including the Linux Mini-PC.
 # This keeps the lockfile honest about what the reported latencies were measured on.
 # ---------------------------------------------------------------------------
@@ -79,9 +79,8 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# experiments/ is a directory of runnable scripts, not an installed package. Putting the
-# repo root on the path lets a test import one directly - the search lock is real logic
-# that lives there, and testing it by copy would test the copy.
+# Puts the repository root on the path for tests, so top-level directories that are not
+# part of the installed package (such as scripts/) stay importable from a test.
 pythonpath = ["."]
 addopts = "-q"
 markers = [

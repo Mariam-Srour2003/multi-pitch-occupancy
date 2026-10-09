@@ -1,4 +1,4 @@
-"""Pitch boundaries: saying what counts as this pitch (WP3-T1).
+"""Pitch boundaries: saying what counts as this pitch.
 
 The feature exists for one failure: pitches are built in rows, so a camera watching one sees
 its neighbours down the sides of the frame, and a match on the next pitch over puts real
@@ -135,9 +135,8 @@ def test_the_comment_key_is_not_read_back_as_a_camera() -> None:
 
 
 def test_no_polygon_is_a_no_op() -> None:
-    """The reason `roi` stayed out of the preprocessing search: a no-op that looks like a
-    switch gets measured, and the finding is recorded about ROI masking rather than about
-    the absence of a polygon."""
+    """No polygon means the frame passes through untouched, so "no boundary" can never be
+    mistaken for a mask that happened to change nothing."""
     frame = np.random.default_rng(0).integers(0, 255, (40, 60, 3), dtype=np.uint8)
     assert np.array_equal(roi.apply(frame, None), frame)
 
@@ -173,16 +172,6 @@ def test_an_unknown_fill_is_refused() -> None:
         roi.apply(frame, MIDDLE, fill="feather")
 
 
-def test_preprocess_roi_mask_delegates_rather_than_reimplementing() -> None:
-    """One masking implementation. Two would eventually disagree about what "inside the
-    pitch" means, and the disagreement would be between the editor's preview and the live
-    worker - the two places it would be hardest to notice."""
-    from pitch_occupancy.vision.preprocess import roi_mask
-
-    frame = np.random.default_rng(3).integers(0, 255, (80, 80, 3), dtype=np.uint8)
-    assert np.array_equal(roi_mask(frame, MIDDLE), roi.apply(frame, MIDDLE, fill="black"))
-
-
 # --- the API --------------------------------------------------------------------------
 
 
@@ -214,9 +203,8 @@ def test_a_limited_listing_trims_the_menu_without_touching_the_stores() -> None:
     """The reviewer pages ask for three; the stores keep all hundred-odd.
 
     The derived store holds one boundary per clip in the corpus, so a selector built from the
-    whole listing is unusable - but that store is also read by the pipeline and by every
-    masking experiment, so shortening the menu must not mean deleting anything. This is the
-    test that says the trim is a view.
+    whole listing is unusable - but that store is also read by the pipeline, so shortening the
+    menu must not mean deleting anything. This is the test that says the trim is a view.
     """
     for i in range(6):
         roi.save_derived(f"derived_{i}", MIDDLE)
@@ -358,7 +346,7 @@ def test_a_clip_walkthrough_reports_the_boundary_it_applied(tmp_path, monkeypatc
 
     This asserted that an unknown camera produced no boundary at all. It no longer does:
     since the drawing step was added, the walkthrough falls back to measuring one from the
-    footage exactly as `/clip/analyse` has since A35 - because a tab that streams the model
+    footage exactly as `/clip/analyse` does - because a tab that streams the model
     over the whole frame while the other tab uses an outline is the two-tabs-disagreeing
     defect one step further along. So the claim is now about the *source*, which is the thing
     a reader has to be able to tell apart: stored, drawn here, or measured from the clip.
@@ -422,7 +410,7 @@ def test_choosing_the_whole_frame_is_not_the_same_as_not_choosing(tmp_path, monk
     Reported from use: the operator pressed the button, the outline vanished from the panel,
     and the clip came back analysed inside a boundary anyway. The page sent the choice by
     *omitting* the polygon, which is also exactly what "I have not drawn one yet" looks like -
-    and the route answers that case (A35) by measuring an outline from the footage. So the two
+    and the route answers that case by measuring an outline from the footage. So the two
     were indistinguishable on the wire and the fallback won.
 
     Both halves are asserted here, because only the pair is the claim: the same clip derives a
@@ -455,7 +443,7 @@ def test_choosing_the_whole_frame_beats_a_stored_boundary_too(tmp_path, monkeypa
     """A saved camera is not a stronger claim than the operator looking at this clip.
 
     `/clip/analyse` is the other half of the pair: the two tabs have to treat the choice the
-    same way or they disagree about one clip, which is the defect A35 was about.
+    same way or they disagree about one clip, which is the two-tabs-disagreeing defect.
     """
     from pitch_occupancy.api import clip_review as cr
 

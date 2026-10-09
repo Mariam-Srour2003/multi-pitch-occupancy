@@ -1,4 +1,4 @@
-"""Explaining still images, one or many (WP6-T6).
+"""Explaining still images, one or many.
 
 The image reviewer shares its explanation with the clip walkthrough - `explain_frame` is
 called by both - so the tests that matter here are the ones about what is *different*:
@@ -386,13 +386,13 @@ def test_the_uploads_are_still_deleted_when_the_stream_fails(tmp_path, monkeypat
     assert set(glob.glob(os.path.join(tempfile.gettempdir(), "shots-*"))) == before
 
 
-# --- both models on the same frame (WP9-T4a) -------------------------------------------------
+# --- both models on the same frame ----------------------------------------------------------
 
 
 @pytest.mark.slow
 def test_an_explained_image_carries_the_detectors_boxes_beside_the_probes_heatmap(
         tmp_path) -> None:
-    """The complaint that started A35 was two pages giving opposite answers on one clip.
+    """The original complaint was two pages giving opposite answers on one clip.
 
     The fix was to show the deployed path rather than the probe alone; this is the other
     half of it. A heatmap can only say *where* a score came from, so "the model is reading

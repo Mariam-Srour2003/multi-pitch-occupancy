@@ -1,14 +1,13 @@
-"""Photometric and geometric normalisation audit (WP3-T3).
+"""Photometric and geometric normalisation audit.
 
 The question the audit was meant to answer - are each model's normalisation statistics
 applied? - turned out to be the easy half. They are: the processor is called directly, so
 each model gets its own mean and standard deviation.
 
 The half nobody had checked is what the processor does to the *geometry* of a frame that
-`preprocess.py` has already resized. For ViT, nothing. For DINOv2 and
-ConvNeXtV2 - the default model and the one the 740-minute preprocessing search ran on - it
-upscales to 256 and centre-crops back to 224, discarding 23.4% of the frame including the
-letterbox padding WP3-T2 exists to add.
+has already been resized. For ViT, nothing. For DINOv2 and ConvNeXtV2 - the default model
+among them - it upscales to 256 and centre-crops back to 224, discarding 23.4% of the frame
+including the letterbox padding that exists to preserve the aspect ratio.
 
 ConvNeXtV2 is the one that hid: its `size` reads `shortest_edge: 224` and looks like a
 no-op, and only `crop_pct: 0.875` reveals that it resizes to 256 first. Reading `size` alone
@@ -114,9 +113,8 @@ def test_turning_the_geometry_off_changes_the_embedding_for_dinov2(frames) -> No
 
 
 def test_turning_the_geometry_off_changes_convnextv2_even_more(frames) -> None:
-    """0.886 against DINOv2's 0.961: the model the 740-minute search ran on is the one most
-    affected. That also explains why `centre_crop=0.5` scored so badly in that search - it
-    was a crop applied on top of a crop."""
+    """0.886 against DINOv2's 0.961: ConvNeXtV2 is the model most affected. That is also why
+    an extra centre crop scores so badly on it - it is a crop applied on top of a crop."""
     from pitch_occupancy.vision.backbones import embed_batch, load_backbone
 
     model, processor, spec = load_backbone("convnextv2")

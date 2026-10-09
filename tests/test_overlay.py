@@ -1,4 +1,4 @@
-"""The detector's overlay (A36, WP9-T4).
+"""The detector's overlay.
 
 What is pinned here is what a reader is entitled to see: the people in one colour and the
 ball in another, a detection found outside the boundary drawn differently from one counted

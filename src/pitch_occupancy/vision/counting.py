@@ -1,19 +1,19 @@
-"""What stands inside the boundary, from a list of detections (A36, WP9-T3).
+"""What stands inside the boundary, from a list of detections.
 
 Pure geometry, no detector import, so every rule that reads a count can be tested with
 detections written by hand. `vision/people.detect_inside` did this and ran the detector in
 the same breath; this is that arithmetic on its own, extended with what the decision table
-(`thesis/preregistration.md` A36) reads that the gate did not: vehicles, hi-vis, how spread
-out the people are, and a count persisted over a burst.
+(`vision/rules.py`) reads that the gate did not: vehicles, hi-vis, how spread out the people
+are, and a count persisted over a burst.
 
-**A person is placed by the foot of their box, a ball by its centre** (`vision/people.py`,
-A16). Someone standing at the touchline has their centre over the pitch and their feet
+**A person is placed by the foot of their box, a ball by its centre** (`vision/people.py`).
+Someone standing at the touchline has their centre over the pitch and their feet
 outside it, and it is the feet that say where they stand; a ball spends much of its time in
 the air and has no feet to stand on.
 
-**`raw_inside` against `people_inside`.** The minimum-height filter (fitted on camera A in
-WP9-T5) drops a detection too small to be a person at that depth of the frame - the goalpost,
-the bag, the shadow that 11% of camera B's recorded empty frames carry (A16). What it dropped
+**`raw_inside` against `people_inside`.** The minimum-height filter (fitted on camera A)
+drops a detection too small to be a person at that depth of the frame - the goalpost, the
+bag, the shadow that 11% of camera B's recorded empty frames carry. What it dropped
 is kept as a number, because the EMPTY confidence in row 3 of the table is lowered by it: an
 empty pitch on which nothing looked like a person is a stronger EMPTY than one on which
 something did.
@@ -26,7 +26,7 @@ does. That is the whole of what "a person must persist in two of three frames" m
 code, and it is stated here so nobody reads a tracker into it.
 
 **Hi-vis is a pixel fraction and a best effort.** Row 5 of the table names it because the
-labelling protocol's own maintenance cue is workwear plus a tool (§2.5), and the corpus has
+labelling rules' own maintenance cue is workwear plus a tool, and the corpus has
 zero recorded maintenance frames to fit anything better on. The fraction of a person's box
 that is saturated yellow-green or orange is what the rule reads; the threshold lives with
 the other rule parameters and is flagged as unevaluated wherever it appears.
@@ -55,7 +55,7 @@ class PitchCount:
 
     ``people_inside`` is after the minimum-height filter; ``raw_inside`` before it.
     ``ball_seen`` is True when a ball was seen and False when the frame was checked and none
-    was - which is not "there is no ball" (`vision/people.py`, A17). ``spread`` is the mean
+    was - which is not "there is no ball" (`vision/people.py`). ``spread`` is the mean
     distance between the feet of the counted people over the boundary's diagonal, None with
     fewer than two of them.
     """
@@ -191,7 +191,7 @@ def count_inside(
     their feet at that row of the frame; detections shorter than it are counted in
     ``raw_inside`` and dropped from ``people_inside``. ``hi_vis_min_fraction`` turns on the
     hi-vis count and needs ``frame_bgr``; both default off, since the measurement that would
-    set them does not exist yet (WP9-T5).
+    set them does not exist yet.
     """
     mask = polygon_mask(polygon, shape)
     people: list[Detection] = []

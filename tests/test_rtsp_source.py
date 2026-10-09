@@ -1,4 +1,4 @@
-"""The live camera path (WP6-T3).
+"""The live camera path.
 
 This class existed for weeks with no tests, and both of its defects were the kind that only
 appear when something actually runs it: it raised on `n_minutes`, so `worker.run_slot` could

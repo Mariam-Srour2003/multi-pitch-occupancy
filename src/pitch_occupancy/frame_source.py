@@ -1,4 +1,4 @@
-"""Where frames come from (WP6-T1, WP6-T3).
+"""Where frames come from.
 
 Three backends behind one interface, so the pipeline is identical whether it is replaying
 a recording, polling the simulator, or pulling from real cameras. That equivalence is the
@@ -7,7 +7,7 @@ point: a bug that only appears under RTSP is a bug nobody finds until deployment
 * :class:`VideoSlotSource` - replays recorded footage as if it were live, one frame per
   simulated minute. This is what makes a 60-minute slot testable in seconds.
 * :class:`RTSPSource` - one snapshot per camera per minute from a live stream.
-* the simulator API backend serves recorded frames over HTTP (WP6-T1).
+* the simulator API backend serves recorded frames over HTTP.
 
 **A read failure returns ``None`` rather than raising or substituting a frame.** A camera
 that drops out for a minute must produce a gap in the record, not a fabricated observation:
@@ -54,7 +54,7 @@ class FrameSource(ABC):
 
     def read_burst(self, camera_id: str, minute_index: int, *, n: int = 3,
                    spacing_s: float = 1.0) -> list[Frame]:
-        """Up to ``n`` frames about ``spacing_s`` apart at the start of the minute (A36).
+        """Up to ``n`` frames about ``spacing_s`` apart at the start of the minute.
 
         The detector-first path reads a short burst per camera per minute rather than one
         frame: a ball seen in any of three counts, the burst supplies a motion cue without
@@ -148,7 +148,7 @@ class VideoSlotSource(FrameSource):
 
 
 class RTSPSource(FrameSource):
-    """One snapshot per camera per minute from live streams (WP6-T3).
+    """One snapshot per camera per minute from live streams.
 
     Opens and closes per read rather than holding streams: at one frame per minute a
     persistent connection buys nothing and turns every network blip into stale buffered
@@ -297,9 +297,9 @@ def discover_slots(directory: Path) -> dict[str, dict[str, Path]]:
     (0.70). The mapping flips between days.
 
     Naming these ``camA``/``camB`` would therefore be wrong on one day in two - and wrong
-    invisibly, because fusion still yields a plausible verdict from swapped halves. To
-    resolve real camera identity, describe each recording with
-    :func:`pitch_occupancy.vision.camera_id.describe_view` and match it against references.
+    invisibly, because fusion still yields a plausible verdict from swapped halves. Real
+    camera identity has to come from matching each recording's view against a reference,
+    never from the filename.
     """
     slots: dict[str, dict[str, Path]] = {}
     for path in sorted(directory.glob("*.mp4")):

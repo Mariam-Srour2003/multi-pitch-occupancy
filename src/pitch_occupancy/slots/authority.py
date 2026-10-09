@@ -1,9 +1,9 @@
-"""What this system is permitted to do with a discrepancy (WP6-T12, RQ4).
+"""What this system is permitted to do with a discrepancy.
 
 Reconciliation compares what the cameras saw against what the records claim, and a
 disagreement can implicate a named member of staff. The design constraint is one sentence -
-**the system never takes an automated financial action** - and a sentence in a chapter is
-worth very little at an examination, so it lives here as code with a test behind it.
+**the system never takes an automated financial action** - and a sentence in a document is
+worth very little on its own, so it lives here as code with a test behind it.
 
 The constraint has three parts, and they are separable:
 
@@ -19,8 +19,8 @@ The constraint has three parts, and they are separable:
    penalise or alter a booking.
 
 **Why enumerate the forbidden actions at all.** A list of permitted ones would be enough for
-the code; the second list is for the reader. "This system does not bill" is a claim an
-examiner should be able to check in thirty seconds, and a named absence is checkable where a
+the code; the second list is for the reader. "This system does not bill" is a claim a
+reviewer should be able to check in thirty seconds, and a named absence is checkable where a
 silent one is not.
 
 **This is not a safety mechanism against a malicious operator** - anyone with the database
@@ -97,7 +97,7 @@ class Advisory:
             raise ValueError(
                 f"not a permitted action: {unknown}. The permitted vocabulary is "
                 f"{sorted(a.value for a in PERMITTED)}, and money is deliberately not in it "
-                f"- see FORBIDDEN and thesis/ethics.md."
+                f"- see FORBIDDEN."
             )
 
 

@@ -1,18 +1,18 @@
-"""The decision table (A36, amended A40), one test per row, on counts written by hand.
+"""The decision table, one test per row, on counts written by hand.
 
 `vision/rules.decide` is pure - a count, a motion cue and a config in, a verdict out - so
 every row is exercised here without a detector.
 
-**The rule answers three classes and an abstention.** A40 dropped the four-class split from
-the prediction path: the corpus holds 6 real `3_people_not_playing` frames and 0 real
+**The rule answers three classes and an abstention.** The four-class split was dropped
+from the prediction path: the corpus holds 6 real `3_people_not_playing` frames and 0 real
 `4_maintenance` ones, so nothing could measure the distinction, and a branch the data cannot
 evaluate should not be in the deployed path.
 
 **And play must now be shown, not assumed.** More than four people *and* a ball *and*
-movement. A36 had it the other way round - play was the default above the head count, on the
-reasoning that A17's 0.40 cross-venue ball recall makes absence of a ball weak evidence. The
-facility's rule is that a game has a ball in it, so the burden moved, and what that costs is
-measured in `results/rule_frame_eval.csv` rather than argued about here.
+movement. An earlier rule had it the other way round - play was the default above the head
+count, on the reasoning that a cross-venue ball recall of 0.40 makes absence of a ball weak
+evidence. The facility's rule is that a game has a ball in it, so the burden moved; what that
+costs is measured rather than argued about here (see `STRICT` below).
 """
 
 from __future__ import annotations
@@ -39,14 +39,14 @@ EMPTY, PLAY, C3 = (MinuteState.EMPTY, MinuteState.ACTIVE_PLAY,
 #: The shipped rule, so these tests describe what is deployed rather than a fixture.
 CFG = RuleConfig.load()
 
-#: Motion required *and* checkable - `motion_play_min` is null until WP9-T5, so a test about
-#: the motion clause has to fit one itself and say that is what it is doing.
+#: Motion required *and* checkable - `motion_play_min` is null until a threshold is fitted,
+#: so a test about the motion clause has to fit one itself and say that is what it is doing.
 MOVING = RuleConfig(**{**CFG.to_json(), "motion_play_min": 1.0})
 
 #: The ball clause, asked for explicitly, for the same reason and since the same date.
 #:
-#: `require_ball` was turned **off** in the shipped config on 2026-09-29: both detector arms of
-#: `rule_frame_eval.py` are identical on the empty side - false-play 0.0000, EMPTY accuracy
+#: `require_ball` was turned **off** in the shipped config on 2026-09-29: measured frame by
+#: frame, both detector arms are identical on the empty side - false-play 0.0000, EMPTY accuracy
 #: 0.9259 - and requiring a ball cost 69 points of play-recall, 0.9957 to 0.3078. Per venue the
 #: rule's recall *was* the ball-detection rate, so the clause measured whether yolov8n could see
 #: the ball rather than whether football was being played.
@@ -169,8 +169,8 @@ def test_row_6_more_than_four_with_a_ball_and_motion_is_play() -> None:
 
 
 def test_row_7_a_crowd_with_no_ball_is_not_playing() -> None:
-    """The inversion. A36 called this ACTIVE_PLAY at lower confidence; the facility's rule
-    is that a game has a ball in it.
+    """The inversion. An earlier rule called this ACTIVE_PLAY at lower confidence; the
+    facility's rule is that a game has a ball in it.
 
     Runs against `STRICT` because the shipped config no longer requires a ball - see the
     constant. This pins the clause, not the deployment.
@@ -185,7 +185,7 @@ def test_the_shipped_rule_no_longer_requires_a_ball() -> None:
 
     Nine people, no ball, moving: ACTIVE_PLAY under the shipped config, C3 under `STRICT`.
     That difference is worth 69 points of play-recall (0.3078 -> 0.9957) at an unchanged
-    false-play of 0.0000, measured in `results/rule_frame_eval.csv`.
+    false-play of 0.0000, measured frame by frame on recorded footage.
     """
     moving_shipped = RuleConfig(**{**CFG.to_json(), "motion_play_min": 1.0})
     assert CFG.require_ball is False
@@ -218,9 +218,9 @@ def test_a_clustered_crowd_is_not_playing_when_a_threshold_says_what_clustered_m
 
 
 def test_an_unfitted_motion_threshold_is_announced_rather_than_passing_silently() -> None:
-    """`require_motion` is on in the shipped config and `motion_play_min` is null until
-    WP9-T5. A requirement that silently never fires is the shape of every guard this project
-    has caught not guarding, so the verdict says which clause was skipped."""
+    """`require_motion` is on in the shipped config and `motion_play_min` is null until a
+    threshold is fitted. A requirement that silently never fires is the shape of every guard
+    this project has caught not guarding, so the verdict says which clause was skipped."""
     assert CFG.require_motion and CFG.motion_play_min is None
     verdict = decide(count(9, ball=True), motion=0.001, cfg=CFG)
     assert verdict.state is PLAY, "the clause cannot be checked, so it does not block"
@@ -234,11 +234,11 @@ def test_motion_that_was_never_measured_is_announced_too() -> None:
 
 
 def test_the_requirements_can_be_switched_off_and_the_cost_is_a_decision() -> None:
-    """A17 measured cross-venue ball recall at 0.40, so `require_ball` loses genuine matches
+    """Cross-venue ball recall measured 0.40, so `require_ball` loses genuine matches
     wherever the detector cannot see the ball. The switch exists so that is somebody's call.
 
-    It was called on 2026-09-29, against the measurement: `rule_frame_eval.py` ran both arms
-    and they are identical on the empty side - false-play 0.0000, EMPTY accuracy 0.9259 -
+    It was called on 2026-09-29, against the measurement: run frame by frame, both arms
+    are identical on the empty side - false-play 0.0000, EMPTY accuracy 0.9259 -
     while play-recall was 0.3078 strict against 0.9957 lenient. The clause cost 69 points and
     bought nothing, so the shipped config is now the lenient one. Both directions stay tested
     because both remain reachable.
@@ -289,19 +289,19 @@ def test_every_verdict_carries_a_readable_trace_and_its_row() -> None:
 def test_the_requirements_are_the_facilitys_numbers_and_switches() -> None:
     """`play_min` and `small_group_max` are the facility's rule and are not fitted.
 
-    `require_ball` is a switch and was turned off on 2026-09-29 on the measurement in
-    `results/rule_frame_eval.csv`; `require_motion` stays on and stays inert while
+    `require_ball` is a switch and was turned off on 2026-09-29 on the measurement described
+    at `STRICT`; `require_motion` stays on and stays inert while
     `motion_play_min` is null, which `test_row_6_...` covers.
     """
     assert CFG.play_min == 5 and CFG.small_group_max == 4
-    assert CFG.require_ball is False, "turned off on measurement - see A41 in the log"
+    assert CFG.require_ball is False, "turned off on measurement - see STRICT"
     assert CFG.require_motion is True
 
 
-def test_the_committed_rule_file_loads_and_is_unfrozen_until_wp9_t5(tmp_path) -> None:
+def test_the_committed_rule_file_loads_and_is_unfrozen(tmp_path) -> None:
     raw = json.loads(RULES_PATH.read_text(encoding="utf-8"))
     assert "_comment" in raw, "the file explains itself"
-    assert "row8_enabled" not in raw, "A40 removed it with the four-class split"
+    assert "row8_enabled" not in raw, "removed with the four-class split"
     if CFG.frozen:
         assert CFG.frozen_commit and CFG.tuned_on == "venue_01/camera_A"
     other = tmp_path / "rules.json"
