@@ -19,6 +19,8 @@ from pitch_occupancy.timetable import (
     SlotResult,
     SlotStatus,
     compare,
+    recheck,
+    rejudge,
     slot_windows,
     summarise,
     to_csv,
@@ -215,3 +217,56 @@ def test_csv_has_one_row_per_slot_and_the_booking_columns_when_compared() -> Non
     checks = compare(results, [_booking("08:00", "09:00")], field_id="field_01", day=DAY)
     both = to_csv([r.to_dict() for r in results], [c.to_dict() for c in checks])
     assert "booking_outcome" in both and "booked_and_used" in both and "BK-1" in both
+
+
+# --- rules set by the client ----------------------------------------------------------------
+
+
+def test_rules_are_checked_and_described() -> None:
+    assert Rules().describe() == "at least 50% seen; 40-60% is a close call"
+    assert Rules.from_percent(75, 42.5, 55).describe() == \
+        "at least 75% seen; 42.5-55% is a close call"
+    assert Rules.from_percent() == Rules()
+    assert Rules.from_dict(Rules(0.3, 0.1, 0.2).to_dict()) == Rules(0.3, 0.1, 0.2)
+    assert Rules.from_dict(None) == Rules()
+    for bad in ({"min_seen_share": 1.5}, {"close_low": -0.1}, {"close_low": 0.6},
+                {"close_low": 0.5, "close_high": 0.5}):
+        with pytest.raises(ValueError):
+            Rules(**bad)
+
+
+def test_rejudging_is_the_same_as_summarising_under_the_new_rules() -> None:
+    windows = slot_windows(time(8, 0), 4 * 3600, 60)
+    samples = _minutes((P, 45), (E, 15), (P, 25), (E, 35), (P, 20), (None, 40), (E, 60))
+    old = summarise(samples, windows, 60)
+    strict = Rules(min_seen_share=0.8, close_low=0.3, close_high=0.8)
+    again = rejudge(old, strict)
+    assert again == summarise(samples, windows, 60, rules=strict)
+    assert [r.status for r in old] == [SlotStatus.USED, SlotStatus.REVIEW,
+                                       SlotStatus.REVIEW, SlotStatus.NOT_USED]
+    assert [r.status for r in again] == [SlotStatus.REVIEW, SlotStatus.REVIEW,
+                                         SlotStatus.REVIEW, SlotStatus.NOT_USED]
+    assert "Less than 80% of the slot" in again[2].reason
+    # through the stored dict as well: the seconds are kept unrounded
+    assert rejudge([SlotResult.from_dict(r.to_dict()) for r in old], strict) == again
+
+
+def test_a_stored_comparison_is_redone_exactly_for_rejudged_slots() -> None:
+    windows = slot_windows(time(8, 0), 4 * 3600, 60)
+    results = summarise(_minutes((P, 60), (P, 40), (E, 20), (E, 60), (P, 60)), windows, 60)
+    records = [_booking("08:00", "09:00", ref="BK-A"), _booking("09:00", "10:00", ref="BK-B"),
+               _booking("10:00", "11:00", status="maintenance", ref=""),
+               _booking("11:00", "12:00", status="blocked", ref="")]
+    checks = compare(results, records, field_id="field_01", day=DAY)
+    for rules in (Rules(close_low=0.6, close_high=0.7), Rules(close_low=0.0, close_high=0.01),
+                  Rules(min_seen_share=1.0, close_low=0.9, close_high=1.0)):
+        again = rejudge(results, rules)
+        expected = compare(again, records, field_id="field_01", day=DAY)
+        assert recheck(again, [c.to_dict() for c in checks]) == expected
+
+
+def test_csv_can_carry_the_rules() -> None:
+    results = summarise(_minutes((P, 60)), slot_windows(time(8, 0), 3600, 60), 60)
+    lines = to_csv(results, rules=Rules.from_percent(60)).strip().splitlines()
+    assert lines[0].endswith(",rules") and len(lines) == 2
+    assert lines[1].endswith("at least 60% seen; 40-60% is a close call")

@@ -264,6 +264,15 @@ ALLOWED_MUTATING = {
     #: A person saving the capture schedule, through `schedule_editor.write_schedule` and its
     #: protections. Same category as `/schedule`.
     "/api/v1/cameras/schedule",
+    #: Writes nothing: tests every saved camera in turn and reports which answered.
+    "/api/v1/cameras/test-all",
+    #: Re-judges a saved test run with different slot rules. It rewrites only that run's own
+    #: result file under `data/test_runs/` - no footage, no database row, no booking source.
+    "/api/v1/testing/runs/{run_id}/rejudge",
+    #: The booking-day test on a recording already in the configured recordings folder. Reads
+    #: the file in place (and never deletes it - it is the client's own), saves the per-slot
+    #: result like `/api/v1/testing/day`.
+    "/api/v1/testing/day/local",
 }
 
 

@@ -13,6 +13,7 @@ __all__ = ["NAV", "NAV_CSS", "nav_html"]
 #: The site's sections, in the order the header shows them: ``(key, label, href)``.
 NAV: tuple[tuple[str, str, str], ...] = (
     ("dashboard", "Dashboard", "/"),
+    ("reports", "Reports", "/reports"),
     ("testing", "Testing", "/testing"),
     ("cameras", "Cameras", "/cameras"),
     ("bookings", "Bookings", "/bookings"),

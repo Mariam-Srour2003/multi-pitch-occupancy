@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import StrEnum
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 __all__ = ["SourceType", "Settings", "settings", "PROJECT_ROOT", "DATA_DIR", "RESULTS_DIR"]
@@ -67,6 +67,17 @@ class Settings(BaseSettings):
     #: The detector-first decision rule's numbers (`vision/rules.RuleConfig`). Committed,
     #: like a boundary: a rule is part of what the deployment *is*.
     rules_path: Path = CONFIGS_DIR / "rules.json"
+    #: Where the booking-day test looks for recordings already on this machine
+    #: (`PITCH_RECORDINGS_DIR`). A day of video is many GB per camera; reading it in place
+    #: beats uploading it to the same computer. Files here are the client's and are never
+    #: deleted by the test.
+    recordings_dir: Path = DATA_DIR / "recordings"
+
+    #: Per-video upload limit for the booking-day test, in MB (`PITCH_TESTING_MAX_UPLOAD_MB`).
+    #: One hour of real recording is about 630 MB per camera, a day about 7 GB, so the
+    #: reviewers' clip-sized cap is far too small here. The upload is also refused up front
+    #: when the temp folder's disk could not hold it.
+    testing_max_upload_mb: int = Field(default=16384, ge=1)
 
     # slot aggregation baseline (see docstring)
     used_min_playing_ratio: float = Field(default=0.35, ge=0.0, le=1.0)
@@ -95,6 +106,14 @@ class Settings(BaseSettings):
     #:
     #: Never committed. Set it in `.env`, which is gitignored, or in the service environment.
     simulator_token: str = ""
+
+    #: The password every page and endpoint asks for, from `PITCH_ACCESS_PASSWORD`
+    #: (`api/access.py`). Empty means no sign-in, which is only acceptable while the server
+    #: listens on this machine alone - `pitch serve` refuses a network address without it
+    #: unless told `--no-password`. Set it in `.env` (gitignored) or the service environment.
+    access_password: SecretStr = SecretStr("")
+    #: The user name that goes with it, from `PITCH_ACCESS_USER`.
+    access_user: str = "admin"
 
 
 settings = Settings()

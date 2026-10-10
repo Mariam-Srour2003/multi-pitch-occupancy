@@ -80,6 +80,26 @@ Results: each finished slot is written to the database (`data/db/pitch_monitor.d
 shown on the dashboard at `/`. Retention: sampled frames 7 days, evidence pictures 365 days
 (`uv run pitch retention`).
 
+## Daily check
+
+Two minutes each morning, on `/cameras`:
+
+1. Press **Test all cameras** over the camera list. Each saved camera is tried in turn (about
+   3 seconds at most each) and the **Status now** column shows *answered in 420 ms* in green,
+   or in red what went wrong and what to do (the same reasons as the Troubleshooting table
+   below). The line next to the button says how many answered, e.g. *5 of 6 cameras
+   answered*. No pictures are taken and nothing is saved.
+2. Look at **Last picture**: when the live recording last saved a picture from that camera
+   (*3 min ago*, *2 days ago*, or *never*). It is shown in **red** when the camera is in the
+   schedule and nothing was recorded for more than a day. Under it, *540 of 600 min in 24 h*
+   compares the minutes recorded with the minutes of slots the recorder ran in the last day.
+
+A camera can fail one check and pass the other: it may answer the test but not have been
+recording (the worker is stopped, or it was started before the schedule changed - restart
+it), or it may have recorded overnight and be off now. "Last picture" matches the camera id
+in the database exactly; a camera saved under a different name than the one the recording
+used shows *never*. The same numbers are at `GET /api/v1/cameras/health`, for a script.
+
 ## 5. Recommended settings
 
 - **Sub-stream is enough.** One burst a minute is all this system takes; 720p or even

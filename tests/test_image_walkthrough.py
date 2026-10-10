@@ -329,10 +329,13 @@ def test_the_page_is_honest_that_slow_motion_is_not_the_model() -> None:
     assert "the model runs at the same speed either way" in html
 
 
-def test_the_two_reviewers_link_to_each_other() -> None:
+def test_the_two_reviewers_lead_back_to_the_testing_hub() -> None:
+    """They reach each other through the shared navigation's Testing hub, which links both."""
     client = TestClient(app)
-    assert 'href="/images"' in client.get("/clip").text
-    assert 'href="/clip"' in client.get("/images").text
+    assert 'href="/testing"' in client.get("/clip").text
+    assert 'href="/testing"' in client.get("/images").text
+    hub = client.get("/testing").text
+    assert 'href="/clip"' in hub and 'href="/images"' in hub
 
 
 def test_a_failure_mid_stream_becomes_a_record_rather_than_a_truncated_body(

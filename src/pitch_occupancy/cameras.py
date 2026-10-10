@@ -28,6 +28,12 @@ connect and the capture opener are parameters, so every stage is tested without 
 
 :func:`open_capture` is shared with `frame_source.RTSPSource`, which is how ``usb:0`` (a
 local webcam, for a bench test) works in the live worker as well as on the page.
+
+Two answers for the morning check sit here as well. :func:`probe_all` tries every saved camera
+one after another with a short timeout and returns no pictures, so a page of six cameras
+answers in seconds. :func:`recording_health` says when the live run last recorded a picture
+from each camera, read from the database's ``frame_samples`` - a camera that answers the test
+but has recorded nothing since Tuesday is the failure the test alone cannot show.
 """
 
 from __future__ import annotations
@@ -38,10 +44,11 @@ import os
 import re
 import shutil
 import socket
+import sqlite3
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -53,7 +60,7 @@ from pitch_occupancy.config import CONFIGS_DIR
 __all__ = [
     "CONFIG_PATH", "ProbeResult", "STAGES", "list_cameras", "get_url", "save_camera",
     "delete_camera", "mask", "validate_id", "validate_url", "merge_password", "open_capture",
-    "probe", "snapshot", "jpeg_base64", "history_dir",
+    "probe", "snapshot", "jpeg_base64", "history_dir", "probe_all", "recording_health",
 ]
 
 #: The file `worker.load_camera_urls` reads. A module attribute so a test can point it at a
@@ -548,3 +555,138 @@ def jpeg_base64(image_bgr: np.ndarray | None, *, max_width: int = 640,
                                interpolation=cv2.INTER_AREA)
     ok, buf = cv2.imencode(".jpg", image_bgr, [cv2.IMWRITE_JPEG_QUALITY, quality])
     return base64.b64encode(buf.tobytes()).decode("ascii") if ok else None
+
+
+# --- the daily check ----------------------------------------------------------------------
+
+def probe_all(path: Path | None = None, *, timeout_ms: int = 3000,
+              open_capture: Callable[[str, int], object] | None = None,
+              connect: Callable[[str, int, float], None] | None = None) -> list[dict]:
+    """:func:`probe` every saved camera, one after another, **URLs masked, no pictures**.
+
+    One after another rather than in parallel: two cameras on one NVR, or a slow PoE switch,
+    answer worse when hit at once, and a daily check is not in a hurry. With the short timeout
+    a dead camera costs about ``2 x timeout_ms`` (connect, then open), so six cameras with one
+    dead take well under half a minute.
+    """
+    out = []
+    for venue, cams in sorted(_read(path).items()):
+        if venue.startswith("_") or not isinstance(cams, dict):
+            continue
+        for cam, url in sorted(cams.items()):
+            if cam.startswith("_") or not isinstance(url, str):
+                continue
+            r = probe(url, timeout_ms=timeout_ms, open_capture=open_capture, connect=connect)
+            out.append({"venue": venue, "camera_id": cam, "url": r.url, "ok": r.ok,
+                        "stage": r.stage, "message": r.message, "hint": r.hint,
+                        "elapsed_ms": r.elapsed_ms, "width": r.width, "height": r.height})
+    return out
+
+
+def _local(stamp: str | None) -> datetime | None:
+    """An ISO timestamp as a naive local time. The worker writes UTC with an offset; a value
+    without one (older or simulated rows) is taken as local already."""
+    if not stamp:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(stamp).strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.astimezone().replace(tzinfo=None) if parsed.tzinfo else parsed
+
+
+def _span(slot_date: str, start: str, end: str) -> tuple[datetime, datetime] | None:
+    try:
+        day = date.fromisoformat(slot_date)
+        s0 = datetime.combine(day, datetime.strptime(start, "%H:%M").time())
+        s1 = datetime.combine(day, datetime.strptime(end, "%H:%M").time())
+    except (TypeError, ValueError):
+        return None
+    if s1 <= s0:
+        s1 += timedelta(days=1)
+    return s0, s1
+
+
+def recording_health(db_path: Path, cams: Iterable[tuple[str, str]], *,
+                     now: datetime | None = None) -> dict[tuple[str, str], dict]:
+    """When each ``(venue, camera_id)`` last had a picture recorded, and the last 24 hours.
+
+    Read from ``frame_samples`` (one row per camera per recorded minute). Per camera:
+
+    * ``last_recorded`` - the latest ``captured_at`` as local time, or ``None`` ("never");
+    * ``minutes_since`` - how long ago that was;
+    * ``captured_24h`` - recorded minutes in the last 24 hours;
+    * ``expected_24h`` - minutes of the camera's pitch's slots in ``rental_slots`` that fall
+      inside the last 24 hours, or ``None`` when the database does not say which pitch the
+      camera belongs to. Only slots the live run reached are in that table (a slot is written
+      when it is recorded), so a day the recorder was not running at all shows nothing
+      expected rather than everything missed - the "last picture" age is what shows that.
+
+    **Matched on the camera id exactly, never guessed.** The database knows cameras by id
+    alone; when it also records a venue for that id and the venue differs from the registry's,
+    the rows belong to another camera of the same name and this one is "never recorded", with
+    a ``note`` saying so. A database that does not exist yet means never recorded for every
+    camera, not an error. Opened read-only, so looking never creates or locks the file.
+    """
+    wanted = list(dict.fromkeys(cams))
+    empty = {"last_recorded": None, "minutes_since": None, "captured_24h": 0,
+             "expected_24h": None, "note": None}
+    out = {key: dict(empty) for key in wanted}
+    db = Path(db_path)
+    if not wanted or not db.is_file():
+        return out
+    now = now or datetime.now()
+    since = now - timedelta(hours=24)
+    # Text bound for the index-free scan: two days back covers any timezone offset.
+    floor = (since - timedelta(days=2)).date().isoformat()
+    try:
+        conn = sqlite3.connect(f"{db.resolve().as_uri()}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return out
+    try:
+        for venue, cam in wanted:
+            row = out[(venue, cam)]
+            try:
+                link = conn.execute(
+                    "SELECT c.field_id, f.venue_id FROM cameras c "
+                    "LEFT JOIN fields f ON f.field_id = c.field_id WHERE c.camera_id = ?",
+                    (cam,)).fetchone()
+            except sqlite3.Error:
+                link = None
+            field_id, db_venue = (link[0], link[1]) if link else (None, None)
+            if db_venue and db_venue != venue:
+                row["note"] = (f"the database has a camera called {cam} at {db_venue}, not at "
+                               f"{venue}; its pictures are not counted as this camera's")
+                continue
+            try:
+                last = conn.execute("SELECT MAX(captured_at) FROM frame_samples "
+                                    "WHERE camera_id = ?", (cam,)).fetchone()[0]
+                recent = [r[0] for r in conn.execute(
+                    "SELECT captured_at FROM frame_samples WHERE camera_id = ? "
+                    "AND captured_at >= ?", (cam, floor))]
+            except sqlite3.Error:
+                return out  # no such table yet: nothing recorded
+            when = _local(last)
+            if when is not None:
+                row["last_recorded"] = when.isoformat(timespec="seconds")
+                row["minutes_since"] = max(0, int((now - when).total_seconds() // 60))
+            row["captured_24h"] = sum(1 for t in recent
+                                      if (lt := _local(t)) is not None and since <= lt <= now)
+            if field_id:
+                expected = 0.0
+                try:
+                    slots = conn.execute(
+                        "SELECT slot_date, start_time, end_time FROM rental_slots "
+                        "WHERE field_id = ? AND slot_date >= ?", (field_id, floor)).fetchall()
+                except sqlite3.Error:
+                    slots = []
+                for slot_date, start, end in slots:
+                    span = _span(slot_date, start, end)
+                    if span is None:
+                        continue
+                    overlap = (min(span[1], now) - max(span[0], since)).total_seconds()
+                    expected += max(0.0, overlap) / 60
+                row["expected_24h"] = int(round(expected))
+    finally:
+        conn.close()
+    return out

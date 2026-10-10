@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from pitch_occupancy import cameras
 from pitch_occupancy.api import cameras_page
+from pitch_occupancy.config import settings
 from pitch_occupancy.vision import roi
 
 SECRET = "s3cretPW"
@@ -93,6 +94,8 @@ def env(tmp_path, monkeypatch):
     ]), encoding="utf-8")
     monkeypatch.setattr(cameras, "CONFIG_PATH", cam_file)
     monkeypatch.setattr(cameras_page, "SCHEDULE_PATH", schedule)
+    # No database yet, unless a test makes one: never the real one.
+    monkeypatch.setattr(settings, "db_path", tmp_path / "db" / "pitch_monitor.db")
 
     opened: list[str] = []
     broken: set[str] = set()
@@ -327,3 +330,87 @@ def test_end_time_mode(env) -> None:
     body = {**BODY, "count": None, "end": "23:00"}
     data = env.client.post("/api/v1/cameras/schedule/preview", json=body).json()
     assert len(data["slots"]) == 10 and data["slots"][-1]["end"] == "23:00"
+
+
+# --- the daily check ----------------------------------------------------------------------
+
+def test_test_all_tries_every_camera_and_says_how_many_answered(env, monkeypatch) -> None:
+    timeouts: list[int] = []
+    real_probe = cameras.probe
+
+    def probe(url, **kw):
+        timeouts.append(kw["timeout_ms"])
+        return real_probe(url, **kw)
+
+    monkeypatch.setattr(cameras, "probe", probe)
+    env.broken.add("10.0.0.6")
+    data = _clean(env.client.post("/api/v1/cameras/test-all"))
+    assert data["summary"] == "1 of 2 cameras answered"
+    assert (data["answered"], data["total"]) == (1, 2)
+    by_cam = {c["camera_id"]: c for c in data["cameras"]}
+    assert by_cam["camera_A"]["ok"] and by_cam["camera_A"]["width"] == 640
+    assert by_cam["camera_B"]["stage"] == "stream" and by_cam["camera_B"]["hint"]
+    assert all(c["url"].startswith("rtsp://admin:***@") for c in data["cameras"])
+    assert all("snapshot" not in c and "frame" not in c for c in data["cameras"])
+    assert {"venue", "elapsed_ms", "message", "height"} <= set(by_cam["camera_A"])
+    assert timeouts == [cameras_page.TEST_ALL_TIMEOUT_MS] * 2
+    assert len(env.opened) == 2
+
+
+def test_test_all_with_no_cameras(env) -> None:
+    env.cam_file.write_text("{}", encoding="utf-8")
+    data = env.client.post("/api/v1/cameras/test-all").json()
+    assert data["total"] == 0 and data["summary"] == "No cameras saved yet"
+
+
+def test_no_database_yet_means_never_recorded_and_creates_nothing(env) -> None:
+    data = _clean(env.client.get("/api/v1/cameras/registry"))
+    rec = data["cameras"][0]["recording"]
+    assert rec["last_recorded"] is None and rec["captured_24h"] == 0
+    assert rec["scheduled"] is True and rec["stale"] is True  # scheduled, never recorded
+    health = env.client.get("/api/v1/cameras/health").json()
+    assert health["database_exists"] is False
+    assert [c["last_recorded"] for c in health["cameras"]] == [None, None]
+    assert not settings.db_path.exists(), "looking must not create the database"
+
+
+def test_last_picture_comes_from_the_database(env) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from pitch_occupancy.db.schema import connect, initialise
+    from pitch_occupancy.db.store import ensure_slot
+
+    conn = connect(settings.db_path)
+    initialise(conn)
+    now = datetime.now()
+    begin = now - timedelta(minutes=30)
+    ensure_slot(conn, slot_id="s1", venue_id="venue_01", field_id="field_01",
+                cameras=["camera_A"], slot_date=begin.date().isoformat(),
+                start_time=f"{begin:%H:%M}", end_time=f"{now:%H:%M}")
+    # camera_B is known to the database at another venue: not this registry's camera_B
+    ensure_slot(conn, slot_id="s2", venue_id="venue_09", field_id="field_09",
+                cameras=["camera_B"], slot_date=begin.date().isoformat(),
+                start_time=f"{begin:%H:%M}", end_time=f"{now:%H:%M}")
+    utc = datetime.now(UTC)
+    for i, cam, slot in ((0, "camera_A", "s1"), (1, "camera_A", "s1"), (0, "camera_B", "s2")):
+        stamp = (utc - timedelta(minutes=3 + i)).isoformat(timespec="seconds")
+        conn.execute("INSERT INTO frame_samples (slot_id, camera_id, captured_at, "
+                     "minute_index, predicted, confidence) VALUES (?, ?, ?, ?, ?, ?)",
+                     (slot, cam, stamp, i, "C1_EMPTY", 0.9))
+    conn.commit()
+    conn.close()
+
+    by_cam = {c["camera_id"]: c["recording"]
+              for c in _clean(env.client.get("/api/v1/cameras/registry"))["cameras"]}
+    a = by_cam["camera_A"]
+    assert 2 <= a["minutes_since"] <= 4 and a["stale"] is False
+    assert a["captured_24h"] == 2 and 29 <= a["expected_24h"] <= 31
+    b = by_cam["camera_B"]
+    assert b["last_recorded"] is None and "venue_09" in b["note"] and b["stale"] is True
+
+
+def test_the_page_has_the_daily_check(env) -> None:
+    text = env.client.get("/cameras").text
+    for needle in ("Test all cameras", "Last picture", "/api/v1/cameras/test-all",
+                   "answered in", "never"):
+        assert needle in text

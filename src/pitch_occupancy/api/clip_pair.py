@@ -121,17 +121,29 @@ class PairOut(BaseModel):
     segments: list[SegmentOut] = Field(default_factory=list)
 
 
-async def _receive(request: Request, size_a: int, dirs: tuple[Path, Path]) -> None:
-    """Stream the body into the two files, switching at ``size_a``. Capped while streaming."""
-    cap = 2 * MAX_UPLOAD_BYTES
-    if size_a <= 0 or size_a > MAX_UPLOAD_BYTES:
+async def _receive(request: Request, size_a: int, dirs: tuple[Path, Path], *,
+                   max_each: int = MAX_UPLOAD_BYTES) -> None:
+    """Stream the body into the two files, switching at ``size_a``. Capped while streaming.
+
+    ``max_each`` is the limit per video. A file over it is refused as too large (413) rather
+    than as a malformed request: an hour of real recording is about 630 MB, so "too large" is
+    the answer a person with a real file most needs to read correctly.
+    """
+    mb = 1024 * 1024
+    if size_a <= 0:
         raise HTTPException(422, "size_a must be the byte length of camera A's video")
+    if size_a > max_each:
+        raise HTTPException(
+            413, f"camera A's video is {size_a // mb} MB; the limit is {max_each // mb} MB "
+                 f"per video")
+    cap = size_a + max_each
     written = 0
     handles = [open(p, "wb") for p in dirs]  # noqa: SIM115 - closed in finally
     try:
         async for chunk in request.stream():
             if written + len(chunk) > cap:
-                raise HTTPException(413, f"the two clips exceed {cap // (1024 * 1024)} MB")
+                raise HTTPException(
+                    413, f"camera B's video is over the limit of {max_each // mb} MB per video")
             split = max(0, min(len(chunk), size_a - written))
             handles[0].write(chunk[:split])
             handles[1].write(chunk[split:])

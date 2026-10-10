@@ -27,6 +27,23 @@ labels, nothing a person could be recognised from.
 **Comparing with bookings is a second step, on a saved run.** The footage is not needed again,
 so a client can try one booking export, then another, without re-running the analysis. A slot
 the footage did not settle is reported as "review" whatever the booking says.
+
+**The rules are the client's to set, and are saved with the run.** How much of a slot must be
+seen, and which share of play is a close call (`timetable.Rules`), can be given in percent with
+the upload or applied afterwards to a saved run (``POST /api/v1/testing/runs/{id}/rejudge``).
+Rejudging is exact without the footage: the run keeps every slot's unrounded seconds, which is
+all the rules act on. A stored comparison with bookings is redone with the new results, from
+the booking facts it kept per slot.
+
+**A day of video is many GB, so it need not be uploaded.** An upload is capped per video by
+``settings.testing_max_upload_mb`` (16 GB by default; an hour of real recording is ~630 MB per
+camera) and refused up front with 507 when the temp folder's disk could not hold it. A
+recording already on this machine, under ``settings.recordings_dir``, can be analysed in place
+(``POST /api/v1/testing/day/local``): the name is resolved inside that folder and nowhere else,
+and the file - the client's own - is never deleted, unlike an upload's temporary copy.
+
+Mutating routes: ``POST /api/v1/testing/day``, ``POST /api/v1/testing/day/local``,
+``POST /api/v1/testing/runs/{id}/compare`` and ``POST /api/v1/testing/runs/{id}/rejudge``.
 """
 
 from __future__ import annotations
@@ -43,16 +60,16 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from pydantic import BaseModel, Field
 
-from pitch_occupancy import timetable
+from pitch_occupancy import retention, timetable
 from pitch_occupancy.api import clip_pair, clip_review, jobs
-from pitch_occupancy.api.clip_review import MAX_UPLOAD_BYTES
 from pitch_occupancy.api.layout import page
 from pitch_occupancy.clip_analysis import DEFAULT_WINDOW, analyse_clip
 from pitch_occupancy.pair_analysis import analyse_pair
 from pitch_occupancy.vision import roi
 
-__all__ = ["router", "MAX_DAY_SAMPLES", "runs_dir"]
+__all__ = ["router", "MAX_DAY_SAMPLES", "runs_dir", "recordings_dir", "VIDEO_SUFFIXES"]
 
 router = APIRouter(tags=["testing"])
 
@@ -63,6 +80,14 @@ MAX_DAY_SAMPLES: int = 2000
 _RUN_ID = re.compile(r"^[0-9]{8}-[0-9]{6}-[0-9a-f]{6}$")
 _HHMM = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 _CODES = {"C2_ACTIVE_PLAY": "P", "C1_EMPTY": "E", "C3_MAINTENANCE_NON_SPORTING": "M"}
+_MB = 1024 * 1024
+#: Room kept free on the temp folder's disk beyond the upload itself, so a large upload cannot
+#: fill the disk the database and the live worker also write to.
+_DISK_HEADROOM = 200 * _MB
+
+#: File types offered from (and accepted in) the recordings folder.
+VIDEO_SUFFIXES = frozenset({".mp4", ".mkv", ".avi", ".mov", ".m4v", ".ts", ".mts", ".webm",
+                            ".wmv", ".mpg", ".mpeg", ".dav", ".h264", ".264"})
 
 
 def runs_dir() -> Path:
@@ -70,6 +95,19 @@ def runs_dir() -> Path:
     from pitch_occupancy.config import settings
 
     return Path(settings.data_dir) / "test_runs"
+
+
+def recordings_dir() -> Path:
+    """Where recordings already on this machine are read from. Read at call time."""
+    from pitch_occupancy.config import settings
+
+    return Path(settings.recordings_dir)
+
+
+def _max_upload_bytes() -> int:
+    from pitch_occupancy.config import settings
+
+    return int(settings.testing_max_upload_mb) * _MB
 
 
 def _parse_hhmm(value: str, name: str) -> time:
@@ -103,6 +141,40 @@ def _save_run(run: dict[str, Any]) -> None:
 
 def _new_run_id() -> str:
     return f"{datetime.now():%Y%m%d-%H%M%S}-{secrets.token_hex(3)}"
+
+
+def _rules(min_seen_pct: float | None, close_low_pct: float | None,
+           close_high_pct: float | None) -> timetable.Rules:
+    """The judging rules from the optional percentages, defaults for any left out.
+
+    The 0-100 range is checked by the query parameters; the band's order is checked here,
+    so the client is told in words rather than by a stack trace.
+    """
+    try:
+        return timetable.Rules.from_percent(min_seen_pct, close_low_pct, close_high_pct)
+    except ValueError as exc:
+        d = timetable.DEFAULT_RULES
+        low = d.close_low * 100 if close_low_pct is None else close_low_pct
+        high = d.close_high * 100 if close_high_pct is None else close_high_pct
+        raise HTTPException(422, f"The close-call band must start below where it ends "
+                                 f"(you gave {low:g}% to {high:g}%).") from exc
+
+
+def _rules_fields(rules: timetable.Rules) -> dict[str, Any]:
+    """What a saved run keeps about its rules: the numbers, and the sentence shown with them."""
+    return {"rules": rules.to_dict(), "rules_text": rules.describe()}
+
+
+def _run_rules(run: dict[str, Any]) -> timetable.Rules:
+    """The rules a saved run was judged with; a run from before rules were saved used the
+    defaults."""
+    try:
+        return timetable.Rules.from_dict(run.get("rules"))
+    except (KeyError, TypeError, ValueError):
+        return timetable.DEFAULT_RULES
+
+
+_PCT = {"ge": 0, "le": 100}
 
 
 # --- the analysis, run in the background ----------------------------------------------------
@@ -162,8 +234,8 @@ def _build_run(meta: dict[str, Any], samples, duration_s: float, used_interval: 
                widened: bool, boundaries: list[str]) -> dict[str, Any]:
     windows = timetable.slot_windows(meta["video_start"], duration_s, meta["slot_minutes"],
                                      meta["first_slot"])
-    results = timetable.summarise(samples, windows, used_interval)
-    counts = Counter(r.status.value for r in results)
+    rules = meta.get("rules") or timetable.DEFAULT_RULES
+    results = timetable.summarise(samples, windows, used_interval, rules=rules)
     note = ""
     if widened:
         note = (f"The video is long, so it was checked every {used_interval:.0f} seconds "
@@ -185,8 +257,8 @@ def _build_run(meta: dict[str, Any], samples, duration_s: float, used_interval: 
         "day": meta["day"].isoformat() if meta["day"] else None,
         "boundaries": boundaries,
         "n_samples": len(samples),
-        "counts": {"slots": len(results), "USED": counts.get("USED", 0),
-                   "NOT_USED": counts.get("NOT_USED", 0), "REVIEW": counts.get("REVIEW", 0)},
+        "counts": _counts(results),
+        **_rules_fields(rules),
         "slots": [r.to_dict() for r in results],
         # Per moment, as (seconds, letter): P playing, E empty, M maintenance, U undecided.
         "timeline": [[round(t, 1), _CODES.get(getattr(s, "value", s), "U")]
@@ -195,7 +267,16 @@ def _build_run(meta: dict[str, Any], samples, duration_s: float, used_interval: 
     }
 
 
-def _make_work(paths: list[Path], meta: dict[str, Any]):
+def _counts(results: list[timetable.SlotResult]) -> dict[str, int]:
+    counts = Counter(r.status.value for r in results)
+    return {"slots": len(results), "USED": counts.get("USED", 0),
+            "NOT_USED": counts.get("NOT_USED", 0), "REVIEW": counts.get("REVIEW", 0)}
+
+
+def _make_work(paths: list[Path], meta: dict[str, Any], *, delete: bool = True):
+    """The background job. ``delete`` removes the videos afterwards - right for an upload's
+    temporary copies, wrong for a recording that belongs to the client."""
+
     def work(progress) -> dict[str, Any]:
         try:
             if meta["two"]:
@@ -207,8 +288,9 @@ def _make_work(paths: list[Path], meta: dict[str, Any]):
                               camera=meta["cameras"][0], whole_frame=meta["whole_frame"],
                               progress=progress)
         finally:
-            for path in paths:
-                path.unlink(missing_ok=True)
+            if delete:
+                for path in paths:
+                    path.unlink(missing_ok=True)
         run = _build_run(meta, *out)
         _save_run(run)
         return run
@@ -216,18 +298,67 @@ def _make_work(paths: list[Path], meta: dict[str, Any]):
     return work
 
 
-async def _receive_one(request: Request, path: Path) -> None:
-    """Stream the body to ``path``, capped while streaming as `/api/v1/clip/analyse` caps it."""
+async def _receive_one(request: Request, path: Path, *, max_bytes: int) -> None:
+    """Stream the body to ``path``, capped at ``max_bytes`` while streaming."""
+    declared = _content_length(request)
+    if declared is not None and declared > max_bytes:
+        raise HTTPException(413, f"The video is {declared // _MB} MB; the limit is "
+                                 f"{max_bytes // _MB} MB per video.")
     size = 0
     with open(path, "wb") as handle:
         async for chunk in request.stream():
             size += len(chunk)
-            if size > MAX_UPLOAD_BYTES:
-                raise HTTPException(
-                    413, f"the video exceeds {MAX_UPLOAD_BYTES // (1024 * 1024)} MB")
+            if size > max_bytes:
+                raise HTTPException(413, f"The video is over {size // _MB} MB so far; the limit "
+                                         f"is {max_bytes // _MB} MB per video.")
             handle.write(chunk)
     if size == 0:
         raise HTTPException(422, "no video in the request body")
+
+
+def _content_length(request: Request) -> int | None:
+    try:
+        value = int(request.headers.get("content-length", ""))
+    except ValueError:
+        return None
+    return value if value >= 0 else None
+
+
+def _check_disk(request: Request) -> None:
+    """Refuse (507) an upload the temp folder's disk could not hold, before reading it.
+
+    Only when the request says how big it is and the free space can be measured; otherwise
+    the upload goes ahead and the per-video cap is the only limit.
+    """
+    need = _content_length(request)
+    if not need:
+        return
+    folder = Path(tempfile.gettempdir())
+    free = retention.free_bytes(folder)
+    if free is not None and free < need + _DISK_HEADROOM:
+        raise HTTPException(507, f"There is not enough free disk space on this computer for "
+                                 f"this upload: it is {need // _MB} MB and only "
+                                 f"{free // _MB} MB is free. Free some space, or put the "
+                                 f"recording in {recordings_dir()} and use \"a recording on "
+                                 f"this computer\" instead.")
+
+
+def _meta(*, two: bool, start: str, slot_minutes: int, first_slot: str, interval_s: float,
+          offset_s: float, field_id: str, day: date | None, whole_frame: bool, camera: str,
+          camera_a: str, camera_b: str, name: str, name_b: str | None,
+          rules: timetable.Rules) -> dict[str, Any]:
+    """Everything the job needs besides the files; shared by the upload and local routes."""
+    video_start = _parse_hhmm(start, "start")
+    first = _parse_hhmm(first_slot, "first_slot") if first_slot.strip() else None
+    return {
+        "id": _new_run_id(), "two": two, "video_start": video_start,
+        "first_slot": first, "slot_minutes": slot_minutes, "interval_s": interval_s,
+        "offset_s": offset_s if two else 0.0, "field_id": field_id.strip(), "day": day,
+        "whole_frame": whole_frame,
+        "cameras": (camera_a or camera, camera_b) if two else (camera or camera_a, ""),
+        "name": name or "video", "name_b": (name_b or "second video") if two else None,
+        "rules": rules,
+    }
 
 
 @router.post("/api/v1/testing/day")
@@ -247,11 +378,23 @@ async def start_day_test(
     camera_b: str = Query("", max_length=120),
     name: str = Query("", max_length=200),
     name_b: str = Query("", max_length=200),
+    min_seen_pct: float | None = Query(None, **_PCT),
+    close_low_pct: float | None = Query(None, **_PCT),
+    close_high_pct: float | None = Query(None, **_PCT),
 ) -> dict[str, str]:
-    """Receive one video (or A then B with ``size_a``) and queue the day test. Returns a job."""
-    video_start = _parse_hhmm(start, "start")
-    first = _parse_hhmm(first_slot, "first_slot") if first_slot.strip() else None
+    """Receive one video (or A then B with ``size_a``) and queue the day test. Returns a job.
+
+    ``min_seen_pct``, ``close_low_pct`` and ``close_high_pct`` (0-100, optional) set the
+    judging rules; any left out keeps its default (50, 40, 60).
+    """
+    rules = _rules(min_seen_pct, close_low_pct, close_high_pct)
     two = size_a is not None
+    meta = _meta(two=two, start=start, slot_minutes=slot_minutes, first_slot=first_slot,
+                 interval_s=interval_s, offset_s=offset_s, field_id=field_id, day=day,
+                 whole_frame=whole_frame, camera=camera, camera_a=camera_a, camera_b=camera_b,
+                 name=name, name_b=name_b, rules=rules)
+    _check_disk(request)
+    max_each = _max_upload_bytes()
     paths: list[Path] = []
     for _ in range(2 if two else 1):
         fd, tmp = tempfile.mkstemp(suffix=".upload")
@@ -260,23 +403,140 @@ async def start_day_test(
     submitted = False
     try:
         if two:
-            await clip_pair._receive(request, size_a, (paths[0], paths[1]))
+            await clip_pair._receive(request, size_a, (paths[0], paths[1]), max_each=max_each)
         else:
-            await _receive_one(request, paths[0])
-        meta = {
-            "id": _new_run_id(), "two": two, "video_start": video_start,
-            "first_slot": first, "slot_minutes": slot_minutes, "interval_s": interval_s,
-            "offset_s": offset_s if two else 0.0, "field_id": field_id.strip(), "day": day,
-            "whole_frame": whole_frame,
-            "cameras": (camera_a or camera, camera_b) if two else (camera or camera_a, ""),
-            "name": name or "video", "name_b": (name_b or "second video") if two else None,
-        }
+            await _receive_one(request, paths[0], max_bytes=max_each)
         job_id = jobs.submit("day", _make_work(paths, meta))
         submitted = True
     finally:
         if not submitted:
             for path in paths:
                 path.unlink(missing_ok=True)
+    return {"job_id": job_id, "run_id": meta["id"]}
+
+
+# --- recordings already on this machine ---------------------------------------------------
+
+
+def _video_info(path: Path) -> float | None:
+    """Duration in seconds from the container's metadata, or None. Reads no frames."""
+    try:
+        import cv2
+
+        cap = cv2.VideoCapture(str(path))
+        try:
+            frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            fps = cap.get(cv2.CAP_PROP_FPS)
+        finally:
+            cap.release()
+    except Exception:  # noqa: BLE001 - a listing must not fail on one odd file
+        return None
+    if not frames or not fps or frames <= 0 or fps <= 0 or fps > 1000:
+        return None
+    return round(frames / fps, 1)
+
+
+def _resolve_recording(name: str) -> Path:
+    """``name`` (relative to the recordings folder) as a real video file inside it, or 422.
+
+    Resolved with symlinks followed and then checked to be inside the folder, so neither
+    ``..`` nor a link pointing elsewhere reaches any other file on the machine.
+    """
+    root = recordings_dir().resolve()
+    clean = (name or "").strip().replace("\\", "/")
+    if not clean or clean.startswith("/") or ":" in clean or ".." in clean.split("/"):
+        raise HTTPException(422, f"{name!r} is not a recording name: give the name as listed, "
+                                 f"inside {root}")
+    try:
+        target = (root / clean).resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise HTTPException(404, f"There is no recording called {clean!r} in {root}.") from exc
+    if not target.is_relative_to(root) or target == root:
+        raise HTTPException(422, f"{clean!r} is not inside the recordings folder {root}.")
+    if not target.is_file():
+        raise HTTPException(404, f"There is no recording called {clean!r} in {root}.")
+    if target.suffix.lower() not in VIDEO_SUFFIXES:
+        raise HTTPException(422, f"{clean!r} is not a video file this test reads "
+                                 f"({', '.join(sorted(VIDEO_SUFFIXES))}).")
+    return target
+
+
+@router.get("/api/v1/testing/recordings")
+def list_recordings() -> dict[str, Any]:
+    """Video files in the recordings folder and the folders directly inside it.
+
+    Names are relative to the folder (what ``/day/local`` takes). Duration comes from the
+    file's own metadata and may be missing. Links that point outside the folder are left out.
+    """
+    root = recordings_dir()
+    out: list[dict[str, Any]] = []
+    if root.is_dir():
+        real = root.resolve()
+        candidates = [*root.glob("*"), *root.glob("*/*")]
+        for path in candidates:
+            if path.suffix.lower() not in VIDEO_SUFFIXES:
+                continue
+            try:
+                resolved = path.resolve(strict=True)
+                if not resolved.is_relative_to(real) or not resolved.is_file():
+                    continue
+                stat = resolved.stat()
+            except (OSError, RuntimeError):
+                continue
+            out.append({
+                "name": path.relative_to(root).as_posix(),
+                "size_mb": round(stat.st_size / _MB, 1),
+                "duration_s": _video_info(resolved),
+                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
+            })
+    out.sort(key=lambda r: r["name"].lower())
+    return {"folder": str(root), "exists": root.is_dir(), "recordings": out}
+
+
+class LocalDayIn(BaseModel):
+    """The upload route's options, as JSON, plus which recording(s) to read."""
+
+    file_a: str = Field(max_length=500)
+    file_b: str | None = Field(default=None, max_length=500)
+    start: str = Field(max_length=8)
+    slot_minutes: int = Field(default=90, ge=1, le=600)
+    first_slot: str = Field(default="", max_length=8)
+    interval_s: float = Field(default=60.0, ge=5, le=3600)
+    offset_s: float = Field(default=0.0, ge=-86400, le=86400)
+    field_id: str = Field(default="", max_length=120)
+    day: date | None = None
+    whole_frame: bool = False
+    camera: str = Field(default="", max_length=120)
+    camera_a: str = Field(default="", max_length=120)
+    camera_b: str = Field(default="", max_length=120)
+    min_seen_pct: float | None = Field(default=None, **_PCT)
+    close_low_pct: float | None = Field(default=None, **_PCT)
+    close_high_pct: float | None = Field(default=None, **_PCT)
+
+
+@router.post("/api/v1/testing/day/local")
+def start_local_day_test(body: LocalDayIn) -> dict[str, str]:
+    """Queue the day test on recording(s) already in the recordings folder. Returns a job.
+
+    The files are read where they are and **not deleted** afterwards: they are the client's.
+    """
+    rules = _rules(body.min_seen_pct, body.close_low_pct, body.close_high_pct)
+    paths = [_resolve_recording(body.file_a)]
+    two = bool(body.file_b and body.file_b.strip())
+    if two:
+        paths.append(_resolve_recording(body.file_b or ""))
+        if paths[0] == paths[1]:
+            raise HTTPException(422, "Choose two different recordings for the two cameras.")
+    root = recordings_dir().resolve()
+    names = [p.relative_to(root).as_posix() for p in paths]
+    meta = _meta(two=two, start=body.start, slot_minutes=body.slot_minutes,
+                 first_slot=body.first_slot, interval_s=body.interval_s,
+                 offset_s=body.offset_s, field_id=body.field_id, day=body.day,
+                 whole_frame=body.whole_frame, camera=body.camera, camera_a=body.camera_a,
+                 camera_b=body.camera_b, name=names[0], name_b=names[1] if two else None,
+                 rules=rules)
+    meta["source"] = "recording"
+    job_id = jobs.submit("day", _make_work(paths, meta, delete=False))
     return {"job_id": job_id, "run_id": meta["id"]}
 
 
@@ -319,7 +579,7 @@ def list_runs(limit: int = Query(50, ge=1, le=500)) -> list[dict[str, Any]]:
 def run_csv(run_id: str) -> PlainTextResponse:
     run = _load_run(run_id)
     checks = (run.get("comparison") or {}).get("checks")
-    body = timetable.to_csv(run["slots"], checks)
+    body = timetable.to_csv(run["slots"], checks, rules=_run_rules(run))
     return PlainTextResponse(body, media_type="text/csv", headers={
         "Content-Disposition": f'attachment; filename="booking-day-{run_id}.csv"'})
 
@@ -391,6 +651,41 @@ async def compare_run(
     run["comparison"] = comparison
     _save_run(run)
     return {"run_id": run_id, **comparison}
+
+
+@router.post("/api/v1/testing/runs/{run_id}/rejudge")
+def rejudge_run(
+    run_id: str,
+    min_seen_pct: float | None = Query(None, **_PCT),
+    close_low_pct: float | None = Query(None, **_PCT),
+    close_high_pct: float | None = Query(None, **_PCT),
+) -> dict[str, Any]:
+    """Judge a saved run's slots again under new rules, without the video. Returns the run.
+
+    Exact, from each slot's stored seconds (`timetable.rejudge`) - the per-moment timeline is
+    not needed. A stored comparison with bookings is redone from the booking facts it kept
+    per slot (`timetable.recheck`), so the saved run never shows results judged one way and
+    a comparison judged another.
+    """
+    run = _load_run(run_id)
+    rules = _rules(min_seen_pct, close_low_pct, close_high_pct)
+    before = _run_rules(run)
+    results = timetable.rejudge((timetable.SlotResult.from_dict(d) for d in run["slots"]),
+                                rules)
+    changed = sum(1 for old, new in zip(run["slots"], results, strict=True)
+                  if old["status"] != new.status.value)
+    run["slots"] = [r.to_dict() for r in results]
+    run["counts"] = _counts(results)
+    run.update(_rules_fields(rules))
+    run["rejudged"] = {"at": datetime.now().isoformat(timespec="seconds"),
+                       "previous_rules_text": before.describe(), "slots_changed": changed}
+    if run.get("comparison"):
+        checks = timetable.recheck(results, run["comparison"].get("checks") or [])
+        run["comparison"]["checks"] = [c.to_dict() for c in checks]
+        run["comparison"]["counts"] = dict(Counter(c.outcome for c in checks))
+        run["comparison"]["rejudged"] = True
+    _save_run(run)
+    return run
 
 
 # --- pages ----------------------------------------------------------------------------------
@@ -497,6 +792,27 @@ td.reason{font-size:12.5px;color:var(--ink-2);min-width:200px}
 #prog{display:none}#prog.on{display:block}
 #res{display:none}#res.on{display:block}
 .bk{display:none}.bk.on{display:table-cell}
+details.rejudge{margin:14px 0 0}
+.srcpick{display:flex;gap:18px;flex-wrap:wrap;margin:0 0 12px;font-size:14px}
+.srcpick label{display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+.srcpick input{width:auto}
+@media print{
+  :root{--ink:#000;--ink-2:#000;--ink-3:#333;--ground:#fff;--surface:#fff;--surface-2:#fff;
+    --line:#999}
+  body,main{background:#fff!important;color:#000!important}
+  header,nav,#setup,#prog,#localBox,.btnrow,button,.drop,details.rejudge,#cBox .form,
+    #cBox .btnrow,#cBox .sub2,#note:empty{display:none!important}
+  main{padding:0!important;max-width:none!important}
+  #res{display:block!important}
+  .scroll{overflow:visible!important}
+  table{min-width:0!important;width:100%}
+  tr,.slots div,.tile{break-inside:avoid;page-break-inside:avoid}
+  thead{display:table-header-group}
+  h2{break-after:avoid;page-break-after:avoid}
+  .slots,.tl,.pill,.sw,.tile{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .card,.tile{box-shadow:none!important;border-color:#999!important}
+  a{color:#000;text-decoration:none}
+}
 """
 
 _DAY_BODY = """
@@ -506,7 +822,19 @@ booking slots are. For every slot you get how long the pitch was played on, empt
 maintenance, and whether the slot was used. Nothing you upload is kept - only the results.</p>
 
 <div id="setup">
-<div class="pair">
+<div class="srcpick" role="radiogroup" aria-label="Where the video comes from">
+  <label><input type="radio" name="src" value="upload" checked> Upload a video</label>
+  <label><input type="radio" name="src" value="local"> Use a recording on this computer</label>
+</div>
+<div id="localBox" class="card" hidden>
+  <div class="form" style="margin-top:0">
+    <div class="field"><label for="recA">Recording</label><select id="recA"></select></div>
+    <div class="field"><label for="recB">Second camera's recording (optional)</label>
+      <select id="recB"></select></div>
+  </div>
+  <p class="sub2" id="recHint" style="margin:0"></p>
+</div>
+<div class="pair" id="uploadBox">
   <label class="drop" id="dropA"><span class="cam">VIDEO</span><br>
     <strong id="nameA">Drop or choose a video</strong><p>the pitch, recorded over the day</p>
     <input type="file" accept="video/*" id="fileA" hidden></label>
@@ -545,6 +873,20 @@ maintenance, and whether the slot was used. Nothing you upload is kept - only th
     <div class="field"><label for="whole">Use the whole picture</label>
       <input id="whole" type="checkbox"></div>
   </div>
+  <p class="sub2" style="margin:4px 0 0">How a slot is judged. The defaults suit most
+  clubs; change them only if you want a different line.</p>
+  <div class="form" style="margin-top:6px">
+    <div class="field"><label for="minSeen"
+        title="A slot where less than this was seen is marked please review, never not used">
+        Minimum part of a slot that must be seen (%) - default 50</label>
+      <input id="minSeen" type="number" min="0" max="100" step="1" value="50"></div>
+    <div class="field"><label for="closeLow"
+        title="Playing for between these two shares of the time seen is a close call">
+        Close call from (% playing) - default 40</label>
+      <input id="closeLow" type="number" min="0" max="100" step="1" value="40"></div>
+    <div class="field"><label for="closeHigh">Close call to (% playing) - default 60</label>
+      <input id="closeHigh" type="number" min="0" max="100" step="1" value="60"></div>
+  </div>
 </details>
 <div class="btnrow"><button class="act" id="go" disabled>Start</button></div>
 <p class="note" id="status"></p>
@@ -558,6 +900,7 @@ maintenance, and whether the slot was used. Nothing you upload is kept - only th
 <section id="res">
   <h2>Result</h2>
   <p class="sub2" id="summary"></p>
+  <p class="sub2" id="rulesLine"></p>
   <p class="note warn" id="note"></p>
   <div class="tiles" id="tiles"></div>
 
@@ -586,8 +929,26 @@ maintenance, and whether the slot was used. Nothing you upload is kept - only th
       <th>Result</th><th>Why</th><th class="bk" id="bkHead">Bookings</th></tr></thead>
     <tbody id="rows"></tbody></table></div>
   <div class="btnrow"><a class="act" id="csv" href="#">Download CSV</a>
+    <button class="ghost" id="print">Print / save as PDF</button>
     <button class="ghost" id="again">Test another video</button></div>
 
+  <details class="rejudge"><summary>Judge again with other rules</summary>
+    <p class="sub2" style="margin:6px 0 0">Uses the saved results - the video is not needed
+    again. A comparison with bookings is redone too.</p>
+    <div class="form" style="margin-top:6px">
+      <div class="field"><label for="rMinSeen">Minimum part seen (%)</label>
+        <input id="rMinSeen" type="number" min="0" max="100" step="1" value="50"></div>
+      <div class="field"><label for="rLow">Close call from (%)</label>
+        <input id="rLow" type="number" min="0" max="100" step="1" value="40"></div>
+      <div class="field"><label for="rHigh">Close call to (%)</label>
+        <input id="rHigh" type="number" min="0" max="100" step="1" value="60"></div>
+    </div>
+    <div class="btnrow" style="margin-top:4px"><button class="act" id="rGo">Judge
+      again</button></div>
+    <p class="note" id="rStatus"></p>
+  </details>
+
+  <div id="cBox">
   <h2>Compare with bookings</h2>
   <p class="sub2">Check the slots against your booking records: a booked slot nobody played
   in may be a no-show, and play in a slot nobody booked may be unbooked use. Slots marked
@@ -609,6 +970,7 @@ maintenance, and whether the slot was used. Nothing you upload is kept - only th
     <p class="note" id="cStatus"></p>
     <div class="tiles" id="cTiles" style="margin-top:14px"></div>
   </div>
+  </div>
 </section>
 """
 
@@ -627,13 +989,43 @@ const pct=x=>Math.round(100*(x||0))+'%';
 const hm=s=>{s=Math.round(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60);
   return h+':'+String(m).padStart(2,'0');};
 
+const local=()=>document.querySelector('input[name=src]:checked').value==='local';
+function ready(){
+  const two=local()?!!$('recB').value:!!files.B;
+  $('offsetBox').style.display=two?'block':'none';
+  $('go').disabled=local()?!$('recA').value:!files.A;
+}
 function choose(cam,file){
   if(!file)return;files[cam]=file;
   $('name'+cam).textContent=file.name+' ('+(file.size/1048576).toFixed(1)+' MB)';
   $('drop'+cam).classList.add('has');
-  $('offsetBox').style.display=files.B?'block':'none';
-  $('go').disabled=!files.A;
+  ready();
 }
+let RECS=null;
+async function loadRecordings(){
+  $('recHint').textContent='Looking for recordings...';
+  try{
+    const r=await fetch('/api/v1/testing/recordings');
+    if(!r.ok)throw new Error(await detail(r));
+    RECS=await r.json();
+  }catch(err){$('recHint').textContent='Could not list recordings: '+err.message;return;}
+  const opt=x=>'<option value="'+esc(x.name)+'">'+esc(x.name)+' ('+
+    (x.size_mb>=1024?(x.size_mb/1024).toFixed(1)+' GB':x.size_mb+' MB')+
+    (x.duration_s?', '+hm(x.duration_s):'')+')</option>';
+  $('recA').innerHTML=RECS.recordings.map(opt).join('');
+  $('recB').innerHTML='<option value="">none - one camera</option>'+
+    RECS.recordings.map(opt).join('');
+  $('recHint').innerHTML=RECS.recordings.length?'Recordings are read from <code>'+
+    esc(RECS.folder)+'</code> and are not deleted afterwards.':'No recordings yet. Copy the '+
+    'video files into <code>'+esc(RECS.folder)+'</code> on this computer (or a folder '+
+    'inside it), then choose this option again.';
+  ready();
+}
+for(const radio of document.querySelectorAll('input[name=src]'))
+  radio.addEventListener('change',()=>{
+    $('localBox').hidden=!local();$('uploadBox').hidden=local();
+    if(local()&&RECS===null)loadRecordings();ready();});
+$('recA').addEventListener('change',ready);$('recB').addEventListener('change',ready);
 for(const cam of ['A','B']){
   const drop=$('drop'+cam),input=$('file'+cam);
   input.addEventListener('change',()=>choose(cam,input.files[0]));
@@ -652,6 +1044,7 @@ async function detail(r){
 
 $('go').addEventListener('click',async()=>{
   if(!$('start').value){setStatus('status','Enter the time the video starts.',true);return;}
+  if(local())return startLocal();
   $('go').disabled=true;setStatus('status','');
   $('prog').classList.add('on');$('res').classList.remove('on');
   $('progText').textContent='Uploading the video...';$('progBar').style.width='0';
@@ -661,6 +1054,10 @@ $('go').addEventListener('click',async()=>{
   if($('first').value)q.set('first_slot',$('first').value);
   if($('field').value.trim())q.set('field_id',$('field').value.trim());
   if($('day').value)q.set('day',$('day').value);
+  const rules=ruleParams('minSeen','closeLow','closeHigh');
+  if(typeof rules==='string'){setStatus('status',rules,true);ready();
+    $('prog').classList.remove('on');return;}
+  for(const [k,v] of Object.entries(rules))q.set(k,v);
   let body=files.A;
   if(files.B){
     q.set('size_a',files.A.size);q.set('offset_s',$('offset').value||0);
@@ -674,8 +1071,30 @@ $('go').addEventListener('click',async()=>{
     const d=await r.json();
     poll(d.job_id);
   }catch(err){$('prog').classList.remove('on');setStatus('status',err.message,true);
-    $('go').disabled=!files.A;}
+    ready();}
 });
+
+async function startLocal(){
+  const rules=ruleParams('minSeen','closeLow','closeHigh');
+  if(typeof rules==='string'){setStatus('status',rules,true);return;}
+  const b={file_a:$('recA').value,start:$('start').value,slot_minutes:+($('slot').value||90),
+    interval_s:+($('interval').value||60),whole_frame:$('whole').checked,...rules};
+  if($('recB').value){b.file_b=$('recB').value;b.offset_s=+($('offset').value||0);
+    b.camera_a=$('camA').value;b.camera_b=$('camB').value;}
+  else if($('camA').value)b.camera=$('camA').value;
+  if($('first').value)b.first_slot=$('first').value;
+  if($('field').value.trim())b.field_id=$('field').value.trim();
+  if($('day').value)b.day=$('day').value;
+  $('go').disabled=true;setStatus('status','');
+  $('prog').classList.add('on');$('res').classList.remove('on');
+  $('progText').textContent='Starting...';$('progBar').style.width='0';
+  try{
+    const r=await fetch('/api/v1/testing/day/local',{method:'POST',body:JSON.stringify(b),
+      headers:{'Content-Type':'application/json'}});
+    if(!r.ok)throw new Error(await detail(r));
+    poll((await r.json()).job_id);
+  }catch(err){$('prog').classList.remove('on');setStatus('status',err.message,true);ready();}
+}
 
 async function poll(id){
   try{
@@ -690,18 +1109,40 @@ async function poll(id){
       $('progBar').style.width=(p.total?100*p.done/p.total:2)+'%';
     }
     if(j.status==='done'){
-      $('prog').classList.remove('on');$('go').disabled=!files.A;
+      $('prog').classList.remove('on');ready();
       history.replaceState(null,'','/testing/day?run='+encodeURIComponent(j.result.id));
       render(j.result);return;
     }
     if(j.status==='failed')throw new Error('The test could not be completed: '+j.error);
     setTimeout(()=>poll(id),1500);
   }catch(err){$('prog').classList.remove('on');setStatus('status',err.message,true);
-    $('go').disabled=!files.A;}
+    ready();}
 }
+
+// The judging rules from three percentage inputs, or a sentence saying what is wrong.
+function ruleParams(seen,low,high){
+  const out={},names={min_seen_pct:seen,close_low_pct:low,close_high_pct:high};
+  for(const [k,id] of Object.entries(names)){
+    const raw=$(id).value.trim();if(raw==='')continue;
+    const v=Number(raw);
+    if(!(v>=0&&v<=100))return 'Each rule must be a percentage from 0 to 100.';
+    out[k]=v;
+  }
+  const lo=out.close_low_pct??40,hi=out.close_high_pct??60;
+  if(lo>=hi)return 'The close-call band must start below where it ends.';
+  return out;
+}
+const RULES0={min_seen_share:0.5,close_low:0.4,close_high:0.6};
+const pc=x=>String(Math.round(1000*x)/10);
 
 function render(run){
   RUN=run;$('res').classList.add('on');
+  const rl=run.rules||RULES0;
+  $('rulesLine').textContent='Rules: '+(run.rules_text||'at least 50% seen; 40-60% is a '+
+    'close call')+'.'+(run.rejudged?' Judged again on '+run.rejudged.at.replace('T',' ')+
+    ' (before: '+run.rejudged.previous_rules_text+').':'');
+  $('rMinSeen').value=pc(rl.min_seen_share);$('rLow').value=pc(rl.close_low);
+  $('rHigh').value=pc(rl.close_high);
   const c=run.counts;
   $('summary').textContent=(run.video_name||'Video')+(run.cameras==2?' + '+run.video_name_b:'')+
     ' - starts '+run.start+', '+run.slot_minutes+'-minute slots'+
@@ -776,6 +1217,22 @@ async function compare(useConfigured){
 }
 $('cUpload').addEventListener('click',()=>compare(false));
 $('cConfigured').addEventListener('click',()=>compare(true));
+$('print').addEventListener('click',()=>window.print());
+$('rGo').addEventListener('click',async()=>{
+  if(!RUN)return;
+  const rules=ruleParams('rMinSeen','rLow','rHigh');
+  if(typeof rules==='string'){setStatus('rStatus',rules,true);return;}
+  setStatus('rStatus','Judging again...');
+  try{
+    const r=await fetch('/api/v1/testing/runs/'+encodeURIComponent(RUN.id)+'/rejudge?'+
+      new URLSearchParams(rules),{method:'POST'});
+    if(!r.ok)throw new Error(await detail(r));
+    const run=await r.json();render(run);
+    const n=run.rejudged.slots_changed;
+    setStatus('rStatus',n?(n+' slot'+(n==1?'':'s')+' changed.'+(run.comparison?
+      ' The comparison with bookings was redone.':'')):'No slot changed.');
+  }catch(err){setStatus('rStatus',err.message,true);}
+});
 $('again').addEventListener('click',()=>{$('res').classList.remove('on');
   history.replaceState(null,'','/testing/day');window.scrollTo(0,0);});
 

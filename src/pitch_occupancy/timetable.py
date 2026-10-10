@@ -40,7 +40,8 @@ from pitch_occupancy.bookings import BookingRecord
 
 __all__ = [
     "SlotWindow", "SlotStatus", "Rules", "DEFAULT_RULES", "SlotResult", "SlotCheck",
-    "OFF_SALE", "ACTIVITY_LABELS", "slot_windows", "summarise", "compare", "to_csv",
+    "OFF_SALE", "ACTIVITY_LABELS", "slot_windows", "summarise", "rejudge", "compare",
+    "recheck", "to_csv",
 ]
 
 _DAY_S = 24 * 3600
@@ -71,13 +72,63 @@ class SlotStatus(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Rules:
-    """The three numbers that turn a slot's minutes into a result."""
+    """The three numbers that turn a slot's minutes into a result.
+
+    Shares, 0-1. A client may set them (the booking-day test's "More options" takes them in
+    percent); they are checked here so that no caller can build a rule set that silently
+    means something else - a close-call band whose low end is above its high end would never
+    fire, and a share above 1 would make every slot REVIEW.
+    """
 
     #: Below this share of the slot decided, the slot is REVIEW: too little was seen.
     min_seen_share: float = 0.5
     #: Playing between these shares of the *decided* time is a close call: REVIEW.
     close_low: float = 0.40
     close_high: float = 0.60
+
+    def __post_init__(self) -> None:
+        for name in ("min_seen_share", "close_low", "close_high"):
+            value = getattr(self, name)
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(f"{name} must be between 0 and 1, not {value}")
+        if self.close_low >= self.close_high:
+            raise ValueError(f"the close-call band must have its low end below its high end, "
+                             f"not {self.close_low}-{self.close_high}")
+
+    @classmethod
+    def from_percent(cls, min_seen: float | None = None, close_low: float | None = None,
+                     close_high: float | None = None) -> Rules:
+        """Rules from percentages (0-100); a value left out keeps its default."""
+        d = DEFAULT_RULES
+        return cls(
+            min_seen_share=d.min_seen_share if min_seen is None else min_seen / 100,
+            close_low=d.close_low if close_low is None else close_low / 100,
+            close_high=d.close_high if close_high is None else close_high / 100)
+
+    def to_dict(self) -> dict[str, float]:
+        return {"min_seen_share": self.min_seen_share, "close_low": self.close_low,
+                "close_high": self.close_high}
+
+    @classmethod
+    def from_dict(cls, d: dict | None) -> Rules:
+        """The inverse of :meth:`to_dict`. ``None`` - a run saved before the rules were
+        stored - is the defaults, which is what such a run was judged with."""
+        if not d:
+            return DEFAULT_RULES
+        return cls(min_seen_share=float(d["min_seen_share"]), close_low=float(d["close_low"]),
+                   close_high=float(d["close_high"]))
+
+    def describe(self) -> str:
+        """The rules in a client's words: ``at least 50% seen; 40-60% is a close call``."""
+        return (f"at least {_pct_text(self.min_seen_share)} seen; "
+                f"{_pct_text(self.close_low, sign=False)}-{_pct_text(self.close_high)} "
+                f"is a close call")
+
+
+def _pct_text(x: float, *, sign: bool = True) -> str:
+    """A share as a percentage without a needless ``.0``: 0.5 -> ``50%``, 0.425 -> ``42.5%``."""
+    text = f"{round(100 * x, 1):g}"
+    return f"{text}%" if sign else text
 
 
 DEFAULT_RULES = Rules()
@@ -282,7 +333,8 @@ def _judge(playing: float, empty: float, maint: float, uncertain: float,
         why = ("most of the slot is outside the video"
                if window.coverage < rules.min_seen_share
                else "the system could not tell what was happening for much of it")
-        reason = f"Less than half of the slot was seen ({_pct(seen)}); {why}."
+        need = "half" if rules.min_seen_share == 0.5 else _pct_text(rules.min_seen_share)
+        reason = f"Less than {need} of the slot was seen ({_pct(seen)}); {why}."
     elif rules.close_low <= play_of_seen <= rules.close_high:
         status = SlotStatus.REVIEW
         reason = (f"Close call: playing for {_pct(play_of_seen)} of the time seen - "
@@ -321,6 +373,17 @@ def summarise(samples: Iterable[tuple[float, object]], windows: Sequence[SlotWin
                 acc[i][key] += overlap
     return [_judge(a[_PLAY], a[_EMPTY], a[_MAINT], a[None], w, rules)
             for a, w in zip(acc, windows, strict=True)]
+
+
+def rejudge(results: Iterable[SlotResult], rules: Rules = DEFAULT_RULES) -> list[SlotResult]:
+    """The same slots judged again under ``rules``, without the samples.
+
+    Exact, not an approximation: the rules only act on a slot's playing / empty / maintenance
+    / undecided seconds and its window, and :class:`SlotResult` keeps all of those unrounded
+    (so does its stored dict). Adding the samples up again would give the same seconds.
+    """
+    return [_judge(r.playing_s, r.empty_s, r.maintenance_s, r.uncertain_s, r.window, rules)
+            for r in results]
 
 
 # --- comparison with bookings ----------------------------------------------------------------
@@ -380,30 +443,63 @@ def compare(results: Sequence[SlotResult], records: Iterable[BookingRecord], *,
         off = [r for r in matched if r.status in OFF_SALE]
         refs = [r.customer_ref for r in (sold or off) if r.customer_ref]
         statuses = [r.status for r in (sold or off)]
-        used = res.status is SlotStatus.USED
-        who = f" ({', '.join(refs)})" if refs else ""
-        if res.status is SlotStatus.REVIEW:
-            outcome, ok = "review", True
-            msg = "The footage did not settle this slot, so it is not compared. Check it."
-            if sold:
-                msg = f"Booked{who}, but the footage did not settle this slot. Check it."
-        elif sold and used:
-            outcome, ok, msg = "booked_and_used", True, f"Booked{who} and played in."
-        elif sold:
-            outcome, ok = "booked_not_used", False
-            msg = f"Booked{who} but no play was seen - possible no-show."
-        elif off and used:
-            outcome, ok = "off_sale_but_used", False
-            msg = f"Taken off sale ({', '.join(sorted(set(statuses)))}) but play was seen."
-        elif used:
-            outcome, ok, msg = "used_not_booked", False, "Play was seen but there is no booking."
-        else:
-            outcome, ok = "not_booked_not_used", True
-            msg = ("Taken off sale and not played in." if off
-                   else "No booking and no play.")
-        out.append(SlotCheck(index=w.index, label=w.label, status=res.status, outcome=outcome,
-                             ok=ok, customer_refs=refs, booking_statuses=statuses,
-                             message=msg))
+        out.append(_check(res, sold=bool(sold), off=bool(off), refs=refs, statuses=statuses))
+    return out
+
+
+def _check(res: SlotResult, *, sold: bool, off: bool, refs: list[str],
+           statuses: list[str]) -> SlotCheck:
+    """One slot's outcome, from its result and what the matched bookings said."""
+    w = res.window
+    used = res.status is SlotStatus.USED
+    who = f" ({', '.join(refs)})" if refs else ""
+    if res.status is SlotStatus.REVIEW:
+        outcome, ok = "review", True
+        msg = "The footage did not settle this slot, so it is not compared. Check it."
+        if sold:
+            msg = f"Booked{who}, but the footage did not settle this slot. Check it."
+    elif sold and used:
+        outcome, ok, msg = "booked_and_used", True, f"Booked{who} and played in."
+    elif sold:
+        outcome, ok = "booked_not_used", False
+        msg = f"Booked{who} but no play was seen - possible no-show."
+    elif off and used:
+        outcome, ok = "off_sale_but_used", False
+        msg = f"Taken off sale ({', '.join(sorted(set(statuses)))}) but play was seen."
+    elif used:
+        outcome, ok, msg = "used_not_booked", False, "Play was seen but there is no booking."
+    else:
+        outcome, ok = "not_booked_not_used", True
+        msg = ("Taken off sale and not played in." if off
+               else "No booking and no play.")
+    return SlotCheck(index=w.index, label=w.label, status=res.status, outcome=outcome,
+                     ok=ok, customer_refs=list(refs), booking_statuses=list(statuses),
+                     message=msg)
+
+
+def recheck(results: Sequence[SlotResult],
+            checks: Sequence[SlotCheck] | Sequence[dict]) -> list[SlotCheck]:
+    """A stored comparison redone for rejudged ``results``, without the booking file.
+
+    Exact: a check keeps the statuses of the bookings that decided it - the sold ones when
+    there were any, otherwise the off-sale ones (`bookings.SOLD` and :data:`OFF_SALE` share no
+    status) - and their customer references, which is everything :func:`compare` looks at
+    once a booking has been matched to a slot. Matching depends only on the slot's clock
+    times, which rejudging does not change.
+    """
+    by_index: dict[int, dict] = {}
+    for c in checks:
+        d = c.to_dict() if isinstance(c, SlotCheck) else c
+        by_index[int(d["index"])] = d
+    out = []
+    for res in results:
+        d = by_index.get(res.window.index, {})
+        statuses = [str(s) for s in d.get("booking_statuses") or []]
+        sold = any(s not in OFF_SALE for s in statuses)
+        off = not sold and any(s in OFF_SALE for s in statuses)
+        out.append(_check(res, sold=sold, off=off,
+                          refs=[str(r) for r in d.get("customer_refs") or []],
+                          statuses=statuses))
     return out
 
 
@@ -415,11 +511,14 @@ _CSV_COLUMNS = (
 
 
 def to_csv(results: Sequence[SlotResult] | Sequence[dict],
-           checks: Sequence[SlotCheck] | Sequence[dict] | None = None) -> str:
+           checks: Sequence[SlotCheck] | Sequence[dict] | None = None,
+           rules: Rules | None = None) -> str:
     """The slot table as CSV, with the booking columns when ``checks`` are given.
 
     Accepts the objects or their ``to_dict()`` form, so a stored run can be exported without
-    being rebuilt.
+    being rebuilt. With ``rules``, a last ``rules`` column repeats them on every row
+    (``at least 50% seen; 40-60% is a close call``): a column rather than a comment line
+    above the header, so the file still opens as a plain table in any spreadsheet.
     """
     rows = [r.to_dict() if isinstance(r, SlotResult) else r for r in results]
     by_index = {}
@@ -431,6 +530,8 @@ def to_csv(results: Sequence[SlotResult] | Sequence[dict],
     header = list(_CSV_COLUMNS)
     if checks is not None:
         header += ["booking_outcome", "customer_refs", "booking_message"]
+    if rules is not None:
+        header.append("rules")
     writer.writerow(header)
     for d in rows:
         line = [
@@ -444,5 +545,7 @@ def to_csv(results: Sequence[SlotResult] | Sequence[dict],
             c = by_index.get(d["index"], {})
             line += [c.get("outcome", ""), " ".join(c.get("customer_refs", [])),
                      c.get("message", "")]
+        if rules is not None:
+            line.append(rules.describe())
         writer.writerow(line)
     return buf.getvalue()

@@ -264,3 +264,91 @@ def test_rtsp_source_opens_through_the_shared_opener(monkeypatch) -> None:
     source = RTSPSource({"cam": "usb:1"}, minutes=1, timeout_ms=777)
     assert source.read("cam", 0) is not None
     assert seen == [("usb:1", 777)]
+
+
+# --- the daily check ----------------------------------------------------------------------
+
+def test_probe_all_masks_and_carries_no_picture(config) -> None:
+    cameras.save_camera("venue_01", "camera_B", "rtsp://u:pw2@10.0.0.6/stream1")
+    cameras.save_camera("venue_02", "cam1", "usb:0")
+
+    def connect(host, port, timeout):
+        assert timeout == 1.5
+        if host == "10.0.0.6":
+            raise ConnectionRefusedError
+
+    results = cameras.probe_all(timeout_ms=1500, connect=connect,
+                                open_capture=lambda url, t: FakeCapture())
+    assert [(r["venue"], r["camera_id"], r["stage"]) for r in results] == [
+        ("venue_01", "camera_A", "ok"), ("venue_01", "camera_B", "port_closed"),
+        ("venue_02", "cam1", "ok")]
+    text = json.dumps(results)
+    assert SECRET not in text and "pw2" not in text and "frame" not in text
+    assert results[0]["width"] == 640 and results[1]["hint"]
+
+
+def _db(path, rows, slots=(), cams=(("camera_A", "field_01", "venue_01"),)) -> None:
+    import sqlite3
+
+    from pitch_occupancy.db.schema import SCHEMA
+
+    conn = sqlite3.connect(path)
+    conn.executescript(SCHEMA.replace("PRAGMA foreign_keys = ON;", ""))
+    for cam, fld, venue in cams:
+        conn.execute("INSERT OR IGNORE INTO venues VALUES (?, ?)", (venue, venue))
+        conn.execute("INSERT OR IGNORE INTO fields VALUES (?, ?, ?)", (fld, venue, fld))
+        conn.execute("INSERT INTO cameras (camera_id, field_id, side) VALUES (?, ?, 'A')",
+                     (cam, fld))
+    for slot in slots:
+        conn.execute("INSERT INTO rental_slots VALUES (?, ?, ?, ?, ?)", slot)
+    for i, (cam, stamp) in enumerate(rows):
+        conn.execute("INSERT INTO frame_samples (slot_id, camera_id, captured_at, minute_index,"
+                     " predicted, confidence) VALUES ('s1', ?, ?, ?, 'C1_EMPTY', 0.9)",
+                     (cam, stamp, i))
+    conn.commit()
+    conn.close()
+
+
+def test_recording_health_counts_the_last_day(tmp_path) -> None:
+    from datetime import datetime
+
+    db = tmp_path / "pitch.db"
+    now = datetime(2026, 10, 10, 12, 0)
+    # A 90-minute slot this morning (all inside the last 24 h), one yesterday 11:00-12:30 of
+    # which only the last 30 minutes are inside it, and an old one that is not.
+    slots = [("s1", "field_01", "2026-10-10", "08:00", "09:30"),
+             ("s0", "field_01", "2026-10-09", "11:00", "12:30"),
+             ("old", "field_01", "2026-10-01", "08:00", "09:30")]
+    stamps = [f"2026-10-10T08:{m:02d}:00" for m in range(60)] + ["2026-10-01T08:00:00"]
+    _db(db, [("camera_A", t) for t in stamps], slots)
+    out = cameras.recording_health(db, [("venue_01", "camera_A"), ("venue_01", "camera_X")],
+                                   now=now)
+    a = out[("venue_01", "camera_A")]
+    assert a["last_recorded"] == "2026-10-10T08:59:00"
+    assert a["minutes_since"] == 181
+    assert (a["captured_24h"], a["expected_24h"]) == (60, 120)
+    x = out[("venue_01", "camera_X")]
+    assert x["last_recorded"] is None and x["expected_24h"] is None and x["note"] is None
+
+
+def test_recording_health_never_guesses(tmp_path) -> None:
+    from datetime import datetime
+
+    now = datetime(2026, 10, 10, 12, 0)
+    # no database at all - and looking does not create one
+    out = cameras.recording_health(tmp_path / "none.db", [("v", "camera_A")], now=now)
+    assert out[("v", "camera_A")]["last_recorded"] is None
+    assert not (tmp_path / "none.db").exists()
+    # the same id at another venue is not this camera
+    db = tmp_path / "pitch.db"
+    _db(db, [("camera_A", "2026-10-10T11:00:00")])
+    other = cameras.recording_health(db, [("venue_02", "camera_A")], now=now)
+    assert other[("venue_02", "camera_A")]["last_recorded"] is None
+    assert "venue_01" in other[("venue_02", "camera_A")]["note"]
+    # a near-miss name is not matched either
+    near = cameras.recording_health(db, [("venue_01", "Camera_A")], now=now)
+    assert near[("venue_01", "Camera_A")]["last_recorded"] is None
+    # an empty file (no tables yet) is never recorded, not an error
+    blank = tmp_path / "blank.db"
+    blank.write_bytes(b"")
+    assert cameras.recording_health(blank, [("v", "c")], now=now)[("v", "c")]["captured_24h"] == 0

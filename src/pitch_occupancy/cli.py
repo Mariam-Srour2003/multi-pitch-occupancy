@@ -217,10 +217,30 @@ def serve(
     host: str = typer.Option(settings.api_host, help="Bind address."),
     port: int = typer.Option(settings.api_port, help="Bind port."),
     reload: bool = typer.Option(False, "--reload", help="Auto-reload on code changes."),
+    no_password: bool = typer.Option(
+        False, "--no-password",
+        help="Allow listening on a network address without PITCH_ACCESS_PASSWORD set."),
 ) -> None:
-    """Serve the dashboard and API with uvicorn."""
+    """Serve the dashboard and API with uvicorn.
+
+    Listening beyond this machine without a password is refused unless ``--no-password`` is
+    given: the pages can change camera settings and show live pictures of people.
+    """
     import uvicorn
 
+    from pitch_occupancy.api.access import LOCAL_HOSTS
+
+    if (host not in LOCAL_HOSTS and not settings.access_password.get_secret_value()
+            and not no_password):
+        typer.secho(
+            f"refusing to listen on {host} with no password: anyone on the network could "
+            f"change camera settings and see the cameras. Set PITCH_ACCESS_PASSWORD (in .env "
+            f"or the environment), or pass --no-password if this network is trusted.",
+            fg=typer.colors.RED, err=True)
+        raise typer.Exit(2)
+    if settings.access_password.get_secret_value():
+        typer.echo(f"sign-in required: user {settings.access_user!r}, password from "
+                   f"PITCH_ACCESS_PASSWORD")
     uvicorn.run("pitch_occupancy.api.app:app", host=host, port=port, reload=reload)
 
 

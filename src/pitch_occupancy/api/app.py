@@ -15,6 +15,7 @@ Pages:
   - ``/clip/pair``   both cameras of one pitch, judged together
   - ``/images``      one still or a batch, each explained
   - ``/cameras``     connect and test cameras, check a pitch live, plan the recorded day
+  - ``/reports``     utilisation, busy hours, and a recorded day cut into slots
   - ``/bookings``    the booking source, a quality check of it, and a day compared
   - ``/roi``         draw the pitch boundary for a camera
 """
@@ -26,6 +27,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from pitch_occupancy import __version__
+from pitch_occupancy.api.access import AccessMiddleware
 from pitch_occupancy.api.bookings_page import router as bookings_router
 from pitch_occupancy.api.cameras_page import router as cameras_router
 from pitch_occupancy.api.clip_page import CLIP_HTML
@@ -36,6 +38,7 @@ from pitch_occupancy.api.clip_walkthrough import router as walkthrough_router
 from pitch_occupancy.api.dashboard import dashboard_response
 from pitch_occupancy.api.image_page import IMAGE_HTML
 from pitch_occupancy.api.image_walkthrough import router as image_router
+from pitch_occupancy.api.reports_page import router as reports_router
 from pitch_occupancy.api.roi_editor import router as roi_router
 from pitch_occupancy.api.roi_page import ROI_HTML
 from pitch_occupancy.api.routes import router
@@ -49,6 +52,8 @@ app = FastAPI(
     version=__version__,
     summary="Occupancy verdicts and booking reconciliation for multi-pitch facilities",
 )
+# A password in front of everything when PITCH_ACCESS_PASSWORD is set (api/access.py).
+app.add_middleware(AccessMiddleware)
 app.include_router(router)
 # Camera simulator. Disabled unless PITCH_SIMULATOR_TOKEN is set - mounting it is not
 # enabling it.
@@ -81,6 +86,9 @@ app.include_router(bookings_router)
 # Cameras: saving and testing connections, a live spot check, generating the live schedule,
 # and the connection guide.
 app.include_router(cameras_router)
+# Reports from what the live system recorded: utilisation per day, busy hours, and any
+# recorded day cut into the client's own slot length. Read-only.
+app.include_router(reports_router)
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)

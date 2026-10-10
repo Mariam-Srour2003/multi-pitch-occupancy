@@ -63,23 +63,43 @@ uv run pitch serve --reload
 uv run python -m uvicorn pitch_occupancy.api.app:app --reload
 ```
 
-Every page shares one navigation bar: **Dashboard · Testing · Cameras · Bookings · Boundaries**.
+**Sign-in.** The server listens on this machine only (`127.0.0.1`) by default. To open it to
+the facility's network, set a password first — every page and endpoint then asks for it
+(`/health` stays open for monitoring):
+
+```bash
+# in .env (gitignored) or the service environment
+PITCH_ACCESS_PASSWORD=choose-a-long-password
+PITCH_ACCESS_USER=manager          # optional, default "admin"
+uv run pitch serve --host 0.0.0.0
+```
+
+`pitch serve` refuses a network address without a password unless you add `--no-password`.
+The browser sends the password with each request, encoded rather than encrypted, so outside a
+trusted local network put the service behind HTTPS or a VPN.
+
+Every page shares one navigation bar: **Dashboard · Reports · Testing · Cameras · Bookings ·
+Boundaries**.
 
 | page | what it does |
 |---|---|
 | `/` (also `/client`) | operator dashboard: pitches hour by hour, slot verdicts, evidence, overrides |
 | `/testing` | the testing hub: try the system on your own footage and photos |
-| `/testing/day` | **booking-day test**: upload a day's video, say when it starts (e.g. 08:00) and how long a slot is (e.g. 90 min); get every slot's minutes playing / empty / maintenance and USED / NOT USED / REVIEW, a CSV download, and an optional comparison with booking records |
+| `/testing/day` | **booking-day test**: upload a day's video (or pick a recording already on this computer, from `data/recordings/` or `PITCH_RECORDINGS_DIR`), say when it starts (e.g. 08:00) and how long a slot is (e.g. 90 min); get every slot's minutes playing / empty / maintenance and USED / NOT USED / REVIEW, adjustable slot rules (re-judge a saved run without re-running it), CSV download, print / save as PDF, and an optional comparison with booking records |
 | `/clip` | one video in, a timeline of what the pitch was doing; "Watch it work" streams each step |
 | `/clip/pair` | both cameras of one pitch: two videos, people added, ball from either, one verdict |
 | `/images` | one still or a batch, each explained, least confident first |
-| `/cameras` | add and test camera connections, check a pitch live ("what is happening now?"), plan the recorded day (start time + slot length → live schedule), and the connection guide (also `docs/cameras.md`) |
+| `/reports` | from what the live system recorded: hours played and utilisation per pitch per day, used / not used / review, no-shows and unbooked play, a busy-hours heatmap (weekday × hour), and any recorded day cut into your own slot length; CSV for each |
+| `/cameras` | add and test camera connections ("Test all cameras", each camera's last recorded picture), check a pitch live ("what is happening now?"), plan the recorded day (start time + slot length → live schedule), and the connection guide (also `docs/cameras.md`) |
 | `/bookings` | connect booking records (optional, read-only: CSV, SQLite or another SQL database), check their quality, and compare a day with the camera verdicts |
 | `/roi` | draw the pitch boundary for a camera, with a before/after preview |
 | `/docs` | the API |
 
 Uploads to the testing pages are deleted as soon as they have been read; nothing is written to
-the database. A booking-day test keeps only its results, under `data/test_runs/`.
+the database. A booking-day test keeps only its results, under `data/test_runs/`. Uploads are
+limited to 16 GB per video (`PITCH_TESTING_MAX_UPLOAD_MB`); an hour of recording is about
+630 MB, so for a whole day it is quicker to copy the files into the recordings folder and pick
+them from the page.
 
 **How a booking-day slot is judged** (`timetable.py`): each slot's main activity is whatever took
 most of the time seen. Mostly playing is **USED**; mostly empty or maintenance is **NOT USED**. A

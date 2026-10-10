@@ -264,6 +264,9 @@ def test_a_path_relative_to_the_project_root_resolves(tmp_path, monkeypatch) -> 
 
     cv2.imwrite(str(target), np.full((16, 16, 3), 120, np.uint8))
 
+    # A throwaway database: this used to write into the real one and leave the slot, field
+    # and camera rows behind, which then appeared in the reports.
+    monkeypatch.setattr(settings, "db_path", tmp_path / "test.db")
     conn = connect(settings.db_path)
     initialise(conn)
     try:

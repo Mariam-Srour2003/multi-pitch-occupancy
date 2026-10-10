@@ -215,3 +215,168 @@ def test_the_pages_and_aliases(client) -> None:
                           ("/testing/images", "/images")):
         r = client.get(alias, follow_redirects=False)
         assert r.status_code in (302, 307) and r.headers["location"] == target
+
+
+# --- judging rules --------------------------------------------------------------------------
+
+
+def _fake_bookings(monkeypatch, tmp_path) -> None:
+    def parse_csv_text(text: str, source: str = "upload"):
+        path = tmp_path / "bookings.csv"
+        path.write_text(text, encoding="utf-8")
+        return read_bookings(path, source=source)
+
+    fake = types.ModuleType("pitch_occupancy.booking_sources")
+    fake.parse_csv_text = parse_csv_text
+    fake.load_source = lambda path=None: None
+    monkeypatch.setitem(sys.modules, "pitch_occupancy.booking_sources", fake)
+
+
+def test_rule_options_are_validated_before_anything_is_received(client, tmp_path) -> None:
+    for query in ("min_seen_pct=101", "close_low_pct=-1", "close_high_pct=200",
+                  "close_low_pct=60&close_high_pct=40", "close_low_pct=50&close_high_pct=50",
+                  "close_low_pct=70"):
+        r = client.post(f"/api/v1/testing/day?start=08:00&{query}", content=b"x")
+        assert r.status_code == 422, query
+    r = client.post("/api/v1/testing/day?start=08:00&close_low_pct=70", content=b"x")
+    assert "close-call band" in r.json()["detail"]
+    assert not _uploads(tmp_path)
+
+
+def test_rules_are_stored_shown_in_the_csv_and_a_run_can_be_rejudged(client, tmp_path,
+                                                                     monkeypatch) -> None:
+    _fake_bookings(monkeypatch, tmp_path)
+    video = _video(tmp_path / "src.mp4", [DARK] * 60 + [LIGHT] * 60).read_bytes()
+    r = client.post("/api/v1/testing/day?start=08:00&slot_minutes=1&interval_s=5"
+                    "&min_seen_pct=75&close_low_pct=30&close_high_pct=70", content=video)
+    run = _wait(client, r.json()["job_id"])["result"]
+    assert run["rules"] == {"min_seen_share": 0.75, "close_low": 0.3, "close_high": 0.7}
+    assert run["rules_text"] == "at least 75% seen; 30-70% is a close call"
+    assert [s["status"] for s in run["slots"]] == ["USED", "NOT_USED"]
+    lines = client.get(f"/api/v1/testing/runs/{run['id']}.csv").text.strip().splitlines()
+    assert lines[0].endswith(",rules") and "at least 75% seen" in lines[1]
+
+    sheet = ("field_id,date,start,end,customer_ref,status,entered_by\n"
+             "field_01,2026-07-13,08:01,08:02,BK-9,confirmed,a\n")
+    cmp = client.post(f"/api/v1/testing/runs/{run['id']}/compare?field_id=field_01"
+                      f"&day=2026-07-13", content=sheet).json()
+    assert [c["outcome"] for c in cmp["checks"]] == ["used_not_booked", "booked_not_used"]
+
+    bad = client.post(f"/api/v1/testing/runs/{run['id']}/rejudge?close_low_pct=90"
+                      f"&close_high_pct=80")
+    assert bad.status_code == 422
+    assert client.post("/api/v1/testing/runs/20260101-000000-abcdef/rejudge").status_code == 404
+    # Playing 100% of slot 1 is now a close call; slot 2 (0%) is still not used.
+    again = client.post(f"/api/v1/testing/runs/{run['id']}/rejudge?close_low_pct=90"
+                        f"&close_high_pct=100")
+    assert again.status_code == 200, again.text
+    data = again.json()
+    assert [s["status"] for s in data["slots"]] == ["REVIEW", "NOT_USED"]
+    assert data["counts"] == {"slots": 2, "USED": 0, "NOT_USED": 1, "REVIEW": 1}
+    assert data["rules"] == {"min_seen_share": 0.5, "close_low": 0.9, "close_high": 1.0}
+    assert data["rejudged"]["slots_changed"] == 1
+    assert data["rejudged"]["previous_rules_text"] == run["rules_text"]
+    # The stored comparison follows the new results: a REVIEW slot is never accused.
+    assert [c["outcome"] for c in data["comparison"]["checks"]] == ["review", "booked_not_used"]
+    assert data["comparison"]["counts"] == {"review": 1, "booked_not_used": 1}
+    stored = client.get(f"/api/v1/testing/runs/{run['id']}").json()
+    assert stored["slots"] == data["slots"] and stored["comparison"] == data["comparison"]
+    # Back to the defaults: the original results return exactly.
+    back = client.post(f"/api/v1/testing/runs/{run['id']}/rejudge").json()
+    assert [s["status"] for s in back["slots"]] == ["USED", "NOT_USED"]
+    assert back["rules_text"] == "at least 50% seen; 40-60% is a close call"
+
+
+def test_the_day_page_has_the_rule_options_and_prints(client) -> None:
+    text = client.get("/testing/day").text
+    for needle in ('id="minSeen"', 'id="closeLow"', 'id="closeHigh"', "@media print",
+                   "window.print()", "Print / save as PDF", "/rejudge",
+                   "Use a recording on this computer", "/api/v1/testing/recordings"):
+        assert needle in text, needle
+
+
+# --- big uploads and recordings already on this machine ------------------------------------
+
+
+def test_the_upload_limit_comes_from_the_setting(client, monkeypatch) -> None:
+    monkeypatch.setattr(settings, "testing_max_upload_mb", 1)
+    r = client.post("/api/v1/testing/day?start=08:00", content=b"x" * (1024 * 1024 + 10))
+    assert r.status_code == 413 and "limit is 1 MB" in r.json()["detail"]
+    r = client.post("/api/v1/testing/day?start=08:00&size_a=5",
+                    content=b"x" * (2 * 1024 * 1024 + 10))
+    assert r.status_code == 413
+
+
+def test_an_upload_that_would_not_fit_on_disk_is_refused(client, tmp_path,
+                                                         monkeypatch) -> None:
+    from pitch_occupancy import retention
+
+    monkeypatch.setattr(retention, "free_bytes", lambda path: 1000)
+    r = client.post("/api/v1/testing/day?start=08:00", content=b"x" * 5000)
+    assert r.status_code == 507 and "disk space" in r.json()["detail"]
+    assert not _uploads(tmp_path)
+
+
+@pytest.fixture
+def recordings(tmp_path, monkeypatch) -> Path:
+    folder = tmp_path / "recordings"
+    (folder / "day2").mkdir(parents=True)
+    monkeypatch.setattr(settings, "recordings_dir", folder)
+    return folder
+
+
+def test_recordings_are_listed(client, recordings) -> None:
+    _video(recordings / "morning.mp4", [DARK] * 4)
+    _video(recordings / "day2" / "cam_b.mp4", [LIGHT] * 2)
+    (recordings / "notes.txt").write_text("x", encoding="utf-8")
+    data = client.get("/api/v1/testing/recordings").json()
+    assert data["exists"] and data["folder"] == str(recordings)
+    assert [r["name"] for r in data["recordings"]] == ["day2/cam_b.mp4", "morning.mp4"]
+    assert data["recordings"][1]["duration_s"] == pytest.approx(4, abs=0.6)
+    assert data["recordings"][1]["size_mb"] >= 0 and data["recordings"][1]["modified"]
+
+
+def test_a_missing_recordings_folder_lists_nothing(client, tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(settings, "recordings_dir", tmp_path / "nowhere")
+    data = client.get("/api/v1/testing/recordings").json()
+    assert data == {"folder": str(tmp_path / "nowhere"), "exists": False, "recordings": []}
+
+
+def test_a_local_recording_is_analysed_and_kept(client, recordings) -> None:
+    video = _video(recordings / "morning.mp4", [DARK] * 60 + [LIGHT] * 60)
+    before = video.read_bytes()
+    r = client.post("/api/v1/testing/day/local", json={
+        "file_a": "morning.mp4", "start": "08:00", "slot_minutes": 1, "interval_s": 5,
+        "close_low_pct": 30})
+    assert r.status_code == 200, r.text
+    job = _wait(client, r.json()["job_id"])
+    assert job["status"] == "done", job["error"]
+    run = job["result"]
+    assert [s["status"] for s in run["slots"]] == ["USED", "NOT_USED"]
+    assert run["video_name"] == "morning.mp4" and run["rules"]["close_low"] == 0.3
+    assert video.exists() and video.read_bytes() == before, "a client's recording was touched"
+
+
+@pytest.mark.parametrize("name", ["../secret.mp4", "..\\secret.mp4", "/etc/passwd",
+                                  "C:/Windows/win.ini", "day2/../../secret.mp4",
+                                  "notes.txt", "missing.mp4", ""])
+def test_a_local_recording_must_be_a_video_inside_the_folder(client, recordings, tmp_path,
+                                                             name) -> None:
+    _video(tmp_path / "secret.mp4", [DARK] * 2)
+    (recordings / "notes.txt").write_text("x", encoding="utf-8")
+    r = client.post("/api/v1/testing/day/local", json={"file_a": name, "start": "08:00"})
+    assert r.status_code in (404, 422), (name, r.status_code)
+    assert (tmp_path / "secret.mp4").exists()
+
+
+def test_a_link_out_of_the_recordings_folder_is_refused(client, recordings, tmp_path) -> None:
+    target = _video(tmp_path / "secret.mp4", [DARK] * 2)
+    link = recordings / "link.mp4"
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("this system does not allow creating symlinks")
+    r = client.post("/api/v1/testing/day/local", json={"file_a": "link.mp4", "start": "08:00"})
+    assert r.status_code == 422
+    names = [x["name"] for x in client.get("/api/v1/testing/recordings").json()["recordings"]]
+    assert "link.mp4" not in names

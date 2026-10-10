@@ -19,11 +19,19 @@ burst (the rule's 3 frames, or one frame if the detector is unavailable) per cam
 background job would add a queue and a poll for no gain. The recorded history never comes from
 here: it comes from the live schedule, and the page says so next to the button.
 
-Read routes: ``GET /cameras`` (the page) and ``GET /api/v1/cameras/registry`` (masked list;
-not ``/api/v1/cameras``, which the simulator owns). Mutating routes:
+**The daily check** sits over the camera list: *Test all cameras* tries each saved camera in
+turn with a short timeout (no pictures, so it stays quick), and the *Last picture* column says
+when the live run last recorded one from each camera, read from the database. The two answer
+different questions - "does it answer now?" and "has it been recording?" - and a camera can
+fail either one alone.
+
+Read routes: ``GET /cameras`` (the page), ``GET /api/v1/cameras/registry`` (masked list, with
+each camera's last recorded picture; not ``/api/v1/cameras``, which the simulator owns) and
+``GET /api/v1/cameras/health`` (the recording part alone). Mutating routes:
 ``PUT /api/v1/cameras``, ``DELETE /api/v1/cameras/{venue}/{camera_id}``,
-``POST /api/v1/cameras/test``, ``POST /api/v1/cameras/predict``,
-``POST /api/v1/cameras/schedule/preview`` (writes nothing) and ``PUT /api/v1/cameras/schedule``.
+``POST /api/v1/cameras/test``, ``POST /api/v1/cameras/test-all`` (opens connections, writes
+nothing), ``POST /api/v1/cameras/predict``, ``POST /api/v1/cameras/schedule/preview`` (writes
+nothing) and ``PUT /api/v1/cameras/schedule``.
 """
 
 from __future__ import annotations
@@ -50,6 +58,8 @@ router = APIRouter(tags=["cameras"])
 SCHEDULE_PATH: Path | None = None
 #: Per-camera connection timeout for the page's reads, in milliseconds.
 TIMEOUT_MS = 5000
+#: Per-camera timeout for "Test all cameras": short, because it tries every camera in turn.
+TEST_ALL_TIMEOUT_MS = 3000
 #: Width the page's snapshots are scaled to.
 SNAPSHOT_WIDTH = 640
 
@@ -67,6 +77,14 @@ LABELS = {
 
 def _schedule_path() -> Path:
     return SCHEDULE_PATH or schedule_editor.DEFAULT_SCHEDULE
+
+
+def _db_path() -> Path:
+    """The database the live run writes, as `api.routes.get_conn` opens it. Read at call time
+    so a test can point it away; never created from here."""
+    from pitch_occupancy.config import settings
+
+    return Path(settings.db_path)
 
 
 def _live_model() -> str:
@@ -140,7 +158,46 @@ def list_cameras() -> dict:
         except Exception:  # noqa: BLE001 - a broken boundary file must not hide the cameras
             key = None
         row["boundary"] = key
+    health = _health(rows)
+    for row in rows:
+        row["recording"] = health[(row["venue"], row["camera_id"])]
     return {"cameras": rows, "problem": None}
+
+
+def _health(rows: list[dict]) -> dict[tuple[str, str], dict]:
+    """Each camera's last recorded picture, plus whether a saved schedule uses it.
+
+    ``scheduled`` is what makes an old picture a problem: a camera no slot uses is expected
+    to have recorded nothing. A database or schedule that cannot be read is reported as
+    "never recorded" / "not scheduled", never as an error that would hide the camera list.
+    """
+    keys = [(r["venue"], r["camera_id"]) for r in rows]
+    try:
+        found = cameras.recording_health(_db_path(), keys)
+    except Exception:  # noqa: BLE001 - a broken database must not hide the cameras
+        found = {k: {"last_recorded": None, "minutes_since": None, "captured_24h": 0,
+                     "expected_24h": None, "note": "the database could not be read"}
+                 for k in keys}
+    scheduled = {(e.get("venue_id"), c) for e in _read_schedule_entries(quiet=True)
+                 for c in (e.get("cameras") or [])}
+    for key in keys:
+        found[key]["scheduled"] = key in scheduled
+        minutes = found[key]["minutes_since"]
+        found[key]["stale"] = found[key]["scheduled"] and (minutes is None or minutes > 24 * 60)
+    return found
+
+
+@router.get("/api/v1/cameras/health")
+def camera_health() -> dict:
+    """When the live run last recorded a picture from each saved camera. Opens no camera."""
+    try:
+        rows = cameras.list_cameras()
+    except ValueError as exc:
+        return {"cameras": [], "problem": str(exc), "database_exists": _db_path().is_file()}
+    health = _health(rows)
+    return {"cameras": [{"venue": r["venue"], "camera_id": r["camera_id"],
+                         **health[(r["venue"], r["camera_id"])]} for r in rows],
+            "problem": None, "database_exists": _db_path().is_file()}
 
 
 @router.put("/api/v1/cameras")
@@ -207,6 +264,22 @@ def test_camera(body: TestIn) -> dict:
     out["snapshot"] = cameras.jpeg_base64(result.frame, max_width=SNAPSHOT_WIDTH)
     out["tested_at"] = datetime.now().isoformat(timespec="seconds")
     return out
+
+
+@router.post("/api/v1/cameras/test-all")
+def test_all_cameras() -> dict:
+    """Try every saved camera, one after another, with a short timeout. **Opens real
+    connections**; returns masked URLs and plain reasons, no pictures, and saves nothing."""
+    try:
+        results = cameras.probe_all(timeout_ms=TEST_ALL_TIMEOUT_MS)
+    except ValueError as exc:
+        raise _registry_error(exc) from exc
+    answered = sum(1 for r in results if r["ok"])
+    n = len(results)
+    summary = (f"{answered} of {n} camera{'s' if n != 1 else ''} answered" if n
+               else "No cameras saved yet")
+    return {"cameras": results, "answered": answered, "total": n, "summary": summary,
+            "tested_at": datetime.now().isoformat(timespec="seconds")}
 
 
 # --- b) the spot check --------------------------------------------------------------------
@@ -655,6 +728,9 @@ details.g table{min-width:0}
 .days input{width:auto}
 .result{margin-top:12px}
 td .ghost{margin-right:4px}
+td.status{min-width:150px;font-size:13px}
+td.status .hint{display:block;color:var(--ink-2);font-size:12px;max-width:340px}
+td.last{white-space:nowrap;font-size:13px}
 .big{font:700 22px Archivo,sans-serif}
 """
 
@@ -761,10 +837,15 @@ BODY_HTML = """
 <p class="sub2">Each pitch has two cameras, each seeing about half of it. Add each camera's
 address here and press <b>Test</b> to check it sends a picture.</p>
 <div id="camproblem" class="note err" hidden></div>
+<div class="row" style="margin:0 0 10px">
+  <button class="act" id="testall">Test all cameras</button>
+  <span id="testallsum" class="muted">Checks each camera answers now (a few seconds each).
+  "Last picture" is when the recording last saved one.</span>
+</div>
 <div class="scroll"><table>
 <thead><tr><th>Venue</th><th>Camera</th><th>Address (password hidden)</th>
-<th>Boundary</th><th></th></tr></thead>
-<tbody id="camrows"><tr><td colspan="5" class="muted">Loading...</td></tr></tbody>
+<th>Boundary</th><th>Status now</th><th>Last picture</th><th></th></tr></thead>
+<tbody id="camrows"><tr><td colspan="7" class="muted">Loading...</td></tr></tbody>
 </table></div>
 
 <div class="card" style="margin-top:14px">
@@ -859,6 +940,36 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g,
   (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const DAYS = ['mon','tue','wed','thu','fri','sat','sun'];
 let CAMS = [];
+let STATUS = {};
+const key = (c) => c.venue + '/' + c.camera_id;
+
+function ago(minutes) {
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const h = Math.floor(minutes / 60);
+  if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`;
+  const d = Math.floor(h / 24);
+  return `${d} day${d === 1 ? '' : 's'} ago`;
+}
+function lastCell(rec) {
+  if (!rec) return '<span class="muted">-</span>';
+  const when = rec.last_recorded ? ago(rec.minutes_since) : 'never';
+  const cls = rec.stale ? 'bad' : (rec.last_recorded ? '' : 'muted');
+  let tip = rec.last_recorded ? rec.last_recorded.replace('T', ' ') : 'no picture recorded';
+  if (rec.expected_24h) tip += ` - last 24 h: ${rec.captured_24h} of ${rec.expected_24h} ` +
+    'minutes recorded';
+  if (rec.note) tip += ` - ${rec.note}`;
+  const extra = rec.expected_24h ? `<br><span class="muted">${rec.captured_24h} of ` +
+    `${rec.expected_24h} min in 24 h</span>` : '';
+  return `<span class="${cls}" title="${esc(tip)}">${esc(when)}</span>${extra}`;
+}
+function statusCell(c) {
+  const r = STATUS[key(c)];
+  if (!r) return '<span class="muted">not tested</span>';
+  if (r.ok) return `<span class="ok">answered in ${r.elapsed_ms} ms</span>`;
+  return `<span class="bad">${esc(r.message)}</span>` +
+    (r.hint ? `<span class="hint">${esc(r.hint)}</span>` : '');
+}
 
 async function api(method, url, body) {
   const r = await fetch(url, {method, headers: {'Content-Type': 'application/json'},
@@ -903,10 +1014,11 @@ async function loadCams() {
     <td class="mono">${esc(c.url)}</td>
     <td>${c.boundary ? '<span class="ok">drawn</span>'
          : '<a href="/roi" class="bad">not drawn yet</a>'}</td>
+    <td class="status">${statusCell(c)}</td><td class="last">${lastCell(c.recording)}</td>
     <td style="white-space:nowrap"><button class="ghost" data-test="${i}">Test</button>
     <button class="ghost" data-edit="${i}">Edit</button>
     <button class="ghost" data-del="${i}">Delete</button></td></tr>`).join('')
-    : '<tr><td colspan="5" class="muted">No cameras yet - add the first one below.</td></tr>';
+    : '<tr><td colspan="7" class="muted">No cameras yet - add the first one below.</td></tr>';
   fillVenues();
 }
 
@@ -968,6 +1080,22 @@ $('f_clear').onclick = () => {
   $('formtitle').textContent = 'Add a camera'; $('f_msg').innerHTML = '';
 };
 $('t_go').onclick = () => runTest({url: $('t_url').value.trim()}, 'testout');
+
+$('testall').onclick = async () => {
+  $('testall').disabled = true;
+  $('testallsum').className = 'muted';
+  $('testallsum').textContent = `Testing ${CAMS.length} camera(s), one after another...`;
+  try {
+    const r = await api('POST', '/api/v1/cameras/test-all');
+    STATUS = {};
+    for (const c of r.cameras) STATUS[key(c)] = c;
+    $('testallsum').className = r.answered === r.total ? 'ok' : 'bad';
+    $('testallsum').textContent = `${r.summary} (${r.tested_at.replace('T', ' ')}).`;
+    await loadCams();
+  } catch (e) {
+    $('testallsum').className = 'bad'; $('testallsum').textContent = e.message;
+  } finally { $('testall').disabled = false; }
+};
 
 // --- live check ---
 let busy = false, timer = null;
@@ -1070,6 +1198,6 @@ $('s_save').onclick = async () => {
 };
 
 loadCams().catch((e) => {
-  $('camrows').innerHTML = `<tr><td colspan="5" class="bad">${esc(e.message)}</td></tr>`;
+  $('camrows').innerHTML = `<tr><td colspan="7" class="bad">${esc(e.message)}</td></tr>`;
 });
 """
