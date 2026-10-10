@@ -78,6 +78,7 @@ desktop.ini
 # committed one is a leak that outlives the commit. configs/cameras.example.json shows
 # the shape; the real file never leaves the machine.
 /configs/cameras.json
+/configs/bookings_source.json
 .env
 .env.*
 secrets.json
@@ -85,4 +86,6 @@ config/*.local.json
 
 # Schedule-editor backups: generated per write, pruned to the last 20, never source.
 /configs/schedule_history/
+# Camera-registry backups (the /cameras page): copies of cameras.json, so they hold credentials.
+/configs/cameras_history/
 data/interim/stage_runs.json

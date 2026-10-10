@@ -42,7 +42,9 @@ from the pixels - a wrong guess would pair a goal at one end with the kick-off a
 
 from __future__ import annotations
 
+import math
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -248,6 +250,7 @@ def analyse_pair(
     window: int = DEFAULT_WINDOW,
     max_samples: int = MAX_SAMPLES,
     polygons: tuple[list[list[float]] | None, list[list[float]] | None] = (None, None),
+    progress: Callable[[int, int], None] | None = None,
 ) -> PairAnalysis:
     """Sample both videos at the same moments, observe each camera, and fuse them.
 
@@ -255,6 +258,9 @@ def analyse_pair(
     that path *counts*, so its fusion adds the halves. A probe pipeline is accepted and fuses
     by strongest-activity-wins instead, which is `Pipeline.fuse`'s documented behaviour and has
     no counts to add - the overlap check is then silent.
+
+    ``progress``, when given, is called as ``progress(done, total)`` after each moment
+    sampled, ``total`` being the expected number of moments.
 
     Raises ``ValueError`` when either file cannot be opened, when the offset leaves no stretch
     both cover, or when no moment could be read on either camera.
@@ -288,6 +294,8 @@ def analyse_pair(
     rows: list[tuple[float, tuple[CameraSide, CameraSide], object, MinuteState | None]] = []
     try:
         previous: dict[str, np.ndarray | None] = dict.fromkeys(CAMERAS)
+        expected = min(max_samples, max(1, math.ceil((end - start) / interval_s - 1e-9)))
+        done = 0
         t = start
         while t < end and len(rows) < max_samples:
             observations = {}
@@ -311,6 +319,9 @@ def analyse_pair(
                 lower = (_if_overlapping(fused, observations, cfg)
                          if pipeline.kind == "detector" and cfg is not None else None)
                 rows.append((t, tuple(sides), fused, lower))
+            done += 1
+            if progress is not None:
+                progress(done, max(expected, done))
             t += interval_s
     finally:
         for capture in captures:

@@ -10,9 +10,12 @@ Run it with::
 
 Pages:
   - ``/``            the operator dashboard (also at ``/client``)
+  - ``/testing``     the testing hub; ``/testing/day`` cuts a day of footage into slots
   - ``/clip``        one video in, a timeline of what the pitch was doing
   - ``/clip/pair``   both cameras of one pitch, judged together
   - ``/images``      one still or a batch, each explained
+  - ``/cameras``     connect and test cameras, check a pitch live, plan the recorded day
+  - ``/bookings``    the booking source, a quality check of it, and a day compared
   - ``/roi``         draw the pitch boundary for a camera
 """
 
@@ -23,6 +26,8 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from pitch_occupancy import __version__
+from pitch_occupancy.api.bookings_page import router as bookings_router
+from pitch_occupancy.api.cameras_page import router as cameras_router
 from pitch_occupancy.api.clip_page import CLIP_HTML
 from pitch_occupancy.api.clip_pair import router as pair_router
 from pitch_occupancy.api.clip_pair_page import PAIR_HTML
@@ -36,6 +41,7 @@ from pitch_occupancy.api.roi_page import ROI_HTML
 from pitch_occupancy.api.routes import router
 from pitch_occupancy.api.schedule_editor import router as schedule_router
 from pitch_occupancy.api.simulator import router as simulator_router
+from pitch_occupancy.api.testing import router as testing_router
 from pitch_occupancy.config import settings
 
 app = FastAPI(
@@ -66,6 +72,15 @@ app.include_router(image_router)
 # Pitch boundaries. The preview runs the model twice so a boundary can be checked rather
 # than trusted.
 app.include_router(roi_router)
+# Testing: the hub that groups the video, two-camera and image reviewers, and the
+# booking-day test that cuts a day of footage into booking slots.
+app.include_router(testing_router)
+# Bookings: where the facility's booking records come from (optional, always read-only), a
+# quality check of that data, and a day's camera verdicts set against it.
+app.include_router(bookings_router)
+# Cameras: saving and testing connections, a live spot check, generating the live schedule,
+# and the connection guide.
+app.include_router(cameras_router)
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)

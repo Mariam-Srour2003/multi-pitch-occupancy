@@ -26,6 +26,8 @@ removing it; :func:`analyse_clip` never writes one.
 
 from __future__ import annotations
 
+import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
@@ -244,6 +246,7 @@ def analyse_clip(
     polygon: list[list[float]] | None = None,
     motion_gate: object | None = None,
     person_gate: object | None = None,
+    progress: Callable[[int, int], None] | None = None,
 ) -> ClipAnalysis:
     """Sample ``path`` every ``interval_s`` seconds, classify each frame, and segment it.
 
@@ -263,6 +266,10 @@ def analyse_clip(
     A frame that cannot be decoded is recorded in ``unreadable`` and skipped rather than
     filled in, for the same reason `worker.run_slot` counts a missed minute instead of
     inventing one: a gap is a fact about the footage and a guess is not.
+
+    ``progress``, when given, is called as ``progress(done, total)`` after each sample -
+    readable or not - so a long run in the background can say how far it has got. ``total``
+    is the expected sample count; for a file of unknown length it is ``max_samples``.
 
     Raises ``ValueError`` for a file OpenCV cannot open or one with no readable frames,
     because "zero samples" and "an empty pitch" must not arrive as the same answer.
@@ -299,6 +306,8 @@ def analyse_clip(
         counted: list[tuple[int | None, bool | None]] = []
         unreadable: list[float] = []
         previous = None
+        expected = (min(max_samples, max(1, math.ceil(duration_s / interval_s - 1e-9)))
+                    if duration_s > 0 else max_samples)
         t = 0.0
         while duration_s <= 0 or t < duration_s:
             capture.set(cv2.CAP_PROP_POS_MSEC, t * 1000.0)
@@ -328,6 +337,9 @@ def analyse_clip(
                 raw.append((t, state, float(confidence)))
                 probed.append(before if before is not state else None)
                 counted.append((n_people, saw_ball, cue))
+            if progress is not None:
+                done = len(raw) + len(unreadable)
+                progress(done, max(expected, done))
             t += interval_s
             if len(raw) + len(unreadable) >= max_samples and duration_s <= 0:
                 break

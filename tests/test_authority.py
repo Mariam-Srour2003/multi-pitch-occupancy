@@ -138,6 +138,19 @@ def test_no_http_route_offers_a_financial_action() -> None:
     assert not offenders, f"a financial route appeared: {offenders}"
 
 
+#: Booking routes that use POST only because they carry a body, and write nothing. Each is
+#: here deliberately; anything else with "booking" in its path and a mutating verb fails below.
+BOOKING_READS_WITH_A_BODY = {
+    #: Reads the configured source and reports what it found. POST so the check is an explicit
+    #: action rather than something a crawler or a prefetch can trigger against a client's
+    #: database.
+    "/api/v1/bookings/test",
+    #: Runs the quality check over a posted CSV, or over the configured source when the body
+    #: is empty. Returns a report; stores nothing.
+    "/api/v1/bookings/check",
+}
+
+
 def test_no_http_route_writes_to_a_booking() -> None:
     """Booking data is read-only: the audit compares against the record, it does not amend
     it. A write route would make the system a participant in what it is auditing."""
@@ -146,8 +159,18 @@ def test_no_http_route_writes_to_a_booking() -> None:
         for path in (SRC / "api").glob("*.py")
         for method, route in _http_methods(path)
         if method in {"post", "put", "patch", "delete"} and "booking" in route.lower()
+        and not (method == "post" and route in BOOKING_READS_WITH_A_BODY)
     ]
     assert not offenders, f"a booking write route appeared: {offenders}"
+
+
+def test_the_booking_module_has_no_write_path() -> None:
+    """What makes the two POSTs above safe: the source module issues no write. The SQL
+    guard there rejects write statements in a configured query; this pins that the module's
+    own code never opens a source for writing."""
+    text = (SRC / "booking_sources.py").read_text(encoding="utf-8")
+    assert "mode=ro" in text
+    assert not re.search(r"\.commit\(|open\([^)]*[\"']w", text)
 
 
 #: Routes allowed to use a mutating HTTP verb, each with the reason it is not the system
@@ -215,6 +238,32 @@ ALLOWED_MUTATING = {
     #: than on one the browser decoded separately. A POST because the body is a video; the
     #: upload is deleted in a `finally`, as on every other route here that takes footage.
     "/roi/first-frame",
+    #: The booking-day test. A POST because the body is one or two videos; they are written to
+    #: temp files that the background job deletes in its `finally` (or at once if the request
+    #: fails). What is kept is the per-slot result, under `data/test_runs/`, never footage and
+    #: never a database row. Pinned by the cleanup tests in test_testing_api.
+    "/api/v1/testing/day",
+    #: Compares a saved test run with booking records. A POST because the body may carry a
+    #: booking CSV; it reads bookings and writes only the comparison onto the run's own result
+    #: file. It never writes to a booking source.
+    "/api/v1/testing/runs/{run_id}/compare",
+    #: Read-only booking checks with a body; see BOOKING_READS_WITH_A_BODY above.
+    *BOOKING_READS_WITH_A_BODY,
+    #: A person saving or removing a camera connection: this system's own configuration, in
+    #: the gitignored `configs/cameras.json`, written atomically with a history copy. Same
+    #: category as `/roi`. URLs are never returned unmasked.
+    "/api/v1/cameras",
+    "/api/v1/cameras/{venue}/{camera_id}",
+    #: Writes nothing: opens a stream, grabs one frame, reports what happened.
+    "/api/v1/cameras/test",
+    #: Writes nothing: a spot check of what a pitch's cameras see now. Nothing is recorded;
+    #: the recorded history comes from the live schedule.
+    "/api/v1/cameras/predict",
+    #: Writes nothing: the slots a start time and slot length would generate.
+    "/api/v1/cameras/schedule/preview",
+    #: A person saving the capture schedule, through `schedule_editor.write_schedule` and its
+    #: protections. Same category as `/schedule`.
+    "/api/v1/cameras/schedule",
 }
 
 

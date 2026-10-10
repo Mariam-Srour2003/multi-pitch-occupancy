@@ -23,6 +23,8 @@ avoid the one feature that tells them whether the outline is right.
 
 from __future__ import annotations
 
+from pitch_occupancy.api.nav import NAV_CSS, nav_html
+
 __all__ = ["ROI_HTML"]
 
 ROI_HTML = """<!doctype html>
@@ -134,11 +136,11 @@ button.ghost{font:600 12px Archivo,sans-serif;padding:7px 11px;border-radius:6px
 @keyframes sp{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.spin{animation:none}}
 #result{display:none}#result.on{display:block}
-</style></head><body>
+</style>""" + NAV_CSS + """</head><body>
 <header><div class="hin">
   <div class="brand">Pitch Occupancy<span>.</span></div>
   <div class="sub">Pitch boundary</div>
-  <a href="/images">Image reviewer</a><a href="/clip">Clip reviewer</a><a href="/">Dashboard</a>
+  """ + nav_html("roi") + """
 </div></header>
 <main>
 

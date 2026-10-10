@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from fastapi.responses import HTMLResponse
 
+from pitch_occupancy.api.nav import NAV_CSS, nav_html
+
 __all__ = ["DASHBOARD_HTML"]
 
 DASHBOARD_HTML = """<!doctype html>
@@ -122,12 +124,12 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);
   color:var(--ground);padding:11px 18px;border-radius:8px;font-size:13.5px;z-index:50}
 .toast[hidden]{display:none}
-</style></head><body>
+</style>""" + NAV_CSS + """</head><body>
 
 <header><div class="hin">
   <div class="brand">Pitch Occupancy<span>.</span></div>
   <div class="sub">Operator dashboard</div>
-  <a href="/clip">Clip reviewer</a><a href="/clip/pair" style="margin-left:14px">Two cameras</a><a href="/images" style="margin-left:14px">Image reviewer</a><a href="/roi" style="margin-left:14px">Boundaries</a><a href="/docs" style="margin-left:14px">API docs &rarr;</a>
+  """ + nav_html("dashboard") + """
 </div></header>
 
 <main>

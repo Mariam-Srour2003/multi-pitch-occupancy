@@ -206,10 +206,11 @@ class RTSPSource(FrameSource):
         self._started_at = started_at or self._clock()
 
     def _open_stream(self, url: str):
-        capture = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
-        capture.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, self._timeout_ms)
-        capture.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, self._timeout_ms)
-        return capture
+        # The same opener the /cameras page tests with, so a URL that passed there opens the
+        # same way here - and ``usb:N`` (a local webcam) works in the live worker too.
+        from pitch_occupancy.cameras import open_capture
+
+        return open_capture(url, self._timeout_ms)
 
     def cameras(self) -> list[str]:
         return sorted(self._urls)

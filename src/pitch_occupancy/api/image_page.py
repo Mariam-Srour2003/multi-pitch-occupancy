@@ -19,6 +19,8 @@ backbone finishes each one.
 
 from __future__ import annotations
 
+from pitch_occupancy.api.nav import NAV_CSS, nav_html
+
 __all__ = ["IMAGE_HTML"]
 
 IMAGE_HTML = """<!doctype html>
@@ -188,11 +190,11 @@ dialog{border:1px solid var(--line);border-radius:12px;background:var(--surface)
 dialog::backdrop{background:rgba(0,0,0,.62)}
 dialog img{display:block;max-width:88vw;max-height:82vh}
 dialog .close{position:absolute;top:8px;right:10px}
-</style></head><body>
+</style>""" + NAV_CSS + """</head><body>
 <header><div class="hin">
   <div class="brand">Pitch Occupancy<span>.</span></div>
-  <div class="sub">Image reviewer</div>
-  <a href="/clip">Clip reviewer</a><a href="/">Dashboard</a>
+  <div class="sub">Testing &middot; images</div>
+  """ + nav_html("testing") + """
 </div></header>
 <main>
 

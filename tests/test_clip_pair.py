@@ -164,8 +164,8 @@ def test_the_route_refuses_a_body_with_no_second_video(tmp_path, monkeypatch) ->
     assert "second video" in r.json()["detail"]
 
 
-def test_the_page_is_served_and_the_single_camera_page_links_to_it() -> None:
+def test_the_page_is_served_and_carries_the_site_navigation() -> None:
     client = TestClient(app)
     page = client.get("/clip/pair")
     assert page.status_code == 200 and "/api/v1/clip/pair/analyse" in page.text
-    assert 'href="/clip/pair"' in client.get("/clip").text
+    assert 'href="/testing"' in page.text

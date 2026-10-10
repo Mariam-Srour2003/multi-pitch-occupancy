@@ -1,0 +1,49 @@
+{
+  "_comment": [
+    "Where the system reads booking data from. Copy this file to configs/bookings_source.json",
+    "(that file is gitignored, because a database address can contain a password) and edit it.",
+    "Booking data is OPTIONAL and READ-ONLY: this system never writes to a booking system.",
+    "",
+    "type \"csv\"    - a CSV export: {\"type\": \"csv\", \"path\": \"exports/bookings.csv\"}",
+    "type \"sqlite\" - a SQLite file, opened read-only:",
+    "                {\"type\": \"sqlite\", \"path\": \"C:/booking_app/bookings.db\",",
+    "                 \"query\": \"SELECT pitch, starts_at, ends_at, ref, state FROM bookings\"}",
+    "type \"sql\"    - another database, via SQLAlchemy (install it first, e.g.",
+    "                uv add sqlalchemy psycopg2-binary   / pymysql / pyodbc):",
+    "                {\"type\": \"sql\", \"url\": \"postgresql://reader:PASSWORD@host:5432/bookings\",",
+    "                 \"query\": \"SELECT ...\"}",
+    "                url examples: postgresql://..., mysql+pymysql://user:pw@host/db,",
+    "                mssql+pyodbc://user:pw@host/db?driver=ODBC+Driver+18+for+SQL+Server",
+    "",
+    "The query must be ONE statement starting with SELECT or WITH. That check only catches",
+    "mistakes - it is not security. The real protection is to give this system its own",
+    "database user that is granted SELECT on the bookings table and NOTHING else.",
+    "",
+    "Optional, for every type:",
+    "  columns     - which of YOUR columns holds each value we need. Our names are",
+    "                field_id, date, start, end, customer_ref, status, entered_by.",
+    "                Required: field_id, start, end, status (and date, unless start/end",
+    "                hold full date-times such as 2026-07-11 10:00, which are split for you).",
+    "  status_map  - your status words -> ours: confirmed, cancelled, no_show, maintenance,",
+    "                blocked. A no-show is still a sold booking; maintenance/blocked are not.",
+    "  date_format, time_format, datetime_format - strptime patterns such as %d/%m/%Y",
+    "                (defaults: YYYY-MM-DD, HH:MM or HH:MM:SS, ISO date-times).",
+    "Relative paths are relative to the project folder."
+  ],
+  "type": "csv",
+  "path": "configs/bookings_example.csv",
+  "columns": {
+    "field_id": "field_id",
+    "date": "date",
+    "start": "start",
+    "end": "end",
+    "customer_ref": "customer_ref",
+    "status": "status",
+    "entered_by": "entered_by"
+  },
+  "status_map": {
+    "booked": "confirmed",
+    "canceled": "cancelled",
+    "no-show": "no_show"
+  }
+}

@@ -14,6 +14,7 @@ ball on B's side - and whether that answer would survive the two views overlappi
 from __future__ import annotations
 
 from pitch_occupancy.api.clip_page import CLIP_HTML
+from pitch_occupancy.api.nav import NAV_CSS, nav_html
 
 __all__ = ["PAIR_HTML"]
 
@@ -51,13 +52,12 @@ PAIR_HTML = """<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pitch Occupancy - Two Cameras</title>
-""" + _FONTS + _STYLE + _EXTRA + """
+""" + _FONTS + _STYLE + _EXTRA + NAV_CSS + """
 </head><body>
 <header><div class="hin">
   <div class="brand">Pitch <span>Occupancy</span></div>
-  <div class="sub">Two-camera reviewer</div>
-  <a href="/clip">One camera</a><a href="/images">Image reviewer</a>
-  <a href="/">Dashboard</a>
+  <div class="sub">Testing &middot; two cameras</div>
+  """ + nav_html("testing") + """
 </div></header>
 <main>
 <h2>Both cameras of one pitch</h2>

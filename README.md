@@ -63,17 +63,35 @@ uv run pitch serve --reload
 uv run python -m uvicorn pitch_occupancy.api.app:app --reload
 ```
 
+Every page shares one navigation bar: **Dashboard · Testing · Cameras · Bookings · Boundaries**.
+
 | page | what it does |
 |---|---|
 | `/` (also `/client`) | operator dashboard: pitches hour by hour, slot verdicts, evidence, overrides |
+| `/testing` | the testing hub: try the system on your own footage and photos |
+| `/testing/day` | **booking-day test**: upload a day's video, say when it starts (e.g. 08:00) and how long a slot is (e.g. 90 min); get every slot's minutes playing / empty / maintenance and USED / NOT USED / REVIEW, a CSV download, and an optional comparison with booking records |
 | `/clip` | one video in, a timeline of what the pitch was doing; "Watch it work" streams each step |
-| `/clip/pair` | **both cameras of one pitch**: two videos, people added, ball from either, one verdict |
+| `/clip/pair` | both cameras of one pitch: two videos, people added, ball from either, one verdict |
 | `/images` | one still or a batch, each explained, least confident first |
+| `/cameras` | add and test camera connections, check a pitch live ("what is happening now?"), plan the recorded day (start time + slot length → live schedule), and the connection guide (also `docs/cameras.md`) |
+| `/bookings` | connect booking records (optional, read-only: CSV, SQLite or another SQL database), check their quality, and compare a day with the camera verdicts |
 | `/roi` | draw the pitch boundary for a camera, with a before/after preview |
 | `/docs` | the API |
 
-Uploads to the review pages are deleted as soon as they have been read; nothing is written to
-the database.
+Uploads to the testing pages are deleted as soon as they have been read; nothing is written to
+the database. A booking-day test keeps only its results, under `data/test_runs/`.
+
+**How a booking-day slot is judged** (`timetable.py`): each slot's main activity is whatever took
+most of the time seen. Mostly playing is **USED**; mostly empty or maintenance is **NOT USED**. A
+slot is **REVIEW** when less than half of it was seen, or when playing was between 40% and 60% of
+the time seen. Compared with bookings, a REVIEW slot is never counted against anyone.
+
+**Bookings** are optional. To connect them, copy `configs/bookings_source.example.json` to
+`configs/bookings_source.json` (gitignored — it may hold a database password) and pick a type.
+Give the system a database login that can only read the bookings table.
+
+**Cameras** live in `configs/cameras.json` (gitignored), edited from `/cameras`. After saving
+a schedule there, start or restart the live worker; it reads the schedule at start-up.
 
 Run the pipeline over the recorded slots — sample, classify, fuse, aggregate, reconcile, and
 write the verdicts to the database:
@@ -92,8 +110,8 @@ three that justify the verdict are deleted once the slot is complete.
 (gitignored: an RTSP URL usually carries credentials) and:
 
 ```bash
-uv run python -m pitch_occupancy.worker --source live --dry-run    # what it would open
-uv run python -m pitch_occupancy.worker --source live
+uv run python -m pitch_occupancy.worker --source live --model yolov8n --dry-run  # what it would open
+uv run python -m pitch_occupancy.worker --source live --model yolov8n
 ```
 
 This follows `configs/slots_schedule.json` in real time. It has not yet been run against a live
@@ -105,9 +123,9 @@ Run one clip through the slot path exactly as the worker would:
 uv run python scripts/run_slot_on_video.py <clip.mp4> --every 15 --model yolov8n
 ```
 
-`configs/rules.json` ships with `frozen_at: null`, so the worker refuses to deploy the
-detector-first rule until its thresholds are fitted and frozen; the review pages and scripts run
-against it regardless.
+`configs/rules.json` ships with `frozen_at: null`: its motion thresholds are not fitted yet,
+and the worker's log line labels the detector-first rule "UNFROZEN - not for deployment" until
+they are. It still runs; the label is a reminder, not a lock.
 
 ## Layout
 

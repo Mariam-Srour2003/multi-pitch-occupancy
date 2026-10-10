@@ -15,6 +15,8 @@ never looks, they still see a count rather than a clean answer that hid its edit
 
 from __future__ import annotations
 
+from pitch_occupancy.api.nav import NAV_CSS, nav_html
+
 __all__ = ["CLIP_HTML"]
 
 CLIP_HTML = """<!doctype html>
@@ -157,11 +159,11 @@ figcaption[title],label[title],.sub2 span[title],.note span[title]{
   border-radius:50%;animation:sp .7s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 #out{display:none}#out.on{display:block}
-</style></head><body>
+</style>""" + NAV_CSS + """</head><body>
 <header><div class="hin">
   <div class="brand">Pitch Occupancy<span>.</span></div>
-  <div class="sub">Clip reviewer</div>
-  <a href="/clip/pair">Two cameras</a><a href="/images">Image reviewer</a><a href="/">Dashboard</a>
+  <div class="sub">Testing &middot; one video</div>
+  """ + nav_html("testing") + """
 </div></header>
 <main>
 
