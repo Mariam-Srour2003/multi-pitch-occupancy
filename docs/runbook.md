@@ -25,6 +25,9 @@ runbook that does not distinguish those is a wish list.
 | 8 | the booking export is stale or absent | a day outside the export's span reconciles to **NEEDS_REVIEW (info)**, never to an anomaly — `bookings.covers` answers whether the export reaches the date, and the check runs before anything that can return SERIOUS. An empty export covers nothing rather than everything | **enforced** (`reconcile(..., records_cover_this_day=)`) |
 | 9 | **a camera has no pitch boundary** | every minute of that camera is `UNCERTAIN` — the detector never runs and no verdict is formed for it. The other camera still decides the pitch, at **half the confidence**; if neither has one, the minutes count as not captured and row 3 makes the slot `REVIEW`. The run names the cameras (`SlotRun.uncertain_cameras`) and the startup line says so before a stream is opened | **enforced** (`pipeline.require_boundary`) |
 | 10 | the detector's weights are missing or will not load | the same: `UNCERTAIN`, never EMPTY. "Not checked" and "checked, found nobody" are different values throughout (`detect` returns `None` against `[]`), so a broken install cannot report every pitch empty | **enforced** (`vision/detector.py`) |
+| 11 | **two pitches have slots at the same time**, or a slot starts while another is running | every due slot runs in its own thread (`scheduler.run_concurrently`); the loop keeps ticking and starts each slot instance once, skipping any whose verdict is already in the database after a restart. Until 2026-10-10 slots ran one after another and every overlapping slot was silently lost | **enforced** (`tests/test_live_concurrency.py`) |
+| 12 | **the worker starts late**, in the middle of a slot | the slot is still recorded from its *scheduled* start: minutes already past are missing, never read now and labelled as then, and the slot ends at its scheduled end. A mostly-missed slot falls under row 3's floor and is `REVIEW`. Until 2026-10-10 it recorded a full slot length from the moment it started, overrunning into the next booking | **enforced** (`RTSPSource.wait_for`, `live_sources`) |
+| 13 | **the worker process dies** (crash, power cut, closed window) | nothing records, and nothing in the database says so. The worker's heartbeat, `data/worker_status.json`, stops being refreshed; the *Recording status* card on `/cameras` turns to "Not running" once it is 3 minutes old. Keeping the worker running is the service manager's job — `docs/service.md` | **enforced** (detection, `status.py`); restart depends on the service set-up |
 
 **Fixing row 9.** Draw the outline at `/roi`, or let the worker measure one:
 `uv run python -m pitch_occupancy.worker --source live --derive-roi` writes a boundary derived
@@ -79,6 +82,7 @@ arrived and the check never fires.
 
 | symptom on the dashboard | first check | then |
 |---|---|---|
+| no new verdicts at all | the *Recording status* card on `/cameras` (or `data/worker_status.json`): is the worker running, when was it last seen? | if "Not running", start it again (`docs/service.md`) and read the worker's log for why it stopped. Slots missed while it was down are not recoverable |
 | a slot in `REVIEW` citing captured minutes | is the camera up? `pitch info` shows resolved paths | if the outage is over, the slot cannot be recovered — the footage was not taken. Adjudicate from the booking record. |
 | many slots in `REVIEW` on one field | that field's camera or its network leg | a single field failing is a mount, a cable or a lens |
 | many slots in `REVIEW` across all fields | the network, the disk, or the host | restart the worker; the API only reads what the worker wrote, so the dashboard stays up either way |
@@ -105,6 +109,20 @@ Stated so the gaps are visible rather than discovered in production.
 - **None of this has run against a real outage.** The camera-offline case is tested against a
   stub. A shadow-mode run alongside the facility's own records is where these rows stop being
   predictions.
+
+## The heartbeat and stopping the worker
+
+The live worker writes `data/worker_status.json` when it starts, on every loop tick (once a
+minute), after every camera read of every running slot, when a slot finishes and on error. It
+holds what is recording now (minutes done of expected, and per camera the last picture, pictures
+taken and minutes missed), the next five slots, the last ten finished slots and the last ten
+errors — camera ids only, never URLs. On a clean exit it writes `"state": "stopped"`; a
+crash leaves an old `updated_at`, which is how a dead worker is told from a quiet one.
+
+**Ctrl+C cancels the slots that are running**: no verdict is written for a slot cut short,
+because a part of a slot is not the slot. Slots already finished are in the database. Restarting
+during a slot records the rest of it (row 12), usually as `REVIEW`. With `--iterations N` the
+loop stops after N ticks and *lets running slots finish* before exiting.
 
 ## Before the live run
 

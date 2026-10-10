@@ -18,6 +18,7 @@ NAV: tuple[tuple[str, str, str], ...] = (
     ("cameras", "Cameras", "/cameras"),
     ("bookings", "Bookings", "/bookings"),
     ("roi", "Boundaries", "/roi"),
+    ("alerts", "Alerts", "/alerts"),
 )
 
 #: The bar's own rules. Pages that build their head by hand include this after their sheet.

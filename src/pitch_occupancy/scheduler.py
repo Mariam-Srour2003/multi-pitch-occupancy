@@ -19,10 +19,12 @@ reason — the thing that touches the world should be the smaller, later half.
 What this is not
 ----------------
 
-**Not a daemon.** There is no process supervision, no restart policy and no systemd unit;
-those are not written. `run_forever` exists and is a plain loop with an
-injectable sleep, which is enough to run under `nohup` or a service manager but is not itself
-one.
+**Not a daemon.** There is no process supervision or restart policy in this module.
+`run_forever` (synchronous, for recorded video) and `run_concurrently` (one thread per running
+slot, for live cameras) are plain loops with an injectable sleep, which is enough to run under
+a service manager but is not itself one. `docs/service.md` shows how to keep the live worker
+running under Task Scheduler, NSSM or systemd, and `status.py` is how a page can tell whether
+it is.
 
 **Not a live deployment.** It has never run against a camera. The source is whatever
 `FrameSource` it is handed, and the tests hand it recorded video. A shadow-mode run against
@@ -32,17 +34,23 @@ real cameras is where that changes.
 from __future__ import annotations
 
 import json
+import threading
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import date as Date
 from datetime import datetime, time, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pitch_occupancy.config import settings
 
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from pitch_occupancy.frame_source import Frame, FrameSource
+
 __all__ = [
     "ScheduledSlot", "Schedule", "load_schedule", "due", "run_due", "run_forever",
-    "describe", "sources_from_recordings", "schedule_from_recordings", "live_sources",
+    "run_concurrently", "SlotCancelled", "describe", "sources_from_recordings",
+    "schedule_from_recordings", "live_sources",
 ]
 
 DEFAULT_SCHEDULE = settings.results_dir.parent / "configs" / "slots_schedule.json"
@@ -207,9 +215,6 @@ def run_due(
     A slot that raises is reported and skipped rather than taking the loop down with it: one
     dead camera must not stop the other pitches being observed.
     """
-    from pitch_occupancy.db.store import ensure_slot, record_slot
-    from pitch_occupancy.worker import run_slot
-
     if classify is None and pipeline is None:
         raise TypeError("run_due needs a pipeline (or, for a scripted test, a classifier)")
 
@@ -217,36 +222,51 @@ def run_due(
     for slot in due(schedule, now):
         slot_id = slot.slot_id(now.date())
         try:
-            if pipeline is not None:
-                run = run_slot(
-                    slot_id, source_for(slot, now.date()), classify,
-                    evidence_dir=evidence_dir, pipeline=pipeline,
-                    venue=slot.venue_id, slot_key=_recording_key(slot, now.date()),
-                )
-            else:
-                run = run_slot(slot_id, source_for(slot, now.date()), classify,
-                               evidence_dir=evidence_dir)
+            run = _execute(slot, now.date(), source_for(slot, now.date()), classify=classify,
+                           pipeline=pipeline, evidence_dir=evidence_dir)
         except Exception as exc:  # noqa: BLE001 - one bad camera must not stop the rest
             if on_slot:
                 on_slot(slot_id, exc)
             continue
         if connection is not None:
-            begins, ends = slot.window(now.date())
-            ensure_slot(
-                connection, slot_id=slot_id, venue_id=slot.venue_id,
-                field_id=slot.field_id, cameras=slot.cameras,
-                slot_date=now.date().isoformat(),
-                start_time=f"{begins:%H:%M}", end_time=f"{ends:%H:%M}",
-            )
-            record_slot(
-                connection, slot_id, run.verdict, run.samples,
-                model_key=model_key or settings.default_model_key,
-                evidence_paths=[e.image_path for e in run.evidence if e.image_path],
-            )
+            _persist(connection, slot, now.date(), run, model_key)
         ran.append(slot_id)
         if on_slot:
             on_slot(slot_id, run)
     return ran
+
+
+def _execute(slot: ScheduledSlot, day: Date, source, *, classify, pipeline, evidence_dir):
+    """`worker.run_slot` for one slot instance - the one call both runners make.
+
+    Looked up on the module at call time, so a test that replaces `worker.run_slot` sees every
+    call, from `run_due` and from `run_concurrently` alike.
+    """
+    from pitch_occupancy.worker import run_slot
+
+    slot_id = slot.slot_id(day)
+    if pipeline is not None:
+        return run_slot(slot_id, source, classify, evidence_dir=evidence_dir,
+                        pipeline=pipeline, venue=slot.venue_id,
+                        slot_key=_recording_key(slot, day))
+    return run_slot(slot_id, source, classify, evidence_dir=evidence_dir)
+
+
+def _persist(connection, slot: ScheduledSlot, day: Date, run, model_key: str | None) -> None:
+    """Declare the slot and write its verdict with every sample behind it."""
+    from pitch_occupancy.db.store import ensure_slot, record_slot
+
+    begins, ends = slot.window(day)
+    ensure_slot(
+        connection, slot_id=slot.slot_id(day), venue_id=slot.venue_id,
+        field_id=slot.field_id, cameras=slot.cameras, slot_date=day.isoformat(),
+        start_time=f"{begins:%H:%M}", end_time=f"{ends:%H:%M}",
+    )
+    record_slot(
+        connection, slot.slot_id(day), run.verdict, run.samples,
+        model_key=model_key or settings.default_model_key,
+        evidence_paths=[e.image_path for e in run.evidence if e.image_path],
+    )
 
 
 def run_forever(
@@ -289,6 +309,239 @@ def run_forever(
         count += 1
         if iterations is None or count < iterations:
             naps(interval_s)
+    return ran
+
+
+class SlotCancelled(Exception):
+    """A running slot was stopped by shutdown before its last minute. No verdict is written.
+
+    Handed to ``on_slot`` like any other failure, so the operator sees which slots were cut
+    short; it is an exception rather than a partial `SlotRun` because a partial run aggregated
+    as if it were the whole slot is exactly the fabricated verdict this system refuses.
+    """
+
+
+class _ObservedSource:
+    """A slot's source, watched: every read updates the heartbeat and honours shutdown.
+
+    Wrapping rather than changing `RTSPSource` keeps both concerns out of the frame reader and
+    makes them apply to any source the runner is handed. It has the `FrameSource` interface
+    without subclassing it, so importing this module does not import OpenCV. The stop check
+    runs before *and* after each read: shutdown wakes a source's interruptible sleep early, and
+    a frame read in that moment was taken before its minute arrived - so it is thrown away with
+    the slot rather than returned under a label it has not earned.
+    """
+
+    def __init__(self, inner: FrameSource, slot_id: str, stop: threading.Event,
+                 heartbeat=None) -> None:
+        self._inner = inner
+        self._slot_id = slot_id
+        self._stop = stop
+        self._heartbeat = heartbeat
+
+    def cameras(self) -> list[str]:
+        return self._inner.cameras()
+
+    @property
+    def n_minutes(self) -> int:
+        return self._inner.n_minutes
+
+    def _check(self) -> None:
+        if self._stop.is_set():
+            raise SlotCancelled(f"{self._slot_id} stopped by shutdown before its end")
+
+    def _seen(self, camera_id: str, minute_index: int, got: bool) -> None:
+        if self._heartbeat is not None:
+            self._heartbeat.frame(self._slot_id, camera_id, minute_index, got=got)
+
+    def read(self, camera_id: str, minute_index: int) -> Frame | None:
+        self._check()
+        frame = self._inner.read(camera_id, minute_index)
+        self._check()
+        self._seen(camera_id, minute_index, frame is not None)
+        return frame
+
+    def read_burst(self, camera_id: str, minute_index: int, *, n: int = 3,
+                   spacing_s: float = 1.0) -> list[Frame]:
+        self._check()
+        frames = self._inner.read_burst(camera_id, minute_index, n=n, spacing_s=spacing_s)
+        self._check()
+        self._seen(camera_id, minute_index, bool(frames))
+        return frames
+
+
+def run_concurrently(
+    schedule: Schedule,
+    *,
+    source_for: Callable[[ScheduledSlot, Date], object],
+    classify=None,
+    pipeline=None,
+    connection=None,
+    clock: Callable[[], datetime] = datetime.now,
+    sleep: Callable[[float], None] | None = None,
+    interval_s: float = 60.0,
+    iterations: int | None = None,
+    model_key: str | None = None,
+    on_slot: Callable[[str, object], None] | None = None,
+    evidence_dir: Path | None = None,
+    heartbeat=None,
+    stop: threading.Event | None = None,
+    max_workers: int | None = None,
+) -> list[str]:
+    """The live loop: every due slot in its own thread, the clock ticking while they run.
+
+    **Why this exists (2026-10-10).** `run_forever` calls `run_due`, which runs due slots one
+    after another, and against a live `RTSPSource` each `run_slot` call blocks for the slot's
+    whole length because it waits for every minute to arrive. So two pitches booked at 08:00
+    were recorded one at a time: the second started at 09:30, when `due` no longer returned
+    it, and was never recorded at all. A slot on a third pitch at 08:30 was lost the same way,
+    because the loop that would have noticed it was blocked inside the first slot. That is
+    fine for recorded video - a slot is a minute of seeking - which is why `run_due` and
+    `run_forever` stay synchronous for that path; this is what the live worker calls.
+
+    **Each slot instance starts at most once.** A slot is tracked by its id (venue, date and
+    start) from the moment it is submitted: while running it is not started again, and once
+    finished - recorded, failed or cancelled - it is not retried that day. A failure here is
+    structural (a missing camera URL, a bug), since a dead camera is a gap rather than an
+    exception, and retrying it every tick would only repeat the same message. Before starting,
+    the database is asked whether the slot already has a verdict, so a worker restarted
+    mid-evening does not record a finished slot a second time.
+
+    **The database: one connection, one lock.** Every slot thread writes through the same
+    ``connection``, and a `threading.Lock` serialises each use of it (the restart check, and
+    `ensure_slot` + `record_slot` together). The caller must open it with
+    ``connect(path, same_thread=False)``, since sqlite3 otherwise refuses use from another
+    thread. A connection per thread was the alternative; it was not chosen because the writes
+    are two small transactions per slot, so contention is nil, and one connection means one
+    place the file is opened, closed and configured rather than one per thread with a lifetime
+    tied to a pool.
+
+    **Shutdown.** New slots stop being started as soon as the loop ends. Then:
+
+    * the loop ends by ``iterations`` - running slots are **allowed to finish** and their
+      verdicts are written; the call returns when the last one has. That is the bounded run a
+      test or ``--iterations`` asks for.
+    * ``KeyboardInterrupt`` (Ctrl+C), or ``stop`` set by another thread - running slots are
+      **cancelled**: the next read in each raises `SlotCancelled`, which reaches ``on_slot``,
+      and **no verdict is written for them**. A slot cut short is not aggregated as if it were
+      whole. A source that sleeps with ``stop.wait`` (the live worker passes that) wakes at
+      once; any other finishes its current minute first. ``KeyboardInterrupt`` is re-raised
+      once the threads have stopped.
+
+    A slot that raises in its thread is reported through ``on_slot(slot_id, exc)``, exactly as
+    `run_due` does, and affects no other slot. ``on_slot`` is called from the slot's thread.
+
+    ``heartbeat`` is a `status.Heartbeat`, or ``None`` to write no status file (the default, so
+    a test never touches ``data/``). It is ticked every pass of the loop and told about every
+    slot start, read and finish. ``max_workers`` defaults to one thread per scheduled slot,
+    which is more than can ever overlap, so a slot never queues behind another.
+
+    Returns the ids of the slots whose verdicts were produced (and written, with a connection).
+    """
+    import time as _time
+    from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor
+    from concurrent.futures import wait as wait_any
+
+    if classify is None and pipeline is None:
+        raise TypeError("run_concurrently needs a pipeline (or, for a test, a classifier)")
+
+    naps = sleep or _time.sleep
+    stop = stop or threading.Event()
+    db_lock = threading.Lock()
+    ran: list[str] = []
+    ran_lock = threading.Lock()
+    running: dict[str, Future] = {}
+    finished: set[str] = set()
+
+    def already_recorded(slot_id: str) -> bool:
+        if connection is None:
+            return False
+        with db_lock:
+            row = connection.execute(
+                "SELECT 1 FROM slot_evaluations WHERE slot_id = ?", (slot_id,)).fetchone()
+        return row is not None
+
+    def report(slot_id: str, outcome: object) -> None:
+        if on_slot is not None:
+            on_slot(slot_id, outcome)
+
+    def one_slot(slot: ScheduledSlot, day: Date) -> None:
+        slot_id = slot.slot_id(day)
+        try:
+            source = source_for(slot, day)
+            if heartbeat is not None:
+                heartbeat.slot_started(slot, day, minutes_expected=source.n_minutes,
+                                       cameras=source.cameras())
+            run = _execute(slot, day, _ObservedSource(source, slot_id, stop, heartbeat),
+                           classify=classify, pipeline=pipeline, evidence_dir=evidence_dir)
+            if connection is not None:
+                with db_lock:
+                    _persist(connection, slot, day, run, model_key)
+        except SlotCancelled as exc:
+            if heartbeat is not None:
+                heartbeat.slot_finished(slot_id, "CANCELLED")
+            report(slot_id, exc)
+            return
+        except Exception as exc:  # noqa: BLE001 - one bad slot must not stop the rest
+            if heartbeat is not None:
+                heartbeat.error(f"{slot_id}: {type(exc).__name__}: {exc}")
+                heartbeat.slot_finished(slot_id, "FAILED")
+            report(slot_id, exc)
+            return
+        with ran_lock:
+            ran.append(slot_id)
+        if heartbeat is not None:
+            heartbeat.slot_finished(
+                slot_id, getattr(run.verdict.status, "value", str(run.verdict.status)))
+        report(slot_id, run)
+
+    def reap() -> None:
+        for slot_id in [sid for sid, f in running.items() if f.done()]:
+            running.pop(slot_id)
+            finished.add(slot_id)
+
+    def wait_running() -> None:
+        """Wait for the running slots in short steps, so Ctrl+C is seen promptly on Windows
+        too, and keep the heartbeat fresh while a long slot drains."""
+        last_beat = _time.monotonic()
+        while True:
+            pending = [f for f in running.values() if not f.done()]
+            if not pending:
+                break
+            wait_any(pending, timeout=0.5, return_when=FIRST_COMPLETED)
+            if heartbeat is not None and _time.monotonic() - last_beat >= 30.0:
+                heartbeat.tick(clock())
+                last_beat = _time.monotonic()
+        reap()
+
+    pool = ThreadPoolExecutor(max_workers=max_workers or max(len(schedule.slots), 1),
+                              thread_name_prefix="slot")
+    try:
+        count = 0
+        while (iterations is None or count < iterations) and not stop.is_set():
+            now = clock()
+            reap()
+            for slot in due(schedule, now):
+                slot_id = slot.slot_id(now.date())
+                if slot_id in running or slot_id in finished:
+                    continue
+                if already_recorded(slot_id):
+                    finished.add(slot_id)  # a restart: this slot's verdict is already written
+                    continue
+                running[slot_id] = pool.submit(one_slot, slot, now.date())
+            if heartbeat is not None:
+                heartbeat.tick(now)
+            count += 1
+            if (iterations is None or count < iterations) and not stop.is_set():
+                naps(interval_s)
+        wait_running()
+    except KeyboardInterrupt:
+        stop.set()
+        wait_running()
+        raise
+    finally:
+        stop.set()
+        pool.shutdown(wait=True, cancel_futures=True)
     return ran
 
 
@@ -348,8 +601,18 @@ def live_sources(
     it the live path could not run at all - `worker.run_slot` reads ``n_minutes`` on its first
     line.
 
+    **The source starts at the slot's scheduled start, not when it was built** (2026-10-10).
+    `RTSPSource.started_at` defaults to "now", and this function used to take that default, so
+    a worker started at 09:00 for an 08:00-09:30 slot recorded ninety minutes from 09:00 -
+    running half an hour into the next booking and filing 09:00's pictures under 08:00's
+    minutes. With the real start, minute *k* is due at start + *k* minutes, the minutes that
+    had already passed are read as gaps (`RTSPSource.wait_for`), and the slot ends at its
+    scheduled end. A mostly-missed slot then falls under the capture floor and becomes REVIEW,
+    which is the honest answer for an hour that was mostly not watched.
+
     Extra keyword arguments go through to `RTSPSource`, which is how a test injects a clock, a
-    sleep and a capture opener. The default is a real socket and a real hour.
+    sleep and a capture opener - and how the live worker passes ``sleep=stop.wait`` so Ctrl+C
+    wakes a source waiting for its next minute. The default is a real socket and a real hour.
     """
     from pitch_occupancy.frame_source import RTSPSource
 
@@ -366,9 +629,11 @@ def live_sources(
                 f"slot {slot.slot_id(day)} expects camera(s) {', '.join(missing)} which have "
                 f"no URL; a silently dropped camera is half a pitch reported as the whole one"
             )
+        begins, _ = slot.window(day)
         return RTSPSource(
             {c: cameras[c] for c in slot.cameras},
             minutes=slot.duration_minutes,
+            started_at=begins,
             **kwargs,
         )
 

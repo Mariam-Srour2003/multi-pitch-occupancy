@@ -10,6 +10,7 @@ cannot be used to read anything but a run.
 from __future__ import annotations
 
 import sys
+import threading
 import time as clock
 import types
 from pathlib import Path
@@ -380,3 +381,107 @@ def test_a_link_out_of_the_recordings_folder_is_refused(client, recordings, tmp_
     assert r.status_code == 422
     names = [x["name"] for x in client.get("/api/v1/testing/recordings").json()["recordings"]]
     assert "link.mp4" not in names
+
+
+# --- listing and cancelling tests -----------------------------------------------------------
+
+
+def _wait_status(client: TestClient, job_id: str, *statuses: str, timeout: float = 30) -> dict:
+    deadline = clock.monotonic() + timeout
+    while clock.monotonic() < deadline:
+        job = client.get(f"/api/v1/testing/jobs/{job_id}").json()
+        if job["status"] in statuses:
+            return job
+        clock.sleep(0.02)
+    raise AssertionError(f"job {job_id} never reached {statuses}")
+
+
+def _endless(monkeypatch) -> None:
+    """Replace the one-video analysis with one that samples until it is cancelled."""
+
+    def single(path, *, interval_s, camera, whole_frame, progress):
+        assert Path(path).exists()
+        for i in range(100_000):
+            progress(i + 1, 100_000)
+            clock.sleep(0.005)
+        raise AssertionError("never cancelled")
+
+    monkeypatch.setattr(testing, "_single", single)
+
+
+def test_a_running_upload_can_be_cancelled_and_its_footage_is_deleted(client, tmp_path,
+                                                                    monkeypatch) -> None:
+    _endless(monkeypatch)
+    r = client.post("/api/v1/testing/day?start=08:00&name=evening.mp4", content=b"video bytes")
+    assert r.status_code == 200, r.text
+    job_id = r.json()["job_id"]
+    deadline = clock.monotonic() + 30
+    while client.get(f"/api/v1/testing/jobs/{job_id}").json()["progress"]["done"] == 0:
+        assert clock.monotonic() < deadline
+        clock.sleep(0.02)
+    assert _uploads(tmp_path), "the upload should exist while the test runs"
+
+    listed = client.get("/api/v1/testing/jobs").json()
+    row = next(j for j in listed if j["job_id"] == job_id)
+    assert row["status"] == "running" and row["label"] == "evening.mp4"
+    assert "result" not in row
+
+    r = client.post(f"/api/v1/testing/jobs/{job_id}/cancel")
+    assert r.status_code == 200 and r.json()["cancel_requested"] is True
+    job = _wait_status(client, job_id, "cancelled", "done", "failed")
+    assert job["status"] == "cancelled"
+    assert not _uploads(tmp_path), "a cancelled upload left its footage on disk"
+    assert not list((tmp_path / "data" / "test_runs").glob("*.json")), "a run was saved"
+
+    assert client.post(f"/api/v1/testing/jobs/{job_id}/cancel").status_code == 409
+    assert client.post("/api/v1/testing/jobs/nope/cancel").status_code == 404
+
+
+def test_a_queued_upload_cancelled_before_it_starts_is_deleted(client, tmp_path,
+                                                             monkeypatch) -> None:
+    from pitch_occupancy.api import jobs
+
+    release = threading.Event()
+
+    def blocker(progress):
+        while not release.is_set():
+            progress(0, 1)
+            clock.sleep(0.01)
+        return {}
+
+    first = jobs.submit("day", blocker)
+    try:
+        _wait_status(client, first, "running")
+        r = client.post("/api/v1/testing/day?start=08:00", content=b"queued video")
+        job_id = r.json()["job_id"]
+        assert client.get(f"/api/v1/testing/jobs/{job_id}").json()["status"] == "queued"
+        assert _uploads(tmp_path)
+        r = client.post(f"/api/v1/testing/jobs/{job_id}/cancel")
+        assert r.status_code == 200 and r.json()["status"] == "cancelled"
+        assert not _uploads(tmp_path), "a cancelled queued upload left its footage on disk"
+    finally:
+        release.set()
+    _wait_status(client, first, "done")
+
+
+def test_a_cancelled_local_recording_is_kept(client, recordings, monkeypatch) -> None:
+    _endless(monkeypatch)
+    video = _video(recordings / "morning.mp4", [DARK] * 4)
+    before = video.read_bytes()
+    job_id = client.post("/api/v1/testing/day/local", json={
+        "file_a": "morning.mp4", "start": "08:00"}).json()["job_id"]
+    deadline = clock.monotonic() + 30
+    while client.get(f"/api/v1/testing/jobs/{job_id}").json()["progress"]["done"] == 0:
+        assert clock.monotonic() < deadline
+        clock.sleep(0.02)
+    assert client.post(f"/api/v1/testing/jobs/{job_id}/cancel").status_code == 200
+    assert _wait_status(client, job_id, "cancelled", "done", "failed")["status"] == "cancelled"
+    assert video.exists() and video.read_bytes() == before, "a client's recording was touched"
+
+
+def test_the_pages_offer_cancelling(client) -> None:
+    hub = client.get("/testing").text
+    assert "Running and queued" in hub and "/api/v1/testing/jobs" in hub
+    assert "/cancel" in hub and "5000" in hub
+    day = client.get("/testing/day").text
+    assert 'id="cancel"' in day and "/cancel" in day

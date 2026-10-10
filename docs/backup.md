@@ -102,6 +102,80 @@ the caches rebuild from it. That is a stronger test than "the files are there".
 **Verify the restore once, from the off-site copy, before relying on it.** Restoring from the
 drive you can see proves less than restoring from the copy you cannot.
 
+## The verdict database: `pitch backup`
+
+Everything above is about the footage. The running product also writes one file that cannot
+be rebuilt from anything: **`data/db/pitch_monitor.db`** — every slot verdict, every operator
+correction, every anomaly. It is small, it changes every few minutes, and unlike the footage it
+*should* be copied on a schedule: a daily copy is a new file each day, never a sync, so the
+"a sync replicates the mistake" argument above does not apply.
+
+```bash
+uv run pitch backup                              # -> data/backups/
+uv run pitch backup --dest D:\pitch-backups --keep 30
+uv run pitch backup --with-secrets               # also the files that hold passwords
+```
+
+What it does:
+
+* copies the database with **SQLite's online backup API**, so it is safe while the worker is
+  writing — no need to stop anything;
+* names the copy `pitch_monitor-YYYYMMDD-HHMMSS.db` and checks it with
+  `PRAGMA integrity_check`; a copy that fails is deleted and the command exits with an error;
+* zips this system's own config files beside it as `pitch_monitor-YYYYMMDD-HHMMSS-configs.zip`:
+  `rules.json`, `roi*.json`, `slots_schedule.json` (`--no-configs` skips the zip);
+* keeps the newest `--keep` backups (14 by default — two weeks of daily copies) and deletes
+  older ones, touching nothing else in the folder.
+
+**Passwords.** `cameras.json`, `bookings_source.json` and `alerts.json` contain logins — the
+camera streams, the booking database, the alert mail or chat account. They are left out unless
+you add `--with-secrets`. If you do, **the backup folder must be private**: anyone who can read
+it can log in to the cameras. Do not point `--dest` at a shared or synced folder with
+`--with-secrets`.
+
+### Running it every day
+
+**Windows (Task Scheduler)** — run once in a terminal, adjusting the project path:
+
+```bat
+schtasks /Create /TN "Pitch backup" /SC DAILY /ST 03:30 ^
+  /TR "cmd /c cd /d C:\pitch-occupancy && uv run pitch backup >> data\backups\backup.log 2>&1"
+```
+
+Or in the Task Scheduler window: *Create Basic Task* → Daily, 03:30 → *Start a program*:
+program `cmd`, arguments `/c uv run pitch backup >> data\backups\backup.log 2>&1`, *Start in*
+the project folder. Tick *Run whether user is logged on or not*.
+
+**Linux (cron)** — `crontab -e`:
+
+```cron
+30 3 * * * cd /opt/pitch-occupancy && uv run pitch backup >> data/backups/backup.log 2>&1
+```
+
+Pick a time outside the recording schedule; the backup is safe during recording, but a quiet
+hour makes the log easier to read. Look at the log, or at the newest file's date in the
+backup folder, now and then: a scheduled job that has been failing silently is no backup.
+
+A copy on the same disk protects against a damaged database, not against a dead disk. Copy
+the backup folder off the machine too (the off-site copies above), remembering the password
+rule if it holds `--with-secrets` zips.
+
+### Restoring the database
+
+1. **Stop the recording program** (the worker) and the server, so nothing writes to the
+   database while it is replaced.
+2. Keep the current file aside, in case it is wanted later:
+   `data/db/pitch_monitor.db` → `data/db/pitch_monitor.before-restore.db`. Delete any
+   `pitch_monitor.db-wal` / `pitch_monitor.db-shm` beside it — they belong to the old file.
+3. Copy the chosen backup to **`data/db/pitch_monitor.db`**.
+4. If configs are to be restored too, unzip the `-configs.zip` and copy its `configs/` files
+   back into the project's `configs/` folder.
+5. Start the server and the worker again, and open the dashboard: the slots should be there up
+   to the time of the backup. Verdicts recorded after it are not in the copy.
+
+Restore a copy once, on a spare machine or folder, before you need to — the same rule as for
+the footage.
+
 ## What is deliberately not backed up
 
 * `.venv/` — rebuilt by `uv sync` from the committed lockfile.

@@ -515,9 +515,26 @@ def _run_live(args) -> None:
     things that make that survivable are already true: one dead camera is reported and skipped
     rather than taking the loop down, and a slot with too few minutes becomes REVIEW rather
     than a verdict.
+
+    **Slots run concurrently** (2026-10-10, `scheduler.run_concurrently`): each due slot has
+    its own thread, so two pitches booked at the same time are both recorded and the loop keeps
+    noticing new slots while others run. It used to call `run_forever`, which ran them one
+    after another and silently lost every slot that overlapped a running one. The database
+    connection is opened with ``same_thread=False`` for that reason, and the scheduler
+    serialises its writes with a lock.
+
+    **The heartbeat** (`status.Heartbeat`) is written to ``data/worker_status.json`` from the
+    moment the pipeline starts loading, refreshed every tick and every captured minute, and set
+    to "stopped" in a ``finally`` - or "error", with the message, if the run died of an
+    exception. A process killed outright cannot write either, which leaves an old
+    ``updated_at`` behind; that is how the `/cameras` page tells a dead worker from a quiet one.
+
+    **Ctrl+C cancels the running slots**: no verdict is written for a slot that was cut short
+    (a partial slot is not the slot), and the sources wake at once because they sleep on the
+    same stop event. Slots that had already finished are in the database.
     """
-    from pitch_occupancy.db.schema import connect, initialise
-    from pitch_occupancy.scheduler import describe, live_sources, load_schedule, run_forever
+    from pitch_occupancy.scheduler import describe, load_schedule
+    from pitch_occupancy.status import Heartbeat
 
     urls = load_camera_urls(args.cameras)
     schedule = load_schedule()
@@ -559,7 +576,34 @@ def _run_live(args) -> None:
     if not args.yes:
         _confirm_live(urls, schedule, args.evidence_dir)
 
+    heartbeat = Heartbeat(model=args.model, schedule=schedule)
+    heartbeat.start()
+    final_state, final_message = "stopped", None
+    try:
+        ran = _record_live(args, urls, schedule, heartbeat)
+    except KeyboardInterrupt:
+        print("\ninterrupted; slots already finished are written, running ones were "
+              "cancelled and recorded nothing")
+        return
+    except BaseException as exc:
+        if not isinstance(exc, SystemExit) or exc.code not in (0, None):
+            final_state, final_message = "error", f"{type(exc).__name__}: {exc}"
+        raise
+    finally:
+        heartbeat.stop(final_state, final_message)
+    print(f"\n{len(ran)} slot(s) written to the database")
+
+
+def _record_live(args, urls, schedule, heartbeat) -> list[str]:
+    """Load the pipeline, check boundaries and run the concurrent loop. `_run_live`'s body,
+    split out so the heartbeat's ``try/finally`` wraps all of it in one readable place."""
+    import threading
+
+    from pitch_occupancy.db.schema import connect, initialise
     from pitch_occupancy.pipeline import assemble
+    from pitch_occupancy.scheduler import live_sources, run_concurrently
+
+    stop = threading.Event()
 
     pipeline = assemble(args.model)
     print(f"\n{pipeline.describe()}")
@@ -578,25 +622,27 @@ def _run_live(args) -> None:
         print(f"  {len(missing)} camera(s) have no boundary and will read UNCERTAIN; pass "
               f"--derive-roi to measure one from the stream, or draw one at /roi")
 
-    connection = connect(settings.db_path)
+    # One connection shared by the slot threads, which sqlite3 allows only when told to; the
+    # scheduler holds a lock around every use of it (see `run_concurrently`).
+    connection = connect(settings.db_path, same_thread=False)
     initialise(connection)
     try:
-        ran = run_forever(
+        return run_concurrently(
             schedule,
-            source_for=live_sources(urls),
+            # The stop event is the sources' sleep, so Ctrl+C wakes a slot waiting for its
+            # next minute instead of leaving it asleep for up to sixty seconds.
+            source_for=live_sources(urls, sleep=stop.wait),
             pipeline=pipeline,
             connection=connection,
             model_key=args.model,
             evidence_dir=args.evidence_dir,
             iterations=args.iterations,
             on_slot=_report,
+            heartbeat=heartbeat,
+            stop=stop,
         )
-    except KeyboardInterrupt:
-        print("\ninterrupted; slots already finished are written")
-        return
     finally:
         connection.close()
-    print(f"\n{len(ran)} slot(s) written to the database")
 
 
 def _report_boundaries(

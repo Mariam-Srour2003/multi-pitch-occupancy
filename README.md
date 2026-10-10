@@ -79,12 +79,12 @@ The browser sends the password with each request, encoded rather than encrypted,
 trusted local network put the service behind HTTPS or a VPN.
 
 Every page shares one navigation bar: **Dashboard · Reports · Testing · Cameras · Bookings ·
-Boundaries**.
+Boundaries · Alerts**.
 
 | page | what it does |
 |---|---|
-| `/` (also `/client`) | operator dashboard: pitches hour by hour, slot verdicts, evidence, overrides |
-| `/testing` | the testing hub: try the system on your own footage and photos |
+| `/` (also `/client`) | operator dashboard: a "Getting started" checklist (cameras → boundaries → schedule → detector → bookings → sign-in → recording → alerts), pitches hour by hour, slot verdicts, evidence, overrides |
+| `/testing` | the testing hub: try the system on your own footage and photos; running and queued tests with a Cancel button |
 | `/testing/day` | **booking-day test**: upload a day's video (or pick a recording already on this computer, from `data/recordings/` or `PITCH_RECORDINGS_DIR`), say when it starts (e.g. 08:00) and how long a slot is (e.g. 90 min); get every slot's minutes playing / empty / maintenance and USED / NOT USED / REVIEW, adjustable slot rules (re-judge a saved run without re-running it), CSV download, print / save as PDF, and an optional comparison with booking records |
 | `/clip` | one video in, a timeline of what the pitch was doing; "Watch it work" streams each step |
 | `/clip/pair` | both cameras of one pitch: two videos, people added, ball from either, one verdict |
@@ -93,6 +93,7 @@ Boundaries**.
 | `/cameras` | add and test camera connections ("Test all cameras", each camera's last recorded picture), check a pitch live ("what is happening now?"), plan the recorded day (start time + slot length → live schedule), and the connection guide (also `docs/cameras.md`) |
 | `/bookings` | connect booking records (optional, read-only: CSV, SQLite or another SQL database), check their quality, and compare a day with the camera verdicts |
 | `/roi` | draw the pitch boundary for a camera, with a before/after preview |
+| `/alerts` | what gets sent and when (no-show or unbooked play, a silent camera, recording stopped, an optional daily summary), a "Send a test alert" button, and the alert log |
 | `/docs` | the API |
 
 Uploads to the testing pages are deleted as soon as they have been read; nothing is written to
@@ -112,6 +113,16 @@ Give the system a database login that can only read the bookings table.
 
 **Cameras** live in `configs/cameras.json` (gitignored), edited from `/cameras`. After saving
 a schedule there, start or restart the live worker; it reads the schedule at start-up.
+
+**Alerts** go by webhook (Slack, Microsoft Teams, Discord, or WhatsApp / Telegram / SMS through
+an automation service) or email. Copy `configs/alerts.example.json` to `configs/alerts.json`
+(gitignored — it holds webhook URLs and SMTP passwords), enable a channel, restart the server,
+and press "Send a test alert" on `/alerts`. The server checks every few minutes and does not
+repeat the same alert within the cooldown.
+
+**Backups**: `uv run pitch backup` copies the database safely while the worker runs, checks the
+copy and keeps the newest 14 (`data/backups/`). Config files with passwords are included only
+with `--with-secrets`. Scheduling it daily and restoring are in `docs/backup.md`.
 
 Run the pipeline over the recorded slots — sample, classify, fuse, aggregate, reconcile, and
 write the verdicts to the database:

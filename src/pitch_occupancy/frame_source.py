@@ -147,6 +147,19 @@ class VideoSlotSource(FrameSource):
         self.close()
 
 
+def _shown(url: str) -> str:
+    """A camera URL as it may be recorded: password masked.
+
+    A frame's `source_path` travels on into `frame_samples.image_path` in the database, logs
+    and the evidence trail. Until 2026-10-10 a live frame carried the real RTSP URL there, so
+    every recorded minute stored the camera's password. The masked form still says which
+    camera and stream the frame came from, which is all a reader of the record needs.
+    """
+    from pitch_occupancy.cameras import mask
+
+    return mask(url)
+
+
 class RTSPSource(FrameSource):
     """One snapshot per camera per minute from live streams.
 
@@ -175,6 +188,16 @@ class RTSPSource(FrameSource):
 
     ``open_capture`` is injectable too, so the retry and gap behaviour can be tested without a
     camera. That is the part most likely to matter in the field and was the part with no test.
+
+    **A minute whose moment has gone is a gap, not a frame taken now** (2026-10-10). Minute *k*
+    belongs to ``[started_at + k, started_at + k + 1)``. Until this date a read that arrived
+    after that window still opened the stream and labelled whatever it saw "minute k" - so a
+    worker started at 09:00 for a slot that began at 08:00 would have read sixty frames of
+    09:00 back to back and filed them as 08:00-08:59, the fabricated observation this module
+    exists to refuse. ``max_late_s`` (default one minute) is how late a read may be before it
+    is skipped; the scheduler now passes the slot's real start, so the skipped minutes are the
+    ones that truly were not watched, and the capture floor in `slots/aggregate.py` decides
+    what that means for the verdict.
     """
 
     def __init__(
@@ -185,6 +208,7 @@ class RTSPSource(FrameSource):
         started_at: datetime | None = None,
         timeout_ms: int = 5000,
         retries: int = 2,
+        max_late_s: float = 60.0,
         open_capture: Callable[[str], object] | None = None,
         clock: Callable[[], datetime] | None = None,
         sleep: Callable[[float], None] | None = None,
@@ -200,6 +224,7 @@ class RTSPSource(FrameSource):
         self._minutes = int(minutes)
         self._timeout_ms = timeout_ms
         self._retries = retries
+        self._max_late_s = float(max_late_s)
         self._open = open_capture or self._open_stream
         self._clock = clock or (lambda: datetime.now())
         self._sleep = sleep or time.sleep
@@ -223,23 +248,31 @@ class RTSPSource(FrameSource):
     def started_at(self) -> datetime:
         return self._started_at
 
-    def wait_for(self, minute_index: int) -> None:
-        """Block until ``minute_index`` minutes have elapsed since the slot began.
+    def wait_for(self, minute_index: int) -> bool:
+        """Block until minute ``minute_index`` has arrived; say whether it can still be read.
 
         Returns immediately when that moment has passed, so the second camera of a minute does
         not wait again and a run that has fallen behind catches up rather than stretching. A
         slot that overruns is a slot with missed minutes, which the capture rate already
         reports; sleeping the shortfall would hide it.
+
+        Returns ``False`` when the minute is ``max_late_s`` or more in the past - the worker
+        started after it, or the previous minute's work overran by a whole minute. The caller
+        then records a gap: reading the stream now and calling it minute *k* would be a frame
+        from the wrong time with the right label, which is worse than no frame.
         """
         due_at = self._started_at + timedelta(minutes=minute_index)
         remaining = (due_at - self._clock()).total_seconds()
         if remaining > 0:
             self._sleep(remaining)
+            return True
+        return -remaining < self._max_late_s
 
     def read(self, camera_id: str, minute_index: int) -> Frame | None:
         if camera_id not in self._urls:
             raise KeyError(f"unknown camera {camera_id!r}; have {self.cameras()}")
-        self.wait_for(minute_index)
+        if not self.wait_for(minute_index):
+            return None  # the minute has gone: a gap, never "now" relabelled as then
         url = self._urls[camera_id]
         for _ in range(self._retries + 1):
             capture = self._open(url)
@@ -248,7 +281,7 @@ class RTSPSource(FrameSource):
             finally:
                 capture.release()
             if ok and image is not None:
-                return Frame(camera_id, minute_index, image, url)
+                return Frame(camera_id, minute_index, image, _shown(url))
         return None  # every retry failed: record the gap
 
     def read_burst(self, camera_id: str, minute_index: int, *, n: int = 3,
@@ -264,7 +297,8 @@ class RTSPSource(FrameSource):
         """
         if camera_id not in self._urls:
             raise KeyError(f"unknown camera {camera_id!r}; have {self.cameras()}")
-        self.wait_for(minute_index)
+        if not self.wait_for(minute_index):
+            return []  # the minute has gone: a gap, never "now" relabelled as then
         url = self._urls[camera_id]
         for _ in range(self._retries + 1):
             capture = self._open(url)
@@ -280,7 +314,7 @@ class RTSPSource(FrameSource):
                     ok, image = capture.read()
                     if not ok or image is None:
                         break
-                    out.append(Frame(camera_id, minute_index, image, url))
+                    out.append(Frame(camera_id, minute_index, image, _shown(url)))
             finally:
                 capture.release()
             if out:

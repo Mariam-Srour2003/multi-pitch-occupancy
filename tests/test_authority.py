@@ -273,6 +273,15 @@ ALLOWED_MUTATING = {
     #: the file in place (and never deletes it - it is the client's own), saves the per-slot
     #: result like `/api/v1/testing/day`.
     "/api/v1/testing/day/local",
+    #: Sends one test message to one configured alert channel and logs it. Changes no
+    #: product data; there is deliberately no route that saves the alert configuration.
+    "/api/v1/alerts/test",
+    #: Computes what needs attention now (reading the database read-only) and, only with
+    #: `send=true`, sends it and updates the alert state and log files under `data/`.
+    "/api/v1/alerts/check",
+    #: Cancels a queued or running test job. A person stopping their own test; uploads are
+    #: deleted as on any finish, local recordings are left untouched.
+    "/api/v1/testing/jobs/{job_id}/cancel",
 }
 
 

@@ -7,6 +7,10 @@ show it, the API can serve it.
 The flow it is shaped around: land on what needs
 attention, open a slot's evidence, agree or correct in one click. Anything that does not
 serve that flow is not here.
+
+At the top, a "Getting started" card lists the setup steps from `GET /api/v1/setup/checklist`
+(`setup_check`). It opens while a required step is missing and collapses itself once they are
+all done; if the endpoint is not there the card simply stays hidden.
 """
 
 from __future__ import annotations
@@ -124,6 +128,37 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);
   color:var(--ground);padding:11px 18px;border-radius:8px;font-size:13.5px;z-index:50}
 .toast[hidden]{display:none}
+/* Getting started: the setup checklist. Collapses itself once every required step is done. */
+details.setup{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  margin:0 0 22px}
+details.setup[hidden]{display:none}
+details.setup summary{cursor:pointer;padding:13px 16px;display:flex;align-items:baseline;
+  gap:10px;list-style:none;font-weight:600}
+details.setup summary::-webkit-details-marker{display:none}
+details.setup summary::before{content:'\\25B8';color:var(--accent);font-size:12px}
+details.setup[open] summary::before{content:'\\25BE'}
+details.setup summary .count{font:500 12px 'JetBrains Mono',monospace;color:var(--ink-3)}
+details.setup summary .count.ok{color:var(--used)}
+ul.steps{list-style:none;margin:0;padding:0 16px 8px}
+ul.steps li{display:flex;gap:12px;align-items:flex-start;padding:9px 0;
+  border-top:1px solid var(--line);font-size:13.5px}
+ul.steps .tick{flex:0 0 22px;height:22px;border-radius:50%;display:inline-flex;
+  align-items:center;justify-content:center;font:700 12px 'JetBrains Mono',monospace;
+  border:1px solid var(--line);color:var(--ink-3)}
+ul.steps .done .tick{background:var(--used-soft);color:var(--used);border-color:var(--used-soft)}
+ul.steps .todo .tick{border-style:dashed;color:var(--review)}
+ul.steps .warning .tick{background:var(--serious-soft);color:var(--serious);
+  border-color:var(--serious-soft)}
+ul.steps .optional .tick,ul.steps .unknown .tick{border-style:dashed}
+ul.steps .what{flex:1}
+ul.steps .st{font:500 10.5px 'JetBrains Mono',monospace;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-3);margin-left:6px}
+ul.steps .done .st{color:var(--used)}ul.steps .todo .st{color:var(--review)}
+ul.steps .warning .st{color:var(--serious)}
+ul.steps .dt{color:var(--ink-2);font-size:13px}
+ul.steps a{color:var(--accent);text-decoration:none;font-size:13px;white-space:nowrap}
+ul.steps code{background:var(--surface-2);padding:2px 6px;border-radius:4px;
+  font-family:'JetBrains Mono',monospace;font-size:12px}
 </style>""" + NAV_CSS + """</head><body>
 
 <header><div class="hin">
@@ -133,6 +168,11 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 </div></header>
 
 <main>
+  <details class="setup" id="setup" hidden>
+    <summary>Getting started <span class="count" id="setupCount"></span></summary>
+    <ul class="steps" id="setupSteps"></ul>
+  </details>
+
   <div class="tiles" id="tiles"></div>
 
   <h2>Needs attention</h2>
@@ -309,6 +349,54 @@ async function override(status){
 }
 document.getElementById("bUSED").onclick = () => override("USED");
 document.getElementById("bNOTUSED").onclick = () => override("NOTUSED");
+
+// --- Getting started -----------------------------------------------------------------------
+// Open while a required step is missing, collapsed once they are all done. A manager who opens
+// or closes it by hand is remembered - but only for the same overall state, so a step that
+// breaks later opens the card again even if it was closed when everything was fine.
+const SETUP_KEY = "pitch.setup.open";
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g,
+  c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const STEP_MARK = {done: "&#10003;", todo: "", warning: "!", optional: "", unknown: "?"};
+const STEP_WORD = {done: "done", todo: "to do", warning: "check", optional: "optional",
+  unknown: "unknown"};
+function setupStored(){
+  try { return localStorage.getItem(SETUP_KEY); } catch (e) { return null; }
+}
+function setupRemember(value){
+  try { localStorage.setItem(SETUP_KEY, value); } catch (e) { /* private window: fine */ }
+}
+async function loadSetup(){
+  let data;
+  try {
+    const r = await fetch("/api/v1/setup/checklist");
+    if (!r.ok) return;
+    data = await r.json();
+  } catch (e) { return; }
+  const box = document.getElementById("setup");
+  const state = data.required_done ? "complete" : "incomplete";
+  const count = document.getElementById("setupCount");
+  count.textContent = data.required_done ? "- all set" : `- ${data.done} of ${data.total} done`;
+  count.className = "count" + (data.required_done ? " ok" : "");
+  document.getElementById("setupSteps").innerHTML = data.steps.map(s => {
+    const fix = s.link ? `<a href="${esc(s.link)}">Open &rarr;</a>`
+      : s.hint ? `<code>${esc(s.hint)}</code>` : "";
+    return `<li class="${esc(s.state)}"><span class="tick" aria-hidden="true">${
+      STEP_MARK[s.state] || ""}</span><span class="what">${esc(s.title)}<span class="st">${
+      esc(STEP_WORD[s.state] || s.state)}</span><br><span class="dt">${esc(s.detail)}</span>
+      </span>${s.state === "done" ? "" : fix}</li>`;
+  }).join("");
+  const stored = setupStored();
+  const [openStored, forState] = (stored || "").split(":");
+  box.open = forState === state ? openStored === "1" : !data.required_done;
+  box.hidden = false;
+  // The click, not the toggle event: setting `open` above fires a toggle too, and only the
+  // manager's own choice is worth remembering. The click lands before the card flips.
+  box.querySelector("summary").addEventListener("click",
+    () => setupRemember((box.open ? "0" : "1") + ":" + state));
+}
+
+loadSetup();
 
 load();
 </script></body></html>

@@ -18,9 +18,13 @@ Pages:
   - ``/reports``     utilisation, busy hours, and a recorded day cut into slots
   - ``/bookings``    the booking source, a quality check of it, and a day compared
   - ``/roi``         draw the pitch boundary for a camera
+  - ``/alerts``      what gets sent by webhook or email, a test button, the alert log
 """
 
 from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
@@ -28,6 +32,7 @@ from pydantic import BaseModel
 
 from pitch_occupancy import __version__
 from pitch_occupancy.api.access import AccessMiddleware
+from pitch_occupancy.api.alerts_page import router as alerts_router
 from pitch_occupancy.api.bookings_page import router as bookings_router
 from pitch_occupancy.api.cameras_page import router as cameras_router
 from pitch_occupancy.api.clip_page import CLIP_HTML
@@ -43,14 +48,34 @@ from pitch_occupancy.api.roi_editor import router as roi_router
 from pitch_occupancy.api.roi_page import ROI_HTML
 from pitch_occupancy.api.routes import router
 from pitch_occupancy.api.schedule_editor import router as schedule_router
+from pitch_occupancy.api.setup_api import router as setup_router
 from pitch_occupancy.api.simulator import router as simulator_router
 from pitch_occupancy.api.testing import router as testing_router
 from pitch_occupancy.config import settings
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Start the alert checker with the server, and stop it with the server.
+
+    It starts only when `configs/alerts.json` enables a channel (`alerts.py`); otherwise this
+    does nothing. A thread rather than a task because its checks read files and the database
+    and send over the network - blocking work that must not sit on the event loop.
+    """
+    from pitch_occupancy import alerts
+
+    alerts.start_background_checker()
+    try:
+        yield
+    finally:
+        alerts.stop_background_checker()
+
 
 app = FastAPI(
     title="Pitch Occupancy",
     version=__version__,
     summary="Occupancy verdicts and booking reconciliation for multi-pitch facilities",
+    lifespan=lifespan,
 )
 # A password in front of everything when PITCH_ACCESS_PASSWORD is set (api/access.py).
 app.add_middleware(AccessMiddleware)
@@ -89,6 +114,11 @@ app.include_router(cameras_router)
 # Reports from what the live system recorded: utilisation per day, busy hours, and any
 # recorded day cut into the client's own slot length. Read-only.
 app.include_router(reports_router)
+# Alerts by webhook or email: no-shows and unbooked play, a silent camera, the recording
+# program stopped. Configured in the gitignored configs/alerts.json.
+app.include_router(alerts_router)
+# The dashboard's "Getting started" checklist, computed from this machine's configuration.
+app.include_router(setup_router)
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)

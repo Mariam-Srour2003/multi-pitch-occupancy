@@ -27,7 +27,9 @@ fail either one alone.
 
 Read routes: ``GET /cameras`` (the page), ``GET /api/v1/cameras/registry`` (masked list, with
 each camera's last recorded picture; not ``/api/v1/cameras``, which the simulator owns) and
-``GET /api/v1/cameras/health`` (the recording part alone). Mutating routes:
+``GET /api/v1/cameras/health`` (the recording part alone) and ``GET /api/v1/recording/status``
+(the live worker's heartbeat, `status.read_status`, behind the *Recording status* card at the
+top of the page). Mutating routes:
 ``PUT /api/v1/cameras``, ``DELETE /api/v1/cameras/{venue}/{camera_id}``,
 ``POST /api/v1/cameras/test``, ``POST /api/v1/cameras/test-all`` (opens connections, writes
 nothing), ``POST /api/v1/cameras/predict``, ``POST /api/v1/cameras/schedule/preview`` (writes
@@ -308,7 +310,10 @@ def _grab(urls: dict[str, str], n: int, spacing_s: float) -> dict[str, list]:
     that reads here reads the same way in the schedule."""
     from pitch_occupancy.frame_source import RTSPSource
 
-    source = RTSPSource(urls, minutes=1, timeout_ms=TIMEOUT_MS, retries=1, open_capture=_open)
+    # max_late_s=inf: a spot check reads every camera as minute 0, one after another, and a
+    # slow first camera must not make the next one count as "too late" and come back empty.
+    source = RTSPSource(urls, minutes=1, timeout_ms=TIMEOUT_MS, retries=1, open_capture=_open,
+                        max_late_s=float("inf"))
     return {cam: [f.image_bgr for f in source.read_burst(cam, 0, n=n, spacing_s=spacing_s)]
             for cam in sorted(urls)}
 
@@ -688,6 +693,23 @@ def save_schedule(body: ScheduleIn) -> dict:
     return out
 
 
+# --- recording status ---------------------------------------------------------------------
+
+@router.get("/api/v1/recording/status")
+def recording_status() -> dict:
+    """Is the live worker running, and what is it recording? Read from its heartbeat file.
+
+    ``status`` is `status.read_status()` - the worker's own document plus ``alive`` and
+    ``age_s`` - or ``None`` when the worker has never been started on this computer, in which
+    case the card shows ``start_command``. The file holds camera ids only, never URLs, so it
+    is safe to pass through as it is.
+    """
+    from pitch_occupancy.status import read_status
+
+    return {"status": read_status(), "start_command": _commands()["start"],
+            "service_doc": "docs/service.md"}
+
+
 # --- the page -----------------------------------------------------------------------------
 
 def _guide() -> str:
@@ -732,6 +754,10 @@ td.status{min-width:150px;font-size:13px}
 td.status .hint{display:block;color:var(--ink-2);font-size:12px;max-width:340px}
 td.last{white-space:nowrap;font-size:13px}
 .big{font:700 22px Archivo,sans-serif}
+#recstatus .head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+#recstatus table{min-width:0}
+#recstatus h4{margin:12px 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--ink-2)}
 """
 
 GUIDE_HTML = """
@@ -833,6 +859,11 @@ computer only; this page never shows a saved password.</li>
 """
 
 BODY_HTML = """
+<h2>Recording status</h2>
+<p class="sub2">Whether the live recording program is running on this computer and what it is
+recording now. Refreshes every 30 seconds.</p>
+<div class="card" id="recstatus"><p class="muted">Loading...</p></div>
+
 <h2>Your cameras</h2>
 <p class="sub2">Each pitch has two cameras, each seeing about half of it. Add each camera's
 address here and press <b>Test</b> to check it sends a picture.</p>
@@ -1196,6 +1227,63 @@ $('s_save').onclick = async () => {
   try { showPlan(await api('PUT', '/api/v1/cameras/schedule', schedBody()), true); stale(); }
   catch (e) { $('schedout').innerHTML = `<p class="note err">${esc(e.message)}</p>`; }
 };
+
+// --- recording status (the live worker's heartbeat) ---
+function since(seconds) {
+  if (seconds === null || seconds === undefined) return 'at an unknown time';
+  return ago(Math.floor(seconds / 60));
+}
+const hhmm = (iso) => iso ? String(iso).slice(11, 16) : '-';
+const dayhhmm = (iso) => iso ? String(iso).slice(0, 16).replace('T', ' ') : '-';
+function recCameras(cams) {
+  return Object.entries(cams || {}).map(([id, c]) =>
+    `${esc(id)}: ${c.frames} picture(s), ${c.missed} missed, last ` +
+    `${c.last_frame_at ? esc(hhmm(c.last_frame_at)) : 'none yet'}`).join('<br>');
+}
+async function loadRecording() {
+  let r;
+  try { r = await api('GET', '/api/v1/recording/status'); }
+  catch (e) { $('recstatus').innerHTML = `<p class="bad">${esc(e.message)}</p>`; return; }
+  const s = r.status;
+  if (!s) {
+    const never = 'The recording program has not been started on this computer.';
+    $('recstatus').innerHTML = `<p><b>${never}</b> Start it in the project folder with:</p>
+      <pre>${esc(r.start_command)}</pre>
+      <p class="muted">To keep it running after a restart, see ${esc(r.service_doc)}.</p>`;
+    return;
+  }
+  const head = s.alive
+    ? `<span class="pill C2_ACTIVE_PLAY">Running</span><span class="muted">last seen ` +
+      `${esc(since(s.age_s))}${s.model ? ' - model ' + esc(s.model) : ''}</span>`
+    : `<span class="pill UNCERTAIN bad">${s.state === 'stopped' ? 'Stopped' : 'Not running'}` +
+      `</span><span class="bad">last seen ${esc(since(s.age_s))}</span>` +
+      (s.state === 'stopped' ? '' : '<span class="muted">(it stopped without saying so - ' +
+       'check the computer and the log)</span>');
+  const running = (s.slots_running || []).map((x) => `<tr><td class="mono">${esc(x.slot_id)}` +
+    `</td><td>${esc(hhmm(x.start))} - ${esc(hhmm(x.end))}</td><td class="num">` +
+    `${x.minutes_done} / ${x.minutes_expected}</td><td>${recCameras(x.cameras)}</td></tr>`)
+    .join('');
+  const next = (s.next_slots || []).map((x) => `<tr><td class="mono">${esc(x.slot_id)}</td>` +
+    `<td>${esc(dayhhmm(x.start))}</td></tr>`).join('');
+  const done = (s.last_finished || []).map((x) => `<tr><td class="mono">${esc(x.slot_id)}` +
+    `</td><td>${esc(x.status)}</td><td>${esc(dayhhmm(x.finished_at))}</td></tr>`).join('');
+  const errs = (s.errors || []).map((x) => `<li><span class="muted">${esc(dayhhmm(x.at))}` +
+    `</span> ${esc(x.message)}</li>`).join('');
+  $('recstatus').innerHTML = `<div class="head">${head}</div>
+    ${s.alive ? '' : `<p class="note warn">Nothing is being recorded while it is not running.
+      Start it with:</p><pre>${esc(r.start_command)}</pre>`}
+    <h4>Recording now</h4>${running ? `<div class="scroll"><table><thead><tr><th>Slot</th>
+      <th>Time</th><th>Minutes done</th><th>Cameras</th></tr></thead><tbody>${running}
+      </tbody></table></div>` : '<p class="muted">No slot is being recorded right now.</p>'}
+    <h4>Next slots</h4>${next ? `<div class="scroll"><table><tbody>${next}</tbody></table>
+      </div>` : '<p class="muted">None today or tomorrow.</p>'}
+    <h4>Last finished</h4>${done ? `<div class="scroll"><table><thead><tr><th>Slot</th>
+      <th>Result</th><th>Finished</th></tr></thead><tbody>${done}</tbody></table></div>`
+      : '<p class="muted">None since it started.</p>'}
+    ${errs ? `<h4>Recent errors</h4><ul>${errs}</ul>` : ''}`;
+}
+loadRecording();
+setInterval(loadRecording, 30000);
 
 loadCams().catch((e) => {
   $('camrows').innerHTML = `<tr><td colspan="7" class="bad">${esc(e.message)}</td></tr>`;

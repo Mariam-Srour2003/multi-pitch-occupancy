@@ -11,6 +11,7 @@ and running the services. Installed as ``pitch``::
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Annotated
 
 import typer
 
@@ -385,6 +386,48 @@ def retraining_cmd(
             "Nothing under _incoming/ is indexed by `pitch manifest`.",
             fg=typer.colors.YELLOW,
         )
+
+
+@app.command("backup")
+def backup_cmd(
+    dest: Annotated[Path | None, typer.Option(
+        "--dest", help="Backup folder; default <data_dir>/backups. Keep it private.")] = None,
+    keep: int = typer.Option(14, "--keep", min=1, help="How many backups to keep."),
+    with_secrets: bool = typer.Option(
+        False, "--with-secrets",
+        help="Also copy cameras.json, bookings_source.json and alerts.json - they hold "
+             "passwords."),
+    no_configs: bool = typer.Option(False, "--no-configs", help="Copy the database only."),
+) -> None:
+    """Copy the verdict database (safe while the worker runs) and this system's config files.
+
+    The copy is made with SQLite's online backup API, checked with ``PRAGMA integrity_check``
+    and named ``pitch_monitor-YYYYMMDD-HHMMSS.db``; the folder is pruned to the newest
+    ``--keep``. Config files that hold passwords are copied only with ``--with-secrets``, and
+    then the backup folder must be private. Schedule it daily - see docs/backup.md.
+    """
+    from pitch_occupancy.backup import SECRET_FILES, run_backup
+
+    target = dest or (settings.data_dir / "backups")
+    try:
+        result = run_backup(target, keep, configs=not no_configs, with_secrets=with_secrets)
+    except (FileNotFoundError, RuntimeError, OSError) as exc:
+        typer.secho(f"backup failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from exc
+
+    typer.secho(f"database -> {result.database} (integrity check ok)", fg=typer.colors.GREEN)
+    if result.configs is not None:
+        typer.echo(f"configs  -> {result.configs} ({', '.join(result.config_names)})")
+    if result.removed:
+        typer.echo(f"pruned {len(result.removed)} old file(s), keeping the newest {keep}")
+    if with_secrets:
+        typer.secho(
+            f"WARNING: the config zip holds passwords ({', '.join(SECRET_FILES)}: camera, "
+            f"booking-database and alert logins). Keep {target} private - anyone who can read "
+            f"it can log in to the cameras.", fg=typer.colors.YELLOW)
+    elif not no_configs:
+        typer.echo(f"not copied (they hold passwords): {', '.join(SECRET_FILES)}. Add "
+                   f"--with-secrets to include them, into a private folder.")
 
 
 if __name__ == "__main__":

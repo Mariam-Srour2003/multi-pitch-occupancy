@@ -79,6 +79,7 @@ desktop.ini
 # the shape; the real file never leaves the machine.
 /configs/cameras.json
 /configs/bookings_source.json
+/configs/alerts.json
 .env
 .env.*
 secrets.json

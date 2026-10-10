@@ -42,8 +42,16 @@ recording already on this machine, under ``settings.recordings_dir``, can be ana
 (``POST /api/v1/testing/day/local``): the name is resolved inside that folder and nowhere else,
 and the file - the client's own - is never deleted, unlike an upload's temporary copy.
 
+**A test can be stopped.** ``GET /api/v1/testing/jobs`` lists the recent tests, running and
+queued first on the hub page, and ``POST /api/v1/testing/jobs/{id}/cancel`` stops one
+(`api.jobs.cancel`): a queued test never starts, a running one stops at its next sample. An
+upload's temporary video is deleted either way - by the job's ``finally`` when it was running,
+by the clean-up handed to `jobs.submit` when it never started. A recording on this machine is
+never deleted, cancelled or not.
+
 Mutating routes: ``POST /api/v1/testing/day``, ``POST /api/v1/testing/day/local``,
-``POST /api/v1/testing/runs/{id}/compare`` and ``POST /api/v1/testing/runs/{id}/rejudge``.
+``POST /api/v1/testing/jobs/{id}/cancel``, ``POST /api/v1/testing/runs/{id}/compare`` and
+``POST /api/v1/testing/runs/{id}/rejudge``.
 """
 
 from __future__ import annotations
@@ -298,6 +306,21 @@ def _make_work(paths: list[Path], meta: dict[str, Any], *, delete: bool = True):
     return work
 
 
+def _label(meta: dict[str, Any]) -> str:
+    """What the list of running tests calls this one: the video name(s)."""
+    return meta["name"] + (f" + {meta['name_b']}" if meta["two"] else "")
+
+
+def _deleter(paths: list[Path]):
+    """The clean-up for an upload cancelled before its job started."""
+
+    def delete() -> None:
+        for path in paths:
+            path.unlink(missing_ok=True)
+
+    return delete
+
+
 async def _receive_one(request: Request, path: Path, *, max_bytes: int) -> None:
     """Stream the body to ``path``, capped at ``max_bytes`` while streaming."""
     declared = _content_length(request)
@@ -406,7 +429,8 @@ async def start_day_test(
             await clip_pair._receive(request, size_a, (paths[0], paths[1]), max_each=max_each)
         else:
             await _receive_one(request, paths[0], max_bytes=max_each)
-        job_id = jobs.submit("day", _make_work(paths, meta))
+        job_id = jobs.submit("day", _make_work(paths, meta), label=_label(meta),
+                             on_cancel=_deleter(paths))
         submitted = True
     finally:
         if not submitted:
@@ -536,7 +560,8 @@ def start_local_day_test(body: LocalDayIn) -> dict[str, str]:
                  camera_b=body.camera_b, name=names[0], name_b=names[1] if two else None,
                  rules=rules)
     meta["source"] = "recording"
-    job_id = jobs.submit("day", _make_work(paths, meta, delete=False))
+    # No clean-up on cancel, and ``delete=False``: these files are the client's.
+    job_id = jobs.submit("day", _make_work(paths, meta, delete=False), label=_label(meta))
     return {"job_id": job_id, "run_id": meta["id"]}
 
 
@@ -546,6 +571,31 @@ def job_status(job_id: str) -> dict[str, Any]:
     if snap is None:
         raise HTTPException(404, "no such job; it may have finished long ago")
     return snap
+
+
+@router.get("/api/v1/testing/jobs")
+def list_jobs(limit: int = Query(20, ge=1, le=50)) -> list[dict[str, Any]]:
+    """Recent tests, newest first: status, progress, when and the video name - no results."""
+    return jobs.list_jobs(limit)
+
+
+@router.post("/api/v1/testing/jobs/{job_id}/cancel")
+def cancel_job(job_id: str) -> dict[str, Any]:
+    """Stop a queued or running test. 404 for an unknown job, 409 for one already finished.
+
+    A running test stops at its next sample, so the answer may still say ``running`` with
+    ``cancel_requested``; poll the job to see it become ``cancelled``.
+    """
+    snap = jobs.get(job_id)
+    if snap is None:
+        raise HTTPException(404, "no such job; it may have finished long ago")
+    if not jobs.cancel(job_id):
+        status = (jobs.get(job_id) or snap)["status"]
+        raise HTTPException(409, f"This test has already {_FINISHED_WORD.get(status, 'ended')}.")
+    return jobs.get(job_id) or snap
+
+
+_FINISHED_WORD = {"done": "finished", "failed": "failed", "cancelled": "been cancelled"}
 
 
 # --- saved runs -----------------------------------------------------------------------------
@@ -723,6 +773,9 @@ only the results.</p>
     <p>Upload a long video, say when it starts and how long your booking slots are, and see
     which slots were used - and, if you like, compare them with your bookings.</p></a>
 </div>
+<h2>Running and queued</h2>
+<p class="sub2">Booking-day tests run one at a time; the others wait their turn.</p>
+<div id="jobs" class="card"><p class="muted">Loading...</p></div>
 <h2>Previous booking-day tests</h2>
 <div id="runs" class="card"><p class="muted">Loading...</p></div>
 """
@@ -743,6 +796,38 @@ fetch('/api/v1/testing/runs').then(r=>r.json()).then(rows=>{
       (c.REVIEW||0)+' to review</span></li>';}).join('')+'</ul>';
 }).catch(()=>{document.getElementById('runs').innerHTML=
   '<p class="muted">Could not load previous tests.</p>';});
+
+// Running and queued tests, refreshed every 5 seconds while any is still going.
+let jobTimer=null;
+async function loadJobs(){
+  clearTimeout(jobTimer);
+  const box=document.getElementById('jobs');
+  let rows;
+  try{const r=await fetch('/api/v1/testing/jobs');if(!r.ok)throw new Error();rows=await r.json();}
+  catch(e){box.innerHTML='<p class="muted">Could not load the running tests.</p>';return;}
+  const active=rows.filter(j=>j.status==='queued'||j.status==='running');
+  if(!active.length){box.innerHTML='<p class="muted">No test is running.</p>';return;}
+  active.sort((a,b)=>(a.status==='running'?0:1)-(b.status==='running'?0:1)||a.created-b.created);
+  box.innerHTML='<ul class="runs jobs">'+active.map(j=>{
+    const p=j.progress||{},share=p.total?Math.round(100*p.done/p.total):0;
+    const when=new Date(j.created*1000).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    const state=j.cancel_requested?'stopping...':j.status==='queued'?'waiting its turn':
+      (p.total?p.done+' of '+p.total+' moments ('+share+'%)':'preparing the video');
+    return '<li><div class="jl"><a href="/testing/day?job='+encodeURIComponent(j.job_id)+'">'+
+      esc(j.label||'video')+'</a> <span class="muted">started '+esc(when)+' &middot; '+
+      esc(state)+'</span><div class="bar"><i style="width:'+
+      (j.status==='running'?Math.max(share,2):0)+'%"></i></div></div>'+
+      '<button class="ghost" data-cancel="'+esc(j.job_id)+'"'+
+      (j.cancel_requested?' disabled':'')+'>Cancel</button></li>';}).join('')+'</ul>';
+  for(const b of box.querySelectorAll('button[data-cancel]'))
+    b.addEventListener('click',async()=>{
+      b.disabled=true;b.textContent='Stopping...';
+      try{await fetch('/api/v1/testing/jobs/'+encodeURIComponent(b.dataset.cancel)+'/cancel',
+        {method:'POST'});}catch(e){}
+      loadJobs();});
+  jobTimer=setTimeout(loadJobs,5000);
+}
+loadJobs();
 """
 
 _HUB_CSS = """
@@ -750,6 +835,10 @@ ul.runs{list-style:none;margin:0;padding:0}
 ul.runs li{padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}
 ul.runs li:last-child{border-bottom:none}
 ul.runs a{color:var(--accent);font-weight:600;text-decoration:none}
+ul.jobs li{display:flex;gap:14px;align-items:center}
+ul.jobs .jl{flex:1;min-width:0}
+ul.jobs .bar{margin-top:7px}
+button.ghost[disabled]{opacity:.55;cursor:not-allowed}
 """
 
 
@@ -790,6 +879,8 @@ a.act{font:600 13px Archivo,sans-serif;padding:9px 18px;border-radius:6px;
   border:1px solid var(--accent);color:var(--accent);text-decoration:none;background:var(--surface)}
 td.reason{font-size:12.5px;color:var(--ink-2);min-width:200px}
 #prog{display:none}#prog.on{display:block}
+.progrow{display:flex;gap:12px;align-items:center}.progrow .bar{flex:1}
+.progrow button[disabled]{opacity:.55;cursor:not-allowed}
 #res{display:none}#res.on{display:block}
 .bk{display:none}.bk.on{display:table-cell}
 details.rejudge{margin:14px 0 0}
@@ -894,7 +985,8 @@ maintenance, and whether the slot was used. Nothing you upload is kept - only th
 
 <section id="prog" class="card" style="margin-top:18px">
   <p id="progText" style="margin:0 0 8px">Uploading...</p>
-  <div class="bar"><i id="progBar"></i></div>
+  <div class="progrow"><div class="bar"><i id="progBar"></i></div>
+    <button class="ghost" id="cancel" hidden>Cancel</button></div>
 </section>
 
 <section id="res">
@@ -1096,17 +1188,38 @@ async function startLocal(){
   }catch(err){$('prog').classList.remove('on');setStatus('status',err.message,true);ready();}
 }
 
+let JOB=null;
+$('cancel').addEventListener('click',async()=>{
+  if(!JOB)return;
+  $('cancel').disabled=true;$('progText').textContent='Stopping the test...';
+  try{
+    const r=await fetch('/api/v1/testing/jobs/'+encodeURIComponent(JOB)+'/cancel',
+      {method:'POST'});
+    if(!r.ok&&r.status!==409)throw new Error(await detail(r));
+  }catch(err){$('cancel').disabled=false;setStatus('status',err.message,true);}
+});
+
 async function poll(id){
+  if(JOB!==id){JOB=id;$('cancel').hidden=false;$('cancel').disabled=false;}
   try{
     const r=await fetch('/api/v1/testing/jobs/'+encodeURIComponent(id));
     if(!r.ok)throw new Error(await detail(r));
     const j=await r.json();
     const p=j.progress||{};
-    if(j.status==='queued'){$('progText').textContent='Waiting for another test to finish...';}
+    if(j.cancel_requested&&j.status==='running'){
+      $('progText').textContent='Stopping the test...';$('cancel').disabled=true;}
+    else if(j.status==='queued'){
+      $('progText').textContent='Waiting for another test to finish...';}
     else if(j.status==='running'){
       $('progText').textContent=p.total?('Checking the video... '+p.done+' of '+p.total+
         ' moments'):'Preparing the video...';
       $('progBar').style.width=(p.total?100*p.done/p.total:2)+'%';
+    }
+    if(j.status!=='queued'&&j.status!=='running'){JOB=null;$('cancel').hidden=true;}
+    if(j.status==='cancelled'){
+      $('prog').classList.remove('on');ready();
+      setStatus('status','The test was stopped. Nothing was saved'+
+        (j.label?' for '+j.label:'')+'.');return;
     }
     if(j.status==='done'){
       $('prog').classList.remove('on');ready();
@@ -1236,6 +1349,10 @@ $('rGo').addEventListener('click',async()=>{
 $('again').addEventListener('click',()=>{$('res').classList.remove('on');
   history.replaceState(null,'','/testing/day');window.scrollTo(0,0);});
 
+// Opened from the Testing page's list of running tests: follow that test.
+const following=new URLSearchParams(location.search).get('job');
+if(following){$('prog').classList.add('on');$('progText').textContent='Checking...';
+  poll(following);}
 const wanted=new URLSearchParams(location.search).get('run');
 if(wanted){fetch('/api/v1/testing/runs/'+encodeURIComponent(wanted)).then(async r=>{
   if(!r.ok)throw new Error(await detail(r));return r.json();}).then(render)
