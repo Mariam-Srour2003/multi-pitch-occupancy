@@ -248,7 +248,8 @@ def run_due(
     return ran
 
 
-def _execute(slot: ScheduledSlot, day: Date, source, *, classify, pipeline, evidence_dir):
+def _execute(slot: ScheduledSlot, day: Date, source, *, classify, pipeline, evidence_dir,
+             on_minute=None):
     """`worker.run_slot` for one slot instance - the one call both runners make.
 
     Looked up on the module at call time, so a test that replaces `worker.run_slot` sees every
@@ -260,8 +261,8 @@ def _execute(slot: ScheduledSlot, day: Date, source, *, classify, pipeline, evid
     if pipeline is not None:
         return run_slot(slot_id, source, classify, evidence_dir=evidence_dir,
                         pipeline=pipeline, venue=slot.venue_id,
-                        slot_key=_recording_key(slot, day))
-    return run_slot(slot_id, source, classify, evidence_dir=evidence_dir)
+                        slot_key=_recording_key(slot, day), on_minute=on_minute)
+    return run_slot(slot_id, source, classify, evidence_dir=evidence_dir, on_minute=on_minute)
 
 
 def _persist(connection, slot: ScheduledSlot, day: Date, run, model_key: str | None) -> None:
@@ -399,6 +400,7 @@ def run_concurrently(
     heartbeat=None,
     stop: threading.Event | None = None,
     max_workers: int | None = None,
+    on_minute: Callable[[str, int, object], None] | None = None,
 ) -> list[str]:
     """The live loop: every due slot in its own thread, the clock ticking while they run.
 
@@ -484,8 +486,13 @@ def run_concurrently(
             if heartbeat is not None:
                 heartbeat.slot_started(slot, day, minutes_expected=source.n_minutes,
                                        cameras=source.cameras())
+            # Each decided minute as it happens, for a person watching the run; the
+            # verdict itself still waits for the whole slot.
+            minute_cb = ((lambda m, state: on_minute(slot_id, m, state))
+                         if on_minute is not None else None)
             run = _execute(slot, day, _ObservedSource(source, slot_id, stop, heartbeat),
-                           classify=classify, pipeline=pipeline, evidence_dir=evidence_dir)
+                           classify=classify, pipeline=pipeline, evidence_dir=evidence_dir,
+                           on_minute=minute_cb)
             if connection is not None:
                 with db_lock:
                     _persist(connection, slot, day, run, model_key)

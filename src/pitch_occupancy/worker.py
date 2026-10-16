@@ -625,8 +625,11 @@ def _record_live(args, urls, schedule, heartbeat) -> list[str]:
     # production id; `/roi` is where a person confirms or redraws it.
     missing = _report_boundaries(
         pipeline,
-        [(slot.venue_id, cam, f"{slot.venue_id}/{cam}", urls[slot.venue_id][cam], None)
-         for slot in schedule.slots for cam in slot.cameras],
+        # Once per camera, not once per slot: a schedule of 144 short slots on one camera
+        # printed the same boundary line 144 times.
+        list(dict.fromkeys(
+            (slot.venue_id, cam, f"{slot.venue_id}/{cam}", urls[slot.venue_id][cam], None)
+            for slot in schedule.slots for cam in slot.cameras)),
         derive=args.derive_roi,
     )
     if missing and not args.derive_roi:
@@ -649,6 +652,7 @@ def _record_live(args, urls, schedule, heartbeat) -> list[str]:
             evidence_dir=args.evidence_dir,
             iterations=args.iterations,
             on_slot=_report,
+            on_minute=_report_minute,
             heartbeat=heartbeat,
             stop=stop,
         )
@@ -691,6 +695,15 @@ def _report_boundaries(
             print(f"  boundary {venue}/{camera:<10} MISSING - minutes will read UNCERTAIN")
         missing.append(f"{venue}/{camera}")
     return missing
+
+
+def _report_minute(slot_id: str, minute: int, state: object) -> None:
+    """One line per decided minute of a live slot, so whoever runs it sees the system working
+    before the slot's verdict exists - at a 60-minute slot that is otherwise an hour of
+    silence."""
+    value = getattr(state, "value", state)
+    print(f"  {datetime.now():%H:%M:%S}  {slot_id:<34} minute {minute:>3}  {value}",
+          flush=True)
 
 
 def _report(slot_id: str, outcome: object) -> None:

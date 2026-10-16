@@ -379,6 +379,12 @@ def open_capture(url: str, timeout_ms: int = 5000):
     match = _USB_RE.match(url.strip().lower())
     if match:
         return cv2.VideoCapture(int(match.group(1)))
+    # RTSP over TCP unless the operator chose otherwise. FFMPEG's default is UDP, and on the
+    # first real camera (2026-10-16, a 57 ms Wi-Fi link) UDP lost enough packets that frames
+    # arrived half grey and the stream managed 5 fps, against a clean 26 fps over TCP. A
+    # frame with its bottom half missing is not a frame the detector can count people in.
+    # OpenCV reads this variable at every open, so it applies to the capture below.
+    os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp")
     # Passed to the constructor, not set afterwards: the constructor *is* the open, so an
     # open timeout set on the returned capture applies to nothing (`set` returns False) and
     # a dead camera cost FFMPEG's ~30 s default per attempt instead of ``timeout_ms``.

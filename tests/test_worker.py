@@ -400,7 +400,24 @@ def test_comment_keys_are_dropped_so_the_example_can_explain_itself(tmp_path) ->
     assert worker.load_camera_urls(config) == {"venue_01": {"camera_A": "rtsp://h/1"}}
 
 
-def test_a_scheduled_venue_with_no_cameras_stops_the_run(tmp_path, monkeypatch, capsys) -> None:
+@pytest.fixture()
+def venue_01_schedule(tmp_path, monkeypatch):
+    """The live checks read `configs/slots_schedule.json`, which is each site's own file; these
+    tests bring their own so they do not depend on what a site has scheduled."""
+    import json
+
+    from pitch_occupancy import scheduler
+
+    path = tmp_path / "slots_schedule.json"
+    path.write_text(json.dumps([{"venue_id": "venue_01", "field_id": "field_01",
+                                 "start": "10:00", "duration_minutes": 60,
+                                 "cameras": ["camera_A", "camera_B"]}]), encoding="utf-8")
+    monkeypatch.setattr(scheduler, "DEFAULT_SCHEDULE", path)
+    return path
+
+
+def test_a_scheduled_venue_with_no_cameras_stops_the_run(
+        tmp_path, monkeypatch, capsys, venue_01_schedule) -> None:
     """Found now rather than an hour later inside `live_sources`. A slot with no reachable
     camera has no state, and defaulting to one invents it."""
     import argparse
@@ -415,7 +432,7 @@ def test_a_scheduled_venue_with_no_cameras_stops_the_run(tmp_path, monkeypatch, 
         worker._run_live(args)
 
 
-def test_a_slot_camera_with_no_url_stops_the_run(tmp_path) -> None:
+def test_a_slot_camera_with_no_url_stops_the_run(tmp_path, venue_01_schedule) -> None:
     """The venue check is not enough. `live_sources` does catch a missing camera id, but it
     catches it at slot time: a config naming camera_A for a slot that wants A and B starts
     cleanly, runs for an hour, and dies at the first boundary. Half a pitch reported as the

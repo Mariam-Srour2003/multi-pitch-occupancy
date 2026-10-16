@@ -290,3 +290,20 @@ def test_the_synchronous_runner_is_unchanged_for_recorded_video() -> None:
                   classify=lambda image: (Class3.EMPTY, 0.9))
     assert sorted(ran) == sorted(IDS)
     assert set(threads) == {threading.current_thread().name}
+
+
+def test_each_decided_minute_is_reported_as_it_happens(db) -> None:
+    """A live slot is otherwise silent until its verdict; the worker prints these lines."""
+    import threading
+
+    seen: list[tuple[str, int]] = []
+    lock = threading.Lock()
+
+    def on_minute(slot_id, minute, state) -> None:
+        with lock:
+            seen.append((slot_id, minute))
+
+    harness = Harness(SimClock())
+    run(harness, until=datetime(2026, 7, 11, 10, 5), conn=db, on_minute=on_minute)
+    for slot_id, src in harness.sources.items():
+        assert sorted(m for s, m in seen if s == slot_id) == list(range(src.n_minutes))

@@ -372,3 +372,17 @@ def test_the_capture_timeouts_are_given_to_the_open_itself(monkeypatch) -> None:
     params = dict(zip(seen["params"][::2], seen["params"][1::2], strict=True))
     assert params[cv2.CAP_PROP_OPEN_TIMEOUT_MSEC] == 1234
     assert params[cv2.CAP_PROP_READ_TIMEOUT_MSEC] == 1234
+
+
+def test_rtsp_is_read_over_tcp_unless_the_operator_chose_otherwise(monkeypatch) -> None:
+    """UDP lost packets on the first real camera: half-grey frames at 5 fps, against 26 fps
+    over TCP. An explicit choice in the environment is left alone."""
+    monkeypatch.setattr(cameras.cv2, "VideoCapture", lambda *a: object())
+    monkeypatch.delenv("OPENCV_FFMPEG_CAPTURE_OPTIONS", raising=False)
+    cameras.open_capture(URL, 1000)
+    import os
+
+    assert os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] == "rtsp_transport;tcp"
+    monkeypatch.setenv("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;udp")
+    cameras.open_capture(URL, 1000)
+    assert os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] == "rtsp_transport;udp"
