@@ -14,8 +14,11 @@ is the source footage — 4.2 GB from a client facility, one copy, not regenerab
 
 So the protected roots are named, the planner refuses to consider anything under them, and a
 test asserts the refusal. "Raw frames" in the ethics commitment means *frames sampled by the
-running system*, which live in `data/interim/`; it does not mean the labelled corpus, and a
-worker that conflated the two would be the most expensive bug this project could ship.
+running system*, which live in `data/interim/sampled/`; it does not mean the labelled corpus,
+and a worker that conflated the two would be the most expensive bug this project could ship.
+The rest of `data/interim/` is research data (the clip sidecar with the hand-corrected
+lighting labels, extracted clip frames, generated-image batches), so retention never scans
+`data/interim/` as a whole.
 
 The cautious half
 -----------------
@@ -56,6 +59,12 @@ PROTECTED_ROOTS: tuple[Path, ...] = (
     settings.feature_cache_dir,
     settings.results_dir,
 )
+
+#: Where frames sampled by the running system belong. Its own directory, because
+#: `data/interim/` itself holds research files that are older than 7 days and must not go:
+#: pointing the 7-day rule at all of it listed 683 files, including `clip_frames.csv`,
+#: without which `pitch manifest` drops every clip frame.
+SAMPLED_DIR: Path = settings.interim_dir / "sampled"
 
 
 #: A slot writes one JPEG per observed minute and deletes all but three at the end, so the
@@ -166,13 +175,19 @@ class RetentionPlan:
 
 
 def _is_protected(path: Path) -> bool:
+    """Whether scanning ``path`` could reach protected data.
+
+    True when ``path`` is inside a protected root, *or contains one* - scanning `data/`
+    would recurse into `data/raw/` just as surely as scanning `data/raw/` itself. The bare
+    `data/interim/` counts too: it holds the research files `SAMPLED_DIR` was split off from.
+    """
     resolved = path.resolve()
+    if resolved == settings.interim_dir.resolve():
+        return True
     for root in PROTECTED_ROOTS:
-        try:
-            resolved.relative_to(root.resolve())
+        guarded = root.resolve()
+        if resolved.is_relative_to(guarded) or guarded.is_relative_to(resolved):
             return True
-        except ValueError:
-            continue
     return False
 
 
@@ -191,7 +206,7 @@ def plan(
     pol = policy or RetentionPolicy()
     clock = time.time() if now is None else now
     roots = [
-        (sampled_dir or settings.interim_dir, pol.sampled_frame_days, "sampled frame"),
+        (sampled_dir or SAMPLED_DIR, pol.sampled_frame_days, "sampled frame"),
         (evidence_dir or settings.evidence_dir, pol.evidence_days, "evidence"),
     ]
 

@@ -159,3 +159,22 @@ def test_clip_frame_without_sidecar_entry_is_reported(dataset_with_clips) -> Non
     rows, problems = build_manifest(ds, sidecar=sidecar)
     assert len(rows) == 6
     assert any("no sidecar entry" in p for p in problems)
+
+
+def test_the_sidecar_and_venue_config_do_not_depend_on_the_working_directory(
+        tmp_path, monkeypatch) -> None:
+    """Relative paths made `pitch manifest` from another directory find no sidecar and write
+    a manifest without all 417 clip frames."""
+    from pitch_occupancy.data import extract
+
+    assert extract.CLIP_SIDECAR.is_absolute()
+    assert extract.CLIP_VENUES.is_absolute()
+    monkeypatch.chdir(tmp_path)
+    assert load_clip_venues()
+
+
+def test_a_missing_sidecar_refuses_rather_than_dropping_every_clip_frame(
+        dataset_with_clips, tmp_path) -> None:
+    ds, _ = dataset_with_clips
+    with pytest.raises(FileNotFoundError, match="clip sidecar"):
+        build_manifest(ds, sidecar=tmp_path / "nowhere.csv")

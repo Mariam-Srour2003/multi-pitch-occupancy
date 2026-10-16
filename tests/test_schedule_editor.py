@@ -188,3 +188,14 @@ def test_bookings_still_have_no_write_path(client) -> None:
     assert {m for m in dir(CsvBookingSource) if not m.startswith("_")} == {
         "read", "path", "source"
     }
+
+
+def test_two_quick_edits_keep_both_previous_versions(schedule) -> None:
+    """The backup name had one-second resolution, so two saves in the same second wrote
+    the same backup file and the version before both was lost."""
+    se.write_schedule([{**GOOD, "start": "11:00"}], schedule)
+    se.write_schedule([{**GOOD, "start": "12:00"}], schedule)
+    se.write_schedule([{**GOOD, "start": "13:00"}], schedule)
+    starts = sorted(json.loads(p.read_text(encoding="utf-8"))[0]["start"]
+                    for p in se.history_dir(schedule).glob(f"{schedule.stem}.*.json"))
+    assert starts == ["10:00", "11:00", "12:00"]

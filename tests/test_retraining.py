@@ -191,3 +191,36 @@ def test_the_description_says_the_frames_are_unfiled(staged) -> None:
     text = plan(conn, dataset_dir=dataset).describe()
     assert "UNFILED" in text
     assert "USED" in text
+
+
+def test_harvest_finds_evidence_stored_relative_to_the_project_root(tmp_path) -> None:
+    """The README runs the worker with `--evidence-dir data/evidence`, so the stored paths
+    are relative to the project root. They were resolved against the dataset directory
+    (`data/processed/data/evidence/...`), and the harvest staged nothing."""
+    import cv2
+
+    from pitch_occupancy.config import PROJECT_ROOT
+    from pitch_occupancy.db.store import ensure_slot
+
+    folder = PROJECT_ROOT / "data" / "evidence" / "_test_retraining_relative"
+    folder.mkdir(parents=True, exist_ok=True)
+    frame = folder / "minute_000_camera_A.jpg"
+    try:
+        cv2.imwrite(str(frame), np.zeros((8, 8, 3), np.uint8))
+        conn = connect(":memory:")
+        initialise(conn)
+        ensure_slot(conn, slot_id=SLOT, venue_id="venue_01", field_id="field_01",
+                    cameras=["camera_A"], slot_date="2026-07-11", start_time="10:00",
+                    end_time="11:00")
+        record_slot(conn, SLOT, aggregate_slot([Class3.EMPTY] * 10), samples=[],
+                    evidence_paths=[frame.relative_to(PROJECT_ROOT).as_posix()],
+                    model_key="test")
+        override_verdict(conn, SLOT, status=SlotStatus.USED, operator="a.demir")
+
+        harvest = plan(conn, dataset_dir=tmp_path / "dataset")
+        assert len(harvest) == 1
+        assert not harvest.missing
+        assert harvest.frames[0].source.resolve() == frame.resolve()
+    finally:
+        frame.unlink(missing_ok=True)
+        folder.rmdir()

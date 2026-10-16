@@ -43,6 +43,8 @@ class FusedState:
     confidence: float
     disagreed: bool
     per_camera: tuple[tuple[str, Class3, float], ...]
+    #: The camera whose observation decided ``state`` - the one whose frame justifies it.
+    winning_camera: str = ""
 
     @property
     def n_cameras(self) -> int:
@@ -77,6 +79,7 @@ def fuse(observations: dict[str, tuple[Class3 | str, float]]) -> FusedState:
             return FusedState(
                 state=candidate,
                 confidence=winning[2],
+                winning_camera=winning[0],
                 disagreed=len(set(states)) > 1,
                 per_camera=per_camera,
             )

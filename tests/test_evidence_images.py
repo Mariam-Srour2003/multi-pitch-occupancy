@@ -295,3 +295,19 @@ def test_a_path_relative_to_the_project_root_resolves(tmp_path, monkeypatch) -> 
         target.unlink(missing_ok=True)
         with contextlib.suppress(OSError):  # the directory is shared if two tests overlap
             target.parent.rmdir()
+
+
+def test_the_saved_frame_is_the_winner_even_when_the_empty_half_is_more_confident(
+        tmp_path) -> None:
+    """The probe path picked the most confident camera of *any* class. With the empty half
+    read at 0.97 and the playing half at 0.88, a play minute saved the empty half."""
+    def confident_empty(image: np.ndarray) -> tuple[Class3, float]:
+        if image[0, 0, 0] > 100:
+            return Class3.ACTIVE_PLAY, 0.88
+        return Class3.EMPTY, 0.97
+
+    run = run_slot(SLOT, TwoCameraSlot(), confident_empty, evidence_dir=tmp_path)
+    playing = [e for e in run.evidence if e.predicted is Class3.ACTIVE_PLAY]
+    assert playing, "the fixture should produce at least one ACTIVE_PLAY minute"
+    for frame in playing:
+        assert frame.image_path and "camera_A" in Path(frame.image_path).name

@@ -70,8 +70,8 @@ def seed(db_path: Path | None = None) -> dict[str, str]:
     # slot -> minute -> camera -> class, from the frames themselves
     grid: dict[str, dict[int, dict[str, Class3]]] = defaultdict(lambda: defaultdict(dict))
     for r in manifest:
-        if r.source == "clip":
-            continue  # highlights have no slot structure
+        if r.source not in ("regular", "motion"):
+            continue  # highlights and generated frames have no slot structure
         grid[r.slot_id][r.t_s // 60][r.camera] = Class3(r.class3)
 
     with transaction(conn):

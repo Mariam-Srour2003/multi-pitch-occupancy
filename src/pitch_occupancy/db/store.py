@@ -43,10 +43,17 @@ def record_slot(
     model_key: str,
     evidence_paths: Sequence[str] = (),
 ) -> None:
-    """Persist a verdict together with every sample behind it, atomically."""
+    """Persist a verdict together with every sample behind it, atomically.
+
+    Recording a slot again (a worker restart, a second replay) replaces the model's output
+    but never the operator's: the previous run's samples are dropped so the two runs do not
+    mix, and the override columns survive. `INSERT OR REPLACE` would delete and re-insert the
+    evaluation row, silently resetting a human correction to "not overridden".
+    """
     with transaction(conn):
+        conn.execute("DELETE FROM frame_samples WHERE slot_id = ?", (slot_id,))
         conn.executemany(
-            """INSERT OR REPLACE INTO frame_samples
+            """INSERT INTO frame_samples
                (slot_id, camera_id, captured_at, minute_index, predicted, confidence, image_path)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
             [
@@ -56,10 +63,18 @@ def record_slot(
             ],
         )
         conn.execute(
-            """INSERT OR REPLACE INTO slot_evaluations
+            """INSERT INTO slot_evaluations
                (slot_id, status, reason, play_ratio, empty_ratio, maintenance_ratio,
                 n_samples, mean_confidence, evidence_paths, evaluated_at, model_key)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(slot_id) DO UPDATE SET
+                   status = excluded.status, reason = excluded.reason,
+                   play_ratio = excluded.play_ratio, empty_ratio = excluded.empty_ratio,
+                   maintenance_ratio = excluded.maintenance_ratio,
+                   n_samples = excluded.n_samples,
+                   mean_confidence = excluded.mean_confidence,
+                   evidence_paths = excluded.evidence_paths,
+                   evaluated_at = excluded.evaluated_at, model_key = excluded.model_key""",
             (
                 slot_id, verdict.status.value, verdict.reason, verdict.play_ratio,
                 verdict.empty_ratio, verdict.maintenance_ratio, verdict.n_samples,

@@ -108,7 +108,9 @@ def write_schedule(entries: list[dict], path: Path | None = None) -> Path:
 
     backups = history_dir(target)
     backups.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+    # Microseconds: two edits in the same second would otherwise share a backup name, and
+    # the second copy would overwrite the first - losing the version before both.
+    stamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
     backup = backups / f"{target.stem}.{stamp}.json"
     if target.exists():
         shutil.copy2(target, backup)

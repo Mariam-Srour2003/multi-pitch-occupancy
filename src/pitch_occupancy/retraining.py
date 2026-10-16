@@ -144,6 +144,23 @@ class HarvestPlan:
         return "\n".join(lines)
 
 
+def _resolve_evidence(path: Path, dataset_dir: Path) -> Path:
+    """Where a stored evidence path is on disk.
+
+    The worker stores evidence paths as given on its command line, so the README's
+    `--evidence-dir data/evidence` gives paths relative to the project root, not to the
+    dataset. Same order as `api/routes.evidence_image`: project root first, then dataset.
+    """
+    if path.is_absolute():
+        return path
+    from pitch_occupancy.config import PROJECT_ROOT
+
+    for base in (PROJECT_ROOT, dataset_dir):
+        if (base / path).exists():
+            return base / path
+    return PROJECT_ROOT / path
+
+
 def plan(connection, *, dataset_dir: Path | None = None) -> HarvestPlan:
     """What would be staged from the overridden slots. Reads; copies nothing.
 
@@ -178,9 +195,7 @@ def plan(connection, *, dataset_dir: Path | None = None) -> HarvestPlan:
             # than guess: staging a frame under an unknown verdict files it nowhere useful.
             continue
         for path_text in json.loads(evidence or "[]"):
-            source = Path(path_text)
-            if not source.is_absolute():
-                source = Path(dataset_dir) / source
+            source = _resolve_evidence(Path(path_text), Path(dataset_dir))
             if not source.exists():
                 missing.append(f"{slot_id}: {path_text}")
                 continue

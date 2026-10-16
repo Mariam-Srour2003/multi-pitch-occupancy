@@ -38,10 +38,16 @@ from pathlib import Path
 
 import cv2
 
+from pitch_occupancy.config import CONFIGS_DIR, settings
+
 __all__ = ["ClipFrame", "load_clip_venues", "extract_clip_frames", "CLIP_SIDECAR",
            "UNKNOWN_LIGHTING"]
 
-CLIP_SIDECAR = Path("data/interim/clip_frames.csv")
+#: Anchored to the configured data directory, not the working directory. As a bare relative
+#: path, `pitch manifest` run from anywhere but the repo root found no sidecar and wrote a
+#: manifest without all 417 clip frames - the whole locked final test set among them.
+CLIP_SIDECAR = settings.interim_dir / "clip_frames.csv"
+CLIP_VENUES = CONFIGS_DIR / "clip_venues.csv"
 
 #: What a clip frame's lighting is on extraction: not known. See the module docstring -
 #: brightness cannot tell a floodlit pitch from a bright afternoon, and pretending otherwise
@@ -63,7 +69,7 @@ class ClipFrame:
 
 def load_clip_venues(path: Path | None = None) -> dict[str, tuple[str, str]]:
     """Map clip filename -> (venue, venue_code)."""
-    path = path or Path("configs/clip_venues.csv")
+    path = path or CLIP_VENUES
     with path.open(newline="", encoding="utf-8") as fh:
         return {r["file"]: (r["venue"], r["venue_code"]) for r in csv.DictReader(fh)}
 

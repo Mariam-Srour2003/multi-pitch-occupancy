@@ -235,3 +235,28 @@ def test_a_full_disk_still_produces_the_verdict(tmp_path, monkeypatch) -> None:
     assert run.minutes_captured == 3
     assert not any(tmp_path.iterdir()), "wrote evidence despite refusing for space"
     assert all(e.image_path is None for e in run.evidence)
+
+
+def test_the_default_sampled_root_is_not_the_research_data_in_interim() -> None:
+    """`data/interim/` holds the clip sidecar, extracted clip frames and generated batches,
+    all older than 7 days. Scanning it whole listed 683 research files for deletion."""
+    from pitch_occupancy import retention
+
+    assert settings.interim_dir != retention.SAMPLED_DIR
+    assert retention.SAMPLED_DIR.is_relative_to(settings.interim_dir)
+    with pytest.raises(ValueError, match="protected root"):
+        plan(sampled_dir=settings.interim_dir)
+
+
+def test_a_root_that_contains_a_protected_root_is_refused() -> None:
+    """Scanning `data/` would recurse into `data/raw/` as surely as scanning it directly."""
+    with pytest.raises(ValueError, match="protected root"):
+        plan(sampled_dir=settings.raw_dir.parent)
+
+
+def test_the_real_research_files_are_never_planned_for_deletion() -> None:
+    sidecar = settings.interim_dir / "clip_frames.csv"
+    got = plan(now=time.time() + 10 * 365 * 86400)
+    assert all(c.path.resolve() != sidecar.resolve() for c in got.delete)
+    assert all(not c.path.resolve().is_relative_to((settings.interim_dir / "frames").resolve())
+               for c in got.delete)

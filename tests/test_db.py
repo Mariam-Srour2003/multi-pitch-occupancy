@@ -150,3 +150,56 @@ def test_evidence_paths_round_trip(conn) -> None:
     import json
 
     assert json.loads(load_verdict(conn, "s1")["evidence_paths"]) == ["a.jpg", "b.jpg", "c.jpg"]
+
+
+# --- re-recording a slot ----------------------------------------------------------------------
+
+
+def test_re_recording_a_slot_keeps_the_override(conn) -> None:
+    """A worker restart or a second replay records the slot again. `INSERT OR REPLACE`
+    deleted and re-inserted the row, resetting the operator's correction to "not overridden"
+    and losing the retraining label with it."""
+    record_slot(conn, "s1", verdict(), samples(), model_key="m")
+    override_verdict(conn, "s1", SlotStatus.NOTUSED, operator="maria", note="no one came")
+    record_slot(conn, "s1", verdict(SlotStatus.REVIEW), samples(), model_key="m2")
+
+    row = load_verdict(conn, "s1")
+    assert row["is_overridden"] == 1
+    assert row["override_status"] == "NOTUSED"
+    assert row["override_by"] == "maria"
+    assert row["override_note"] == "no one came"
+    assert row["status"] == "REVIEW"  # the model's own columns are updated
+    assert row["model_key"] == "m2"
+    assert [r["slot_id"] for r in overridden_slots(conn)] == ["s1"]
+
+
+def test_re_recording_a_slot_replaces_its_samples_rather_than_mixing_two_runs(conn) -> None:
+    record_slot(conn, "s1", verdict(), samples(6), model_key="m")
+    record_slot(conn, "s1", verdict(), samples(3), model_key="m")
+    minutes = [r[0] for r in conn.execute(
+        "SELECT minute_index FROM frame_samples WHERE slot_id = 's1' ORDER BY minute_index")]
+    assert minutes == [0, 1, 2]
+
+
+def test_seed_skips_generated_frames(tmp_path: Path, monkeypatch) -> None:
+    """Generated frames have no slot, date or physical camera; seeding them as a recorded
+    slot failed with `FOREIGN KEY constraint failed`."""
+    from pitch_occupancy.config import settings
+    from pitch_occupancy.db.seed import seed
+
+    header = ("file,label,class3,venue,camera,slot_date,slot_time,slot_id,t_s,source,"
+              "labeled_by,lighting,quality,split_role")
+    rows = [
+        "1_empty/slot_20260711_1000_camA_t000029.jpg,1_empty,C1_EMPTY,venue_01,"
+        "slot_20260711_1000_camA,2026-07-11,10:00,venue_01_2026-07-11_1000,29,regular,"
+        "human,day,unknown,",
+        "1_empty/syn_b1_001.jpg,1_empty,C1_EMPTY,venue_01,syn_b1,,,syn_b1,0,synthetic,"
+        "human,day,unknown,",
+    ]
+    dataset = tmp_path / "processed"
+    dataset.mkdir()
+    (dataset / "manifest.csv").write_text("\n".join([header, *rows]) + "\n", encoding="utf-8")
+    monkeypatch.setattr(settings, "dataset_dir", dataset)
+
+    verdicts = seed(tmp_path / "seed.db")
+    assert list(verdicts) == ["venue_01_2026-07-11_1000"]

@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import os
 import shutil
 from collections import Counter
 from pathlib import Path
@@ -69,7 +70,9 @@ def read_config() -> list[dict]:
 
 
 def find_source(name: str) -> Path | None:
-    for folder in SOURCES:
+    # RAW last: once ingested, the copy kept in data/raw/ is a source too, so a re-run on
+    # a machine without the original Downloads folders still finds the clips.
+    for folder in (*SOURCES, RAW):
         candidate = folder / name
         if candidate.exists():
             return candidate
@@ -175,35 +178,59 @@ def main() -> int:
     print(f"\n{sum(per_class.values())} frame(s) from {len(sidecar_rows) and len(rows)} clips")
     for cls, n in sorted(per_class.items()):
         print(f"  {cls.value:<30}{n:>5}")
-    if args.apply:
-        # Appended to the sidecar `data.extract` writes and `manifest` reads, because a
-        # second sidecar would be a second place for a venue to be recorded and a second
-        # chance for the two to disagree. Keyed by filename, so a re-run replaces.
+    if args.apply and not sidecar_rows:
+        print("\nnothing extracted - sidecar and provenance left untouched")
+    elif args.apply:
         from pitch_occupancy.data.extract import CLIP_SIDECAR
 
-        fields = ["file", "venue", "venue_code", "clip_id", "t_ms", "brightness", "lighting"]
-        existing: dict[str, dict] = {}
-        if CLIP_SIDECAR.exists():
-            with CLIP_SIDECAR.open(newline="", encoding="utf-8") as fh:
-                existing = {r["file"]: r for r in csv.DictReader(fh)}
-        for r in sidecar_rows:
-            existing[r["file"]] = {k: r[k] for k in fields}
-        CLIP_SIDECAR.parent.mkdir(parents=True, exist_ok=True)
-        with CLIP_SIDECAR.open("w", newline="", encoding="utf-8") as fh:
-            w = csv.DictWriter(fh, fieldnames=fields)
-            w.writeheader()
-            w.writerows(existing.values())
         provenance = RAW / "provenance.csv"
-        with provenance.open("w", newline="", encoding="utf-8") as fh:
-            w = csv.DictWriter(fh, fieldnames=list(sidecar_rows[0]))
-            w.writeheader()
-            w.writerows(sidecar_rows)
+        write_outputs(sidecar_rows, sidecar=CLIP_SIDECAR, provenance=provenance)
         print(f"\n{len(sidecar_rows)} row(s) into {CLIP_SIDECAR}")
         print(f"sources copied to {RAW}, provenance in {provenance.name}")
         print("next: `uv run pitch manifest`, then scripts/assign_scene_ids.py")
     else:
         print("\ndry run - pass --apply to write")
     return 0
+
+
+SIDECAR_FIELDS = ["file", "venue", "venue_code", "clip_id", "t_ms", "brightness", "lighting"]
+
+
+def _merge_csv(path: Path, rows: list[dict], fields: list[str]) -> None:
+    """Merge ``rows`` into the CSV at ``path`` by `file`, replacing it atomically.
+
+    Earlier runs' rows are kept and a re-run replaces only the frames it produced again.
+    The file is written beside the target and swapped in with `os.replace`, so a crash
+    part-way leaves the old file whole: `provenance.csv` is the only record of which clip
+    each frame came from, and `data/raw/` has no backup. (It used to be opened with "w"
+    before the first row was read, and a run that found no clips emptied it.)
+    """
+    existing: dict[str, dict] = {}
+    if path.exists():
+        with path.open(newline="", encoding="utf-8") as fh:
+            existing = {r["file"]: r for r in csv.DictReader(fh)}
+    for r in rows:
+        existing[r["file"]] = {k: r[k] for k in fields}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    staging = path.with_suffix(path.suffix + ".new")
+    with staging.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(existing.values())
+    os.replace(staging, path)
+
+
+def write_outputs(sidecar_rows: list[dict], *, sidecar: Path, provenance: Path) -> None:
+    """Record what was extracted: the clip sidecar and the raw folder's provenance.
+
+    Merged into the sidecar `data.extract` writes and `manifest` reads, because a second
+    sidecar would be a second place for a venue to be recorded and a second chance for the
+    two to disagree. Keyed by filename, so a re-run replaces. Does nothing with no rows.
+    """
+    if not sidecar_rows:
+        return
+    _merge_csv(sidecar, sidecar_rows, SIDECAR_FIELDS)
+    _merge_csv(provenance, sidecar_rows, list(sidecar_rows[0]))
 
 
 if __name__ == "__main__":

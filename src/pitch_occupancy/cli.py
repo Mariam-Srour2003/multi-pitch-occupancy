@@ -273,7 +273,7 @@ def retention_cmd(
 
 @app.command("schedule")
 def schedule_cmd(
-    days: int = typer.Option(1, "--days", help="how far ahead to list"),
+    days: int = typer.Option(1, "--days", min=1, help="how far ahead to list"),
     recordings: bool = typer.Option(
         False, "--from-recordings",
         help="derive the schedule from the recorded slots instead of the config",

@@ -12,7 +12,10 @@ data/
 │   ├── davinci_2026-09-21/       15 operator exports, 4-9 s each, + provenance.csv
 │   └── public_<source>/          CC-licensed evaluation footage, each with provenance.csv
 ├── interim/
-│   └── frames/<camera_tag>/      extracted frames awaiting labels
+│   ├── frames/<camera_tag>/      extracted frames awaiting labels
+│   ├── clip_frames.csv           clip sidecar (venue + lighting per clip frame)
+│   └── sampled/                  frames sampled by the running system; the only part of
+│                                 interim/ that `pitch retention` purges (7 days)
 ├── processed/                    the labelled dataset
 │   ├── 1_empty/  2_playing/  3_maintenance_non_sporting/
 │   ├── labels.csv                per-frame provenance from the labelling tool

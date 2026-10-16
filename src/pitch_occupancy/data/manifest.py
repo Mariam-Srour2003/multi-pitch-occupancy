@@ -138,9 +138,18 @@ def build_manifest(
     labelled = _read_label_provenance(dataset_dir)
 
     # cv2 is only needed to *create* the sidecar, not to read it, so this stays light
-    from pitch_occupancy.data.extract import read_sidecar
+    from pitch_occupancy.data.extract import CLIP_SIDECAR, read_sidecar
 
     clip_meta = read_sidecar(sidecar)
+    # One clip frame without an entry is a problem line; *every* clip frame without one means
+    # the sidecar itself is missing, and writing on would drop the whole clip corpus from the
+    # manifest - including the locked final test set - with a zero exit code.
+    if not clip_meta and any(dataset_dir.glob("[0-9]_*/clip_*.jpg")):
+        raise FileNotFoundError(
+            f"clip frames exist under {dataset_dir} but the clip sidecar "
+            f"{sidecar or CLIP_SIDECAR} is missing or empty; refusing to build a manifest "
+            f"that would drop every clip frame"
+        )
 
     rows: list[ManifestRow] = []
     problems: list[str] = []

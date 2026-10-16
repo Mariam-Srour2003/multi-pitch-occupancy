@@ -248,3 +248,14 @@ def test_the_derived_schedule_matches_the_recorded_slots() -> None:
     assert "venue_01_2026-07-11_1000" in ids, ids
 
 
+
+
+def test_the_schedule_command_refuses_a_listing_of_no_days() -> None:
+    """`--days 0` or a negative number printed a header and nothing else, which reads as an
+    empty schedule."""
+    from typer.testing import CliRunner
+
+    from pitch_occupancy.cli import app
+
+    result = CliRunner().invoke(app, ["schedule", "--days", "0"])
+    assert result.exit_code != 0

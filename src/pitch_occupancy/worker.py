@@ -377,12 +377,9 @@ def run_slot(
             # The frame from the camera whose observation won the fusion - the one that
             # actually justifies the minute's state. Saving an averaged or arbitrary camera
             # would hand an operator a picture of an empty half to explain a verdict of
-            # "play on the other one".
-            winner = max(
-                (c for c, _, _ in fused.per_camera if c in images),
-                key=lambda c: observations[c][1],
-                default=None,
-            )
+            # "play on the other one" - which is what picking the most confident camera of
+            # any class did whenever the empty half was read more confidently.
+            winner = fused.winning_camera or None
             minute_states_out.append(from_class3(state).value)
         fused_states.append(state)
         fused_conf.append(confidence)
