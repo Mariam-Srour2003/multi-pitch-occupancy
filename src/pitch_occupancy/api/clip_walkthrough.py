@@ -26,16 +26,15 @@ import base64
 import json
 import logging
 import os
-import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
+from pitch_occupancy.api import clip_review, limits
 from pitch_occupancy.api.clip_review import (
     MAX_UPLOAD_BYTES,
-    _classifier,
     _clock,
     _derive_boundary,
     _gates,
@@ -54,6 +53,17 @@ LOG = logging.getLogger(__name__)
 #: few megabytes while leaving the heatmap legible. The explanation is always computed on the
 #: frame as decoded - the downscale happens on the way out, never on the way in.
 JPEG_WIDTH: int = 640
+
+
+def _classifier():
+    """`clip_review._classifier`, looked up when called rather than bound at import.
+
+    A ``from ... import _classifier`` copied the function, so a test that swapped the
+    classifier on `clip_review` - the seam that function's docstring names - changed nothing
+    here, and the "stubbed" stream quietly loaded the real model. Patching either this name
+    or `clip_review`'s now takes effect.
+    """
+    return clip_review._classifier()
 
 
 def _jpeg(image_bgr, width: int = JPEG_WIDTH) -> str:
@@ -160,7 +170,7 @@ def walk_records(path: Path, *, interval_s: float, explain_n: int,
             # The other model, on the same frame - a box round each person and a ring
             # round the ball, beside the probe's heatmap. See image_walkthrough for why
             # both are on the page.
-            boxes, found = detector_pane(step.frame_bgr, polygon=step.polygon,
+            boxes, found = detector_pane(step.raw_bgr, polygon=step.polygon,
                                          redact=redact)
             record["boxes"] = _jpeg(boxes)
             record["detector"] = found
@@ -190,10 +200,15 @@ async def walkthrough(
     Same deletion guarantee as `/clip/analyse`, and harder to arrange: a StreamingResponse's
     body runs *after* this function returns, so unlinking here would delete the upload before
     a single frame had been read. The removal happens in the generator's own ``finally``
-    instead, which is the point at which the file has genuinely stopped being needed.
+    instead, which is the point at which the file has genuinely stopped being needed - and,
+    since a client that disconnects leaves that generator suspended until the garbage
+    collector finds it, `CleanupStreamingResponse` closes it and deletes the file itself
+    however the response ends.
     """
-    fd, name = tempfile.mkstemp(suffix=".upload")
-    path = Path(name)
+    # Before the upload: a malformed outline is a 422 now, not an error record after 600 MB
+    # have arrived. `walk_records` parses it again, which costs nothing.
+    _parse_polygon(polygon)
+    fd, path = limits.upload_file()
     accepted = False
     try:
         size = 0
@@ -205,6 +220,7 @@ async def walkthrough(
                 handle.write(chunk)
         if size == 0:
             raise HTTPException(422, "no video in the request body")
+        await limits.run_heavy(limits.check_video_pixels, path, "clip")
         accepted = True
     finally:
         if not accepted:
@@ -231,4 +247,5 @@ async def walkthrough(
         finally:
             path.unlink(missing_ok=True)
 
-    return StreamingResponse(stream(), media_type="application/x-ndjson")
+    return limits.CleanupStreamingResponse(
+        stream(), cleanup=lambda: path.unlink(missing_ok=True))

@@ -76,6 +76,18 @@ class ProbeClassifier:
     spec: object
     probe: object
     n_train: int
+    #: The probe for frames served *with* a boundary, fitted on features pooled inside the
+    #: boundary (`data/cache/<key>_roi.npz`). Pooling inside a polygon gives different numbers
+    #: for the same frame - cosine 0.958 median, 0.725 worst - so handing a whole-frame probe
+    #: polygon-pooled features ran a model nobody had evaluated (16 of 1578 of its own
+    #: training frames flipped). None when no boundary-pooled cache exists.
+    probe_roi: object | None = None
+
+    def probe_for(self, polygon) -> object:
+        """The probe that scores features pooled with (or without) ``polygon``. Every reader
+        of the probe goes through this, so the explanation pages explain the deployed model."""
+        return self.probe_roi if polygon is not None and self.probe_roi is not None \
+            else self.probe
 
     def __call__(self, image_bgr: np.ndarray, *,
                  polygon: list[list[float]] | None = None) -> tuple[Class3, float]:
@@ -111,8 +123,9 @@ class ProbeClassifier:
         pil = [Image.fromarray(np.asarray(im)[:, :, ::-1]) for im in images_bgr]
         features = embed_batch(self.model, self.processor, self.spec, pil,
                                roi_polygon=polygon)
-        proba = self.probe.predict_proba(features)
-        classes = list(self.probe.classes_)
+        probe = self.probe_for(polygon)
+        proba = probe.predict_proba(features)
+        classes = list(probe.classes_)
         return [
             (Class3(classes[int(row.argmax())]), float(row.max()))
             for row in proba
@@ -144,29 +157,49 @@ def load_classifier(
     cache_dir = cache_dir or settings.feature_cache_dir
     dataset_dir = dataset_dir or settings.dataset_dir
 
-    cached = load_cache(key, cache_dir)
     rows = development_rows(read_manifest(dataset_dir / "manifest.csv"))
-    features, kept = features_for(cached, rows)
-    if not kept:
-        raise RuntimeError(
-            f"the {key} cache covers none of the {len(rows)} development rows; "
-            f"run `uv run pitch cache --model {key}` before deploying"
-        )
-    if len(kept) != len(rows):
-        raise RuntimeError(
-            f"the {key} cache covers {len(kept)} of {len(rows)} development rows. "
-            f"Fit on a subset and the deployed model is not the one any table describes; "
-            f"run `uv run pitch cache --model {key}` to bring it up to date"
-        )
+    locked = set(load_final_venues())
 
-    locked = load_final_venues()
-    leaked = sorted({r.venue for r in kept} & set(locked))
-    if leaked:  # belt and braces: development_rows already drops these
-        raise RuntimeError(f"locked venues reached the production fit: {leaked}")
+    def fit(cached, rebuild: str):
+        features, kept = features_for(cached, rows)
+        if not kept:
+            raise RuntimeError(
+                f"the {key} cache covers none of the {len(rows)} development rows; "
+                f"run `{rebuild}` before deploying"
+            )
+        if len(kept) != len(rows):
+            raise RuntimeError(
+                f"the {key} cache covers {len(kept)} of {len(rows)} development rows. "
+                f"Fit on a subset and the deployed model is not the one any table "
+                f"describes; run `{rebuild}` to bring it up to date"
+            )
+        leaked = sorted({r.venue for r in kept} & locked)
+        if leaked:  # belt and braces: development_rows already drops these
+            raise RuntimeError(f"locked venues reached the production fit: {leaked}")
+        return LinearProbe(key, seed=SEED).fit(features, kept), len(kept)
+
+    probe, n_train = fit(load_cache(key, cache_dir), f"uv run pitch cache --model {key}")
+    # The boundary-pooled twin, for frames served with a boundary - which is every frame the
+    # worker scores. Optional, because a deployment can run without boundaries; but a stale
+    # one raises like the whole-frame cache does, rather than fitting on a subset.
+    try:
+        roi_cached = load_cache(key, cache_dir, roi_pooled=True)
+    except FileNotFoundError:
+        import warnings
+
+        warnings.warn(
+            f"no boundary-pooled {key} cache: frames served with a boundary will be scored "
+            f"by the whole-frame probe. Build it with "
+            f"`uv run python scripts/build_roi_cache.py --backbone {key}`",
+            stacklevel=2,
+        )
+        probe_roi = None
+    else:
+        probe_roi, _ = fit(
+            roi_cached, f"uv run python scripts/build_roi_cache.py --backbone {key}")
 
     model, processor, spec = load_backbone(key)
-    probe = LinearProbe(key, seed=SEED).fit(features, kept)
     return ProbeClassifier(
         backbone=key, model=model, processor=processor, spec=spec,
-        probe=probe, n_train=len(kept),
+        probe=probe, n_train=n_train, probe_roi=probe_roi,
     )

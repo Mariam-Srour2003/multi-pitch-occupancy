@@ -52,7 +52,7 @@ or more people", ball or no ball, and the gate now applies it as stated - so the
 per-camera cost above is the price of that rule on this path, not a number the clause still
 avoids. `PersonGate.ball_rescues_small_group=True` restores the clause.
 
-**Failure is silence, not a guess.** A missing detector returns `None` from `detect_people`,
+**Failure is silence, not a guess.** A missing detector returns `None` from `detect_inside`,
 and the gate leaves the verdict alone rather than treating "not checked" as "found nobody" -
 which would turn a broken install into a system that reports every pitch empty.
 
@@ -76,7 +76,7 @@ import numpy as np
 from pitch_occupancy.data.taxonomy import Class3
 
 __all__ = ["BALL_CONFIDENCE", "DETECT_CONFIDENCE", "DETECT_IMGSZ", "Counted",
-           "count_inside", "detect_inside", "PersonGate"]
+           "count_inside", "detect_inside", "gate_weights", "PersonGate"]
 
 #: Long edge the detector runs at. The default 640 shrinks a distant player in a 1080p frame
 #: to a few pixels; 1280 was the setting every number above was measured at, and raising it
@@ -112,7 +112,29 @@ class Counted:
     ball_confidence: float = 0.0
 
 
-def detect_inside(image_bgr, polygon) -> Counted | None:
+def gate_weights(key: str | None = None) -> str:
+    """The absolute path of the weights the gate's detector loads.
+
+    **Resolved against `detector.WEIGHTS_DIR`, never the working directory.** This gate used
+    to pass the bare name ``"yolov8n.pt"`` to ultralytics, which reads a bare name relative
+    to wherever the process was started and, failing that, *downloads* it from GitHub.
+    Started from the repository root it worked; started from anywhere else it reached for
+    the network inside a prediction, and offline it quietly returned None and the gate did
+    nothing - whether the gate ran depended on the shell's current directory (audit VI-3).
+
+    ``key`` defaults to `detector.DEFAULT_DETECTOR`, the model every number in this module's
+    docstring was measured with. An absolute path is what makes `explain.detect_objects`
+    refuse rather than download when the file is missing: it logs the problem at ERROR with
+    the command that fetches the weights, and the gate reports "not checked" as it always
+    has - loud in the log, because a gate that silently stops gating looks exactly like a
+    quiet afternoon.
+    """
+    from pitch_occupancy.vision.detector import DEFAULT_DETECTOR, DETECTORS, weights_path
+
+    return str(weights_path(DETECTORS[key or DEFAULT_DETECTOR]))
+
+
+def detect_inside(image_bgr, polygon, *, detector: str | None = None) -> Counted | None:
     """People and ball inside the boundary from one forward pass. ``None`` if not checked.
 
     Without a polygon every detection counts, which is the pre-boundary behaviour and is
@@ -123,38 +145,31 @@ def detect_inside(image_bgr, polygon) -> Counted | None:
     at the touchline has their centre over the pitch and their feet outside it, and it is the
     feet that say where they stand; a ball spends much of its time in the air and has no feet
     to stand on.
+
+    **The inside test is `counting.count_inside`'s, not a copy of it.** This function kept
+    its own ``0 <= y < height`` check after `counting.inside` was fixed on 2026-09-20 to read a
+    foot on the frame's bottom edge at the last row: a person close enough for the frame to
+    cut off their feet has ``y2 == height``, and the private copy put them outside every
+    polygon, the whole frame included - so the gate overruled real play to EMPTY on exactly
+    the foreground players (audit VI-2). One implementation cannot drift from itself.
     """
+    from pitch_occupancy.vision.counting import count_inside as count_detections
+    from pitch_occupancy.vision.detector import Detection
     from pitch_occupancy.vision.explain import detect_objects
 
     found = detect_objects(image_bgr, confidence=min(DETECT_CONFIDENCE, BALL_CONFIDENCE),
-                           imgsz=DETECT_IMGSZ, classes=(PERSON_CLASS, BALL_CLASS))
+                           model_name=gate_weights(detector), imgsz=DETECT_IMGSZ,
+                           classes=(PERSON_CLASS, BALL_CLASS))
     if found is None:
         return None
 
-    mask = None
     height, width = np.asarray(image_bgr).shape[:2]
-    if polygon is not None:
-        import cv2
-
-        mask = np.zeros((height, width), np.uint8)
-        pts = np.array([[int(x * width), int(y * height)] for x, y in polygon], np.int32)
-        cv2.fillPoly(mask, [pts], 1)
-
-    def inside(box, *, foot: bool) -> bool:
-        if mask is None:
-            return True
-        x1, y1, x2, y2 = box
-        x = (x1 + x2) // 2
-        y = y2 if foot else (y1 + y2) // 2
-        return 0 <= y < height and 0 <= x < width and bool(mask[y, x])
-
-    people, ball_conf = 0, 0.0
-    for cls, box, conf in found:
-        if cls == PERSON_CLASS and conf >= DETECT_CONFIDENCE and inside(box, foot=True):
-            people += 1
-        elif cls == BALL_CLASS and conf >= BALL_CONFIDENCE and inside(box, foot=False):
-            ball_conf = max(ball_conf, conf)
-    return Counted(people=people, ball=ball_conf > 0.0, ball_confidence=ball_conf)
+    count = count_detections(
+        [Detection(cls, tuple(box), conf) for cls, box, conf in found],
+        polygon, (height, width),
+        person_conf=DETECT_CONFIDENCE, ball_conf=BALL_CONFIDENCE)
+    return Counted(people=count.people_inside, ball=count.ball_seen,
+                   ball_confidence=count.ball_confidence)
 
 
 def count_inside(image_bgr, polygon) -> int | None:

@@ -379,10 +379,13 @@ def open_capture(url: str, timeout_ms: int = 5000):
     match = _USB_RE.match(url.strip().lower())
     if match:
         return cv2.VideoCapture(int(match.group(1)))
-    capture = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
-    capture.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, timeout_ms)
-    capture.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, timeout_ms)
-    return capture
+    # Passed to the constructor, not set afterwards: the constructor *is* the open, so an
+    # open timeout set on the returned capture applies to nothing (`set` returns False) and
+    # a dead camera cost FFMPEG's ~30 s default per attempt instead of ``timeout_ms``.
+    return cv2.VideoCapture(url, cv2.CAP_FFMPEG, [
+        cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, timeout_ms,
+        cv2.CAP_PROP_READ_TIMEOUT_MSEC, timeout_ms,
+    ])
 
 
 def _tcp_connect(host: str, port: int, timeout_s: float) -> None:

@@ -299,12 +299,38 @@ def attention_rollout(model, processor, image_bgr: np.ndarray, *,
 _DETECTORS = threading.local()
 
 
+#: Weights paths already reported missing, so a worker polling thirty cameras logs the
+#: problem once per file rather than thirty times a minute.
+_REPORTED_MISSING: set[str] = set()
+
+
 def _detector(model_name: str):
-    """The loaded detector for this thread, or ``None`` if ultralytics is unavailable."""
+    """The loaded detector for this thread, or ``None`` if ultralytics is unavailable.
+
+    **A path that does not exist is refused, not downloaded.** Handed a missing file,
+    ultralytics recognises the basename of one of its own release assets and fetches it from
+    GitHub - inside a prediction, into the working directory, which `vision/detector.py`
+    promises never happens. A name with a directory in it is a caller saying exactly which
+    file it means (`people.gate_weights`), so a missing one is logged at ERROR with the
+    command that fetches it and reported as "not checked". A bare name keeps ultralytics'
+    own resolution, for the callers that still pass one.
+    """
     cache = getattr(_DETECTORS, "models", None)
     if cache is None:
         cache = _DETECTORS.models = {}
     if model_name not in cache:
+        from pathlib import Path
+
+        candidate = Path(model_name)
+        if candidate.parent != Path() and not candidate.is_file():
+            if model_name not in _REPORTED_MISSING:
+                import logging
+
+                _REPORTED_MISSING.add(model_name)
+                logging.getLogger(__name__).error(
+                    "detector weights %s are missing; run `pitch fetch-weights` - nothing "
+                    "is downloaded during a prediction", model_name)
+            return None
         try:
             from ultralytics import YOLO
         except ImportError:  # pragma: no cover - dependency is pinned

@@ -16,7 +16,7 @@ runbook that does not distinguish those is a wish list.
 | # | what breaks | what the system does | status |
 |---|---|---|---|
 | 1 | one camera drops a frame | records the minute as missed for that camera; the other camera still contributes | **enforced** |
-| 2 | one camera dies mid-slot | the slot's `cameras_seen` falls to 1; `concerns()` flags *"half the pitch is unseen"* | **enforced** |
+| 2 | one camera dies mid-slot | play seen on the surviving half still counts, but a minute that looks empty there is **not decided** - EMPTY needs both halves - and counts as not captured, so a slot that lost a camera for most of its length falls under row 3's floor and is `REVIEW`. `cameras_seen` counts only cameras that produced a decided observation, so `concerns()` flags *"half the pitch is unseen"*. Until 2026-10-16 the other half decided alone and a dead camera produced a confident `NOTUSED` | **enforced** (`tests/test_worker.py`) |
 | 3 | **both cameras die mid-slot** | capture rate falls below 0.5 → **verdict is `REVIEW`**, with the reason naming how many minutes of how many were captured | **enforced** (`Thresholds.review_below_capture`) |
 | 4 | no frames at all | `REVIEW`, *"no samples captured for this slot"* | **enforced** |
 | 5 | frames arrive but are unreadable — fog, glare, a dirty lens | `SlotConditions.concerns()` reports low contrast and low confidence to the operator | **advisory only** |

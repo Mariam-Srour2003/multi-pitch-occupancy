@@ -32,6 +32,7 @@ from fastapi.testclient import TestClient
 
 from pitch_occupancy.api.app import app
 from pitch_occupancy.api.image_walkthrough import MAX_IMAGES
+from pitch_occupancy.api.limits import WORKSPACE_PREFIX
 from pitch_occupancy.data.taxonomy import Class3
 from pitch_occupancy.vision.walkthrough import Shot, walk_images
 
@@ -277,10 +278,10 @@ def test_the_uploads_are_deleted_after_streaming(tmp_path) -> None:
     """Same guarantee as the clip route, and it has the same trap: a StreamingResponse's
     body runs after the handler returns, so deleting in the handler would remove the files
     before a single one had been read."""
-    before = set(glob.glob(os.path.join(tempfile.gettempdir(), "shots-*")))
+    before = set(glob.glob(os.path.join(tempfile.gettempdir(), f"{WORKSPACE_PREFIX}*")))
     body = {"images": [{"name": "a.jpg", "data": _b64(_image(tmp_path / "a.jpg"))}]}
     TestClient(app).post("/api/v1/images/walkthrough?explain_n=0", json=body)
-    after = set(glob.glob(os.path.join(tempfile.gettempdir(), "shots-*")))
+    after = set(glob.glob(os.path.join(tempfile.gettempdir(), f"{WORKSPACE_PREFIX}*")))
     assert after == before
 
 
@@ -381,12 +382,117 @@ def test_the_uploads_are_still_deleted_when_the_stream_fails(tmp_path, monkeypat
         raise ImportError("no model")
 
     monkeypatch.setattr(iw, "_classifier", _boom)
-    before = set(glob.glob(os.path.join(tempfile.gettempdir(), "shots-*")))
+    before = set(glob.glob(os.path.join(tempfile.gettempdir(), f"{WORKSPACE_PREFIX}*")))
 
     body = {"images": [{"name": "a.jpg", "data": _b64(_image(tmp_path / "a.jpg"))}]}
     TestClient(app).post("/api/v1/images/walkthrough", json=body)
 
-    assert set(glob.glob(os.path.join(tempfile.gettempdir(), "shots-*"))) == before
+    assert set(glob.glob(os.path.join(tempfile.gettempdir(), f"{WORKSPACE_PREFIX}*"))) == before
+
+
+def _workspaces() -> set[str]:
+    return set(glob.glob(os.path.join(tempfile.gettempdir(), f"{WORKSPACE_PREFIX}*")))
+
+
+def _no_model(monkeypatch) -> None:
+    from pitch_occupancy.api import image_walkthrough as iw
+
+    def _boom(*args, **kwargs):
+        raise ImportError("no model in this test")
+
+    monkeypatch.setattr(iw, "_classifier", _boom)
+
+
+@pytest.mark.parametrize("name", ["a\x00b.jpg", "x" * 255 + ".jpg", "../../escape.jpg"])
+def test_the_callers_filename_never_reaches_the_disk(tmp_path, monkeypatch, name) -> None:
+    """UP-6. A NUL byte or a 255-character name made the write fail after earlier images had
+    been written, the request returned 500, and those images stayed in the temp directory.
+    The files on disk are named by index alone now; the name only travels back in records."""
+    _no_model(monkeypatch)
+    before = _workspaces()
+    data = _b64(_image(tmp_path / "a.jpg"))
+    body = {"images": [{"name": "first.jpg", "data": data}, {"name": name, "data": data}]}
+
+    response = TestClient(app).post("/api/v1/images/walkthrough?explain_n=0", json=body)
+
+    assert response.status_code == 200
+    assert _workspaces() == before
+
+
+def test_a_batch_that_fails_while_being_written_leaves_nothing(tmp_path, monkeypatch) -> None:
+    """UP-6. The workspace is removed on any failure while staging, not only on success."""
+    from pitch_occupancy.api import image_walkthrough as iw
+
+    _no_model(monkeypatch)
+    real = Path.write_bytes
+    calls = []
+
+    def flaky(self, data):
+        calls.append(self)
+        if len(calls) == 2:
+            raise OSError("disk full")
+        return real(self, data)
+
+    monkeypatch.setattr(iw.Path, "write_bytes", flaky)
+    before = _workspaces()
+    data = _b64(_image(tmp_path / "a.jpg"))
+    body = {"images": [{"name": "a.jpg", "data": data}, {"name": "b.jpg", "data": data}]}
+
+    with pytest.raises(OSError, match="disk full"):
+        TestClient(app).post("/api/v1/images/walkthrough", json=body)
+    assert len(calls) == 2
+    assert _workspaces() == before
+
+
+def _png_claiming(width: int, height: int) -> bytes:
+    """A tiny, valid-looking PNG whose header declares ``width`` x ``height`` pixels."""
+    import struct
+    import zlib
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return (struct.pack(">I", len(data)) + kind + data
+                + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF))
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header)
+            + chunk(b"IDAT", zlib.compress(b"\x00" * 64)) + chunk(b"IEND", b""))
+
+
+@pytest.mark.parametrize("side", [12000, 20000])
+def test_an_image_declaring_too_many_pixels_is_refused_before_it_is_decoded(side) -> None:
+    """UP-7. A 17 KiB PNG of 12000x12000 passed every byte cap and decoded to a gigabyte.
+    The header is read first and anything over `MAX_PIXELS` is a 413; 20000x20000 is past
+    PIL's own bomb threshold too, which must also come back as a 413 and not a 500."""
+    before = _workspaces()
+    body = {"images": [{"name": "bomb.png",
+                        "data": base64.b64encode(_png_claiming(side, side)).decode()}]}
+    response = TestClient(app).post("/api/v1/images/walkthrough", json=body)
+    assert response.status_code == 413
+    assert "pixels" in response.text
+    assert _workspaces() == before
+
+
+def test_the_json_body_is_bounded_before_it_is_parsed(monkeypatch) -> None:
+    """UP-8. The image caps applied after FastAPI had buffered and parsed the whole body."""
+    from pitch_occupancy.api import image_walkthrough as iw
+
+    monkeypatch.setattr(iw, "MAX_BODY_BYTES", 1024)
+    body = {"images": [{"name": "a.jpg", "data": "A" * 4096}]}
+    assert TestClient(app).post("/api/v1/images/walkthrough", json=body).status_code == 413
+
+
+def test_a_malformed_outline_is_refused_before_anything_streams(tmp_path) -> None:
+    """UP-9/UP-15. Too many points, or a coordinate too large for a float, is a 422 - not an
+    error record inside a 200 stream, and not a 500."""
+    data = _b64(_image(tmp_path / "a.jpg"))
+    ring = [[0.5, 0.1], [0.9, 0.5], [0.5, 0.9], [0.1, 0.5]] * 20
+    client = TestClient(app)
+    assert client.post("/api/v1/images/walkthrough",
+                       json={"images": [{"data": data}], "polygon": ring}).status_code == 422
+    huge = [[10 ** 400, 0], [0, 1], [1, 1]]
+    assert client.post("/api/v1/images/walkthrough", content=json.dumps(
+        {"images": [{"data": data, "polygon": huge}]}),
+        headers={"Content-Type": "application/json"}).status_code == 422
 
 
 # --- both models on the same frame ----------------------------------------------------------

@@ -202,3 +202,15 @@ def test_the_dashboard_has_the_getting_started_card() -> None:
     assert "Getting started" in DASHBOARD_HTML
     assert "/api/v1/setup/checklist" in DASHBOARD_HTML
     assert "localStorage" in DASHBOARD_HTML
+
+
+def test_the_dashboard_escapes_what_it_reads_from_the_database() -> None:
+    """Slot ids come from the schedule's venue id, which the schedule editor writes. Put
+    into innerHTML and an inline onclick unescaped, a crafted venue id ran script in every
+    operator's browser once its slot was recorded."""
+    from pitch_occupancy.api.dashboard import DASHBOARD_HTML
+
+    assert "onclick=\"openSlot(" not in DASHBOARD_HTML
+    for raw in ("${a.explanation}", "${a.slot_id}", "${s.slot_id}", "${f.field_id}",
+                "${p}</figcaption>"):
+        assert raw not in DASHBOARD_HTML, raw

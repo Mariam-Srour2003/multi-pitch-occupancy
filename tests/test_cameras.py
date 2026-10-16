@@ -251,8 +251,8 @@ def test_open_capture_maps_usb_to_a_device_index(monkeypatch) -> None:
     assert calls == [(2,)]
     calls.clear()
     cameras.open_capture(URL, 1234)
-    assert calls[0] == (URL, cameras.cv2.CAP_FFMPEG)
-    assert ("set", cameras.cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 1234) in calls
+    assert calls[0][:2] == (URL, cameras.cv2.CAP_FFMPEG)
+    assert calls[0][2][:2] == [cameras.cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 1234]
 
 
 def test_rtsp_source_opens_through_the_shared_opener(monkeypatch) -> None:
@@ -352,3 +352,23 @@ def test_recording_health_never_guesses(tmp_path) -> None:
     blank = tmp_path / "blank.db"
     blank.write_bytes(b"")
     assert cameras.recording_health(blank, [("v", "c")], now=now)[("v", "c")]["captured_24h"] == 0
+
+
+def test_the_capture_timeouts_are_given_to_the_open_itself(monkeypatch) -> None:
+    """Set on the capture after construction, the open timeout applied to nothing - the
+    constructor had already opened (or hung on) the stream for FFMPEG's ~30 s default."""
+    import cv2
+
+    from pitch_occupancy import cameras
+
+    seen = {}
+
+    def fake(url, api, params=None):
+        seen.update(url=url, api=api, params=params)
+        return object()
+
+    monkeypatch.setattr(cv2, "VideoCapture", fake)
+    cameras.open_capture("rtsp://10.0.0.5/stream1", 1234)
+    params = dict(zip(seen["params"][::2], seen["params"][1::2], strict=True))
+    assert params[cv2.CAP_PROP_OPEN_TIMEOUT_MSEC] == 1234
+    assert params[cv2.CAP_PROP_READ_TIMEOUT_MSEC] == 1234

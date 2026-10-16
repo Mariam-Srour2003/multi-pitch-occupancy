@@ -183,3 +183,39 @@ def test_it_draws_at_any_frame_size(size) -> None:
     count = count_inside(detections, LEFT_HALF, size, person_conf=0.25, ball_conf=0.1)
     drawn = overlay.draw_verdict(image, decide(count, motion=None, cfg=CFG), polygon=LEFT_HALF)
     assert drawn.shape == image.shape
+
+
+def test_publishable_pixelates_people_outside_the_boundary_too() -> None:
+    """The redaction boxes were the *counted* people only, so everyone outside the outline got
+    the floor blur alone - 9 boxes pixelated on a frame with 17 people (audit RX-3)."""
+    from pitch_occupancy.vision.explain import redact_frame
+
+    original = noisy()
+    inside, outside = person(20, 100, 60, 180), person(300, 20, 360, 180)
+    verdict = verdict_for([inside, outside])
+    assert len(verdict.count.people) == 1 and verdict.count.people_total == 2
+    picture = overlay.publishable(original, verdict, polygon=LEFT_HALF, trace=False)
+    floor_only = redact_frame(original, [inside.box])
+    region = (slice(40, 160), slice(310, 350))  # inside the outside person, clear of drawing
+    assert not np.array_equal(picture[region], floor_only[region]), (
+        "the person outside the boundary must be pixelated, not merely blurred")
+    everyone = redact_frame(original, [inside.box, outside.box])
+    assert np.array_equal(picture[region], everyone[region])
+
+
+def test_the_detector_pane_still_redacts_when_the_detector_is_unavailable(monkeypatch) -> None:
+    """`detector_pane(redact=True)` returned the frame untouched when the detector broke, so the
+    one moment it failed was the moment it leaked (audit RX-4)."""
+    from pitch_occupancy.vision import detector
+
+    class Unavailable:
+        def detect(self, *_args, **_kwargs):
+            return None
+
+    monkeypatch.setattr(detector.Detector, "load", staticmethod(lambda *a, **k: Unavailable()))
+    original = noisy()
+    canvas, found = overlay.detector_pane(original, redact=True)
+    assert found["checked"] is False
+    assert canvas.shape == original.shape
+    assert float(np.asarray(canvas, np.float64).std()) < float(
+        np.asarray(original, np.float64).std()) * 0.7, "the floor of blur must still apply"

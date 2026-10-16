@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from collections import defaultdict
 from pathlib import Path
 
@@ -185,7 +186,30 @@ def main() -> int:
         return 0
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
+    write_merged(args.out, derived)
+    print(f"wrote {args.out}")
+    return 0
+
+
+def write_merged(out: Path, derived: dict[str, list]) -> dict:
+    """Merge ``derived`` into the store at ``out`` and replace it atomically.
+
+    The same file holds the boundaries the worker derives for production cameras
+    (`worker --derive-roi`, via `roi.save_derived`). Rewriting it from this run alone
+    deleted every one of those, so entries this run did not re-derive are kept; a re-derived
+    camera is replaced. An unreadable existing file is refused rather than overwritten.
+    """
+    existing: dict = {}
+    if out.exists():
+        try:
+            existing = json.loads(out.read_text(encoding="utf-8"))
+        except ValueError as exc:
+            raise SystemExit(
+                f"{out} is not valid JSON; fix or move it before writing: {exc}") from exc
+        if not isinstance(existing, dict):
+            raise SystemExit(f"{out} does not hold an object; fix or move it before writing")
     payload = {
+        **existing,
         "_comment": [
             "Pitch boundaries derived from the footage by scripts/derive_roi.py, not drawn.",
             "One per camera, [x, y] as fractions of the frame. Convex hull of the largest",
@@ -194,9 +218,10 @@ def main() -> int:
         ],
         **derived,
     }
-    args.out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    print(f"wrote {args.out}")
-    return 0
+    staging = out.with_suffix(out.suffix + ".new")
+    staging.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    os.replace(staging, out)
+    return payload
 
 
 if __name__ == "__main__":

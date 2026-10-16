@@ -259,3 +259,29 @@ def test_the_schedule_command_refuses_a_listing_of_no_days() -> None:
 
     result = CliRunner().invoke(app, ["schedule", "--days", "0"])
     assert result.exit_code != 0
+
+
+def test_a_slot_crossing_midnight_is_still_due_after_midnight() -> None:
+    """A 23:30 slot of 90 minutes runs until 01:00. Only today's window was checked, so at
+    00:30 it was no longer due - and its id must still carry the day it started."""
+    from pitch_occupancy.scheduler import due_instances
+
+    late = slot("23:30", 90)
+    sched = Schedule((late,))
+    after = datetime(2026, 7, 12, 0, 30)
+    assert due(sched, after) == [late]
+    assert due_instances(sched, after) == [(late, date(2026, 7, 11))]
+    assert due(sched, datetime(2026, 7, 12, 1, 0)) == []
+
+
+def test_a_weekday_slot_crossing_midnight_follows_the_day_it_started() -> None:
+    from pitch_occupancy.scheduler import due_instances
+
+    friday_late = slot("23:30", 90, days=("fri",))
+    sched = Schedule((friday_late,))
+    # 2026-07-11 is a Saturday: the Friday slot is still running at 00:30
+    assert due_instances(sched, datetime(2026, 7, 11, 0, 30)) == [(friday_late,
+                                                                   date(2026, 7, 10))]
+    # and a Saturday 00:30 does not start a Saturday instance
+    assert due(sched, datetime(2026, 7, 12, 0, 30)) == []
+

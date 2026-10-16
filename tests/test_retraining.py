@@ -224,3 +224,17 @@ def test_harvest_finds_evidence_stored_relative_to_the_project_root(tmp_path) ->
     finally:
         frame.unlink(missing_ok=True)
         folder.rmdir()
+
+
+def test_the_retraining_command_runs_on_a_database_that_was_never_initialised(
+        tmp_path, monkeypatch) -> None:
+    """A fresh database has no tables; the command gave `no such table` instead of
+    reporting no overridden slots."""
+    from typer.testing import CliRunner
+
+    from pitch_occupancy.cli import app
+    from pitch_occupancy.config import settings
+
+    monkeypatch.setattr(settings, "db_path", tmp_path / "new.db")
+    result = CliRunner().invoke(app, ["retraining"])
+    assert result.exit_code == 0, result.output

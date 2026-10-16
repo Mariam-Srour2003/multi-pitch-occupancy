@@ -256,11 +256,55 @@ class RuleConfig:
         a missing file raises, because a deployment with no rule file has no rule."""
         source = path or RULES_PATH
         raw = json.loads(Path(source).read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            raise ValueError(f"{Path(source).name} must hold an object of rule settings")
         known = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in raw.items() if k in known})
+        values = {k: v for k, v in raw.items() if k in known}
+        _validate_rule_values(values, Path(source).name)
+        return cls(**values)
 
     def to_json(self) -> dict[str, object]:
         return asdict(self)
+
+
+#: Switches that must be written out. Their code defaults are the strict ones (`require_ball`
+#: True), while the shipped file turns `require_ball` off on measurement - so a file that
+#: merely forgot the key silently ran the opposite of the deployed rule.
+_REQUIRED_SWITCHES = ("require_ball", "require_ball_in_play", "require_motion")
+_POSITIVE_INTS = ("imgsz", "tiles", "play_min", "burst_frames")
+_FRACTIONS = ("person_conf", "ball_conf")
+
+
+def _validate_rule_values(values: dict[str, object], name: str) -> None:
+    """Refuse a rule file that would load into something other than what it says.
+
+    Typed by hand rather than trusted: JSON `"false"` is a truthy string, a negative
+    confidence passes every detection, and neither raised before.
+    """
+    problems = [f"{k} is missing - write it out as true or false"
+                for k in _REQUIRED_SWITCHES if k not in values]
+    for k in _REQUIRED_SWITCHES:
+        if k in values and not isinstance(values[k], bool):
+            problems.append(f"{k} must be true or false, not {values[k]!r}")
+    for k in _POSITIVE_INTS:
+        v = values.get(k)
+        if k in values and (isinstance(v, bool) or not isinstance(v, int) or v < 1):
+            problems.append(f"{k} must be a whole number of at least 1, not {v!r}")
+    group, play = values.get("small_group_max"), values.get("play_min")
+    if isinstance(group, int) and isinstance(play, int) and group >= play:
+        problems.append("small_group_max must be below play_min")
+    for k in _FRACTIONS:
+        v = values.get(k)
+        if k in values and (isinstance(v, bool) or not isinstance(v, int | float)
+                            or not 0.0 <= v <= 1.0):
+            problems.append(f"{k} must be a number between 0 and 1, not {v!r}")
+    for f in ("min_height_intercept", "min_height_slope", "motion_lo", "motion_hi",
+              "cluster_max", "motion_play_min", "hi_vis_min_fraction", "burst_spacing_s"):
+        v = values.get(f)
+        if v is not None and (isinstance(v, bool) or not isinstance(v, int | float)):
+            problems.append(f"{f} must be a number or null, not {v!r}")
+    if problems:
+        raise ValueError(f"{name}: " + "; ".join(problems))
 
 
 def _clip(value: float, low: float, high: float) -> float:

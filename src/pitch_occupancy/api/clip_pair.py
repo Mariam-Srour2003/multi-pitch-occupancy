@@ -18,13 +18,14 @@ names, once per process, and says which in the response.
 from __future__ import annotations
 
 import os
-import tempfile
+import threading
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+from pitch_occupancy.api import limits
 from pitch_occupancy.api.clip_review import (
     MAX_UPLOAD_BYTES,
     SegmentOut,
@@ -41,18 +42,24 @@ __all__ = ["router"]
 router = APIRouter(prefix="/api/v1", tags=["clip review"])
 
 _PIPELINE = None
+_PIPELINE_LOCK = threading.Lock()
 
 
 def _pipeline():
-    """The detector-first pipeline, assembled once. A function so a test can swap it."""
-    global _PIPELINE
-    if _PIPELINE is None:
-        from pitch_occupancy.config import settings
-        from pitch_occupancy.pipeline import assemble
-        from pitch_occupancy.vision.rules import RuleConfig
+    """The detector-first pipeline, assembled once. A function so a test can swap it.
 
-        cfg = RuleConfig.load(settings.rules_path)
-        _PIPELINE = assemble(cfg.detector, require_boundary=False, rules=cfg)
+    Locked because it is called from worker threads now, and two first requests arriving
+    together would otherwise each load the detector.
+    """
+    global _PIPELINE
+    with _PIPELINE_LOCK:
+        if _PIPELINE is None:
+            from pitch_occupancy.config import settings
+            from pitch_occupancy.pipeline import assemble
+            from pitch_occupancy.vision.rules import RuleConfig
+
+            cfg = RuleConfig.load(settings.rules_path)
+            _PIPELINE = assemble(cfg.detector, require_boundary=False, rules=cfg)
     return _PIPELINE
 
 
@@ -155,6 +162,41 @@ async def _receive(request: Request, size_a: int, dirs: tuple[Path, Path], *,
         raise HTTPException(422, "the body holds no second video after size_a bytes")
 
 
+def _analyse_files(paths: list[Path], *, cameras: tuple[str, str],
+                   drawn: tuple[roi.Polygon | None, roi.Polygon | None], whole_frame: bool,
+                   offset_s: float, interval_s: float, window: int):
+    """The work of `/clip/pair/analyse` once both files are on disk, for a worker thread.
+
+    Returns ``(result, sources, pipeline)``.
+    """
+    polygons = []
+    sources = []
+    for path, camera, drawn_one in zip(paths, cameras, drawn, strict=True):
+        limits.check_video_pixels(path, f"camera {camera or len(sources) + 1}'s video")
+        if whole_frame:
+            polygon, source = None, "whole frame"
+        elif drawn_one:
+            polygon, source = drawn_one, "drawn"
+        elif camera and (stored := roi.resolve(camera)):
+            polygon, source = stored, "stored"
+        elif (derived := _derive_boundary(path)) is not None:
+            polygon, source = derived, "derived"
+        else:
+            polygon, source = None, "none"
+        polygons.append(polygon)
+        sources.append(source)
+
+    pipeline = _pipeline()
+    try:
+        result = analyse_pair(paths[0], paths[1], pipeline, offset_s=offset_s,
+                              interval_s=interval_s, window=window,
+                              max_samples=MAX_SAMPLES,
+                              polygons=(polygons[0], polygons[1]))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return result, sources, pipeline
+
+
 @router.post("/clip/pair/analyse", response_model=PairOut)
 async def analyse_two(
     request: Request,
@@ -176,40 +218,22 @@ async def analyse_two(
     """
     if window % 2 == 0:
         raise HTTPException(422, "window must be odd, so each sample has equal neighbours")
-    paths = []
-    for _ in CAMERAS:
-        fd, name = tempfile.mkstemp(suffix=".upload")
-        os.close(fd)
-        paths.append(Path(name))
+    # Before either upload and before the model: a malformed outline is a 422 that costs
+    # nothing, not one discovered after two videos have arrived.
+    drawn_pair = (_parse_polygon(polygon_a), _parse_polygon(polygon_b))
+    paths: list[Path] = []
     try:
+        for _ in CAMERAS:
+            fd, path = limits.upload_file()
+            os.close(fd)
+            paths.append(path)
         await _receive(request, size_a, (paths[0], paths[1]))
-
-        polygons = []
-        sources = []
-        for path, camera, drawn_raw in zip(paths, (camera_a, camera_b),
-                                           (polygon_a, polygon_b), strict=True):
-            drawn = _parse_polygon(drawn_raw)
-            if whole_frame:
-                polygon, source = None, "whole frame"
-            elif drawn:
-                polygon, source = drawn, "drawn"
-            elif camera and (stored := roi.resolve(camera)):
-                polygon, source = stored, "stored"
-            elif (derived := _derive_boundary(path)) is not None:
-                polygon, source = derived, "derived"
-            else:
-                polygon, source = None, "none"
-            polygons.append(polygon)
-            sources.append(source)
-
-        pipeline = _pipeline()
-        try:
-            result = analyse_pair(paths[0], paths[1], pipeline, offset_s=offset_s,
-                                  interval_s=interval_s, window=window,
-                                  max_samples=MAX_SAMPLES,
-                                  polygons=(polygons[0], polygons[1]))
-        except ValueError as exc:
-            raise HTTPException(422, str(exc)) from exc
+        # Decoding two videos and running the detector on both is minutes of CPU, so it runs
+        # in a worker thread rather than on the event loop every other request shares.
+        result, sources, pipeline = await limits.run_heavy(
+            lambda: _analyse_files(paths, cameras=(camera_a, camera_b), drawn=drawn_pair,
+                                   whole_frame=whole_frame, offset_s=offset_s,
+                                   interval_s=interval_s, window=window))
     finally:
         for path in paths:
             path.unlink(missing_ok=True)

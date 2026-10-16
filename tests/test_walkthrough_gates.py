@@ -173,3 +173,194 @@ def test_both_streaming_endpoints_take_their_gates_from_the_one_factory(module, 
     from pitch_occupancy.api.clip_review import _gates as source
 
     assert getattr(importlib.import_module(module), factory) is source
+
+
+# --- the gates see the decoded frame, the probe the masked one (audit UP-13, RX-12) -------
+
+LEFT = [[0.0, 0.0], [0.5, 0.0], [0.5, 1.0], [0.0, 1.0]]
+
+
+class Recording:
+    """A person gate that remembers which pixels it was handed."""
+
+    def __init__(self):
+        self.frames = []
+
+    def inspect(self, state, frame, polygon=None):
+        self.frames.append(frame.copy())
+        return state, Counted(people=6, ball=False)
+
+
+class RecordingMotion:
+    def __init__(self):
+        self.pairs = []
+
+    def apply(self, state, previous, frame, polygon=None):
+        self.pairs.append((previous.copy(), frame.copy()))
+        return state, 0.5
+
+
+def test_the_clip_gates_get_the_unmasked_frame_and_the_polygon(tmp_path) -> None:
+    """`clip_analysis` and the worker hand the gates the frame as decoded and let the polygon
+    confine it. The walkthrough handed them the frame `roi.apply` had blacked out, so a player
+    straddling the line was half erased before the detector looked, and the two tabs counted
+    differently on the same clip."""
+    gate, motion = Recording(), RecordingMotion()
+    steps = list(walk_clip(_video(tmp_path / "c.mp4"), AlwaysPlay(), interval_s=1.0,
+                           explain_n=0, polygon=LEFT, person_gate=gate, motion_gate=motion))
+    assert steps and gate.frames and motion.pairs
+    # The scene is a flat 90 everywhere; the masked frame would be 0 on the right half.
+    for frame in gate.frames:
+        assert frame[:, -5:].min() > 50, "the person gate was given the masked frame"
+    for previous, frame in motion.pairs:
+        assert previous[:, -5:].min() > 50 and frame[:, -5:].min() > 50
+
+
+def test_the_still_gate_gets_the_unmasked_image(tmp_path) -> None:
+    gate = Recording()
+    shots = list(walk_images([_image(tmp_path / "a.png")], AlwaysPlay(), explain_n=0,
+                             polygon=LEFT, person_gate=gate))
+    assert shots and gate.frames
+    assert gate.frames[0][:, -5:].min() > 50
+
+
+# --- max_samples holds on the unexplained branch (audit UP-10) ------------------------------
+
+
+def test_an_unknown_length_stream_stops_at_max_samples_without_explaining(monkeypatch) -> None:
+    """A raw MJPEG/H.264 export reports no duration. With ``explain_n=0`` the only bound was
+    on the explained branch, so every frame of the stream was processed - 2000 steps from a
+    1.2 MB upload - and the clock ran to 19990 minutes."""
+    import cv2
+
+    class EndlessStream:
+        def __init__(self, *_a):
+            pass
+
+        def isOpened(self):  # noqa: N802 - cv2's spelling
+            return True
+
+        def get(self, _prop):
+            return 0.0
+
+        def set(self, *_a):
+            return True
+
+        def read(self):
+            return True, np.full((48, 64, 3), 90, np.uint8)
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(cv2, "VideoCapture", EndlessStream)
+    steps = list(walk_clip("stream.mjpeg", AlwaysPlay(), interval_s=600, explain_n=0,
+                           max_samples=7))
+    assert len(steps) == 7
+
+
+# --- explain_frame: redaction and a missing detector (audit RX-1, RX-9) ---------------------
+
+
+def _explainable(monkeypatch):
+    """A real probe over fake spatial features, so `explain_frame` runs without a backbone."""
+    from types import SimpleNamespace
+
+    from pitch_occupancy.data.manifest import ManifestRow
+    from pitch_occupancy.vision import explain
+    from pitch_occupancy.vision.heads import LinearProbe
+
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(40, 6))
+    rows = [ManifestRow(file=f"{i}.jpg", label="x",
+                        class3="C1_EMPTY" if v < 0 else "C2_ACTIVE_PLAY", venue="v",
+                        camera="c", slot_date="2026-07-11", slot_time="10:00", slot_id="s",
+                        t_s=i, source="regular", labeled_by="human", lighting="day",
+                        quality="ok", split_role="")
+            for i, v in enumerate(X[:, 0])]
+    probe = LinearProbe("t").fit(X, rows)
+    monkeypatch.setattr(explain, "spatial_features",
+                        lambda *_a, **_k: (rng.normal(size=(5, 6)), (2, 2)))
+    return SimpleNamespace(probe=probe, model=None, processor=None,
+                           spec=SimpleNamespace(kind="vit"), backbone="stub", n_train=0)
+
+
+def _noisy(h=120, w=160):
+    return np.random.default_rng(3).integers(0, 256, (h, w, 3), dtype=np.uint8)
+
+
+def test_redacted_frames_use_1280px_detections_on_the_raw_frame_and_the_floor_blur(
+        monkeypatch) -> None:
+    """`redact=True` pixelated only what a 640-px pass found and skipped the floor blur, so
+    5 of the 8 people a 1280-px pass finds on a real frame were shown untouched."""
+    from pathlib import Path
+
+    from pitch_occupancy.vision import explain
+    from pitch_occupancy.vision.walkthrough import explain_frame
+
+    classifier = _explainable(monkeypatch)
+    raw = _noisy()
+    masked = raw.copy()
+    masked[:, 80:] //= 2  # a gentle fill, as `blur` or `mean` leaves people visible outside
+    calls = []
+
+    def detect(image, **kwargs):
+        calls.append((image, kwargs))
+        return [(100, 10, 140, 110)]  # standing outside the left-half outline
+
+    monkeypatch.setattr(explain, "detect_people", detect)
+    out = explain_frame(masked, classifier, redact=True, raw=raw, polygon=LEFT)
+    image, kwargs = calls[0]
+    assert image is raw, "people must be found on the unmasked frame"
+    assert kwargs["imgsz"] == 1280
+    assert Path(kwargs["model_name"]).is_absolute(), "never a bare name relative to the CWD"
+    shown = out["frame_bgr"]
+    # The floor: pixels nowhere near a box are no longer the original pixels.
+    assert not np.array_equal(shown[0:30, 0:30], masked[0:30, 0:30])
+    # The person outside the outline is redacted too - over-redacting costs nothing.
+    from pitch_occupancy.vision.explain import redact_frame
+
+    region = (slice(20, 100), slice(110, 130))
+    assert np.array_equal(shown[region], redact_frame(masked, [(100, 10, 140, 110)])[region])
+    assert not np.array_equal(shown[region], redact_frame(masked, [])[region])
+    assert out["n_people"] == 0, "nobody stands inside the left half"
+
+
+def test_redaction_is_refused_when_the_detector_cannot_run(monkeypatch) -> None:
+    from pitch_occupancy.vision import explain
+    from pitch_occupancy.vision.walkthrough import RedactionUnavailable, explain_frame
+
+    classifier = _explainable(monkeypatch)
+    monkeypatch.setattr(explain, "detect_people", lambda *_a, **_k: None)
+    with pytest.raises(RedactionUnavailable):
+        explain_frame(_noisy(), classifier, redact=True)
+
+
+def test_a_missing_detector_is_not_checked_rather_than_a_crash(monkeypatch, tmp_path) -> None:
+    """`len(None)` used to kill the stream whenever the detector failed to load."""
+    from pitch_occupancy.vision import explain
+    from pitch_occupancy.vision.walkthrough import explain_frame
+
+    classifier = _explainable(monkeypatch)
+    monkeypatch.setattr(explain, "detect_people", lambda *_a, **_k: None)
+    out = explain_frame(_noisy(), classifier)
+    assert out["n_people"] is None and out["evidence_on_people"] is None
+
+    steps = list(walk_clip(_video(tmp_path / "c.mp4", seconds=2), classifier, interval_s=1.0,
+                           polygon=LEFT))
+    assert steps and all(s.explained and s.n_people is None for s in steps)
+    # The decoded frame travels with the step for the detector pane (audit UP-14, RX-12):
+    # the pane on `frame_bgr` cannot see anyone outside a boundary that is blacked out.
+    assert all(s.raw_bgr is not None and s.raw_bgr[:, -5:].min() > 50 for s in steps)
+    assert all(s.frame_bgr[:, -5:].max() == 0 for s in steps)
+
+
+def test_people_counted_on_the_evidence_are_the_ones_standing_inside(monkeypatch) -> None:
+    from pitch_occupancy.vision import explain
+    from pitch_occupancy.vision.walkthrough import explain_frame
+
+    classifier = _explainable(monkeypatch)
+    # One inside the left half, one outside it, one whose feet are cut off by the bottom.
+    monkeypatch.setattr(explain, "detect_people", lambda *_a, **_k: [
+        (10, 10, 30, 60), (120, 10, 140, 60), (40, 70, 60, 120)])
+    out = explain_frame(_noisy(), classifier, polygon=LEFT)
+    assert out["n_people"] == 2

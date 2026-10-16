@@ -48,7 +48,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     from pitch_occupancy.frame_source import Frame, FrameSource
 
 __all__ = [
-    "ScheduledSlot", "Schedule", "load_schedule", "due", "run_due", "run_forever",
+    "ScheduledSlot", "Schedule", "load_schedule", "due", "due_instances", "run_due", "run_forever",
     "run_concurrently", "SlotCancelled", "describe", "sources_from_recordings",
     "schedule_from_recordings", "live_sources",
 ]
@@ -157,6 +157,7 @@ def load_schedule(path: Path | None = None) -> Schedule:
                 "one would overwrite the other's verdict"
             )
         seen.add(key)
+
     return Schedule(tuple(slots))
 
 
@@ -166,13 +167,24 @@ def due(schedule: Schedule, now: datetime) -> list[ScheduledSlot]:
     The boundary is half-open - a slot starting at 10:00 and lasting 60 minutes is due at
     10:00 and not at 11:00 - so consecutive slots on one pitch never both claim a minute.
     """
+    return [slot for slot, _ in due_instances(schedule, now)]
+
+
+def due_instances(schedule: Schedule, now: datetime) -> list[tuple[ScheduledSlot, Date]]:
+    """Like :func:`due`, with the day each slot instance *started* on.
+
+    Yesterday is checked too: a 23:30 slot of 90 minutes is still running at 00:30, and
+    looking only at today's window made it stop being due at midnight. Its id and its
+    recordings belong to the day it started, so the day travels with the slot.
+    """
     out = []
-    for slot in schedule.slots:
-        if not slot.runs_on(now.date()):
-            continue
-        begins, ends = slot.window(now.date())
-        if begins <= now < ends:
-            out.append(slot)
+    for day in (now.date(), now.date() - timedelta(days=1)):
+        for slot in schedule.slots:
+            if not slot.runs_on(day):
+                continue
+            begins, ends = slot.window(day)
+            if begins <= now < ends:
+                out.append((slot, day))
     return out
 
 
@@ -219,17 +231,17 @@ def run_due(
         raise TypeError("run_due needs a pipeline (or, for a scripted test, a classifier)")
 
     ran: list[str] = []
-    for slot in due(schedule, now):
-        slot_id = slot.slot_id(now.date())
+    for slot, day in due_instances(schedule, now):
+        slot_id = slot.slot_id(day)
         try:
-            run = _execute(slot, now.date(), source_for(slot, now.date()), classify=classify,
+            run = _execute(slot, day, source_for(slot, day), classify=classify,
                            pipeline=pipeline, evidence_dir=evidence_dir)
         except Exception as exc:  # noqa: BLE001 - one bad camera must not stop the rest
             if on_slot:
                 on_slot(slot_id, exc)
             continue
         if connection is not None:
-            _persist(connection, slot, now.date(), run, model_key)
+            _persist(connection, slot, day, run, model_key)
         ran.append(slot_id)
         if on_slot:
             on_slot(slot_id, run)
@@ -521,14 +533,14 @@ def run_concurrently(
         while (iterations is None or count < iterations) and not stop.is_set():
             now = clock()
             reap()
-            for slot in due(schedule, now):
-                slot_id = slot.slot_id(now.date())
+            for slot, day in due_instances(schedule, now):
+                slot_id = slot.slot_id(day)
                 if slot_id in running or slot_id in finished:
                     continue
                 if already_recorded(slot_id):
                     finished.add(slot_id)  # a restart: this slot's verdict is already written
                     continue
-                running[slot_id] = pool.submit(one_slot, slot, now.date())
+                running[slot_id] = pool.submit(one_slot, slot, day)
             if heartbeat is not None:
                 heartbeat.tick(now)
             count += 1

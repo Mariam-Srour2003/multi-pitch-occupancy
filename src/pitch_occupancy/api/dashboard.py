@@ -218,7 +218,7 @@ ul.steps code{background:var(--surface-2);padding:2px 6px;border-radius:4px;
 const api = p => fetch("/api/v1" + p).then(r => r.json());
 let current = null;
 
-function pill(s){ return `<span class="pill ${s}">${s}</span>`; }
+function pill(s){ s = esc(s); return `<span class="pill ${s}">${s}</span>`; }
 function toast(msg){
   const t = document.getElementById("toast");
   t.textContent = msg; t.hidden = false;
@@ -246,20 +246,26 @@ async function loadMatrix(){
     return;
   }
   box.innerHTML = `<table class="mx"><tbody>${fields.map(f => `<tr>
-      <td class="field">${f.field_id}</td>
+      <td class="field">${esc(f.field_id)}</td>
       ${f.slots.map(s => {
         const verdict = s.is_overridden ? s.override_status : s.status;
         const conf = s.mean_confidence == null ? "" : (s.mean_confidence * 100).toFixed(0) + "%";
         if (!verdict) {
           return `<td><span class="chip none" title="scheduled, never evaluated">
-            <span class="t">${s.start_time}</span><span class="c">no verdict</span></span></td>`;
+            <span class="t">${esc(s.start_time)}</span>
+            <span class="c">no verdict</span></span></td>`;
         }
-        return `<td><span class="chip pill ${verdict}" title="${s.slot_id}"
-          onclick="openSlot('${s.slot_id}')">
-          <span class="t">${s.start_time}</span>
-          <span class="c">${verdict}${conf ? " · " + conf : ""}${
+        return `<td><span class="chip pill ${esc(verdict)}" title="${esc(s.slot_id)}"
+          data-open="${esc(s.slot_id)}">
+          <span class="t">${esc(s.start_time)}</span>
+          <span class="c">${esc(verdict)}${conf ? " · " + conf : ""}${
             s.is_overridden ? " · corrected" : ""}</span></span></td>`;
       }).join("")}</tr>`).join("")}</tbody></table>`;
+  // A listener rather than an inline onclick: a slot id inside a JavaScript string in an
+  // HTML attribute needs two kinds of escaping, and the id comes from the schedule.
+  box.querySelectorAll("[data-open]").forEach(el => {
+    el.onclick = () => openSlot(el.dataset.open);
+  });
 }
 
 async function load(){
@@ -277,10 +283,10 @@ async function load(){
 
   const an = await api("/anomalies");
   document.getElementById("anoms").innerHTML = an.length ? an.map(a => `<tr>
-      <td class="mono">${a.slot_id}</td>
-      <td class="mono">${a.anomaly}</td>
-      <td><span class="pill sev-${a.severity}">${a.severity}</span></td>
-      <td style="color:var(--ink-2)">${a.explanation}</td></tr>`).join("")
+      <td class="mono">${esc(a.slot_id)}</td>
+      <td class="mono">${esc(a.anomaly)}</td>
+      <td><span class="pill sev-${esc(a.severity)}">${esc(a.severity)}</span></td>
+      <td style="color:var(--ink-2)">${esc(a.explanation)}</td></tr>`).join("")
     : `<tr><td colspan="4" class="empty">Nothing to act on &mdash; every slot agrees with its
        booking record.</td></tr>`;
 
@@ -288,14 +294,14 @@ async function load(){
 
   const slots = await api("/slots?limit=100");
   document.getElementById("slots").innerHTML = slots.length ? slots.map(s => `<tr>
-      <td class="mono">${s.slot_id}</td>
+      <td class="mono">${esc(s.slot_id)}</td>
       <td>${pill(s.is_overridden ? s.override_status : s.status)}${
         s.is_overridden ? ' <span class="mono" style="color:var(--ink-3)">corrected</span>' : ""}</td>
       <td class="num">${s.play_ratio.toFixed(2)}</td>
       <td><span class="bar"><i style="width:${(s.play_ratio * 100).toFixed(0)}%"></i></span></td>
       <td class="num">${s.n_samples}</td>
       <td class="num">${s.mean_confidence.toFixed(2)}</td>
-      <td><button class="act" data-slot="${s.slot_id}">Evidence</button></td></tr>`).join("")
+      <td><button class="act" data-slot="${esc(s.slot_id)}">Evidence</button></td></tr>`).join("")
     : `<tr><td colspan="7" class="empty">No slots evaluated yet. Populate the database with
        <code>uv run pitch seed</code>, then reload.</td></tr>`;
 
@@ -306,7 +312,7 @@ async function load(){
 
 async function openSlot(id){
   current = id;
-  const ev = await api(`/slots/${id}/evidence`);
+  const ev = await api(`/slots/${encodeURIComponent(id)}/evidence`);
   document.getElementById("dt").textContent = id;
   document.getElementById("dr").textContent = ev.reason;
   const byMinute = {};
@@ -317,9 +323,9 @@ async function openSlot(id){
     <div class="ev">${ev.evidence_paths.length
       ? ev.evidence_paths.map((p, i) => `<figure>
           <img src="/api/v1/slots/${encodeURIComponent(id)}/evidence/${i}"
-               alt="evidence frame ${i + 1} for ${id}" loading="lazy"
+               alt="evidence frame ${i + 1} for ${esc(id)}" loading="lazy"
                onerror="this.closest('figure').classList.add('gone')">
-          <figcaption>${p}</figcaption>
+          <figcaption>${esc(p)}</figcaption>
         </figure>`).join("")
       : `<span>no evidence images saved for this slot - the run was made without
          evidence_dir, so there is nothing to review</span>`}</div>
@@ -328,7 +334,7 @@ async function openSlot(id){
     <div class="scroll"><table><thead><tr><th>Minute</th><th>Cameras</th></tr></thead><tbody>
       ${minutes.slice(0, 40).map(mi => `<tr><td class="mono">${mi}</td>
         <td class="mono">${byMinute[mi].map(s =>
-          `${s.camera_id.replace(/^slot_\\d+_\\d+_/, "")}:${s.predicted.replace(/^C\\d_/, "")}`
+          esc(`${s.camera_id.replace(/^slot_\\d+_\\d+_/, "")}:${s.predicted.replace(/^C\\d_/, "")}`)
         ).join("  ")}</td></tr>`).join("")}
     </tbody></table></div>
     ${minutes.length > 40 ? '<p class="sub2">Showing the first 40 minutes.</p>' : ""}`;
@@ -338,7 +344,7 @@ async function openSlot(id){
 async function override(status){
   const operator = document.getElementById("op").value.trim();
   if (!operator) { toast("Enter your name — a correction is an audit record."); return; }
-  const r = await fetch(`/api/v1/slots/${current}/override`, {
+  const r = await fetch(`/api/v1/slots/${encodeURIComponent(current)}/override`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status, operator }),
   });

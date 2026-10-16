@@ -135,14 +135,17 @@ def test_the_pair_route_keeps_neither_file(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(clip_pair, "_pipeline", _pipeline)
     monkeypatch.setattr(clip_pair, "_derive_boundary", lambda path: None)
     made: list[Path] = []
-    real = clip_pair.tempfile.mkstemp
+    # The route makes its files through `api.limits`, which names them for the stale sweep.
+    from pitch_occupancy.api import limits
+
+    real = limits.tempfile.mkstemp
 
     def tracking(*args, **kwargs):
         fd, name = real(*args, **kwargs)
         made.append(Path(name))
         return fd, name
 
-    monkeypatch.setattr(clip_pair.tempfile, "mkstemp", tracking)
+    monkeypatch.setattr(limits.tempfile, "mkstemp", tracking)
     a = _video(tmp_path / "a.mp4", 40).read_bytes()
     b = _video(tmp_path / "b.mp4", 80).read_bytes()
     r = TestClient(app).post(f"/api/v1/clip/pair/analyse?size_a={len(a)}&interval_s=10",

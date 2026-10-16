@@ -214,6 +214,13 @@ def publishable(
     identifiable face. The boxes come from the verdict rather than a
     second detector run, so the redaction and the drawing are about the same detections.
 
+    **Every person the pass found is pixelated, not only the ones the rule counted.** The
+    redaction boxes were taken from ``verdict.count.people`` - inside the boundary, above
+    ``person_conf``, past the height filter - so the people outside the outline, who are
+    most of what a CCTV frame shows, were left to the floor blur alone (audit RX-3). They
+    now come from ``instances``, ``count.seen_people`` and ``count.people`` together: what is
+    drawn is a choice, what is redacted is everyone.
+
     The overlay is drawn *after* the blur so the outline, the masks and the text stay sharp;
     the frame underneath is what gets destroyed, which is the half that needs to be.
     """
@@ -221,7 +228,10 @@ def publishable(
 
     drawn = list(instances) or list(
         (verdict.count.people + verdict.count.balls) if verdict.count else ())
-    boxes = [d.box for d in drawn if d.cls == PERSON]
+    everyone = list(instances)
+    if verdict.count is not None:
+        everyone += list(verdict.count.seen_people) + list(verdict.count.people)
+    boxes = list(dict.fromkeys(d.box for d in everyone if d.cls == PERSON))
     redacted = redact_frame(image_bgr, boxes)
     return draw_verdict(redacted, verdict, instances=drawn, polygon=polygon, trace=trace)
 
@@ -273,6 +283,7 @@ def detector_pane(
     from pitch_occupancy.config import settings
     from pitch_occupancy.vision.counting import count_inside
     from pitch_occupancy.vision.detector import DEFAULT_DETECTOR, Detector
+    from pitch_occupancy.vision.explain import redact_frame
     from pitch_occupancy.vision.rules import RuleConfig, decide
 
     cfg = RuleConfig.load(settings.rules_path)
@@ -284,7 +295,11 @@ def detector_pane(
         # None is "not checked", which is not "nothing there" - the distinction this
         # project keeps having to restate (`vision/explain.py`). The pane says so.
         verdict = decide(None, motion=None, cfg=cfg)
-        canvas = image_bgr.copy()
+        # Redaction does not depend on the detector having run. This returned the frame
+        # untouched whatever ``redact`` said, so the one moment the detector broke was the
+        # moment the pane leaked (audit RX-4). With no boxes to pixelate, the floor of blur
+        # is what is left, and it is applied.
+        canvas = redact_frame(image_bgr, []) if redact else image_bgr.copy()
     else:
         count = count_inside(found, polygon, image_bgr.shape[:2],
                              person_conf=cfg.person_conf, ball_conf=cfg.ball_conf)

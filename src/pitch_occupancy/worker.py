@@ -373,6 +373,16 @@ def run_slot(
                     uncertain_minutes += 1
                 continue
             fused = fuse(observations)
+            if fused.state is Class3.EMPTY and len(observations) < len(cameras):
+                # EMPTY needs every half seen (slots/fusion.py). With one camera dead or
+                # unscored, the other half's EMPTY says nothing about the half where the
+                # match may be, and deciding from it turned a lost camera into a confident
+                # NOTUSED with no concern raised. Play on the seen half still decides - it
+                # needs only one half - but an empty-looking minute abstains and counts
+                # against the capture floor, so a slot that lost a camera goes to REVIEW.
+                missed += 1
+                uncertain_minutes += 1
+                continue
             state, confidence, disagreed = fused.state, fused.confidence, fused.disagreed
             # The frame from the camera whose observation won the fusion - the one that
             # actually justifies the minute's state. Saving an averaged or arbitrary camera
@@ -426,7 +436,11 @@ def run_slot(
             minutes_expected=source.n_minutes,
             confidences=fused_conf,
             disagreements=disagreements,
-            cameras_seen=len({s.camera_id for s in samples}),
+            # Cameras that produced a *decided* observation. Counting any camera with a
+            # sample let a camera that was read but never scored (UNCERTAIN rows) pass as
+            # seen, which kept the "half the pitch is unseen" concern silent.
+            cameras_seen=len({s.camera_id for s in samples
+                              if s.predicted != MinuteState.UNCERTAIN.value}),
         ),
         transitions=tuple(
             find_transitions(fused_states, minutes=[r[0] for r in evidence_rows])

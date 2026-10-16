@@ -795,3 +795,40 @@ def test_run_slot_applies_the_person_gate():
     assert run.people_counts == (0, 0, 0)
     assert run.ball_minutes == (0, 1, 2)
 
+
+
+# --- a camera lost mid-slot -------------------------------------------------
+
+
+def test_a_camera_lost_mid_slot_does_not_become_a_confident_notused() -> None:
+    """Camera B (the half with the match) dies at minute 5 and camera A reads EMPTY. The
+    surviving half used to decide for the whole pitch: NOTUSED at 0.9, capture rate 1.0,
+    no concern - and a NO_SHOW anomaly against staff who recorded the slot as used."""
+    src = FakeSource({"camA": [1] * 60, "camB": [1] * 5 + [None] * 55})
+    run = run_slot("s1", src, constant(EMPTY))
+    assert run.verdict.status is SlotStatus.REVIEW
+    assert run.minutes_missed == 55
+
+
+def test_play_on_the_surviving_half_still_decides() -> None:
+    """Play needs only one half, so losing the other camera does not stop a USED verdict."""
+    src = FakeSource({"camA": [1] * 60, "camB": [None] * 60})
+    run = run_slot("s1", src, constant(PLAY))
+    assert run.verdict.status is SlotStatus.USED
+
+
+def test_a_camera_read_but_never_scored_is_not_counted_as_seen() -> None:
+    """A camera with no boundary is read and stored as UNCERTAIN. Counting it as seen kept
+    the "half the pitch is unseen" concern silent."""
+    from types import SimpleNamespace
+
+    pipeline = SimpleNamespace(
+        classify=lambda image, polygon=None: (PLAY, 0.9), motion_gate=None,
+        person_gate=None, require_boundary=True, burst=(1, 0.0), kind="probe",
+        polygon_for=lambda **_: (lambda cam: [(0, 0), (1, 0), (1, 1)] if cam == "camA"
+                                 else None),
+    )
+    src = FakeSource({"camA": [1] * 10, "camB": [1] * 10})
+    run = run_slot("s1", src, None, pipeline=pipeline)
+    assert run.conditions.cameras_seen == 1
+    assert any("half the pitch is unseen" in c for c in run.conditions.concerns())

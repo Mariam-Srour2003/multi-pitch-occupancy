@@ -363,12 +363,15 @@ def retraining_cmd(
     an operator's override is a verdict about the whole slot, not a label for each frame, so
     a human files them before they can become training data.
     """
-    from pitch_occupancy.db.schema import connect
+    from pitch_occupancy.db.schema import connect, initialise
     from pitch_occupancy.retraining import apply as apply_harvest
     from pitch_occupancy.retraining import plan as plan_harvest
 
     connection = connect(settings.db_path)
     try:
+        # A database nothing has written to yet has no tables; that is "0 overridden
+        # slots", not a traceback.
+        initialise(connection)
         harvest = plan_harvest(connection)
     finally:
         connection.close()

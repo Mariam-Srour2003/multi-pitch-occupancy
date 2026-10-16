@@ -32,6 +32,10 @@ hand after a clone is exactly the sort of setup nobody repeats identically.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
+import threading
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -40,7 +44,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 __all__ = [
     "Polygon", "STORE", "DERIVED_STORE", "FILLS", "DEFAULT_FILL", "FILE_KEY_CAMERA",
-    "ALIASES_KEY", "load_all", "load_drawn", "load_aliases", "get", "resolve",
+    "ALIASES_KEY", "MAX_POINTS", "load_all", "load_drawn", "load_aliases", "get", "resolve",
     "resolve_with_key",
     "save", "save_derived", "remove", "validate", "coverage", "apply", "grid_weights",
     "outline", "derive_from_frames", "derive_from_video",
@@ -73,6 +77,19 @@ DEFAULT_FILL = "black"
 #: masks 99% of the pitch produces confident nonsense rather than an obvious failure.
 MIN_COVERAGE = 0.02
 
+#: More points than any outline a person clicks or `roi_derive` produces (8 at most), with
+#: room to spare. The cap exists because every lookup re-validates the whole store: a single
+#: 300,000-point polygon once made `roi.json` 18 MiB and every `resolve` on the live path
+#: take 0.3 s. Checked in `validate`, so the editor, the review routes and a hand-edited
+#: file all meet the same limit.
+MAX_POINTS = 64
+
+#: Serialises every read-modify-write of a store within this process. Without it two saves
+#: racing each other each read the file, add their own key and write the result - and the
+#: second write discards the first save's key. Measured: 40 concurrent PUTs kept 1 key of 40
+#: and lost every boundary that was already there.
+_LOCK = threading.RLock()
+
 #: The block of `STORE` that maps a camera id *as production names it* onto the key a
 #: boundary is stored under. `_read` skips every underscored key, so this block was always
 #: legal in the file and never read; `resolve` reads it.
@@ -100,11 +117,18 @@ def validate(polygon: Polygon) -> Polygon:
     """
     if not isinstance(polygon, (list, tuple)) or len(polygon) < 3:
         raise ValueError("a boundary needs at least 3 points")
+    if len(polygon) > MAX_POINTS:
+        raise ValueError(f"a boundary has at most {MAX_POINTS} points; got {len(polygon)}")
     clean: Polygon = []
     for point in polygon:
         if not isinstance(point, (list, tuple)) or len(point) != 2:
-            raise ValueError(f"each point must be [x, y], got {point!r}")
-        x, y = float(point[0]), float(point[1])
+            raise ValueError(f"each point must be [x, y], got {point!r:.80}")
+        try:
+            x, y = float(point[0]), float(point[1])
+        except (TypeError, ValueError, OverflowError) as exc:
+            # OverflowError is what a 400-digit integer from JSON raises, and it is not a
+            # ValueError - so it escaped every caller's `except ValueError` as a 500.
+            raise ValueError(f"each point must be two numbers, got {point!r:.80}") from exc
         if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
             raise ValueError(
                 f"points are fractions of the frame, so both must be in 0-1; got [{x}, {y}]"
@@ -144,6 +168,44 @@ def _raw(path: Path) -> dict:
     except (OSError, json.JSONDecodeError):
         return {}
     return raw if isinstance(raw, dict) else {}
+
+
+def _raw_for_update(path: Path) -> dict:
+    """The store as JSON for a read-modify-write, or ``ValueError`` if it cannot be parsed.
+
+    Deliberately the opposite of `_raw`. A reader that meets a broken file should degrade to
+    "no boundary"; a *writer* that did the same would read `{}` and save it back with one
+    key in it, turning a typo in a hand-edited file into the loss of every boundary and the
+    `_aliases` map. So a store that exists and cannot be read is refused, and the person
+    saving is told to fix the file rather than have it silently replaced.
+    """
+    if not path.exists():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"{path.name} could not be read ({exc}); fix or remove it before "
+                         f"saving, so the boundaries in it are not overwritten") from exc
+    if not isinstance(raw, dict):
+        raise ValueError(f"{path.name} is not a JSON object; fix or remove it before saving, "
+                         f"so its contents are not overwritten")
+    return raw
+
+
+def _key(camera: str) -> str:
+    """The stored key for ``camera``, or ``ValueError`` if it is empty or reserved.
+
+    Underscored keys are the file's own: `_comment`, `_aliases`. `_read` skips them, so a
+    boundary saved under one would never be listed - and one saved under `_aliases` replaced
+    the alias map with a polygon, breaking the mapping from production camera ids.
+    """
+    if not isinstance(camera, str) or not camera.strip():
+        raise ValueError("a boundary needs a camera to belong to")
+    key = camera.strip()
+    if key.startswith("_"):
+        raise ValueError(f"{key!r} is reserved: keys starting with '_' hold the file's own "
+                         f"settings, not boundaries")
+    return key
 
 
 def _read(path: Path) -> dict[str, Polygon]:
@@ -262,11 +324,11 @@ def save(camera: str, polygon: Polygon) -> Polygon:
     docstring insists on. The two files stay two files.
     """
     clean = validate(polygon)
-    if not camera or not camera.strip():
-        raise ValueError("a boundary needs a camera to belong to")
-    current = _read(STORE)
-    current[camera.strip()] = clean
-    _write(current)
+    key = _key(camera)
+    with _LOCK:
+        current = _raw_for_update(STORE)
+        current[key] = clean
+        _write(current)
     return clean
 
 
@@ -278,11 +340,11 @@ def save_derived(camera: str, polygon: Polygon) -> Polygon:
     :func:`load_all`, and drawing one is how a person corrects a derivation.
     """
     clean = validate(polygon)
-    if not camera or not camera.strip():
-        raise ValueError("a boundary needs a camera to belong to")
-    current = _read(DERIVED_STORE)
-    current[camera.strip()] = clean
-    _write(current, path=DERIVED_STORE, comment=_DERIVED_COMMENT)
+    key = _key(camera)
+    with _LOCK:
+        current = _raw_for_update(DERIVED_STORE)
+        current[key] = clean
+        _write(current, path=DERIVED_STORE, comment=_DERIVED_COMMENT)
     return clean
 
 
@@ -292,11 +354,13 @@ def remove(camera: str) -> bool:
     A derived boundary for the same key is left alone: it was measured, not drawn, and
     forgetting a person's correction should reveal the measurement, not erase it too.
     """
-    current = _read(STORE)
-    if camera not in current:
-        return False
-    del current[camera]
-    _write(current)
+    key = _key(camera)
+    with _LOCK:
+        current = _raw_for_update(STORE)
+        if key not in current:
+            return False
+        del current[key]
+        _write(current)
     return True
 
 
@@ -321,19 +385,42 @@ _DERIVED_COMMENT = [
 ]
 
 
-def _write(polygons: dict[str, Polygon], *, path: Path | None = None,
+def _write(entries: dict[str, object], *, path: Path | None = None,
            comment: list[str] | None = None) -> None:
-    """Write one store. The hand-drawn store's `_aliases` block survives a rewrite."""
+    """Write one store atomically, from the raw entries a caller read under `_LOCK`.
+
+    Every underscored block (`_aliases` and its comment above all) and every entry - even one
+    `_read` would skip as malformed - is written back as it was read: a save changes one key
+    and nothing else. Only `_comment` is refreshed to the current wording.
+
+    Written to a temporary file beside the store and moved over it with `os.replace`, so a
+    reader - the live worker included - sees the old file or the new one and never the empty
+    file `write_text` left between truncating and writing. Windows refuses the replace while
+    another process has the store open for reading, so it is retried briefly.
+    """
     path = path or STORE
     path.parent.mkdir(parents=True, exist_ok=True)
     payload: dict[str, object] = {"_comment": comment or _HAND_COMMENT}
-    if path == STORE:
-        previous = _raw(STORE)
-        for key in (ALIASES_KEY, "_aliases_comment"):
-            if key in previous:
-                payload[key] = previous[key]
-    payload.update({k: polygons[k] for k in sorted(polygons)})
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    payload.update({k: v for k, v in entries.items() if k.startswith("_") and k != "_comment"})
+    payload.update({k: entries[k] for k in sorted(entries) if not k.startswith("_")})
+    text = json.dumps(payload, indent=2) + "\n"
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        for attempt in range(20):
+            try:
+                os.replace(tmp, path)
+                break
+            except PermissionError:
+                if attempt == 19:
+                    raise
+                time.sleep(0.05)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def derive_from_frames(frames, *, hull: bool = True) -> Polygon | None:

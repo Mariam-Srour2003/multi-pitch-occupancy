@@ -146,8 +146,15 @@ def polygon_from_mask(mask: np.ndarray, max_points: int = 8, *,
         approx = cv2.approxPolyDP(outline, eps * perimeter, True)
         if len(approx) <= max_points:
             break
+    # Pixel *indices* run 0..w-1, so the last column is w-1 and dividing by w put it at
+    # 0.9969 and the last row at 0.9944: a turf region touching the frame edge produced a
+    # boundary that stopped one pixel short of it, which defeats `counting.inside`'s clamp
+    # for feet cut off by the bottom of the frame and brought back the "foreground players
+    # read as EMPTY" failure on every derived boundary (audit VI-4). Dividing by (w-1, h-1)
+    # maps the last index to exactly 1.0.
     height, width = mask.shape
-    points = [[float(x) / width, float(y) / height] for [[x, y]] in approx]
+    sx, sy = max(width - 1, 1), max(height - 1, 1)
+    points = [[float(x) / sx, float(y) / sy] for [[x, y]] in approx]
     if len(points) < 3:
         return None
     try:

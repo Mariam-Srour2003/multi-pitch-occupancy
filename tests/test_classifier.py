@@ -254,3 +254,28 @@ def test_it_classifies_a_real_frame_as_its_label() -> None:
     state, confidence = clf(cv2.imread(str(settings.dataset_dir / frame_row.file)))
     assert state is Class3.EMPTY
     assert confidence > 0.5
+
+
+def test_a_frame_served_with_a_boundary_is_scored_by_the_boundary_pooled_probe(
+        monkeypatch) -> None:
+    """The deployed probe was fitted on whole-frame features and handed polygon-pooled
+    ones - a model no table describes. With a boundary, the boundary-pooled probe decides;
+    without one, the whole-frame probe still does."""
+    import pitch_occupancy.vision.backbones as backbones
+
+    class Fixed:
+        classes_ = np.array([Class3.EMPTY.value, Class3.ACTIVE_PLAY.value])
+
+        def __init__(self, play: bool) -> None:
+            self.row = [0.1, 0.9] if play else [0.9, 0.1]
+
+        def predict_proba(self, features):
+            return np.array([self.row] * len(features))
+
+    monkeypatch.setattr(backbones, "embed_batch",
+                        lambda *a, **k: np.zeros((len(a[3]), 1), np.float32))
+    clf = ProbeClassifier(backbone="dinov2", model=None, processor=None, spec=None,
+                          probe=Fixed(play=False), n_train=1, probe_roi=Fixed(play=True))
+    frame = np.zeros((4, 4, 3), np.uint8)
+    assert clf(frame)[0] is Class3.EMPTY
+    assert clf(frame, polygon=[[0, 0], [1, 0], [1, 1]])[0] is Class3.ACTIVE_PLAY

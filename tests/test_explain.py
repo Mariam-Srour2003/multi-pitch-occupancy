@@ -299,3 +299,38 @@ def test_a_second_model_name_gets_its_own_detector(monkeypatch):
     explain.detect_objects(frame, model_name="b.pt")
     explain.detect_objects(frame, model_name="a.pt")
     assert built == ["a.pt", "b.pt"]
+
+
+def test_a_missing_weights_path_is_refused_not_downloaded(monkeypatch, tmp_path):
+    """Handed a path that does not exist, ultralytics recognises the basename and fetches it
+    from GitHub inside the prediction (audit VI-3). A path is refused: None, "not checked",
+    and the model is never constructed."""
+    import sys
+    import threading
+    import types
+
+    from pitch_occupancy.vision import explain
+
+    built = []
+
+    class FakeYOLO:
+        def __init__(self, name):
+            built.append(name)
+
+        def predict(self, _image, **_kwargs):
+            return []
+
+    monkeypatch.setattr(explain, "_DETECTORS", threading.local())
+    module = types.ModuleType("ultralytics")
+    module.YOLO = FakeYOLO
+    monkeypatch.setitem(sys.modules, "ultralytics", module)
+
+    missing = str(tmp_path / "yolov8n.pt")
+    assert explain.detect_objects(np.zeros((8, 8, 3), np.uint8), model_name=missing) is None
+    assert built == [], "a missing weights file must not reach ultralytics"
+
+    present = tmp_path / "there.pt"
+    present.write_bytes(b"")
+    assert explain.detect_objects(np.zeros((8, 8, 3), np.uint8),
+                                  model_name=str(present)) == []
+    assert built == [str(present)]

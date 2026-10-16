@@ -48,7 +48,10 @@ class _StubClassifier:
     class probe:  # noqa: N801 - mimics the attribute, not a class being used as one
         classes_ = [E.value, P.value]
 
-    def __call__(self, image_bgr):
+    def __call__(self, image_bgr, **_kw):
+        # `**_kw` because a boundary in force arrives as `polygon=`. The route stubs below
+        # only began reaching this class once the walkthrough looked `_classifier` up on
+        # `clip_review` at call time; before, they silently ran the real model.
         return P, 0.9
 
 

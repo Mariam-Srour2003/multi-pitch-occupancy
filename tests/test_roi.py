@@ -123,6 +123,140 @@ def test_an_invalid_entry_is_dropped_without_taking_the_valid_ones_with_it() -> 
     assert set(loaded) == {"good"}
 
 
+def _store_with_aliases() -> None:
+    roi.STORE.write_text(json.dumps({
+        "_comment": ["old"], "_aliases": {"venue_01/camera_A": "cam"},
+        "_aliases_comment": ["kept"], "cam": MIDDLE, "cam2": MIDDLE,
+    }), encoding="utf-8")
+
+
+def test_concurrent_saves_keep_every_boundary_and_the_aliases() -> None:
+    """UP-1. Saves were an unlocked read-modify-write over a file `write_text` truncates
+    first, so a racing save read `{}` and wrote back only its own key: 40 concurrent PUTs
+    kept 1 key of 40, and every boundary already there, and the alias map, was lost."""
+    import threading
+
+    _store_with_aliases()
+    barrier = threading.Barrier(16)
+
+    def save(i: int) -> None:
+        barrier.wait()
+        roi.save(f"racer_{i}", MIDDLE)
+
+    threads = [threading.Thread(target=save, args=(i,)) for i in range(16)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(30)
+
+    stored = json.loads(roi.STORE.read_text(encoding="utf-8"))
+    assert {f"racer_{i}" for i in range(16)} | {"cam", "cam2"} <= set(stored)
+    assert stored["_aliases"] == {"venue_01/camera_A": "cam"}
+    assert stored["_aliases_comment"] == ["kept"]
+    # Written through a temporary file beside the store, and none is left behind.
+    assert sorted(p.name for p in roi.STORE.parent.iterdir()) == ["roi.json"]
+
+
+def test_a_save_refuses_to_overwrite_a_store_it_cannot_parse() -> None:
+    """UP-1. Reading a broken file as `{}` and saving over it turned one typo in a
+    hand-edited store into the loss of every boundary in it. Reads still degrade; writes
+    refuse, and the file is left exactly as it was for a person to fix."""
+    broken = '{"cam": [[0.1, 0.1], [0.9, 0.1], [0.9, 0.9]], oops'
+    roi.STORE.write_text(broken, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="could not be read"):
+        roi.save("camera_A", MIDDLE)
+    with pytest.raises(ValueError, match="could not be read"):
+        roi.remove("cam")
+    response = TestClient(app).put("/api/v1/roi", json={"camera": "x", "polygon": MIDDLE})
+    assert response.status_code == 422
+    assert roi.STORE.read_text(encoding="utf-8") == broken
+
+
+def test_a_save_keeps_entries_it_would_not_itself_load() -> None:
+    """A save changes one key. An entry `_read` skips as malformed is still somebody's hand
+    edit, and dropping it on an unrelated save is the same silent loss as above."""
+    roi.STORE.write_text(json.dumps({"bad": [[0, 0], [2, 2], [3, 3]]}), encoding="utf-8")
+    roi.save("camera_A", MIDDLE)
+    stored = json.loads(roi.STORE.read_text(encoding="utf-8"))
+    assert stored["bad"] == [[0, 0], [2, 2], [3, 3]] and stored["camera_A"] == MIDDLE
+
+
+@pytest.mark.parametrize("key", ["_aliases", "_comment", "  _anything"])
+def test_reserved_keys_are_refused_and_the_alias_map_survives(key) -> None:
+    """UP-3. `PUT /roi` with camera `_aliases` returned 200 and replaced the alias map with a
+    polygon - which no listing showed, since underscored keys are skipped on read."""
+    _store_with_aliases()
+    client = TestClient(app)
+
+    assert client.put("/api/v1/roi", json={"camera": key, "polygon": MIDDLE}).status_code \
+        == 422
+    assert client.delete("/api/v1/roi", params={"camera": key}).status_code == 422
+    with pytest.raises(ValueError, match="reserved"):
+        roi.save(key, MIDDLE)
+    assert roi.load_aliases() == {"venue_01/camera_A": "cam"}
+
+
+def _ring(n: int) -> list[list[float]]:
+    import math
+
+    return [[0.5 + 0.4 * math.cos(2 * math.pi * i / n),
+             0.5 + 0.4 * math.sin(2 * math.pi * i / n)] for i in range(n)]
+
+
+def test_a_boundary_has_a_maximum_number_of_points() -> None:
+    """UP-9. A 300,000-point PUT was accepted, made the file 18 MiB and every lookup 0.3 s."""
+    assert len(roi.validate(_ring(roi.MAX_POINTS))) == roi.MAX_POINTS
+    with pytest.raises(ValueError, match="at most"):
+        roi.validate(_ring(roi.MAX_POINTS + 1))
+
+    client = TestClient(app)
+    assert client.put("/api/v1/roi", json={"camera": "cam", "polygon": _ring(200)}) \
+        .status_code == 422
+    # Far past it, the body cap refuses the request before the points are even parsed.
+    assert client.put("/api/v1/roi", json={"camera": "cam", "polygon": _ring(300_000)}) \
+        .status_code == 413
+    assert not roi.STORE.exists()
+    # A hand-edited store meets the same limit: the entry is skipped, not loaded.
+    roi.STORE.write_text(json.dumps({"huge": _ring(500), "ok": MIDDLE}), encoding="utf-8")
+    assert set(roi.load_all()) == {"ok"}
+
+
+def test_an_enormous_integer_coordinate_is_a_value_error_not_an_overflow() -> None:
+    """UP-15. `float()` of a 400-digit integer raises OverflowError, which is not a
+    ValueError, so it escaped every caller's handler as a 500."""
+    huge = int("9" * 400)
+    with pytest.raises(ValueError, match="two numbers"):
+        roi.validate([[huge, 0], [0, 1], [1, 1]])
+
+
+def test_a_boundary_body_is_bounded_before_it_is_buffered() -> None:
+    """UP-8. The body is capped by its declared length and, when it declares none, while it
+    streams - FastAPI used to buffer a declared body whole before any cap applied."""
+    from pitch_occupancy.api.roi_editor import MAX_BOUNDARY_BODY
+
+    client = TestClient(app)
+    padded = json.dumps({"camera": "cam", "polygon": MIDDLE, "pad": "x" * MAX_BOUNDARY_BODY})
+    assert client.put("/api/v1/roi", content=padded,
+                      headers={"Content-Type": "application/json"}).status_code == 413
+
+    def chunked():  # no Content-Length: only the streaming cap can stop this one
+        for _ in range(4):
+            yield b"x" * (MAX_BOUNDARY_BODY // 2)
+
+    assert client.put("/api/v1/roi", content=chunked(),
+                      headers={"Content-Type": "application/json"}).status_code == 413
+    assert not roi.STORE.exists()
+
+
+def test_a_malformed_boundary_body_is_a_422() -> None:
+    client = TestClient(app)
+    for body in (b"not json", b"[]", b'{"camera": "cam"}', b""):
+        response = client.put("/api/v1/roi", content=body,
+                              headers={"Content-Type": "application/json"})
+        assert response.status_code == 422, body
+
+
 def test_the_comment_key_is_not_read_back_as_a_camera() -> None:
     """The store writes an explanatory `_comment` block, as `configs/cameras.example.json`
     does. Reading it back as a camera would put a boundary named `_comment` in the editor."""

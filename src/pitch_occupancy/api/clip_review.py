@@ -30,13 +30,13 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+from pitch_occupancy.api import limits
 from pitch_occupancy.clip_analysis import (
     DEFAULT_INTERVAL_S,
     DEFAULT_WINDOW,
@@ -155,11 +155,11 @@ def _parse_polygon(raw: str) -> list[list[float]] | None:
         return None
     try:
         points = json.loads(raw)
-    except ValueError as exc:
+    except (ValueError, RecursionError) as exc:  # 2000 nested brackets fit in the query
         raise HTTPException(422, f"polygon is not valid JSON: {exc}") from exc
     try:
         return roi.validate(points)
-    except (ValueError, TypeError) as exc:
+    except (ValueError, TypeError, OverflowError) as exc:
         raise HTTPException(422, f"the outline is not usable: {exc}") from exc
 
 
@@ -198,6 +198,60 @@ def _derive_boundary(path: Path) -> list[list[float]] | None:
     return roi.derive_from_video(path)
 
 
+def _analyse_file(path: Path, *, interval_s: float, window: int, camera: str,
+                  drawn: list[list[float]] | None, whole_frame: bool):
+    """The work of `/clip/analyse` once the upload is on disk: ``(result, polygon, derived)``.
+
+    Synchronous on purpose, so the route can hand the whole of it to a worker thread.
+    """
+    limits.check_video_pixels(path, "clip")
+    # A boundary is applied by wrapping the classifier rather than by teaching
+    # `analyse_clip` about polygons. It takes a `classify` callable precisely so that
+    # what a frame means is the caller's business, and a masked frame is still just a
+    # frame - so the timeline, the smoothing and the segmentation stay unaware of ROI,
+    # and there is one masking call rather than a second code path through them.
+    classify = _classifier()
+    # `resolve`, not `get`: the camera is named the way production names it, and the
+    # store's own keys are not that.
+    # `whole_frame` beats every source, including a drawn outline and a stored one: it is
+    # the one value here that is unambiguously a decision somebody made about this clip.
+    polygon = None if whole_frame else (drawn or (roi.resolve(camera) if camera else None))
+    derived_boundary = False
+    if polygon is None and not whole_frame:
+        # An uploaded clip usually names no camera, or names one the store has never
+        # seen, and the boundary was simply skipped - which is how a 234-second clip of
+        # an empty floodlit pitch came back 24 of 24 ACTIVE_PLAY at confidence 1.000.
+        # Without an outline the probe scores the neighbouring pitch, the walkway and the
+        # car park as if they were this pitch. `derive_roi` measures one from the footage
+        # itself, which is the same thing `scripts/run_slot_on_video.py` does and the
+        # reason its numbers on this clip were right.
+        polygon = _derive_boundary(path)
+        derived_boundary = polygon is not None
+    if polygon:
+        inner = classify
+
+        def classify(frame):  # noqa: F811 - deliberately shadows, one frame at a time
+            # Both halves, and both are needed. `apply` fills the outside so the pixels
+            # are not the neighbouring pitch; `polygon=` drops those positions from the
+            # pooling so the fill is not scored either. Masking alone left the model
+            # reading a large black region and calling it evidence.
+            return inner(roi.apply(frame, polygon), polygon=polygon)
+
+    try:
+        # The same two gates `worker.run_slot` applies, for the same reason: the probe
+        # alone is not the system, and a review page showing the probe alone is showing
+        # something nobody deploys.
+        motion_gate, person_gate = _gates()
+        result = analyse_clip(
+            path, classify, interval_s=interval_s, window=window,
+            max_samples=MAX_SAMPLES, polygon=polygon,
+            motion_gate=motion_gate, person_gate=person_gate,
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return result, polygon, derived_boundary
+
+
 @router.post("/clip/analyse", response_model=ClipOut)
 async def analyse(
     request: Request,
@@ -223,10 +277,12 @@ async def analyse(
     """
     if window % 2 == 0:
         raise HTTPException(422, "window must be odd, so each sample has equal neighbours")
+    # Before the upload and before the model: a malformed outline is the caller's mistake and
+    # is answered as one, without receiving 600 MB or loading a backbone first.
+    drawn = _parse_polygon(polygon)
 
     # Delete on the way out rather than relying on the OS: this is footage of people.
-    fd, name = tempfile.mkstemp(suffix=".upload")
-    path = Path(name)
+    fd, path = limits.upload_file()
     try:
         size = 0
         with os.fdopen(fd, "wb") as handle:
@@ -241,52 +297,12 @@ async def analyse(
                 handle.write(chunk)
         if size == 0:
             raise HTTPException(422, "no video in the request body")
-
-        # A boundary is applied by wrapping the classifier rather than by teaching
-        # `analyse_clip` about polygons. It takes a `classify` callable precisely so that
-        # what a frame means is the caller's business, and a masked frame is still just a
-        # frame - so the timeline, the smoothing and the segmentation stay unaware of ROI,
-        # and there is one masking call rather than a second code path through them.
-        classify = _classifier()
-        # `resolve`, not `get`: the camera is named the way production names it, and the
-        # store's own keys are not that.
-        drawn = _parse_polygon(polygon)
-        # `whole_frame` beats every source, including a drawn outline and a stored one: it is
-        # the one value here that is unambiguously a decision somebody made about this clip.
-        polygon = None if whole_frame else (drawn or (roi.resolve(camera) if camera else None))
-        derived_boundary = False
-        if polygon is None and not whole_frame:
-            # An uploaded clip usually names no camera, or names one the store has never
-            # seen, and the boundary was simply skipped - which is how a 234-second clip of
-            # an empty floodlit pitch came back 24 of 24 ACTIVE_PLAY at confidence 1.000.
-            # Without an outline the probe scores the neighbouring pitch, the walkway and the
-            # car park as if they were this pitch. `derive_roi` measures one from the footage
-            # itself, which is the same thing `scripts/run_slot_on_video.py` does and the
-            # reason its numbers on this clip were right.
-            polygon = _derive_boundary(path)
-            derived_boundary = polygon is not None
-        if polygon:
-            inner = classify
-
-            def classify(frame):  # noqa: F811 - deliberately shadows, one frame at a time
-                # Both halves, and both are needed. `apply` fills the outside so the pixels
-                # are not the neighbouring pitch; `polygon=` drops those positions from the
-                # pooling so the fill is not scored either. Masking alone left the model
-                # reading a large black region and calling it evidence.
-                return inner(roi.apply(frame, polygon), polygon=polygon)
-
-        try:
-            # The same two gates `worker.run_slot` applies, for the same reason: the probe
-            # alone is not the system, and a review page showing the probe alone is showing
-            # something nobody deploys.
-            motion_gate, person_gate = _gates()
-            result = analyse_clip(
-                path, classify, interval_s=interval_s, window=window,
-                max_samples=MAX_SAMPLES, polygon=polygon,
-                motion_gate=motion_gate, person_gate=person_gate,
-            )
-        except ValueError as exc:
-            raise HTTPException(422, str(exc)) from exc
+        # Everything from here is decoding and model passes - up to 360 of each - so it runs
+        # in a worker thread. On the event loop it froze the dashboard, the API and every
+        # live stream for as long as the clip took.
+        result, polygon, derived_boundary = await limits.run_heavy(
+            lambda: _analyse_file(path, interval_s=interval_s, window=window, camera=camera,
+                                  drawn=drawn, whole_frame=whole_frame))
     finally:
         path.unlink(missing_ok=True)
 

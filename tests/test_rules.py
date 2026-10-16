@@ -305,7 +305,9 @@ def test_the_committed_rule_file_loads_and_is_unfrozen(tmp_path) -> None:
     if CFG.frozen:
         assert CFG.frozen_commit and CFG.tuned_on == "venue_01/camera_A"
     other = tmp_path / "rules.json"
-    other.write_text(json.dumps({"_note": "x", "future_key": 1, "motion_play_min": 2.5}),
+    other.write_text(json.dumps({"_note": "x", "future_key": 1, "motion_play_min": 2.5,
+                                 "require_ball": False, "require_ball_in_play": True,
+                                 "require_motion": True}),
                      encoding="utf-8")
     loaded = RuleConfig.load(other)
     assert loaded.motion_play_min == 2.5 and loaded.person_conf == 0.25 and not loaded.frozen
@@ -317,3 +319,24 @@ def test_the_minimum_height_line_is_a_function_of_the_foot_row() -> None:
     at = cfg.min_height_at(1000)
     assert at is not None
     assert at(0) == pytest.approx(10.0) and at(500) == pytest.approx(30.0)
+
+
+SWITCHES = {"require_ball": False, "require_ball_in_play": True, "require_motion": True}
+
+
+@pytest.mark.parametrize("body, problem", [
+    ({"require_ball_in_play": True, "require_motion": True}, "require_ball is missing"),
+    ({**SWITCHES, "require_ball": "false"}, "require_ball must be true or false"),
+    ({**SWITCHES, "person_conf": -0.1}, "person_conf must be a number between 0 and 1"),
+    ({**SWITCHES, "play_min": 0}, "play_min must be a whole number"),
+    ({**SWITCHES, "play_min": 4, "small_group_max": 4}, "small_group_max must be below"),
+    ({**SWITCHES, "motion_play_min": "high"}, "motion_play_min must be a number or null"),
+])
+def test_a_rule_file_that_would_load_into_a_different_rule_is_refused(
+        tmp_path, body, problem) -> None:
+    """A missing `require_ball` fell back to the strict code default - the opposite of the
+    shipped rule - and a string "false" or a negative confidence loaded without complaint."""
+    path = tmp_path / "rules.json"
+    path.write_text(json.dumps(body), encoding="utf-8")
+    with pytest.raises(ValueError, match=problem):
+        RuleConfig.load(path)

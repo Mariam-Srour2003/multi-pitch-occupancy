@@ -66,12 +66,13 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 
+import anyio.to_thread
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 from pitch_occupancy import retention, timetable
-from pitch_occupancy.api import clip_pair, clip_review, jobs
+from pitch_occupancy.api import clip_pair, clip_review, jobs, limits
 from pitch_occupancy.api.layout import page
 from pitch_occupancy.clip_analysis import DEFAULT_WINDOW, analyse_clip
 from pitch_occupancy.pair_analysis import analyse_pair
@@ -92,6 +93,10 @@ _MB = 1024 * 1024
 #: Room kept free on the temp folder's disk beyond the upload itself, so a large upload cannot
 #: fill the disk the database and the live worker also write to.
 _DISK_HEADROOM = 200 * _MB
+#: A booking CSV for one day is kilobytes; this is the most that is read. It used to be the
+#: point the body was *truncated* at, after all of it had been buffered - so a gigabyte body
+#: was held in memory first, and a CSV over the line was silently cut mid-row.
+_MAX_BOOKING_BYTES = 20 * _MB
 
 #: File types offered from (and accepted in) the recordings folder.
 VIDEO_SUFFIXES = frozenset({".mp4", ".mkv", ".avi", ".mov", ".m4v", ".ts", ".mts", ".webm",
@@ -429,6 +434,10 @@ async def start_day_test(
             await clip_pair._receive(request, size_a, (paths[0], paths[1]), max_each=max_each)
         else:
             await _receive_one(request, paths[0], max_bytes=max_each)
+        # Refused now, as a 413 the page can show, rather than as a job that fails - or
+        # exhausts memory - an hour into the queue.
+        for path in paths:
+            await anyio.to_thread.run_sync(limits.check_video_pixels, path)
         job_id = jobs.submit("day", _make_work(paths, meta), label=_label(meta),
                              on_cancel=_deleter(paths))
         submitted = True
@@ -672,7 +681,7 @@ async def compare_run(
                 from exc
         source = getattr(src, "source", None) or "configured"
     else:
-        body = (await request.body())[: 20 * 1024 * 1024]
+        body = await limits.read_body(request, _MAX_BOOKING_BYTES, what="the booking file")
         text = body.decode("utf-8-sig", errors="replace")
         if not text.strip():
             raise HTTPException(422, "Upload a booking file (CSV), or use the configured "
@@ -683,7 +692,10 @@ async def compare_run(
             raise HTTPException(503, "Reading uploaded booking files is not available on "
                                      "this server yet.") from exc
         try:
-            records = parse_csv_text(text, source="upload")
+            # A 20 MB sheet takes a while to parse; off the event loop, which every other
+            # request shares.
+            records = await anyio.to_thread.run_sync(
+                lambda: parse_csv_text(text, source="upload"))
         except ValueError as exc:
             raise HTTPException(422, f"The booking file could not be read: {exc}") from exc
         source = "upload"

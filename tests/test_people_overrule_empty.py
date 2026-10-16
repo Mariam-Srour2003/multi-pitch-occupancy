@@ -84,3 +84,43 @@ def test_the_image_route_turns_it_on(monkeypatch, tmp_path) -> None:
     assert shot["predicted"] == C3.value
     assert shot["n_inside"] == 2
     assert next(x for x in lines if x["type"] == "done")["n_gated"] == 1
+
+
+# --- the gate's own inside test and weights (audit VI-2, VI-3) ------------------------------
+
+
+def test_a_person_cut_off_by_the_bottom_edge_is_inside_a_whole_frame_boundary(monkeypatch):
+    """`detector` clips y2 to the frame height, and the gate's private copy of the inside test
+    read ``y < height`` - so a foreground player was outside every polygon, the whole frame
+    included, and real play was overruled to EMPTY. It now uses `counting.count_inside`."""
+    from pitch_occupancy.vision import counting, explain, people
+
+    whole = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]
+    frame = np.zeros((100, 200, 3), np.uint8)
+    boxes = [(0, (20, 40, 50, 100), 0.9), (0, (120, 30, 150, 100), 0.8),
+             (0, (60, 20, 80, 70), 0.9), (0, (90, 20, 110, 70), 0.9),
+             (0, (160, 20, 180, 70), 0.9)]
+    monkeypatch.setattr(explain, "detect_objects", lambda *_a, **_k: boxes)
+    found = people.detect_inside(frame, whole)
+    assert found.people == 5
+    assert found.people == people.detect_inside(frame, None).people
+    dets = [counting.Detection(c, b, p) for c, b, p in boxes]
+    assert found.people == counting.count_inside(dets, whole, (100, 200)).people_inside
+    state, _ = PersonGate().inspect(PLAY, frame, whole)
+    assert state is PLAY
+
+
+def test_the_gate_loads_its_weights_by_absolute_path(monkeypatch, tmp_path):
+    """A bare ``yolov8n.pt`` was resolved against the working directory and, missing there,
+    downloaded inside a prediction."""
+    from pathlib import Path
+
+    from pitch_occupancy.vision import detector, explain, people
+
+    seen = {}
+    monkeypatch.setattr(explain, "detect_objects",
+                        lambda *_a, **k: seen.update(k) or [])
+    monkeypatch.chdir(tmp_path)
+    people.detect_inside(FRAME, None)
+    assert Path(seen["model_name"]).is_absolute()
+    assert Path(seen["model_name"]).parent == detector.WEIGHTS_DIR

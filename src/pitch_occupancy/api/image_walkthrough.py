@@ -31,17 +31,20 @@ import base64
 import binascii
 import json
 import logging
-import tempfile
+import shutil
 from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from pitch_occupancy.api.clip_review import _classifier, _gates
+from pitch_occupancy.api import clip_review, limits
+from pitch_occupancy.api.clip_review import _gates
 from pitch_occupancy.api.clip_walkthrough import _jpeg
+from pitch_occupancy.api.limits import parse_model, read_json
+from pitch_occupancy.vision import roi as _roi
 from pitch_occupancy.vision.people import PersonGate
 
 __all__ = ["router", "MAX_IMAGES", "MAX_IMAGE_BYTES", "MAX_TOTAL_BYTES"]
@@ -52,6 +55,12 @@ router = APIRouter(prefix="/api/v1", tags=["image review"])
 #: type and message, which is enough to act on, and the operator keeps the stack.
 LOG = logging.getLogger(__name__)
 
+
+def _classifier():
+    """`clip_review._classifier`, looked up when called - see `clip_walkthrough._classifier`
+    for why a name copied at import was the wrong seam."""
+    return clip_review._classifier()
+
 #: A batch this size takes a couple of minutes to explain, which is about as long as anyone
 #: watches. Past that the page stops being a walkthrough and becomes a job.
 MAX_IMAGES: int = 32
@@ -61,13 +70,17 @@ MAX_IMAGES: int = 32
 MAX_IMAGE_BYTES: int = 25 * 1024 * 1024
 MAX_TOTAL_BYTES: int = 200 * 1024 * 1024
 
+#: The whole JSON body: the batch allowance as base64 (four bytes per three), plus room for
+#: names and outlines. Enforced while the body arrives, before any of it is parsed.
+MAX_BODY_BYTES: int = MAX_TOTAL_BYTES * 4 // 3 + 4 * 1024 * 1024
+
 
 class ImageIn(BaseModel):
     name: str = Field(default="image", max_length=260)
     #: This image's own outline, normalised ``[x, y]`` pairs, or absent to use the batch's.
     #: A folder of stills is routinely a folder of different cameras and the page cannot know
     #: otherwise, so one outline across all of them is right only when they share a view.
-    polygon: list[list[float]] | None = None
+    polygon: list[list[float]] | None = Field(default=None, max_length=_roi.MAX_POINTS)
     #: This image is to be scored over the whole frame, because somebody chose that. Distinct
     #: from `polygon` being absent, which means "not decided" and is answered by the batch
     #: outline or the stored camera - the page used to send the two the same way, so pressing
@@ -88,7 +101,7 @@ class BatchIn(BaseModel):
     #: walkway and the car park counted as this pitch. That measured 0.74 false-play against
     #: 0.38 with an outline, and it is the same defect the clip route once carried. The page
     #: now asks for the outline before it predicts, so this is how it arrives.
-    polygon: list[list[float]] | None = None
+    polygon: list[list[float]] | None = Field(default=None, max_length=_roi.MAX_POINTS)
 
 
 def _decode(item: ImageIn) -> bytes:
@@ -233,7 +246,7 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
             # explains itself as a box round each person and a ring round the ball. Both
             # go on the page, because "it is reading the floodlights" and "it found six
             # people and a ball" are only distinguishable side by side.
-            boxes, found = detector_pane(shot.frame_bgr, polygon=shot.polygon,
+            boxes, found = detector_pane(shot.raw_bgr, polygon=shot.polygon,
                                          redact=redact)
             record["boxes"] = _jpeg(boxes)
             record["detector"] = found
@@ -246,28 +259,15 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
                       "n_gated": gated}) + "\n"
 
 
-@router.post("/images/walkthrough", include_in_schema=False)
-async def walkthrough(
-    batch: BatchIn,
-    explain_n: int = Query(-1, ge=-1, le=MAX_IMAGES),
-    redact: bool = Query(False),
-    camera: str = Query("", max_length=120),
-) -> StreamingResponse:
-    """Stream the analysis of a batch of stills, with an evidence map for each.
+def _stage(batch: BatchIn) -> tuple[Path, list[Path]]:
+    """Decode and check every image, then write them to a new workspace: ``(dir, paths)``.
 
-    Decoded to a temporary directory rather than held as arrays, so `walk_images` reads them
-    the same way every other caller in this project reads a frame - through `cv2.imread`,
-    which is also what decides whether a file is an image at all. The directory is removed in
-    the generator's ``finally``, which - as in `clip_walkthrough` - is the point at which the
-    files have genuinely stopped being needed, because a StreamingResponse's body runs after
-    this function has returned.
+    Synchronous, for a worker thread - base64 over 200 MB is seconds of CPU. Every check runs
+    before anything is written, and the workspace is removed if writing fails part-way, so a
+    refused batch leaves nothing on disk. It once did: a 255-character name or a NUL byte
+    failed the write after earlier images were already there, and they stayed.
     """
-    if len(batch.images) > MAX_IMAGES:
-        raise HTTPException(
-            413, f"{len(batch.images)} images; the walkthrough takes at most {MAX_IMAGES}"
-        )
-
-    blobs: list[tuple[str, bytes]] = []
+    blobs: list[bytes] = []
     total = 0
     for item in batch.images:
         raw = _decode(item)
@@ -282,21 +282,68 @@ async def walkthrough(
             raise HTTPException(
                 413, f"batch exceeds {MAX_TOTAL_BYTES // (1024 * 1024)} MB"
             )
-        blobs.append((item.name, raw))
+        # From the header, before anything decodes it: the byte caps above bound the file,
+        # not the gigabyte a small PNG can declare.
+        limits.check_image_pixels(raw, item.name)
+        blobs.append(raw)
 
-    workspace = Path(tempfile.mkdtemp(prefix="shots-"))
-    paths = []
-    for i, (name, raw) in enumerate(blobs):
-        # Indexed, and the original name kept only as a suffix: two uploads can share a
-        # name, and a caller can send any string at all. `Path(name).name` alone would still
-        # collide; this cannot.
-        target = workspace / f"{i:03d}-{Path(name).name}"
-        target.write_bytes(raw)
-        paths.append(target)
+    workspace = limits.upload_workspace()
+    try:
+        paths = []
+        for i, raw in enumerate(blobs):
+            # The index alone, never the caller's name: any string at all can arrive there,
+            # and the name only travels back in the records, through `names`. `cv2.imread`
+            # decides what a file is from its bytes, so no extension is needed either.
+            target = workspace / f"{i:03d}.img"
+            target.write_bytes(raw)
+            paths.append(target)
+    except BaseException:
+        shutil.rmtree(workspace, ignore_errors=True)
+        raise
+    return workspace, paths
+
+
+@router.post("/images/walkthrough", include_in_schema=False)
+async def walkthrough(
+    request: Request,
+    explain_n: int = Query(-1, ge=-1, le=MAX_IMAGES),
+    redact: bool = Query(False),
+    camera: str = Query("", max_length=120),
+) -> StreamingResponse:
+    """Stream the analysis of a batch of stills, with an evidence map for each.
+
+    Decoded to a temporary directory rather than held as arrays, so `walk_images` reads them
+    the same way every other caller in this project reads a frame - through `cv2.imread`,
+    which is also what decides whether a file is an image at all. The directory is removed
+    when the response ends, however it ends - `CleanupStreamingResponse` closes the generator
+    and removes it even when the client disconnects, rather than leaving that to whenever
+    the garbage collector finds the suspended generator.
+
+    The body is read by hand, capped at what the image caps allow, rather than declared as a
+    `BatchIn` parameter: FastAPI buffers a declared body whole before any cap applies.
+    """
+    batch = parse_model(BatchIn, await read_json(request, MAX_BODY_BYTES))
+    if len(batch.images) > MAX_IMAGES:
+        raise HTTPException(
+            413, f"{len(batch.images)} images; the walkthrough takes at most {MAX_IMAGES}"
+        )
+    # The outlines are checked here as well as in `walk_records`, so a malformed one is a 422
+    # before anything is decoded or written, not an error record inside a 200 stream.
+    for label, one in [("the outline", batch.polygon)] + [
+            (f"image {i + 1}: the outline", item.polygon)
+            for i, item in enumerate(batch.images)]:
+        if one:
+            try:
+                _roi.validate(one)
+            except ValueError as exc:
+                raise HTTPException(422, f"{label} is not usable: {exc}") from exc
+
+    workspace, paths = await limits.run_heavy(_stage, batch)
+    names = [item.name for item in batch.images]
 
     def stream() -> Iterator[str]:
         try:
-            yield from walk_records(paths, names=[n for n, _ in blobs],
+            yield from walk_records(paths, names=names,
                                     explain_n=explain_n, redact=redact, camera=camera,
                                     polygon=batch.polygon,
                                     polygons=[i.polygon for i in batch.images],
@@ -325,8 +372,7 @@ async def walkthrough(
                 "fatal": isinstance(exc, ImportError),
             }) + "\n"
         finally:
-            for path in paths:
-                path.unlink(missing_ok=True)
-            workspace.rmdir()
+            shutil.rmtree(workspace, ignore_errors=True)
 
-    return StreamingResponse(stream(), media_type="application/x-ndjson")
+    return limits.CleanupStreamingResponse(
+        stream(), cleanup=lambda: shutil.rmtree(workspace, ignore_errors=True))

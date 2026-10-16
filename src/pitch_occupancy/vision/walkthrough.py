@@ -39,12 +39,23 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:  # pragma: no cover - typing only
     import numpy as np
 
-__all__ = ["Step", "Shot", "walk_clip", "walk_images", "explain_frame", "EXPLAIN_ALL"]
+__all__ = ["Step", "Shot", "walk_clip", "walk_images", "explain_frame", "EXPLAIN_ALL",
+           "RedactionUnavailable"]
 
 #: ``explain_n=EXPLAIN_ALL`` explains every sampled frame. Explaining costs roughly twice a
 #: bare prediction, so a caller that wants the first few steps illustrated and the rest merely
 #: classified passes a small number instead.
 EXPLAIN_ALL: int = -1
+
+
+class RedactionUnavailable(RuntimeError):
+    """``redact=True`` was asked for and the detector could not run, so nothing was shown.
+
+    Raised rather than degraded. A frame the caller asked to have redacted, served with the
+    people in it untouched because the detector failed to load, is the one failure a
+    redaction flag exists to rule out; the API's streams turn this into an ``error`` record,
+    which is the honest answer to "show me this footage safely".
+    """
 
 
 class _Explained:
@@ -105,8 +116,15 @@ class Step(_Explained):
     #: The motion cue against the previous sampled frame; None on the first, which has no
     #: predecessor and therefore no cue.
     motion: float | None = None
-    #: BGR frame as decoded, redacted only if the caller asked. None once explaining stops.
+    #: The frame the reader is shown: masked to the boundary, outlined, and redacted if the
+    #: caller asked. None once explaining stops. Not the decoded frame - see ``raw_bgr``.
     frame_bgr: np.ndarray | None = None
+    #: The frame as decoded: unmasked, unoutlined, unredacted, and only on explained steps.
+    #: What a second model must be run on - `overlay.detector_pane` on ``frame_bgr`` cannot
+    #: find anyone outside a boundary that has been blacked out (it reported 0 outside on
+    #: every frame), and its count moved with the Pixelate toggle (audit UP-14, RX-12).
+    #: **Never serve it to a page as-is** when redaction was asked for.
+    raw_bgr: np.ndarray | None = None
     #: The per-position contribution map, in score units, at the backbone's patch grid.
     evidence: np.ndarray | None = None
     grid: tuple[int, int] | None = None
@@ -149,6 +167,8 @@ class Shot(_Explained):
     width: int = 0
     height: int = 0
     frame_bgr: np.ndarray | None = None
+    #: As on :class:`Step`: the image as read, before masking, outlining or redaction.
+    raw_bgr: np.ndarray | None = None
     evidence: np.ndarray | None = None
     grid: tuple[int, int] | None = None
     score_from_map: float | None = None
@@ -181,6 +201,13 @@ def _gate(state, confidence, frame, polygon, *, previous=None,
     Returns ``(state, probed, n_inside, ball, motion)`` where ``probed`` is the pre-gate
     verdict when a gate changed it and None when none did, so a caller can show the
     correction rather than silently replacing one answer with another.
+
+    **``frame`` is the decoded frame, not the masked one, and ``polygon`` does the
+    confining** - exactly what `clip_analysis.analyse_clip` and `worker.run_slot` pass. This
+    page used to hand the gates the frame `roi.apply` had blacked out, so a player whose
+    feet were inside the line and whose body crossed it was half erased before the detector
+    looked: on ten real frames the two routes counted differently on seven (12 against 7),
+    and 5 against 3 crosses `play_min` - the two review tabs disagreeing again (audit UP-13).
     """
     from pitch_occupancy.data.taxonomy import Class3
 
@@ -213,7 +240,7 @@ def _classify(classifier, frame, polygon):
 
 
 def explain_frame(frame, classifier, *, redact: bool = False,
-                  polygon: list[list[float]] | None = None) -> dict:
+                  polygon: list[list[float]] | None = None, raw=None) -> dict:
     """Predict one BGR frame and decompose the score over the backbone's patch grid.
 
     Returns the fields :class:`Step` and :class:`Shot` share, so the clip walkthrough and
@@ -234,13 +261,39 @@ def explain_frame(frame, classifier, *, redact: bool = False,
     With a boundary, the positions outside it carry weight zero through **both** the pooling
     and the decomposition, so they contribute nothing to the score and exactly zero to the
     map. ``evidence_outside`` reports that as a number the reader can watch.
+
+    **People are found once, at 1280 px, on the unmasked frame.** ``raw`` is the frame
+    before `roi.apply` (``frame`` itself when not given); the detector runs on it at
+    `people.DETECT_IMGSZ` with the gate's own weights. Those boxes serve two purposes:
+
+    * ``redact=True`` hands **all** of them to `explain.redact_frame` - pixelated people, then
+      the floor of blur over the whole frame. This used to pixelate only the boxes a 640-px
+      pass found and skip the floor, and on a real frame 5 of the 8 people the 1280-px pass
+      finds were left untouched (audit RX-1). Redacting with every box, not only the ones
+      inside the outline, is deliberate: a ``blur`` or ``mean`` fill leaves people outside
+      partly visible, and the cost of over-redacting is nil.
+    * ``n_people`` and ``evidence_on_people`` read only the people standing inside the
+      boundary (by the foot, as `counting.inside` does), since the evidence outside it is
+      zero by construction and their area would only dilute the ratio.
+
+    **A detector that cannot run is "not checked", never a crash and never a leak.**
+    Without ``redact`` the counts come back None (audit RX-9: ``len(None)`` used to kill
+    the stream). With it, :class:`RedactionUnavailable` is raised rather than an
+    unredacted frame returned.
     """
     import numpy as np
 
     from pitch_occupancy.vision import explain as X
     from pitch_occupancy.vision import roi
+    from pitch_occupancy.vision.counting import inside, polygon_mask
+    from pitch_occupancy.vision.people import DETECT_IMGSZ, gate_weights
 
-    classes = list(classifier.probe.classes_)
+    # The probe the deployed model uses for this polygon (`ProbeClassifier.probe_for`):
+    # with a boundary that is the boundary-pooled one, and explaining the other would
+    # explain a model that is not serving.
+    probe = (classifier.probe_for(polygon) if hasattr(classifier, "probe_for")
+             else classifier.probe)
+    classes = list(probe.classes_)
     feats, grid = X.spatial_features(
         classifier.model, classifier.processor, classifier.spec, frame
     )
@@ -255,22 +308,31 @@ def explain_frame(frame, classifier, *, redact: bool = False,
         if drop_first:
             flat = np.concatenate([[1.0], flat])
         pooled = (feats * flat[:, None]).sum(axis=0, keepdims=True) / flat.sum()
-    proba = classifier.probe.predict_proba(pooled)[0]
+    proba = probe.predict_proba(pooled)[0]
     predicted = classes[int(proba.argmax())]
 
-    weights, constant = X.probe_weights(classifier.probe, predicted)
+    weights, constant = X.probe_weights(probe, predicted)
     evidence, score_from_map = X.class_evidence_map(
         feats, weights, constant, grid, drop_first=drop_first, cell_weights=cells
     )
-    direct = classifier.probe._model.decision_function(pooled)[0]  # noqa: SLF001
+    direct = probe._model.decision_function(pooled)[0]  # noqa: SLF001
     score_direct = float(direct[classes.index(predicted)] if np.ndim(direct) else direct)
 
-    boxes = X.detect_people(frame)
-    on_people = area = None
-    if boxes:
-        on_people, area = X.evidence_on_people(evidence, boxes, frame.shape[:2])
+    boxes = X.detect_people(frame if raw is None else raw, imgsz=DETECT_IMGSZ,
+                            model_name=gate_weights())
+    if boxes is None and redact:
+        raise RedactionUnavailable(
+            "redaction was requested but the person detector is unavailable; refusing to "
+            "show the frame unredacted")
+    on_people = area = n_people = None
+    if boxes is not None:
+        mask = polygon_mask(polygon, frame.shape[:2])
+        standing = [b for b in boxes if inside(mask, ((b[0] + b[2]) // 2, b[3]))]
+        n_people = len(standing)
+        if standing:
+            on_people, area = X.evidence_on_people(evidence, standing, frame.shape[:2])
 
-    shown = X.pixelate_boxes(frame.copy(), boxes) if redact else frame
+    shown = X.redact_frame(frame, boxes) if redact else frame
     return {
         "predicted": str(predicted),
         "confidence": float(proba.max()),
@@ -282,7 +344,7 @@ def explain_frame(frame, classifier, *, redact: bool = False,
         "grid": grid,
         "score_from_map": score_from_map,
         "score_direct": score_direct,
-        "n_people": len(boxes),
+        "n_people": n_people,
         "evidence_on_people": on_people,
         "people_area": area,
         "evidence_outside": X.evidence_outside(evidence, cells),
@@ -369,37 +431,42 @@ def walk_clip(
                 continue
 
             began = time.perf_counter()
-            frame = apply_roi(frame, polygon, fill=roi_fill)
+            # The decoded frame goes to the gates with the polygon, the masked one to the
+            # probe - the split `clip_analysis` and the worker make (see `_gate`).
+            raw = frame
+            masked = apply_roi(raw, polygon, fill=roi_fill)
             explaining = explain_n == EXPLAIN_ALL or index < explain_n
 
             if not explaining:
-                state, confidence = _classify(classifier, frame, polygon)
+                state, confidence = _classify(classifier, masked, polygon)
                 state, probed, n_inside, ball, motion = _gate(
-                    state, confidence, frame, polygon, previous=previous,
+                    state, confidence, raw, polygon, previous=previous,
                     motion_gate=motion_gate, person_gate=person_gate)
-                previous = frame
                 yield Step(index=index, t_s=t, predicted=str(state), confidence=confidence,
                            elapsed_ms=(time.perf_counter() - began) * 1000,
                            probed=probed, n_inside=n_inside, ball=ball, motion=motion,
                            polygon=polygon)
-                index += 1
-                t += interval_s
-                continue
-
-            explained = explain_frame(frame, classifier, redact=redact, polygon=polygon)
-            state, probed, n_inside, ball, motion = _gate(
-                explained["predicted"], explained["confidence"], frame, polygon,
-                previous=previous, motion_gate=motion_gate, person_gate=person_gate)
-            previous = frame
-            explained["predicted"] = str(state)
-            yield Step(
-                index=index, t_s=t,
-                elapsed_ms=(time.perf_counter() - began) * 1000,
-                probed=probed, n_inside=n_inside, ball=ball, motion=motion,
-                **explained,
-            )
+            else:
+                explained = explain_frame(masked, classifier, redact=redact,
+                                          polygon=polygon, raw=raw)
+                state, probed, n_inside, ball, motion = _gate(
+                    explained["predicted"], explained["confidence"], raw, polygon,
+                    previous=previous, motion_gate=motion_gate, person_gate=person_gate)
+                explained["predicted"] = str(state)
+                yield Step(
+                    index=index, t_s=t,
+                    elapsed_ms=(time.perf_counter() - began) * 1000,
+                    probed=probed, n_inside=n_inside, ball=ball, motion=motion,
+                    raw_bgr=raw, **explained,
+                )
+            previous = raw
             index += 1
             t += interval_s
+            # On both branches. The bound used to sit after the explained branch only, and
+            # a stream of unknown length (raw MJPEG, a CCTV export) with ``explain_n=0``
+            # never reached it: 2000 steps from a 1.2 MB upload, and a clock reading 19990
+            # minutes (audit UP-10). Known-length clips are already bounded by widening
+            # the interval above; this is the cap for the ones that are not.
             if index >= max_samples:
                 break
     finally:
@@ -487,12 +554,14 @@ def walk_images(
             continue
 
         height, width = frame.shape[:2]
-        frame = apply_roi(frame, shot_polygon, fill=roi_fill)
+        # Gate on the image as read and let the polygon confine it, as in `walk_clip`.
+        raw = frame
+        frame = apply_roi(raw, shot_polygon, fill=roi_fill)
         explaining = explain_n == EXPLAIN_ALL or index < explain_n
         if not explaining:
             state, confidence = _classify(classifier, frame, shot_polygon)
             state, probed, n_inside, ball, _ = _gate(
-                state, confidence, frame, shot_polygon, person_gate=person_gate)
+                state, confidence, raw, shot_polygon, person_gate=person_gate)
             yield Shot(
                 index=index, name=source.name, predicted=str(state),
                 confidence=confidence, width=width, height=height,
@@ -501,14 +570,15 @@ def walk_images(
             )
             continue
 
-        explained = explain_frame(frame, classifier, redact=redact, polygon=shot_polygon)
+        explained = explain_frame(frame, classifier, redact=redact, polygon=shot_polygon,
+                                  raw=raw)
         state, probed, n_inside, ball, _ = _gate(
-            explained["predicted"], explained["confidence"], frame, shot_polygon,
+            explained["predicted"], explained["confidence"], raw, shot_polygon,
             person_gate=person_gate)
         explained["predicted"] = str(state)
         yield Shot(
             index=index, name=source.name, width=width, height=height,
             elapsed_ms=(time.perf_counter() - began) * 1000,
-            probed=probed, n_inside=n_inside, ball=ball,
+            probed=probed, n_inside=n_inside, ball=ball, raw_bgr=raw,
             **explained,
         )

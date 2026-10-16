@@ -72,6 +72,12 @@ class PitchCount:
     #: The counted people and the balls inside, for the overlay and the evidence record.
     people: tuple[Detection, ...] = ()
     balls: tuple[Detection, ...] = ()
+    #: Every person detection the pass returned - inside or outside the boundary, below
+    #: ``person_conf`` or not, short or tall. Counting never reads it; **redaction does**.
+    #: `overlay.publishable` used to redact ``people`` alone, so everyone the rule did not
+    #: count - the crowd behind the fence, the staff in the dugout - got only the light floor
+    #: blur: 9 boxes pixelated on a frame with 17 people (audit RX-3).
+    seen_people: tuple[Detection, ...] = ()
     #: Whether a boundary was applied at all. Without one everything counts, which is the
     #: pre-boundary behaviour, and the caller reports it rather than pretends otherwise.
     bounded: bool = True
@@ -196,6 +202,7 @@ def count_inside(
     mask = polygon_mask(polygon, shape)
     people: list[Detection] = []
     balls: list[Detection] = []
+    seen_people = tuple(d for d in detections if d.cls == PERSON)
     raw_inside = 0
     people_total = 0
     vehicles = 0
@@ -233,6 +240,7 @@ def count_inside(
         spread=spread_of(people, polygon, shape),
         people=tuple(people),
         balls=tuple(balls),
+        seen_people=seen_people,
         bounded=mask is not None,
         ball_frames=1 if balls else 0,
         # One frame cannot tell a ball being played with from one lying on the grass.
@@ -275,6 +283,7 @@ def persist(counts: Sequence[PitchCount]) -> PitchCount:
         spread=representative.spread,
         people=representative.people,
         balls=best.balls if best else (),
+        seen_people=representative.seen_people,
         bounded=all(c.bounded for c in counts),
         ball_frames=evidence.frames_seen,
         ball_in_play=evidence.in_play,
