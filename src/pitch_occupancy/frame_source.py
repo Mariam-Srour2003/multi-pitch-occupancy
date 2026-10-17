@@ -28,7 +28,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-__all__ = ["Frame", "FrameSource", "VideoSlotSource", "RTSPSource", "discover_slots"]
+__all__ = ["Frame", "FrameSource", "VideoSlotSource", "RTSPSource", "discover_slots",
+           "is_incomplete"]
 
 #: `StatBox_Replay_<venue>_2026-07-11_10-00 (1).mp4` -> date, time, and which camera
 _VIDEO_RE = re.compile(r"(?P<d>\d{4}-\d{2}-\d{2})_(?P<t>\d{2}-\d{2})(?P<second>\s*\(1\))?")
@@ -160,6 +161,42 @@ def _shown(url: str) -> str:
     return mask(url)
 
 
+def is_incomplete(image: np.ndarray) -> bool:
+    """Whether a decoded frame is only partly drawn: a flat, near-white band at the bottom.
+
+    When a stream stalls mid-frame (seen on the first real site, 2026-10-17: H.265 cameras over
+    a VPN), FFmpeg still returns the frame, with everything after the stall filled in as a
+    flat pale band. Counted as it is, the band hides the people in it - one café camera read
+    18 people, then 10, then 0 within two minutes. Measured on 64x48 rows: a row is "undrawn"
+    when it is almost uniform (std < 8), very bright (V > 225) and nearly colourless (S < 40);
+    two or more such rows touching the bottom edge mean the frame is incomplete. Checked
+    against 25 evidence frames and 383 labelled frames without one false alarm.
+    """
+    if image is None or getattr(image, "ndim", 0) != 3 or image.shape[0] < 48:
+        return False
+    small = cv2.resize(image, (64, 48), interpolation=cv2.INTER_AREA)
+    hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV).astype(np.float32)
+    std = small.astype(np.float32).std(axis=1).max(axis=1)
+    undrawn = (std < 8) & (hsv[:, :, 2].mean(axis=1) > 225) & (hsv[:, :, 1].mean(axis=1) < 40)
+    return bool(undrawn[-1] and undrawn[-2])
+
+
+#: How long to keep reading for a whole frame when the stream gives a half-drawn one: past the
+#: cameras' keyframe interval (4 s measured) so a fresh complete picture can arrive.
+WHOLE_FRAME_WAIT_S = 5.0
+
+
+def _read_whole(capture, fps: float):
+    """The next frame that is fully drawn, or ``(False, None)`` if none comes in time."""
+    for _ in range(max(1, int(fps * WHOLE_FRAME_WAIT_S))):
+        ok, image = capture.read()
+        if not ok or image is None:
+            return False, None
+        if not is_incomplete(image):
+            return True, image
+    return False, None
+
+
 class RTSPSource(FrameSource):
     """One snapshot per camera per minute from live streams.
 
@@ -277,7 +314,8 @@ class RTSPSource(FrameSource):
         for _ in range(self._retries + 1):
             capture = self._open(url)
             try:
-                ok, image = capture.read()
+                fps = float(getattr(capture, "get", lambda _p: 0.0)(cv2.CAP_PROP_FPS) or 25.0)
+                ok, image = _read_whole(capture, fps)
             finally:
                 capture.release()
             if ok and image is not None:
@@ -311,7 +349,8 @@ class RTSPSource(FrameSource):
                         for _ in range(skip):
                             if not capture.grab():
                                 break
-                    ok, image = capture.read()
+                    # A half-drawn frame is skipped, not counted: see `is_incomplete`.
+                    ok, image = _read_whole(capture, fps)
                     if not ok or image is None:
                         break
                     out.append(Frame(camera_id, minute_index, image, _shown(url)))

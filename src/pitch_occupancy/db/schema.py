@@ -123,6 +123,26 @@ CREATE TABLE IF NOT EXISTS reconciliations (
 );
 
 CREATE INDEX IF NOT EXISTS idx_recon_anomaly ON reconciliations(anomaly);
+
+-- one row per camera per automatic check (`monitor.py`): were there people, and how many.
+-- Separate from the slot tables on purpose: a check belongs to a camera and a moment, not to
+-- a booked slot, so it needs no schedule and no field - any saved camera can be checked.
+CREATE TABLE IF NOT EXISTS camera_checks (
+    check_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    venue_id      TEXT NOT NULL,
+    camera_id     TEXT NOT NULL,
+    checked_at    TEXT NOT NULL,     -- local ISO timestamp with offset
+    readable      INTEGER NOT NULL,  -- 0 = the camera gave no picture
+    people        INTEGER,           -- NULL = not counted (unreadable or no detector)
+    state         TEXT,              -- MinuteState value, NULL when not decided
+    label         TEXT,              -- the plain-words verdict the pages show
+    confidence    REAL,
+    picture_path  TEXT,              -- only when saving pictures is switched on
+    problem       TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_checks_time ON camera_checks(checked_at);
+CREATE INDEX IF NOT EXISTS idx_checks_camera ON camera_checks(venue_id, camera_id);
 """
 
 

@@ -282,6 +282,13 @@ ALLOWED_MUTATING = {
     #: Cancels a queued or running test job. A person stopping their own test; uploads are
     #: deleted as on any finish, local recordings are left untouched.
     "/api/v1/testing/jobs/{job_id}/cancel",
+    #: Automatic camera checks (`monitor.py`): a person switching the checker on or off and
+    #: choosing how often. It edits the system's own configuration (the gitignored
+    #: configs/monitor.json), never a client record; what it writes afterwards are its own
+    #: observations, like the worker's.
+    "/api/v1/monitor",
+    #: "Check all cameras now": one round of the same checks, asked for by a person.
+    "/api/v1/monitor/run-now",
 }
 
 

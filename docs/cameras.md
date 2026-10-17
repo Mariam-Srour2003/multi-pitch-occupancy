@@ -77,7 +77,7 @@ only if pictures must be kept as evidence. The worker reads the schedule when it
 restart it after changing the schedule.
 
 Results: each finished slot is written to the database (`data/db/pitch_monitor.db`) and
-shown on the dashboard at `/`. Retention: sampled frames 7 days, evidence pictures 365 days
+shown on the dashboard at `/client`. Retention: sampled frames 7 days, evidence pictures 365 days
 (`uv run pitch retention`).
 
 ## Daily check

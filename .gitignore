@@ -80,6 +80,8 @@ desktop.ini
 /configs/cameras.json
 /configs/bookings_source.json
 /configs/alerts.json
+# Automatic camera checks (monitor.py): per-site on/off, how often, which cameras.
+/configs/monitor.json
 .env
 .env.*
 secrets.json

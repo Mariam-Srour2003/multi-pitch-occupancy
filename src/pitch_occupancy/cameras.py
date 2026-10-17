@@ -529,6 +529,14 @@ def probe(
         steps.append("the video stream opened")
         try:
             ok, image = capture.read()
+            # A half-drawn first frame (stream stalled mid-picture) is not the picture to
+            # show: read on for a whole one, as the recorder does (`frame_source`).
+            from pitch_occupancy.frame_source import _read_whole, is_incomplete
+
+            if ok and image is not None and is_incomplete(image):
+                get = getattr(capture, "get", None)
+                fps = float(get(cv2.CAP_PROP_FPS) or 25.0) if get is not None else 25.0
+                ok, image = _read_whole(capture, fps)
         except Exception as exc:  # noqa: BLE001
             steps.append(f"reading failed ({type(exc).__name__})")
             return done("frame", host=host, port=port)

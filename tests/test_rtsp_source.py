@@ -375,3 +375,75 @@ def test_a_live_frame_never_carries_the_camera_password() -> None:
         assert frame is not None
         assert "hunter2" not in frame.source_path
         assert "10.0.0.5" in frame.source_path
+
+
+# --- half-drawn frames ----------------------------------------------------------------------
+
+def _scene(seed: int = 0) -> np.ndarray:
+    """A frame with texture everywhere, like a real picture."""
+    rng = np.random.default_rng(seed)
+    return rng.integers(30, 200, (360, 640, 3), dtype=np.uint8)
+
+
+def _half_drawn(fraction: float = 0.6) -> np.ndarray:
+    frame = _scene()
+    band = int(frame.shape[0] * fraction)
+    frame[-band:] = (248, 246, 252)   # the flat pale fill FFmpeg leaves after a stall
+    return frame
+
+
+def test_a_half_drawn_frame_is_recognised_and_a_real_one_is_not() -> None:
+    from pitch_occupancy.frame_source import is_incomplete
+
+    assert is_incomplete(_half_drawn(0.6))
+    assert is_incomplete(_half_drawn(0.05))
+    assert not is_incomplete(_scene())
+    assert not is_incomplete(np.zeros((360, 640, 3), np.uint8)), "a black night frame is whole"
+    assert not is_incomplete(np.zeros((4, 4, 3), np.uint8)), "too small to judge"
+
+
+class StallingCapture:
+    """Gives ``bad`` half-drawn frames, then whole ones."""
+
+    def __init__(self, bad: int) -> None:
+        self.bad = bad
+        self.reads = 0
+
+    def get(self, prop) -> float:
+        return 25.0
+
+    def grab(self) -> bool:
+        return True
+
+    def read(self):
+        self.reads += 1
+        return True, (_half_drawn() if self.reads <= self.bad else _scene(self.reads))
+
+    def release(self) -> None:
+        pass
+
+
+def test_a_half_drawn_frame_is_skipped_for_the_next_whole_one() -> None:
+    """One café camera read 18, 10 and then 0 people in two minutes, because half of each
+    frame was a pale band the detector could not see anyone in."""
+    from pitch_occupancy.frame_source import is_incomplete
+
+    capture = StallingCapture(bad=3)
+    src = RTSPSource({"cam": "rtsp://cam/s"}, minutes=1, started_at=START,
+                     open_capture=lambda url: capture, clock=FakeClock(), sleep=lambda s: None)
+    frame = src.read("cam", 0)
+    assert frame is not None and not is_incomplete(frame.image_bgr)
+    assert capture.reads == 4
+
+    capture = StallingCapture(bad=2)
+    src = RTSPSource({"cam": "rtsp://cam/s"}, minutes=1, started_at=START,
+                     open_capture=lambda url: capture, clock=FakeClock(), sleep=lambda s: None)
+    burst = src.read_burst("cam", 0, n=3, spacing_s=0.0)
+    assert len(burst) == 3 and not any(is_incomplete(f.image_bgr) for f in burst)
+
+
+def test_a_stream_that_never_draws_a_whole_frame_is_a_gap_not_a_count() -> None:
+    capture = StallingCapture(bad=10_000)
+    src = RTSPSource({"cam": "rtsp://cam/s"}, minutes=1, started_at=START, retries=0,
+                     open_capture=lambda url: capture, clock=FakeClock(), sleep=lambda s: None)
+    assert src.read("cam", 0) is None

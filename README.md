@@ -78,12 +78,19 @@ uv run pitch serve --host 0.0.0.0
 The browser sends the password with each request, encoded rather than encrypted, so outside a
 trusted local network put the service behind HTTPS or a VPN.
 
-Every page shares one navigation bar: **Dashboard · Reports · Testing · Cameras · Bookings ·
-Boundaries · Alerts**.
+Every page shares one navigation bar: **Home · Add cameras · Test cameras · Watch live ·
+Records · More**. The first five are the simple pages, in plain words, for everyday use; the
+rest of the pages below are under **More**.
 
 | page | what it does |
 |---|---|
-| `/` (also `/client`) | operator dashboard: a "Getting started" checklist (cameras → boundaries → schedule → detector → bookings → sign-in → recording → alerts), pitches hour by hour, slot verdicts, evidence, overrides |
+| `/` | **Home**: cameras saved, whether automatic checking is on, the latest check of every camera, and four big buttons to the pages below |
+| `/cameras/add` | **Add cameras** by address, username and password (no RTSP link to write by hand; special characters in the password are handled), test before saving, change or remove saved ones |
+| `/cameras/test` | **Test cameras** one by one, with a picture from each that answers and a plain reason for each that does not |
+| `/live` | **Watch live**: every camera, each with its own page and link (`/live/<place>/<camera>`) showing the picture, how many people it sees, and how busy it is, re-checking every 15 s - 1 min |
+| `/records` | **Records**, the database: for each camera and period (1.5 hours by default; 15 min - 3 h), were there people, the most at once, the average; a CSV download; and the switch for **automatic checking** (`monitor.py`: every camera every 1-90 minutes, optional picture per check, settings in the gitignored `configs/monitor.json`) |
+| `/more` | the pages below, each with one line on what it is for |
+| `/client` (also `/dashboard`) | operator dashboard: a "Getting started" checklist (cameras → boundaries → schedule → detector → bookings → sign-in → recording → alerts), pitches hour by hour, slot verdicts, evidence, overrides |
 | `/testing` | the testing hub: try the system on your own footage and photos; running and queued tests with a Cancel button |
 | `/testing/day` | **booking-day test**: upload a day's video (or pick a recording already on this computer, from `data/recordings/` or `PITCH_RECORDINGS_DIR`), say when it starts (e.g. 08:00) and how long a slot is (e.g. 90 min); get every slot's minutes playing / empty / maintenance and USED / NOT USED / REVIEW, adjustable slot rules (re-judge a saved run without re-running it), CSV download, print / save as PDF, and an optional comparison with booking records |
 | `/clip` | one video in, a timeline of what the pitch was doing; "Watch it work" streams each step |
