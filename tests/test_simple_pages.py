@@ -219,15 +219,27 @@ def test_records_refuse_an_unknown_period(tmp_path) -> None:
 # --- pages and endpoints -------------------------------------------------------------------
 
 @pytest.mark.parametrize("path, text", [
-    ("/", "Pitch cameras"), ("/cameras/add", "Add a camera"),
-    ("/cameras/test", "Test all cameras"), ("/live", "Watch live"),
-    ("/records", "Automatic checking"), ("/more", "Pitch boundaries"),
+    ("/", "/api/v1/records/latest"), ("/cameras/add", "+ Add camera"),
+    ("/records", "automatic checking"), ("/more", "Pitch boundaries"),
 ])
-def test_every_simple_page_renders_with_the_new_navigation(env, path, text) -> None:
+def test_every_simple_page_renders_with_the_short_menu(env, path, text) -> None:
     r = env.client.get(path)
     assert r.status_code == 200 and text in r.text
-    for label in ("Add cameras", "Test cameras", "Watch live", "Records", "More"):
-        assert f">{label}</a>" in r.text
+    nav = r.text[r.text.index("<nav>"):r.text.index("</nav>")]
+    assert [label for label in ("Home", "Cameras", "Records", "More") if f">{label}</a>" in nav] \
+        == ["Home", "Cameras", "Records", "More"]
+    assert nav.count("</a>") == 4, "four menu items and no more"
+
+
+@pytest.mark.parametrize("old", ["/live", "/cameras/test"])
+def test_the_first_versions_addresses_lead_home(env, old) -> None:
+    r = env.client.get(old, follow_redirects=False)
+    assert r.status_code == 307 and r.headers["location"] == "/"
+
+
+def test_the_records_page_groups_by_an_hour_and_a_half(env) -> None:
+    html = env.client.get("/records").text
+    assert "const PERIOD = 90;" in html and "__PERIOD__" not in html
 
 
 def test_each_camera_has_its_own_live_page(env) -> None:

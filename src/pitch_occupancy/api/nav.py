@@ -15,9 +15,7 @@ __all__ = ["NAV", "NAV_CSS", "SECTIONS", "nav_html"]
 #: rest of the original pages are one click away under More.
 NAV: tuple[tuple[str, str, str], ...] = (
     ("home", "Home", "/"),
-    ("add", "Add cameras", "/cameras/add"),
-    ("test", "Test cameras", "/cameras/test"),
-    ("live", "Watch live", "/live"),
+    ("cameras-simple", "Cameras", "/cameras/add"),
     ("records", "Records", "/records"),
     ("more", "More", "/more"),
 )
@@ -28,7 +26,7 @@ SECTIONS: dict[str, tuple[str, str]] = {
     "dashboard": ("Pitch verdicts", "/client"),
     "reports": ("Reports", "/reports"),
     "testing": ("Testing", "/testing"),
-    "cameras": ("Cameras (advanced)", "/cameras"),
+    "cameras": ("Camera setup", "/cameras"),
     "bookings": ("Bookings", "/bookings"),
     "roi": ("Boundaries", "/roi"),
     "alerts": ("Alerts", "/alerts"),
