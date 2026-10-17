@@ -124,9 +124,10 @@ CREATE TABLE IF NOT EXISTS reconciliations (
 
 CREATE INDEX IF NOT EXISTS idx_recon_anomaly ON reconciliations(anomaly);
 
--- one row per camera per automatic check (`monitor.py`): were there people, and how many.
+-- one row per camera per automatic check (`playgrounds.py`): were there people, and how many.
 -- Separate from the slot tables on purpose: a check belongs to a camera and a moment, not to
--- a booked slot, so it needs no schedule and no field - any saved camera can be checked.
+-- a booked slot, so it needs no schedule and no field. `playground_check_id` ties the row to
+-- the playground check it was part of; the timings feed the computer-speed estimate.
 CREATE TABLE IF NOT EXISTS camera_checks (
     check_id      INTEGER PRIMARY KEY AUTOINCREMENT,
     venue_id      TEXT NOT NULL,
@@ -143,7 +144,32 @@ CREATE TABLE IF NOT EXISTS camera_checks (
 
 CREATE INDEX IF NOT EXISTS idx_checks_time ON camera_checks(checked_at);
 CREATE INDEX IF NOT EXISTS idx_checks_camera ON camera_checks(venue_id, camera_id);
+
+-- one row per playground per check: its cameras combined into one count (added when they
+-- watch different parts, the largest when they watch the same area - see `playgrounds.py`).
+CREATE TABLE IF NOT EXISTS playground_checks (
+    check_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    playground_id  TEXT NOT NULL,
+    checked_at     TEXT NOT NULL,     -- local ISO timestamp with offset
+    people         INTEGER,           -- combined count; NULL when no camera gave a picture
+    playing        INTEGER,           -- 1 when people >= the rule's play_min
+    cameras_read   INTEGER NOT NULL,
+    cameras_total  INTEGER NOT NULL,
+    counting       TEXT NOT NULL,     -- 'add' or 'largest'
+    duration_ms    INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_pgchecks ON playground_checks(playground_id, checked_at);
 """
+
+#: Columns added to existing tables after their first release. `CREATE TABLE IF NOT EXISTS`
+#: leaves an existing table as it was, so a database created before these columns existed
+#: gets them here - without this, every older install would fail on the first insert.
+_ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    ("camera_checks", "playground_check_id", "INTEGER"),
+    ("camera_checks", "grab_ms", "INTEGER"),
+    ("camera_checks", "detect_ms", "INTEGER"),
+)
 
 
 def connect(path: Path | str, *, same_thread: bool = True) -> sqlite3.Connection:
@@ -166,6 +192,10 @@ def connect(path: Path | str, *, same_thread: bool = True) -> sqlite3.Connection
 def initialise(conn: sqlite3.Connection) -> None:
     """Create the schema. Idempotent - safe on an existing database."""
     conn.executescript(SCHEMA)
+    for table, column, kind in _ADDED_COLUMNS:
+        have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in have:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
     conn.commit()
 
 

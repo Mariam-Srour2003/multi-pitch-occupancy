@@ -15,6 +15,7 @@ __all__ = ["NAV", "NAV_CSS", "SECTIONS", "nav_html"]
 #: rest of the original pages are one click away under More.
 NAV: tuple[tuple[str, str, str], ...] = (
     ("home", "Home", "/"),
+    ("playgrounds", "Playgrounds", "/playgrounds"),
     ("cameras-simple", "Cameras", "/cameras/add"),
     ("records", "Records", "/records"),
     ("more", "More", "/more"),

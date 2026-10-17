@@ -63,16 +63,16 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     does nothing. A thread rather than a task because its checks read files and the database
     and send over the network - blocking work that must not sit on the event loop.
     """
-    from pitch_occupancy import alerts, monitor
+    from pitch_occupancy import alerts, playgrounds
 
     alerts.start_background_checker()
-    # The automatic camera checks (`monitor.py`). Always started, idle while switched off, so
-    # turning it on from the Records page needs no restart and a restart keeps it on.
-    monitor.start_background()
+    # The playground checks (`playgrounds.py`). Always started, idle while no playground is
+    # on, so switching one on from the Playgrounds page needs no restart.
+    playgrounds.start()
     try:
         yield
     finally:
-        monitor.stop_background()
+        playgrounds.stop()
         alerts.stop_background_checker()
 
 
@@ -124,7 +124,7 @@ app.include_router(reports_router)
 app.include_router(alerts_router)
 # The dashboard's "Getting started" checklist, computed from this machine's configuration.
 app.include_router(setup_router)
-# The simple front end - Home at `/`, Add / Test / Live / Records - over the same APIs.
+# The simple front end - Home at `/`, Playgrounds, Cameras, Records - over the same APIs.
 app.include_router(simple_router)
 
 

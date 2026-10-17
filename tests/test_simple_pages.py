@@ -1,12 +1,11 @@
-"""The simple front end and the automatic camera checks behind its Records page.
+"""Playgrounds and the simple pages over them.
 
-No camera is contacted and no model loads: the capture opener and the pipeline are faked as in
-`test_cameras_api.py`, and every file and database is a temporary one.
+No camera is contacted and no model loads: picture-taking and counting are faked, and every
+file and database is a temporary one.
 """
 
 from __future__ import annotations
 
-import base64
 import json
 import sqlite3
 from datetime import date, datetime
@@ -17,218 +16,238 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from pitch_occupancy import cameras, monitor
+from pitch_occupancy import cameras, playgrounds
 from pitch_occupancy.api import cameras_page, simple_pages
 from pitch_occupancy.config import settings
 from pitch_occupancy.db.schema import connect, initialise
-from pitch_occupancy.vision import roi
 
 SECRET = "s3cretPW"
-
-
-class FakeCapture:
-    def __init__(self, ok: bool = True) -> None:
-        self.ok = ok
-
-    def isOpened(self) -> bool:  # noqa: N802
-        return self.ok
-
-    def read(self):
-        return (True, np.full((360, 640, 3), 90, np.uint8)) if self.ok else (False, None)
-
-    def grab(self) -> bool:
-        return self.ok
-
-    def get(self, prop) -> float:
-        return 25.0
-
-    def set(self, *args) -> bool:
-        return True
-
-    def release(self) -> None:
-        pass
+FRAME = np.full((360, 640, 3), 90, np.uint8)
 
 
 class CountingPipeline:
-    """Reports a scripted number of people per camera, as the detector path would."""
+    """Reports a scripted number of people per camera, as the detector would."""
 
-    model_key = "scripted"
     burst = (1, 0.0)
 
     def __init__(self, people: dict[str, int]) -> None:
         self.people = people
+        self.calls: list[str] = []
 
     def observe_minute(self, camera, frames, previous=None, *, polygon=None, venue=None,
                        slot_key=None):
-        n = self.people[camera]
-        state = "C1_EMPTY" if n == 0 else "C3_MAINTENANCE_NON_SPORTING"
-        verdict = SimpleNamespace(state=state, confidence=0.9, people=n, ball=False,
-                                  trace=(f"{n} people",))
+        self.calls.append(camera)
+        n = self.people.get(camera, 0)
+        verdict = SimpleNamespace(state="C1_EMPTY" if n == 0 else "C2_ACTIVE_PLAY",
+                                  confidence=0.9, people=n, ball=False, trace=())
         return SimpleNamespace(verdict=verdict, evidence_index=0, instances=())
-
-    def fuse(self, observations):
-        n = sum(o.verdict.people for o in observations.values())
-        return SimpleNamespace(state="C1_EMPTY", confidence=0.9, people_inside=n,
-                               ball_seen=False, trace=())
 
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     cam_file = tmp_path / "cameras.json"
     cam_file.write_text(json.dumps({"site": {
-        "gate": f"rtsp://admin:{SECRET}@10.0.0.5:554/1/1",
-        "pitch": f"rtsp://admin:{SECRET}@10.0.0.6:554/1/1",
-        "dead": f"rtsp://admin:{SECRET}@10.0.0.7:554/1/1",
+        name: f"rtsp://admin:{SECRET}@10.0.0.{i}:554/1/1"
+        for i, name in enumerate(("a", "b", "c", "dead"), start=5)
     }}), encoding="utf-8")
     monkeypatch.setattr(cameras, "CONFIG_PATH", cam_file)
     monkeypatch.setattr(settings, "db_path", tmp_path / "db" / "pitch.db")
-    monkeypatch.setattr(settings, "evidence_dir", tmp_path / "evidence")
-    monkeypatch.setattr(monitor, "CONFIG_PATH", tmp_path / "monitor.json")
-    monkeypatch.setattr(cameras, "open_capture",
-                        lambda url, timeout_ms=5000: FakeCapture(ok="10.0.0.7" not in url))
-    monkeypatch.setattr(cameras, "_tcp_connect", lambda host, port, timeout: None)
-    monkeypatch.setattr(roi, "resolve_with_key", lambda camera, venue=None, slot_key=None:
-                        (None, None))
-    pipeline = CountingPipeline({"gate": 0, "pitch": 7, "dead": 0})
+    monkeypatch.setattr(playgrounds, "CONFIG_PATH", tmp_path / "playgrounds.json")
+    monkeypatch.setattr(playgrounds, "SPEED_PATH", tmp_path / "speed.json")
+    monkeypatch.setattr(playgrounds, "play_min", lambda: 5)
+    pipeline = CountingPipeline({"a": 3, "b": 5, "c": 4})
+    monkeypatch.setattr(playgrounds, "_pipeline", lambda: pipeline)
     monkeypatch.setattr(cameras_page, "_pipeline", lambda: pipeline)
+
+    def grab(url, timeout_s):
+        if "10.0.0.8" in url:  # the "dead" camera
+            return None, "The camera did not answer.", 3000
+        return FRAME, None, 120
+
+    monkeypatch.setattr(playgrounds, "_grab", grab)
     app = FastAPI()
     app.include_router(cameras_page.router)
     app.include_router(simple_pages.router)
     return SimpleNamespace(client=TestClient(app), tmp=tmp_path, pipeline=pipeline)
 
 
-def _rows(db) -> list[sqlite3.Row]:
-    conn = connect(db)
-    try:
-        return conn.execute("SELECT * FROM camera_checks ORDER BY check_id").fetchall()
-    finally:
-        conn.close()
+def _new(name="Playground 1", cams=("site/a",), every=30, counting="add", **kw) -> dict:
+    return playgrounds.save_playground({"name": name, "cameras": list(cams),
+                                        "every_seconds": every, "counting": counting, **kw})
 
 
 # --- settings ------------------------------------------------------------------------------
 
-def test_settings_default_to_off_and_refuse_nonsense(env) -> None:
-    assert monitor.load_settings() == monitor.DEFAULTS
-    with pytest.raises(ValueError, match="every_minutes"):
-        monitor.save_settings({"every_minutes": 7})
-    with pytest.raises(ValueError, match="true or false"):
-        monitor.save_settings({"enabled": "yes"})
-    assert not monitor.CONFIG_PATH.exists(), "a refused change wrote nothing"
-    saved = monitor.save_settings({"enabled": True, "every_minutes": 15})
-    assert saved["enabled"] and saved["every_minutes"] == 15
-    assert monitor.load_settings()["every_minutes"] == 15
+def test_a_playground_is_saved_with_its_cameras_and_timing(env) -> None:
+    p = _new("Big pitch", ("site/a", "site/b"), every=10)
+    assert p["id"] == "big-pitch" and p["cameras"] == ["site/a", "site/b"]
+    assert [x["id"] for x in playgrounds.load()] == ["big-pitch"]
+    assert _new("Big pitch", ("site/c",))["id"] == "big-pitch-2", "names may repeat, ids not"
 
 
-def test_a_broken_settings_file_reads_as_off(env) -> None:
-    monitor.CONFIG_PATH.write_text("{not json", encoding="utf-8")
-    assert monitor.load_settings()["enabled"] is False
+@pytest.mark.parametrize("values, problem", [
+    ({"name": "", "cameras": ["site/a"], "every_seconds": 30}, "name"),
+    ({"name": "x", "cameras": [], "every_seconds": 30}, "at least one camera"),
+    ({"name": "x", "cameras": ["site/zz"], "every_seconds": 30}, "Unknown camera"),
+    ({"name": "x", "cameras": ["site/a", "site/a"], "every_seconds": 30}, "twice"),
+    ({"name": "x", "cameras": ["site/a"], "every_seconds": 7}, "how often"),
+    ({"name": "x", "cameras": ["site/a"], "every_seconds": 30, "counting": "avg"}, "combined"),
+    ({"name": "x", "cameras": ["site/a"], "every_seconds": 30,
+      "hours": {"from": "9", "to": "10:00"}}, "From must look like"),
+    ({"name": "x", "cameras": ["site/a"], "every_seconds": 30,
+      "hours": {"from": "10:00", "to": "10:00"}}, "the same time"),
+])
+def test_bad_settings_are_refused_with_a_reason(env, values, problem) -> None:
+    with pytest.raises(ValueError, match=problem):
+        playgrounds.save_playground(values)
+    assert not playgrounds.CONFIG_PATH.exists()
 
 
-def test_only_the_chosen_cameras_are_checked(env) -> None:
-    assert len(monitor.selected_cameras()) == 3
-    assert monitor.selected_cameras({"cameras": ["site/gate"]}) == [("site", "gate")]
+def test_a_camera_belongs_to_one_playground(env) -> None:
+    _new("One", ("site/a",))
+    with pytest.raises(ValueError, match="one playground only"):
+        _new("Two", ("site/a", "site/b"))
 
 
-# --- one round -----------------------------------------------------------------------------
+def test_hours_include_ones_that_cross_midnight() -> None:
+    day = {"hours": {"from": "08:00", "to": "23:00"}}
+    night = {"hours": {"from": "20:00", "to": "02:00"}}
 
-def test_a_round_stores_one_row_per_camera_with_the_people_count(env) -> None:
-    stored = monitor.check_once()
-    by_cam = {r["camera_id"]: r for r in stored}
-    assert set(by_cam) == {"gate", "pitch", "dead"}
-    assert by_cam["pitch"]["people"] == 7 and by_cam["pitch"]["readable"]
-    assert by_cam["gate"]["people"] == 0
-    assert not by_cam["dead"]["readable"] and by_cam["dead"]["people"] is None
-    assert by_cam["dead"]["problem"], "an unreadable camera says why"
-    rows = _rows(settings.db_path)
-    assert len(rows) == 3 and all(r["picture_path"] is None for r in rows), (
-        "no picture is kept unless switched on")
+    def at(h, m=0):
+        return datetime(2026, 10, 17, h, m)
+
+    assert playgrounds.in_hours(day, at(8)) and not playgrounds.in_hours(day, at(23))
+    assert playgrounds.in_hours(night, at(23, 30)) and playgrounds.in_hours(night, at(1))
+    assert not playgrounds.in_hours(night, at(12))
+    assert playgrounds.in_hours({"hours": None}, at(4))
 
 
-def test_one_failing_camera_does_not_stop_the_round(env) -> None:
-    def scorer(venue, camera):
-        if camera == "gate":
-            raise RuntimeError("boom")
-        return {"readable": True, "people": 2, "label": "In use, not a game"}
+# --- what the computer can do --------------------------------------------------------------
 
-    stored = monitor.check_once(scorer=scorer)
-    assert len(stored) == 3
-    gate = next(r for r in stored if r["camera_id"] == "gate")
-    assert not gate["readable"] and "RuntimeError" in gate["problem"]
+def test_capacity_adds_each_camera_once_per_check(env) -> None:
+    (env.tmp / "speed.json").write_text(json.dumps({"seconds_per_picture": 0.5}))
+    _new("One", ("site/a", "site/b"), every=10)        # 12 pictures a minute
+    _new("Two", ("site/c",), every=30)                 # 2 a minute
+    cap = playgrounds.capacity()
+    assert cap["need_per_min"] == 14.0
+    assert cap["can_per_min"] == pytest.approx(60 / 0.5 * playgrounds.HEADROOM)
+    assert cap["cameras_at"][30] == int(cap["can_per_min"] * 30 // 60)
 
 
-def test_pictures_are_kept_only_when_switched_on(env) -> None:
-    jpeg = base64.b64encode(b"\xff\xd8fake\xff\xd9").decode()
+def test_settings_the_computer_cannot_keep_up_with_are_refused(env) -> None:
+    """At 5 s a picture the computer manages 8.4 pictures a minute (with headroom)."""
+    (env.tmp / "speed.json").write_text(json.dumps({"seconds_per_picture": 5.0}))
+    with pytest.raises(ValueError, match="pictures a minute"):
+        _new("Too fast", ("site/a", "site/b"), every=5)   # 24 a minute
+    slow = _new("Slow", ("site/a", "site/b"), every=60)   # 2 a minute
+    _new("Other", ("site/c",), every=10)                  # 6 more: 8 of 8.4
+    playgrounds.set_enabled(slow["id"], False)
+    _new("Third", ("site/dead",), every=60)               # 7 of 8.4 while Slow is off
+    with pytest.raises(ValueError, match="pictures a minute"):
+        playgrounds.set_enabled(slow["id"], True)         # would be 9 of 8.4
+    assert not next(p for p in playgrounds.load() if p["id"] == slow["id"])["enabled"]
 
-    def scorer(venue, camera):
-        return {"readable": True, "people": 1, "snapshot": jpeg}
 
-    stored = monitor.check_once(scorer=scorer, conf={**monitor.DEFAULTS,
-                                                     "save_pictures": True})
-    paths = [r["picture_path"] for r in stored]
-    assert all(paths) and all((env.tmp / "evidence" / "checks") in
-                              __import__("pathlib").Path(p).parents for p in paths)
+# --- one check -----------------------------------------------------------------------------
+
+def test_cameras_seeing_different_parts_are_added(env) -> None:
+    """3 people on one camera and 5 on the other are 8 - playing, because 8 >= 5."""
+    record = playgrounds.check_playground(_new("Big", ("site/a", "site/b")))
+    assert record["people"] == 8 and record["playing"] == 1
+    assert record["cameras_read"] == 2 and record["cameras_total"] == 2
+
+
+def test_cameras_seeing_the_same_area_use_the_biggest_count(env) -> None:
+    record = playgrounds.check_playground(_new("Same", ("site/a", "site/b"),
+                                               counting="largest"))
+    assert record["people"] == 5, "the same people seen twice are not counted twice"
+    assert record["playing"] == 1
+
+
+def test_a_camera_without_a_picture_is_left_out_not_counted_as_zero(env) -> None:
+    record = playgrounds.check_playground(_new("Half", ("site/a", "site/dead")))
+    assert record["people"] == 3 and record["playing"] == 0
+    assert record["cameras_read"] == 1 and record["cameras_total"] == 2
+    dead = next(c for c in record["cameras"] if c["camera"] == "site/dead")
+    assert not dead["readable"] and dead["problem"]
+
+
+def test_no_picture_at_all_is_no_count(env) -> None:
+    record = playgrounds.check_playground(_new("Dark", ("site/dead",)))
+    assert record["people"] is None and record["playing"] is None
+
+
+def test_a_check_stores_the_playground_and_each_camera(env) -> None:
+    record = playgrounds.check_playground(_new("Big", ("site/a", "site/b")))
+    conn = connect(settings.db_path)
+    rows = conn.execute("SELECT * FROM camera_checks WHERE playground_check_id = ?",
+                        (record["check_id"],)).fetchall()
+    conn.close()
+    assert sorted((r["camera_id"], r["people"]) for r in rows) == [("a", 3), ("b", 5)]
+    assert all(r["grab_ms"] == 120 for r in rows)
+
+
+def test_an_older_database_gets_the_new_columns(tmp_path) -> None:
+    db = tmp_path / "old.db"
+    conn = sqlite3.connect(db)
+    conn.execute("""CREATE TABLE camera_checks (check_id INTEGER PRIMARY KEY, venue_id TEXT,
+        camera_id TEXT, checked_at TEXT, readable INTEGER, people INTEGER, state TEXT,
+        label TEXT, confidence REAL, picture_path TEXT, problem TEXT)""")
+    conn.commit()
+    conn.close()
+    conn = connect(db)
+    initialise(conn)
+    columns = {r[1] for r in conn.execute("PRAGMA table_info(camera_checks)")}
+    conn.close()
+    assert {"playground_check_id", "grab_ms", "detect_ms"} <= columns
+
+
+def test_checks_fall_on_the_playgrounds_own_grid() -> None:
+    now = datetime(2026, 10, 17, 10, 0, 7).astimezone()
+    assert playgrounds._due_after(now, 30).strftime("%H:%M:%S") == "10:00:30"
+    assert playgrounds._due_after(now, 5).strftime("%H:%M:%S") == "10:00:10"
 
 
 # --- looking back --------------------------------------------------------------------------
 
-def _insert(conn, camera: str, when: str, people: int | None, readable: bool = True) -> None:
+def _row(conn, pid, when, people, playing):
     conn.execute(
-        """INSERT INTO camera_checks (venue_id, camera_id, checked_at, readable, people, state,
-               label, confidence, picture_path, problem)
-           VALUES ('site', ?, ?, ?, ?, NULL, ?, 0.9, NULL, NULL)""",
-        (camera, when, int(readable), people, "Empty" if not people else "In use, not a game"))
+        """INSERT INTO playground_checks (playground_id, checked_at, people, playing,
+               cameras_read, cameras_total, counting, duration_ms)
+           VALUES (?, ?, ?, ?, 1, 1, 'add', 1)""", (pid, when, people, playing))
 
 
-def test_records_group_checks_into_hour_and_a_half_periods(tmp_path) -> None:
-    conn = connect(tmp_path / "x.db")
+def test_records_group_by_an_hour_and_a_half_and_estimate_time_played(env) -> None:
+    p = _new("Big", ("site/a",), every=60)
+    conn = connect(settings.db_path)
     initialise(conn)
-    day = "2026-10-17"
-    for when, n in (("10:05", 0), ("10:40", 3), ("11:29", 5),   # 09:00-10:30 and 10:30-12:00
-                    ("12:10", 0), ("12:50", 0)):                 # 12:00-13:30
-        _insert(conn, "gate", f"{day}T{when}:00+03:00", n)
-    _insert(conn, "gate", f"{day}T12:55:00+03:00", None, readable=False)
-    _insert(conn, "gate", "2026-10-16T10:00:00+03:00", 9)        # another day: excluded
+    for minute, n in ((5, 0), (6, 7), (7, 9), (25, 2)):           # 09:00-10:30
+        _row(conn, p["id"], f"2026-10-17T10:{minute:02d}:00+03:00", n, int(n >= 5))
+    _row(conn, p["id"], "2026-10-17T11:00:00+03:00", None, None)  # 10:30-12:00, no picture
     conn.commit()
-
-    rows = monitor.records(conn, date(2026, 10, 17), period_minutes=90)
-    spans = [(r["start"], r["end"]) for r in rows]
-    assert spans == [("09:00", "10:30"), ("10:30", "12:00"), ("12:00", "13:30")]
-    first, second, third = rows
-    assert first["people_seen"] is False and first["max_people"] == 0
-    assert second["people_seen"] is True and second["max_people"] == 5
-    assert second["avg_people"] == 4.0 and second["checks_with_people"] == 2
-    assert third["checks"] == 3 and third["readable"] == 2 and third["people_seen"] is False
-
-
-def test_the_last_period_of_the_day_ends_at_midnight(tmp_path) -> None:
-    conn = connect(tmp_path / "x.db")
-    initialise(conn)
-    _insert(conn, "gate", "2026-10-17T23:59:00+03:00", 1)
-    conn.commit()
-    (row,) = monitor.records(conn, date(2026, 10, 17), period_minutes=90)
-    assert (row["start"], row["end"]) == ("22:30", "24:00")
-
-
-def test_records_refuse_an_unknown_period(tmp_path) -> None:
-    conn = connect(tmp_path / "x.db")
-    initialise(conn)
-    with pytest.raises(ValueError):
-        monitor.records(conn, date(2026, 10, 17), period_minutes=7)
+    rows = playgrounds.records(conn, date(2026, 10, 17), period_minutes=90)
+    conn.close()
+    assert [(r["start"], r["end"]) for r in rows] == [("09:00", "10:30"), ("10:30", "12:00")]
+    first, second = rows
+    assert first["max_people"] == 9 and first["playing_checks"] == 2
+    assert first["minutes_playing"] == 2, "two playing checks, one minute apart"
+    assert second["max_people"] is None and second["checks_without_picture"] == 1
 
 
 # --- pages and endpoints -------------------------------------------------------------------
 
 @pytest.mark.parametrize("path, text", [
-    ("/", "/api/v1/records/latest"), ("/cameras/add", "+ Add camera"),
-    ("/records", "automatic checking"), ("/more", "Pitch boundaries"),
+    ("/", "/api/v1/playgrounds"), ("/playgrounds", "+ New playground"),
+    ("/cameras/add", "+ Add camera"), ("/records", "Played for about"),
+    ("/more", "Pitch boundaries"),
 ])
 def test_every_simple_page_renders_with_the_short_menu(env, path, text) -> None:
     r = env.client.get(path)
     assert r.status_code == 200 and text in r.text
     nav = r.text[r.text.index("<nav>"):r.text.index("</nav>")]
-    assert [label for label in ("Home", "Cameras", "Records", "More") if f">{label}</a>" in nav] \
-        == ["Home", "Cameras", "Records", "More"]
-    assert nav.count("</a>") == 4, "four menu items and no more"
+    labels = ("Home", "Playgrounds", "Cameras", "Records", "More")
+    assert [label for label in labels if f">{label}</a>" in nav] == list(labels)
+    assert nav.count("</a>") == 5
 
 
 @pytest.mark.parametrize("old", ["/live", "/cameras/test"])
@@ -237,75 +256,90 @@ def test_the_first_versions_addresses_lead_home(env, old) -> None:
     assert r.status_code == 307 and r.headers["location"] == "/"
 
 
-def test_the_records_page_groups_by_an_hour_and_a_half(env) -> None:
-    html = env.client.get("/records").text
-    assert "const PERIOD = 90;" in html and "__PERIOD__" not in html
+def test_making_changing_and_deleting_a_playground_through_the_api(env) -> None:
+    r = env.client.post("/api/v1/playgrounds", json={
+        "name": "Pitch 1", "cameras": ["site/a", "site/b"], "every_seconds": 30})
+    assert r.status_code == 200 and r.json()["id"] == "pitch-1"
+    listed = env.client.get("/api/v1/playgrounds").json()
+    assert listed["playgrounds"][0]["cameras"] == ["site/a", "site/b"]
+    owned = {c["ref"]: c["playground"] for c in listed["cameras"]}
+    assert owned["site/a"] == "pitch-1" and owned["site/c"] is None
+    assert SECRET not in json.dumps(listed)
+    r = env.client.put("/api/v1/playgrounds/pitch-1", json={
+        "name": "Pitch 1", "cameras": ["site/c"], "every_seconds": 60, "counting": "largest",
+        "hours": {"from": "08:00", "to": "22:00"}})
+    assert r.status_code == 200 and r.json()["hours"] == {"from": "08:00", "to": "22:00"}
+    assert env.client.post("/api/v1/playgrounds/pitch-1/enabled",
+                           json={"enabled": False}).json()["enabled"] is False
+    bad = env.client.post("/api/v1/playgrounds", json={
+        "name": "x", "cameras": ["site/c"], "every_seconds": 30})
+    assert bad.status_code == 422 and "one playground only" in bad.json()["detail"]
+    assert env.client.delete("/api/v1/playgrounds/pitch-1").status_code == 200
+    assert env.client.delete("/api/v1/playgrounds/pitch-1").status_code == 404
 
 
-def test_each_camera_has_its_own_live_page(env) -> None:
-    r = env.client.get("/live/site/pitch")
-    assert r.status_code == 200 and '"camera": "pitch"' in r.text
-    assert SECRET not in r.text
-    assert env.client.get("/live/site/nope").status_code == 404
-
-
-def test_a_camera_name_cannot_break_out_of_the_live_page_script(env, monkeypatch) -> None:
-    monkeypatch.setattr(cameras, "list_cameras", lambda path=None: [
-        {"venue": "site", "camera_id": "x<script>y", "url": "", "kind": "rtsp"}])
-    r = env.client.get("/live/site/x%3Cscript%3Ey")
-    assert r.status_code == 200 and "x<script>y" not in r.text
-    assert r"x\u003cscript>y" in r.text
-
-
-def test_the_monitor_switch_and_run_now(env, monkeypatch) -> None:
-    started = []
-    monkeypatch.setattr(monitor, "start_background", lambda: started.append(1))
-    r = env.client.put("/api/v1/monitor", json={"enabled": True, "every_minutes": 90})
-    assert r.status_code == 200
-    d = r.json()
-    assert d["settings"]["enabled"] and d["settings"]["every_minutes"] == 90
-    assert d["cameras_selected"] == 3 and started
-    assert env.client.put("/api/v1/monitor", json={"every_minutes": 3}).status_code == 422
+def test_look_now_returns_pictures_and_latest_shows_each_camera(env, monkeypatch) -> None:
+    monkeypatch.setattr(playgrounds, "_picture", lambda frame, counted: "PICTURE")
+    _new("Big", ("site/a", "site/dead"))
+    r = env.client.post("/api/v1/playgrounds/big/look").json()
+    assert r["people"] == 3
+    assert {c["camera"]: c["picture"] for c in r["cameras"]} == {
+        "site/a": "PICTURE", "site/dead": None}
+    latest = env.client.get("/api/v1/playgrounds/big/latest").json()
+    assert latest["latest"]["people"] == 3
+    assert [(c["camera"], c["readable"], c["people"]) for c in latest["cameras"]] == [
+        ("site/a", True, 3), ("site/dead", False, None)]
 
 
 def test_records_endpoint_and_spreadsheet(env) -> None:
-    monitor.check_once()
+    playgrounds.check_playground(_new("Big", ("site/a", "site/b")))
     today = datetime.now().astimezone().date().isoformat()
-    d = env.client.get(f"/api/v1/records?day={today}&period=90").json()
-    assert d["totals"]["checks"] == 3 and d["totals"]["unreadable_checks"] == 1
-    assert d["totals"]["max_people"] == 7 and d["totals"]["periods_with_people"] == 1
-    assert {r["camera"] for r in d["rows"]} == {"gate", "pitch", "dead"}
-    assert "site/pitch" in d["cameras"]
-    one = env.client.get(f"/api/v1/records?day={today}&camera=site/pitch").json()
-    assert [r["camera"] for r in one["rows"]] == ["pitch"]
+    d = env.client.get(f"/api/v1/records?day={today}").json()
+    assert d["period_minutes"] == 90 and d["rows"][0]["max_people"] == 8
     csv_text = env.client.get(f"/api/v1/records.csv?day={today}").text
-    assert csv_text.splitlines()[0].startswith("day,start,end,venue,camera,people_seen")
-    assert ",pitch,yes,7," in csv_text
+    assert csv_text.splitlines()[0].startswith("day,start,end,playground,max_people")
+    assert ",Big,8," in csv_text and ",yes," in csv_text
     assert env.client.get("/api/v1/records?day=yesterday").status_code == 422
-    assert env.client.get("/api/v1/records?camera=nope").status_code == 422
 
 
-def test_latest_lists_every_saved_camera_even_before_any_check(env) -> None:
-    d = env.client.get("/api/v1/records/latest").json()
-    assert [c["camera_id"] for c in d["cameras"]] == ["dead", "gate", "pitch"]
-    assert all(c["checked_at"] is None for c in d["cameras"])
-    monitor.check_once()
-    d = env.client.get("/api/v1/records/latest").json()
-    pitch = next(c for c in d["cameras"] if c["camera_id"] == "pitch")
-    assert pitch["people"] == 7 and pitch["checked_at"]
+def test_a_playground_name_cannot_break_out_of_its_page_script(env) -> None:
+    p = _new("x</script><b>y", ("site/a",))
+    r = env.client.get(f"/playground/{p['id']}")
+    assert r.status_code == 200 and "x</script><b>y" not in r.text
+    assert env.client.get("/playground/nope").status_code == 404
 
 
-def test_a_picture_is_served_only_from_the_checks_folder(env) -> None:
-    conn = connect(settings.db_path)
-    initialise(conn)
-    outside = env.tmp / "secret.jpg"
-    outside.write_bytes(b"x")
-    conn.execute(
-        """INSERT INTO camera_checks (venue_id, camera_id, checked_at, readable, people,
-               picture_path) VALUES ('site', 'gate', '2026-10-17T10:00:00+03:00', 1, 1, ?)""",
-        (str(outside),))
-    conn.commit()
-    check_id = conn.execute("SELECT MAX(check_id) FROM camera_checks").fetchone()[0]
-    conn.close()
-    assert env.client.get(f"/api/v1/records/picture/{check_id}").status_code == 404
-    assert env.client.get("/api/v1/records/picture/99999").status_code == 404
+def test_each_camera_still_has_its_own_live_page(env) -> None:
+    r = env.client.get("/live/site/a")
+    assert r.status_code == 200 and SECRET not in r.text
+    assert env.client.get("/live/site/nope").status_code == 404
+
+
+def test_the_runner_checks_a_playground_when_asked_and_reports_it(env, monkeypatch) -> None:
+    import threading
+    import time
+
+    done = threading.Event()
+
+    def fake_check(p, **kwargs):
+        done.set()
+        return {"checked_at": "2026-10-17T10:00:00+03:00", "people": 6, "playing": 1,
+                "cameras_read": 1, "cameras_total": 1, "duration_ms": 5}
+
+    monkeypatch.setattr(playgrounds, "check_playground", fake_check)
+    p = _new("Big", ("site/a",))
+    playgrounds.set_enabled(p["id"], False)       # off: only "now" may run it
+    try:
+        playgrounds.run_now(p["id"])
+        assert done.wait(5), "the runner did not check the playground it was asked to"
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            st = playgrounds.status()["playgrounds"].get(p["id"], {})
+            if st.get("last"):
+                break
+            time.sleep(0.05)
+        assert st["last"]["people"] == 6 and not st["checking"]
+    finally:
+        playgrounds.stop()
+    with pytest.raises(KeyError):
+        playgrounds.run_now("nope")

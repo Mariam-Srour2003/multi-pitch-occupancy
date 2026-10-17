@@ -78,14 +78,15 @@ uv run pitch serve --host 0.0.0.0
 The browser sends the password with each request, encoded rather than encrypted, so outside a
 trusted local network put the service behind HTTPS or a VPN.
 
-Every page shares one navigation bar: **Home · Cameras · Records · More**. The first three
-are the simple pages for everyday use; everything else is under **More**.
+Every page shares one navigation bar: **Home · Playgrounds · Cameras · Records · More**. The
+first four are the simple pages for everyday use; everything else is under **More**.
 
 | page | what it does |
 |---|---|
-| `/` | **Home**: every camera as a card with how many people it saw at the last check; click one to watch it live at `/live/<place>/<camera>` (picture, number of people, re-checked every 30 s) |
-| `/cameras/add` | **Cameras**: add a camera with just a name, IP and password (username, port, stream and a full link under "More options"); it is tested on saving. Test one or all, remove |
-| `/records` | **Records**, the database: for each camera and each 1.5 hours, were there people and the most at once; a CSV download; and the **On/Off** switch for automatic checking (`monitor.py`: every camera every 1-90 minutes, set under "Settings"; stored in the gitignored `configs/monitor.json`) |
+| `/` | **Home**: every playground as a card - people at the last check, playing or not; click one for `/playground/<id>`: the total, each camera's count, and "Show pictures now" |
+| `/playgrounds` | **Playgrounds**: make and change them - which cameras (a camera belongs to one playground), check every 5 s to 1 h, all day or from-to, and how the cameras are combined: *different parts* (counts added: 3 + 5 = 8 people, playing at 5 or more) or *the same area* (the biggest count, so nobody is counted twice). Shows what this computer can manage ("Measure speed") and refuses settings it cannot keep up with |
+| `/cameras/add` | **Cameras**: add a camera with just a name, IP and password (username, port, stream and a full link under "More options"); it is tested on saving. Test one or all, watch one live (`/live/<place>/<camera>`), remove |
+| `/records` | **Records**, the database: for each playground and each 1.5 hours, the most people at once, whether it was played on and for about how long; a CSV download |
 | `/more` | the pages below, one line each |
 | `/client` (also `/dashboard`) | operator dashboard: a "Getting started" checklist (cameras → boundaries → schedule → detector → bookings → sign-in → recording → alerts), pitches hour by hour, slot verdicts, evidence, overrides |
 | `/testing` | the testing hub: try the system on your own footage and photos; running and queued tests with a Cancel button |
