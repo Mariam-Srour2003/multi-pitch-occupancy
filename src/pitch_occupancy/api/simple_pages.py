@@ -8,6 +8,8 @@
                                 can manage shown as you choose (`playgrounds.capacity`).
 * ``/cameras/add``              Cameras - add (name, address, password), test, remove.
 * ``/live/<place>/<camera>``    One camera on its own, refreshing itself.
+* ``/results``                  For showing how it went: each 1.5-hour session's verdict, the
+                                people over time, and the pictures saved (`results_page.py`).
 * ``/records``                  The database: for each playground and each hour and a half,
                                 were there people, the most at once, how long it was played on.
 * ``/more``                     The original pages, all still there.
@@ -241,9 +243,11 @@ $('title').textContent = PG.name;
 let pictures = {};
 function show(d) {
   const l = d.latest;
-  $('how').textContent = (PG.counting === 'largest'
-    ? 'The cameras see the same area: the biggest count is used.'
-    : 'The cameras see different parts: their counts are added.')
+  $('how').textContent = ({
+    largest: 'The cameras see the same area: the biggest count is used.',
+    average: 'The cameras see the same area: their counts are averaged.',
+    vote: 'Each camera decides: playing when at least half the cameras see a game.',
+  }[PG.counting] || 'The cameras see different parts: their counts are added.')
     + ` Playing means ${d.play_min} or more people.`;
   if (!l) { $('num').textContent = '–'; $('word').textContent = 'Not checked yet'; }
   else if (l.people == null) { $('num').textContent = '–'; $('word').textContent = 'No picture'; }
@@ -307,6 +311,11 @@ PGS_BODY = """
   <div class="form" style="margin-top:12px">
     <div><label for="pname">Name</label><input id="pname" placeholder="e.g. Playground 1"></div>
     <div><label for="pevery">Check every</label><select id="pevery"></select></div>
+    <div><label for="psaveevery">Save pictures</label><select id="psaveevery">
+      <option value="0">Never</option><option value="1">Every check</option>
+      <option value="2">1 check in 2</option><option value="5">1 check in 5</option>
+      <option value="10">1 check in 10</option><option value="30">1 check in 30</option>
+    </select></div>
   </div>
   <div style="margin-top:14px"><span class="lbl">Cameras</span>
     <div class="choices" id="pcams"></div></div>
@@ -315,7 +324,11 @@ PGS_BODY = """
       <label><input type="radio" name="counting" value="add" checked> different parts of the
         playground - add their counts</label>
       <label><input type="radio" name="counting" value="largest"> the same area - use the
-        biggest count</label></div>
+        biggest count</label>
+      <label><input type="radio" name="counting" value="average"> the same area - use the
+        average count</label>
+      <label><input type="radio" name="counting" value="vote"> each camera decides - playing
+        when at least half say playing</label></div>
     <div class="hint" style="margin-top:6px">Adding counts each person once only if each
       camera counts its own part. Draw each camera's part under More → Pitch boundaries so
       the parts do not overlap.</div></div>
@@ -370,6 +383,7 @@ function openForm(p) {
   $('edittitle').textContent = p ? 'Change ' + p.name : 'New playground';
   $('pname').value = p ? p.name : 'Playground ' + (D.playgrounds.length + 1);
   $('pevery').value = p ? p.every_seconds : 30;
+  $('psaveevery').value = p ? p.save_every : 5;
   document.querySelector(`input[name=counting][value=${p ? p.counting : 'add'}]`).checked = true;
   $('allday').checked = !(p && p.hours);
   $('hoursbox').hidden = $('allday').checked;
@@ -396,6 +410,7 @@ $('psave').onclick = async () => {
   const body = {
     name: $('pname').value.trim(), cameras: selectedCams(), every_seconds: +$('pevery').value,
     counting: document.querySelector('input[name=counting]:checked').value,
+    save_every: +$('psaveevery').value,
     hours: $('allday').checked ? null : {from: $('hfrom').value, to: $('hto').value},
   };
   $('psave').disabled = true;
@@ -426,7 +441,8 @@ $('measure').onclick = async () => {
 };
 function row(p, i) {
   return `<tr><td><b>${esc(p.name)}</b>
-      <div class="hint">${p.counting === 'largest' ? 'biggest count' : 'counts added'}</div></td>
+      <div class="hint">${esc(D.counting_short[p.counting] || p.counting)}${
+        p.save_every ? ' · saves 1 in ' + p.save_every : ''}</div></td>
     <td>${p.cameras.map(c => esc(c.split('/').pop())).join(', ')}</td>
     <td>${every(p.every_seconds)}</td>
     <td>${p.hours ? esc(p.hours.from) + '–' + esc(p.hours.to) : 'All day'}</td>
@@ -755,6 +771,7 @@ class PlaygroundIn(BaseModel):
     every_seconds: int
     counting: str = "add"
     hours: dict[str, str] | None = None
+    save_every: int = 5
 
 
 class EnabledIn(BaseModel):
@@ -792,6 +809,7 @@ def list_playgrounds() -> dict:
         "cameras": cams,
         "capacity": playgrounds.capacity(items),
         "every_choices": list(playgrounds.EVERY_CHOICES),
+        "counting_short": playgrounds.COUNTING_SHORT,
         "play_min": playgrounds.play_min(),
     }
 

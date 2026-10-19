@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from pitch_occupancy import cameras, playgrounds
-from pitch_occupancy.api import cameras_page, simple_pages
+from pitch_occupancy.api import cameras_page, results_page, simple_pages
 from pitch_occupancy.config import settings
 from pitch_occupancy.db.schema import connect, initialise
 
@@ -54,6 +54,8 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "db_path", tmp_path / "db" / "pitch.db")
     monkeypatch.setattr(playgrounds, "CONFIG_PATH", tmp_path / "playgrounds.json")
     monkeypatch.setattr(playgrounds, "SPEED_PATH", tmp_path / "speed.json")
+    monkeypatch.setattr(playgrounds, "SNAPSHOT_DIR", tmp_path / "snapshots")
+    monkeypatch.setattr(playgrounds, "_snap_bytes", None)
     monkeypatch.setattr(playgrounds, "play_min", lambda: 5)
     pipeline = CountingPipeline({"a": 3, "b": 5, "c": 4})
     monkeypatch.setattr(playgrounds, "_pipeline", lambda: pipeline)
@@ -68,6 +70,7 @@ def env(tmp_path, monkeypatch):
     app = FastAPI()
     app.include_router(cameras_page.router)
     app.include_router(simple_pages.router)
+    app.include_router(results_page.router)
     return SimpleNamespace(client=TestClient(app), tmp=tmp_path, pipeline=pipeline)
 
 
@@ -245,9 +248,9 @@ def test_every_simple_page_renders_with_the_short_menu(env, path, text) -> None:
     r = env.client.get(path)
     assert r.status_code == 200 and text in r.text
     nav = r.text[r.text.index("<nav>"):r.text.index("</nav>")]
-    labels = ("Home", "Playgrounds", "Cameras", "Records", "More")
+    labels = ("Home", "Playgrounds", "Cameras", "Results", "Records", "More")
     assert [label for label in labels if f">{label}</a>" in nav] == list(labels)
-    assert nav.count("</a>") == 5
+    assert nav.count("</a>") == 6
 
 
 @pytest.mark.parametrize("old", ["/live", "/cameras/test"])
@@ -343,3 +346,83 @@ def test_the_runner_checks_a_playground_when_asked_and_reports_it(env, monkeypat
         playgrounds.stop()
     with pytest.raises(KeyError):
         playgrounds.run_now("nope")
+
+
+# --- more ways to combine, saved pictures, sessions ------------------------------------------
+
+@pytest.mark.parametrize("counting, counts, expected", [
+    ("add", [3, 5], (8, 1)), ("largest", [3, 5], (5, 1)), ("average", [3, 4, 8], (5, 1)),
+    ("average", [3, 4], (4, 0)), ("vote", [6, 2], (6, 1)), ("vote", [6, 2, 1], (6, 0)),
+    ("vote", [7], (7, 1)), ("add", [], (None, None)),
+])
+def test_every_way_of_combining_cameras(counting, counts, expected) -> None:
+    assert playgrounds.combine(counting, counts, 5) == expected
+
+
+def test_a_check_with_save_keeps_each_cameras_picture(env) -> None:
+    record = playgrounds.check_playground(_new("Big", ("site/a", "site/b")), save=True)
+    paths = [c["picture_path"] for c in record["cameras"]]
+    assert all(paths) and all((playgrounds.SNAPSHOT_DIR / p).is_file() for p in paths)
+    conn = connect(settings.db_path)
+    stored = {r[0] for r in conn.execute("SELECT picture_path FROM camera_checks")}
+    conn.close()
+    assert stored == set(paths)
+    r = env.client.get("/snapshots/" + paths[0])
+    assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg"
+    assert env.client.get("/snapshots/../playgrounds.json").status_code == 404
+
+
+def test_saved_pictures_stay_under_the_cap(env, monkeypatch) -> None:
+    p = _new("Big", ("site/a",))
+    playgrounds.check_playground(p, save=True)
+    one = playgrounds.snapshot_usage()["bytes"]
+    monkeypatch.setattr(playgrounds, "SNAPSHOT_CAP_BYTES", int(one * 2.5))
+    for _ in range(6):
+        playgrounds.check_playground(p, save=True)
+    usage = playgrounds.snapshot_usage()
+    assert usage["bytes"] <= one * 2.5 and usage["files"] >= 1
+
+
+def test_the_runner_saves_one_check_in_save_every(env) -> None:
+    p = _new("Big", ("site/a",), save_every=3)
+    playgrounds._counter.pop(p["id"], None)
+    for _ in range(7):
+        playgrounds._run_one(p)
+    assert playgrounds.snapshot_usage()["files"] == 3, "checks 1, 4 and 7"
+
+
+def test_sessions_run_every_hour_and_a_half_through_half_past_nine() -> None:
+    at = lambda h, m: datetime(2026, 10, 18, h, m).astimezone()  # noqa: E731
+    assert playgrounds.session_bounds(at(9, 30))[0].strftime("%H:%M") == "09:30"
+    assert playgrounds.session_bounds(at(21, 40))[0].strftime("%H:%M") == "21:30"
+    start, end = playgrounds.session_bounds(at(23, 59))
+    assert (start.strftime("%H:%M"), end.strftime("%d %H:%M")) == ("23:00", "19 00:30")
+
+
+def test_each_session_gets_one_answer(env) -> None:
+    p = _new("Big", ("site/a",), every=60)
+    conn = connect(settings.db_path)
+    initialise(conn)
+    off = datetime(2026, 10, 18, 21, 30).astimezone().strftime("%z")
+    off = off[:3] + ":" + off[3:]
+    for minute, n in enumerate([6, 7, 2, 8]):  # 21:30 session: 3 of 4 playing
+        _row(conn, p["id"], f"2026-10-18T21:{31 + minute}:00{off}", n, int(n >= 5))
+    for minute, n in enumerate([0, 6, 1, 0, 2, 0, 0]):  # 23:00 session: 1 of 7
+        _row(conn, p["id"], f"2026-10-18T23:{10 + minute}:00{off}", n, int(n >= 5))
+    for minute in range(3):  # 00:30 session next day: nobody
+        _row(conn, p["id"], f"2026-10-19T00:{40 + minute}:00{off}", 0, 0)
+    conn.commit()
+    rows = playgrounds.sessions(conn, datetime(2026, 10, 18, 21, 30).astimezone(),
+                                datetime(2026, 10, 19, 2, 0).astimezone())
+    conn.close()
+    assert [r["verdict"] for r in rows] == ["Playing", "Mostly empty", "Empty"]
+    assert rows[0]["avg_people"] == 5.8 and rows[0]["minutes_playing"] == 3
+    d = env.client.get("/api/v1/sessions", params={"start": "2026-10-18T21:30",
+                                                   "end": "2026-10-19T01:00"}).json()
+    assert len(d["columns"]) == 3 and d["play_min"] == 5
+    detail = env.client.get("/api/v1/sessions/detail",
+                            params={"playground": p["id"], "start": "2026-10-18T21:30"}).json()
+    assert len(detail["checks"]) == 4
+    assert env.client.get("/results").status_code == 200
+    assert "Playing" in env.client.get("/api/v1/sessions.csv", params={
+        "start": "2026-10-18T21:30", "end": "2026-10-19T01:00"}).text

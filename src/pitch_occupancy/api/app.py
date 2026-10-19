@@ -49,6 +49,7 @@ from pitch_occupancy.api.roi_page import ROI_HTML
 from pitch_occupancy.api.routes import router
 from pitch_occupancy.api.schedule_editor import router as schedule_router
 from pitch_occupancy.api.setup_api import router as setup_router
+from pitch_occupancy.api.results_page import router as results_router
 from pitch_occupancy.api.simple_pages import router as simple_router
 from pitch_occupancy.api.simulator import router as simulator_router
 from pitch_occupancy.api.testing import router as testing_router
@@ -126,6 +127,7 @@ app.include_router(alerts_router)
 app.include_router(setup_router)
 # The simple front end - Home at `/`, Playgrounds, Cameras, Records - over the same APIs.
 app.include_router(simple_router)
+app.include_router(results_router)
 
 
 @app.get("/client", response_class=HTMLResponse, include_in_schema=False)

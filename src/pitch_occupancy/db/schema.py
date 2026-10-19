@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS playground_checks (
     playing        INTEGER,           -- 1 when people >= the rule's play_min
     cameras_read   INTEGER NOT NULL,
     cameras_total  INTEGER NOT NULL,
-    counting       TEXT NOT NULL,     -- 'add' or 'largest'
+    counting       TEXT NOT NULL,     -- 'add', 'largest', 'average' or 'vote'
     duration_ms    INTEGER
 );
 
@@ -183,7 +183,10 @@ def connect(path: Path | str, *, same_thread: bool = True) -> sqlite3.Connection
     """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(p), check_same_thread=same_thread)
+    # Wait up to 30 s for another writer instead of the default 5 s: playgrounds checked in
+    # parallel finish together, and on a slow night (2026-10-19) one of them hit
+    # "database is locked" and lost its check.
+    conn = sqlite3.connect(str(p), check_same_thread=same_thread, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn

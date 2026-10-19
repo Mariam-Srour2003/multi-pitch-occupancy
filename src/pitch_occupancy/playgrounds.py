@@ -18,6 +18,11 @@ a big one. Each playground has
     the fix, not anything the counting can repair afterwards.
   - ``largest``: the cameras watch *the same area* from different angles. Adding would count
     everyone twice, so the largest single camera's count is used instead.
+  - ``average``: the cameras watch the same area and one of them sometimes misses people
+    (glare, a post in the way); the counts are averaged, so one bad camera pulls the result
+    only part of the way.
+  - ``vote``: each camera decides on its own whether there is a game, and the playground is
+    playing when at least half of its cameras say so. The count shown is the largest.
 
   Telling the same person apart in two cameras' pictures without areas (re-identification)
   would need the cameras calibrated to each other; with two cheap fixed cameras it is wrong
@@ -53,7 +58,7 @@ import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from datetime import time as dtime
 from pathlib import Path
 
@@ -63,7 +68,8 @@ __all__ = [
     "CONFIG_PATH", "SPEED_PATH", "EVERY_CHOICES", "COUNTING", "load", "save_playground",
     "delete_playground", "set_enabled", "capacity", "measure_speed", "load_speed",
     "check_playground", "records", "latest", "start", "stop", "run_now", "status", "play_min",
-    "every_text", "in_hours", "PERIOD_CHOICES",
+    "every_text", "in_hours", "PERIOD_CHOICES", "COUNTING_SHORT", "combine", "sessions",
+    "session_bounds", "snapshot_usage", "SNAPSHOT_DIR",
 ]
 
 log = logging.getLogger(__name__)
@@ -77,7 +83,26 @@ EVERY_CHOICES: tuple[int, ...] = (5, 10, 15, 20, 30, 60, 120, 300, 600, 900, 180
 COUNTING: dict[str, str] = {
     "add": "Cameras see different parts - add their counts",
     "largest": "Cameras see the same area - use the biggest count",
+    "average": "Cameras see the same area - use the average count",
+    "vote": "Each camera decides - playing when at least half say playing",
 }
+#: Short names of the counting modes, for tables.
+COUNTING_SHORT: dict[str, str] = {
+    "add": "counts added", "largest": "biggest count", "average": "average count",
+    "vote": "cameras vote",
+}
+#: Saved pictures, per playground and day, for showing afterwards how the checks went.
+SNAPSHOT_DIR: Path = settings.db_path.parent.parent / "snapshots"
+#: Saved pictures never take more than this; the oldest are deleted to make room.
+SNAPSHOT_CAP_BYTES: int = int(os.environ.get("PITCH_SNAPSHOT_CAP_MB", "1024")) * 1024 * 1024
+#: Sessions: 1.5 hours each, on a grid that passes through 09:30 (..., 08:00, 09:30, 11:00, ...
+#: 21:30, 23:00, 00:30, ...). Each session gets one verdict - see :func:`sessions`.
+SESSION_MINUTES = 90
+SESSION_ANCHOR = "09:30"
+#: Share of a session's checks that must be playing for the session to count as played.
+SESSION_PLAYED = 0.5
+#: ... and below which, if any were playing, it was played only a little.
+SESSION_SOME = 0.15
 #: Periods the Records page groups checks into, in minutes; 90 is the default.
 PERIOD_CHOICES: tuple[int, ...] = (15, 30, 60, 90, 120, 180)
 #: Fraction of the measured speed the playgrounds may use. The rest is for everything else
@@ -86,7 +111,12 @@ HEADROOM = 0.7
 #: Used until the speed has been measured: a cautious guess for one picture on a laptop CPU.
 DEFAULT_SECONDS_PER_PICTURE = 1.0
 #: Longest wait for one camera's picture in a check, whatever the interval.
-GRAB_TIMEOUT_S = 10.0
+GRAB_TIMEOUT_S = 20.0
+#: Camera streams open at the same time, across all playgrounds. Over a slow link (2026-10-18:
+#: ~85 ms to the cameras) opening a dozen 1080p streams at once timed every one of them out,
+#: while two at a time each delivered a picture in 5-25 s.
+PARALLEL_GRABS = int(os.environ.get("PITCH_PARALLEL_GRABS", "2"))
+_grab_slots = threading.BoundedSemaphore(max(1, PARALLEL_GRABS))
 
 _lock = threading.RLock()
 _detect_lock = threading.Lock()
@@ -145,6 +175,7 @@ def _normalise(p: dict) -> dict:
         "counting": p.get("counting") if p.get("counting") in COUNTING else "add",
         "hours": hours,
         "enabled": bool(p.get("enabled", True)),
+        "save_every": max(0, int(p.get("save_every", 5) or 0)),
     }
 
 
@@ -188,8 +219,13 @@ def _validate(p: dict, others: list[dict], saved_cameras: set[str]) -> dict:
         hours = {"from": start.strftime("%H:%M"), "to": end.strftime("%H:%M")}
     else:
         hours = None
+    save_every = p.get("save_every", 5)
+    if (isinstance(save_every, bool) or not isinstance(save_every, int)
+            or not 0 <= save_every <= 1000):
+        raise ValueError("Save pictures must be a whole number: 0 (off), 1 (every check), "
+                         "5 (one check in five)...")
     return {"name": name, "cameras": cams, "every_seconds": int(every), "counting": counting,
-            "hours": hours, "enabled": bool(p.get("enabled", True))}
+            "hours": hours, "enabled": bool(p.get("enabled", True)), "save_every": save_every}
 
 
 def _saved_cameras() -> set[str]:
@@ -380,12 +416,14 @@ def measure_speed(path: Path | None = None, *, samples: int = 3) -> dict:
 # --- one check of one playground -------------------------------------------------------------
 
 def check_playground(p: dict, *, grab: Callable | None = None, pipeline=None,
-                     db_path: Path | None = None, with_pictures: bool = False) -> dict:
+                     db_path: Path | None = None, with_pictures: bool = False,
+                     save: bool = False) -> dict:
     """Take one picture from every camera of ``p`` at the same moment, count, combine, store.
 
     Returns the stored playground row, with each camera's result under ``cameras`` - and
     each camera's picture (base64 JPEG, drawn) when ``with_pictures`` is set, for the live
-    page. Pictures are never stored.
+    page. With ``save`` the drawn pictures are also kept under :data:`SNAPSHOT_DIR` (the
+    runner sets it on one check in ``save_every``), within :data:`SNAPSHOT_CAP_BYTES`.
     """
     from pitch_occupancy import cameras
     from pitch_occupancy.db.schema import connect, initialise, transaction
@@ -393,7 +431,7 @@ def check_playground(p: dict, *, grab: Callable | None = None, pipeline=None,
     grab = grab or _grab
     started = time.monotonic()
     when = _now()
-    timeout = min(GRAB_TIMEOUT_S, max(3.0, p["every_seconds"] * 0.8))
+    timeout = min(GRAB_TIMEOUT_S, max(3.0, p["every_seconds"] * 0.4))
     targets = []
     for ref in p["cameras"]:
         venue, _, camera = ref.partition("/")
@@ -408,7 +446,8 @@ def check_playground(p: dict, *, grab: Callable | None = None, pipeline=None,
         if url is None:
             return None, "This camera is no longer saved.", 0
         try:
-            return grab(url, timeout)
+            with _grab_slots:
+                return grab(url, timeout)
         except Exception as exc:  # noqa: BLE001 - one camera must not stop the others
             return None, f"Reading failed ({type(exc).__name__}).", 0
 
@@ -421,7 +460,7 @@ def check_playground(p: dict, *, grab: Callable | None = None, pipeline=None,
     for (ref, venue, camera, _), (frame, problem, grab_ms) in zip(targets, grabbed, strict=True):
         row = {"camera": ref, "venue": venue, "camera_id": camera, "readable": frame is not None,
                "people": None, "state": None, "problem": problem, "grab_ms": grab_ms,
-               "detect_ms": None, "picture": None}
+               "detect_ms": None, "picture": None, "picture_path": None}
         if frame is not None:
             try:
                 counted = _count(pipeline, venue, camera, frame)
@@ -429,18 +468,14 @@ def check_playground(p: dict, *, grab: Callable | None = None, pipeline=None,
                            detect_ms=counted["detect_ms"])
                 if with_pictures:
                     row["picture"] = _picture(frame, counted)
+                if save:
+                    row["picture_path"] = _save_snapshot(p["id"], camera, when, frame, counted)
             except Exception as exc:  # noqa: BLE001
                 row.update(readable=False, problem=f"Counting failed ({type(exc).__name__}).")
         per_camera.append(row)
 
     counts = [r["people"] for r in per_camera if r["readable"] and r["people"] is not None]
-    if not counts:
-        total = None
-    elif p["counting"] == "largest":
-        total = max(counts)
-    else:
-        total = sum(counts)
-    playing = None if total is None else int(total >= play_min())
+    total, playing = combine(p["counting"], counts, play_min())
     duration = int((time.monotonic() - started) * 1000)
     record = {"playground_id": p["id"], "checked_at": when.isoformat(timespec="seconds"),
               "people": total, "playing": playing, "cameras_read": len(counts),
@@ -462,14 +497,30 @@ def check_playground(p: dict, *, grab: Callable | None = None, pipeline=None,
                     """INSERT INTO camera_checks (venue_id, camera_id, checked_at, readable,
                            people, state, label, confidence, picture_path, problem,
                            playground_check_id, grab_ms, detect_ms)
-                       VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?)""",
+                       VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?)""",
                     (r["venue"], r["camera_id"], record["checked_at"], int(r["readable"]),
-                     r["people"], r["state"], r["problem"], record["check_id"], r["grab_ms"],
-                     r["detect_ms"]))
+                     r["people"], r["state"], r["picture_path"], r["problem"],
+                     record["check_id"], r["grab_ms"], r["detect_ms"]))
     finally:
         conn.close()
     record["cameras"] = per_camera
     return record
+
+
+def combine(counting: str, counts: list[int], threshold: int) -> tuple[int | None, int | None]:
+    """The playground's people and playing (1/0) from its cameras' counts; ``None`` without any."""
+    if not counts:
+        return None, None
+    if counting == "largest":
+        total = max(counts)
+    elif counting == "average":
+        total = round(sum(counts) / len(counts))
+    elif counting == "vote":
+        yes = sum(1 for n in counts if n >= threshold)
+        return max(counts), int(2 * yes >= len(counts))
+    else:
+        total = sum(counts)
+    return total, int(total >= threshold)
 
 
 def _picture(frame, counted) -> str | None:
@@ -485,6 +536,72 @@ def _picture(frame, counted) -> str | None:
     return cameras.jpeg_base64(drawn, max_width=640)
 
 
+# --- saved pictures ------------------------------------------------------------------------------
+
+_snap_lock = threading.Lock()
+_snap_bytes: int | None = None
+
+
+def _snapshot_files() -> list[Path]:
+    return [f for f in SNAPSHOT_DIR.rglob("*.jpg") if f.is_file()] if SNAPSHOT_DIR.exists() else []
+
+
+def snapshot_usage() -> dict:
+    """How much the saved pictures take, and the cap."""
+    files = _snapshot_files()
+    used = sum(f.stat().st_size for f in files)
+    return {"files": len(files), "bytes": used, "cap_bytes": SNAPSHOT_CAP_BYTES,
+            "folder": str(SNAPSHOT_DIR)}
+
+
+def _save_snapshot(pid: str, camera: str, when: datetime, frame, counted) -> str | None:
+    """Draw the count on the picture and keep it; returns the path relative to SNAPSHOT_DIR.
+
+    The pictures stay under the cap: when a new one would pass it, the oldest are deleted
+    first, so a long run keeps the most recent pictures instead of filling the disk.
+    """
+    global _snap_bytes
+    import cv2
+
+    try:
+        from pitch_occupancy.vision import overlay
+
+        drawn = overlay.draw_verdict(frame, counted["verdict"], instances=counted["instances"],
+                                     trace=False)
+    except Exception:  # noqa: BLE001 - a picture without the drawing beats no picture
+        drawn = frame
+    h, w = drawn.shape[:2]
+    if w > 1280:
+        drawn = cv2.resize(drawn, (1280, max(1, int(h * 1280 / w))), interpolation=cv2.INTER_AREA)
+    ok, buf = cv2.imencode(".jpg", drawn, [cv2.IMWRITE_JPEG_QUALITY, 75])
+    if not ok:
+        return None
+    data = buf.tobytes()
+    rel = Path(pid) / when.strftime("%Y-%m-%d") / f"{when.strftime('%H%M%S')}_{_slug(camera)}.jpg"
+    with _snap_lock:
+        if _snap_bytes is None:
+            _snap_bytes = sum(f.stat().st_size for f in _snapshot_files())
+        if _snap_bytes + len(data) > SNAPSHOT_CAP_BYTES:
+            for f in sorted(_snapshot_files(), key=lambda f: f.stat().st_mtime):
+                if _snap_bytes + len(data) <= SNAPSHOT_CAP_BYTES * 0.95:
+                    break
+                try:
+                    size = f.stat().st_size
+                    f.unlink()
+                    _snap_bytes -= size
+                except OSError:
+                    pass
+        target, n = SNAPSHOT_DIR / rel, 2
+        while target.exists():  # two checks in one second: keep both
+            target = target.with_name(f"{rel.stem}_{n}.jpg")
+            n += 1
+        rel = target.relative_to(SNAPSHOT_DIR)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        _snap_bytes += len(data)
+    return rel.as_posix()
+
+
 # --- the background runner ---------------------------------------------------------------------
 
 _state: dict[str, dict] = {}
@@ -493,6 +610,7 @@ _stop: threading.Event | None = None
 _wake = threading.Event()
 _running: set[str] = set()
 _forced: set[str] = set()
+_counter: dict[str, int] = {}
 
 
 def _due_after(now: datetime, every: int) -> datetime:
@@ -503,7 +621,10 @@ def _due_after(now: datetime, every: int) -> datetime:
 
 def _run_one(p: dict) -> None:
     try:
-        record = check_playground(p)
+        n = _counter[p["id"]] = _counter.get(p["id"], 0) + 1
+        every = p.get("save_every", 0)
+        # The first check of a run saves too, so a fresh start shows a picture at once.
+        record = check_playground(p, save=bool(every) and (n - 1) % every == 0)
         with _lock:
             st = _state.setdefault(p["id"], {})
             st.update(last=_summary(record), error=None)
@@ -648,6 +769,73 @@ def records(conn, day: date, *, period_minutes: int = 90,
             "avg_people": round(sum(counted) / len(counted), 1) if counted else None,
             "playing_checks": playing,
             "minutes_playing": round(playing * every.get(pid, 0) / 60),
+        })
+    return out
+
+
+def session_bounds(when: datetime) -> tuple[datetime, datetime]:
+    """The 1.5-hour session ``when`` falls in, on the grid through :data:`SESSION_ANCHOR`."""
+    anchor = dtime.fromisoformat(SESSION_ANCHOR)
+    base = when.replace(hour=anchor.hour, minute=anchor.minute, second=0, microsecond=0)
+    length = timedelta(minutes=SESSION_MINUTES)
+    start = base + ((when - base) // length) * length
+    return start, start + length
+
+
+def _session_verdict(share: float | None, max_people: int | None) -> str:
+    if share is None:
+        return "No pictures"
+    if share >= SESSION_PLAYED:
+        return "Playing"
+    if share >= SESSION_SOME:
+        return "Played a little"
+    if share > 0:
+        return "Mostly empty"
+    return "Some people, no game" if max_people else "Empty"
+
+
+def sessions(conn, start: datetime, end: datetime, *, playground_id: str | None = None,
+             ) -> list[dict]:
+    """One row per playground per 1.5-hour session between ``start`` and ``end``.
+
+    Each session gets one verdict from its checks: **Playing** when at least half were
+    playing, **Played a little** from 15 % up, **Mostly empty** below that, **Some people, no
+    game** when people were seen but never enough, **Empty** when nobody was seen. Also the
+    average and most people, the minutes played and how many pictures were saved.
+    """
+    saved_pgs = load()
+    every = {p["id"]: p["every_seconds"] for p in saved_pgs}
+    names = {p["id"]: p["name"] for p in saved_pgs}
+    sql = "SELECT * FROM playground_checks WHERE checked_at >= ? AND checked_at < ?"
+    args: list = [start.isoformat(timespec="seconds"), end.isoformat(timespec="seconds")]
+    if playground_id:
+        sql += " AND playground_id = ?"
+        args.append(playground_id)
+    saved = {r[0]: r[1] for r in conn.execute(
+        """SELECT playground_check_id, COUNT(*) FROM camera_checks
+           WHERE picture_path IS NOT NULL AND checked_at >= ? AND checked_at < ?
+           GROUP BY playground_check_id""", args[:2]).fetchall()}
+    groups: dict[tuple, list] = {}
+    for r in conn.execute(sql + " ORDER BY checked_at", args).fetchall():
+        s, _ = session_bounds(datetime.fromisoformat(r["checked_at"]))
+        groups.setdefault((r["playground_id"], s), []).append(r)
+    out = []
+    for (pid, s), rows in sorted(groups.items()):
+        counted = [r["people"] for r in rows if r["people"] is not None]
+        playing = sum(1 for r in rows if r["playing"])
+        share = playing / len(counted) if counted else None
+        mx = max(counted) if counted else None
+        out.append({
+            "playground_id": pid, "playground": names.get(pid, pid),
+            "start": s.isoformat(timespec="minutes"),
+            "end": (s + timedelta(minutes=SESSION_MINUTES)).isoformat(timespec="minutes"),
+            "checks": len(rows), "checks_without_picture": len(rows) - len(counted),
+            "avg_people": round(sum(counted) / len(counted), 1) if counted else None,
+            "max_people": mx, "playing_checks": playing,
+            "playing_share": round(share, 2) if share is not None else None,
+            "minutes_playing": round(playing * every.get(pid, 0) / 60),
+            "saved_pictures": sum(saved.get(r["check_id"], 0) for r in rows),
+            "verdict": _session_verdict(share, mx),
         })
     return out
 
