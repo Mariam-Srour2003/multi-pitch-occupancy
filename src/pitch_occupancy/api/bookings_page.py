@@ -29,7 +29,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 
-from pitch_occupancy.api.layout import page
+from pitch_occupancy.api.layout import CALL_JS, page
 from pitch_occupancy.api.limits import read_body
 from pitch_occupancy.api.routes import get_conn
 from pitch_occupancy.booking_check import check
@@ -369,16 +369,6 @@ dl.kv dt{color:var(--ink-3)}dl.kv dd{margin:0;word-break:break-word}
 """
 
 _SCRIPT = r"""
-const $=id=>document.getElementById(id);
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
-  '"':'&quot;',"'":'&#39;'}[c]));
-async function call(url,opts){
-  const r=await fetch(url,opts);let d=null;
-  try{d=await r.json()}catch(e){}
-  if(!r.ok)throw new Error((d&&d.detail)?(typeof d.detail==='string'?d.detail:
-    JSON.stringify(d.detail)):('HTTP '+r.status));
-  return d;
-}
 const errBox=m=>'<p class="note err">'+esc(m)+'</p>';
 const table=(cols,rows)=>'<div class="scroll"><table><thead><tr>'+
   cols.map(c=>'<th>'+esc(c[1])+'</th>').join('')+'</tr></thead><tbody>'+
@@ -515,7 +505,7 @@ def bookings_html() -> str:
     """The whole page. Built per request: it is small, and `layout` is shared and may change."""
     return page("Pitch Occupancy - Bookings", "Booking data",
                 _BODY.replace("EXAMPLES", _examples_html()),
-                active="bookings", css=_CSS, script=_SCRIPT)
+                active="bookings", css=_CSS, script=CALL_JS + _SCRIPT)
 
 
 @router.get("/bookings", response_class=HTMLResponse, include_in_schema=False)

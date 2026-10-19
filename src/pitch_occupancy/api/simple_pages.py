@@ -14,7 +14,7 @@
                                 were there people, the most at once, how long it was played on.
 * ``/more``                     The original pages, all still there.
 
-Everything here calls `playgrounds.py` or the APIs the original pages already use
+Everything here calls `playgrounds` or the APIs the original pages already use
 (`cameras_page`); nothing about how a camera is read or counted differs between them.
 """
 
@@ -32,7 +32,7 @@ from pydantic import BaseModel, Field
 
 from pitch_occupancy import playgrounds
 from pitch_occupancy.api.layout import page
-from pitch_occupancy.config import settings
+from pitch_occupancy.db.schema import open_db
 
 __all__ = ["router"]
 
@@ -119,12 +119,9 @@ button.small.red{border-color:var(--flag);color:var(--flag);background:transpare
 .morelist a span{display:block;color:var(--ink-2);font-size:13.5px}
 """
 
-#: JavaScript every page shares: escaping, a JSON fetch that surfaces the server's reason,
-#: and the plain words for a number of people.
-JS_COMMON = r"""
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"']/g,
-  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+#: JavaScript these pages share (after `layout.JS_COMMON`): a JSON fetch that surfaces the
+#: server's reason, and the plain words for a number of people.
+_JS = r"""
 async function api(path, opts = {}) {
   const o = {...opts};
   if (o.json !== undefined) {
@@ -155,15 +152,7 @@ const pgPath = id => '/api/v1/playgrounds/' + encodeURIComponent(id);
 
 def _html(title: str, body: str, script: str, active: str) -> HTMLResponse:
     return HTMLResponse(page(title, "Camera monitor", body, active=active, css=CSS,
-                             script=JS_COMMON + script))
-
-
-def _conn():
-    from pitch_occupancy.db.schema import connect, initialise
-
-    conn = connect(settings.db_path)
-    initialise(conn)
-    return conn
+                             script=_JS + script))
 
 
 def _find(playground_id: str) -> dict:
@@ -791,7 +780,7 @@ def _saved_cameras() -> list[dict]:
 def list_playgrounds() -> dict:
     items = playgrounds.load()
     state = playgrounds.status()["playgrounds"]
-    conn = _conn()
+    conn = open_db()
     try:
         latest = playgrounds.latest(conn)
     finally:
@@ -807,10 +796,10 @@ def list_playgrounds() -> dict:
         "playgrounds": [{**p, "latest": latest.get(p["id"]), "status": state.get(p["id"], {})}
                         for p in items],
         "cameras": cams,
-        "capacity": playgrounds.capacity(items),
+        "capacity": playgrounds.capacity.capacity(items),
         "every_choices": list(playgrounds.EVERY_CHOICES),
         "counting_short": playgrounds.COUNTING_SHORT,
-        "play_min": playgrounds.play_min(),
+        "play_min": playgrounds.check.play_min(),
     }
 
 
@@ -859,7 +848,7 @@ def look_now(playground_id: str) -> dict:
 @router.get("/api/v1/playgrounds/{playground_id}/latest")
 def playground_latest(playground_id: str) -> dict:
     p = _find(playground_id)
-    conn = _conn()
+    conn = open_db()
     try:
         last = playgrounds.latest(conn).get(playground_id)
         rows: dict[str, dict] = {}
@@ -870,7 +859,7 @@ def playground_latest(playground_id: str) -> dict:
     finally:
         conn.close()
     return {
-        "latest": last, "enabled": p["enabled"], "play_min": playgrounds.play_min(),
+        "latest": last, "enabled": p["enabled"], "play_min": playgrounds.check.play_min(),
         "cameras": [{"camera": ref, "checked": ref in rows,
                      "readable": bool(rows.get(ref, {}).get("readable")),
                      "people": rows.get(ref, {}).get("people"),
@@ -886,7 +875,7 @@ def computer_speed() -> dict:
     except Exception as exc:  # noqa: BLE001 - reported, not a 500
         raise HTTPException(503, f"The speed could not be measured "
                                  f"({type(exc).__name__}).") from exc
-    return {"speed": result, "capacity": playgrounds.capacity()}
+    return {"speed": result, "capacity": playgrounds.capacity.capacity()}
 
 
 # --- JSON: records ------------------------------------------------------------------------
@@ -902,7 +891,7 @@ def _day(value: str | None) -> date:
 
 def _records(day: str | None, period: int, playground: str | None) -> tuple[date, list[dict]]:
     d = _day(day)
-    conn = _conn()
+    conn = open_db()
     try:
         rows = playgrounds.records(conn, d, period_minutes=period, playground_id=playground)
     except ValueError as exc:

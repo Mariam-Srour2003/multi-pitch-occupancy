@@ -17,7 +17,6 @@ so the cameras' counts are summed before the rule is applied.
 from __future__ import annotations
 
 import os
-import threading
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -40,26 +39,11 @@ __all__ = ["router"]
 
 router = APIRouter(prefix="/api/v1", tags=["clip review"])
 
-_PIPELINE = None
-_PIPELINE_LOCK = threading.Lock()
-
-
 def _pipeline():
-    """The detector-first pipeline, assembled once. A function so a test can swap it.
+    """The shared detector-first pipeline (`pipeline.shared`). A function so a test can swap it."""
+    from pitch_occupancy.pipeline import shared
 
-    Locked because it is called from worker threads now, and two first requests arriving
-    together would otherwise each load the detector.
-    """
-    global _PIPELINE
-    with _PIPELINE_LOCK:
-        if _PIPELINE is None:
-            from pitch_occupancy.config import settings
-            from pitch_occupancy.pipeline import assemble
-            from pitch_occupancy.vision.rules import RuleConfig
-
-            cfg = RuleConfig.load(settings.rules_path)
-            _PIPELINE = assemble(cfg.detector, require_boundary=False, rules=cfg)
-    return _PIPELINE
+    return shared()
 
 
 class SideOut(BaseModel):

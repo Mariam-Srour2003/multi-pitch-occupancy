@@ -55,7 +55,7 @@ a fourth silently-zero threshold would be the same defect.
 
 **Protection against a false accusation does not rest on either.** A human confirms every
 anomaly and the
-system takes no automated financial action (`slots/authority.py`); these are
+system takes no automated financial action (`tests/test_authority.py`); these are
 defence-in-depth, not the thing standing between the audit and a false accusation.
 
 ## Camera offline — the worked case
@@ -86,7 +86,7 @@ arrived and the check never fires.
 | a slot in `REVIEW` citing captured minutes | is the camera up? `pitch info` shows resolved paths | if the outage is over, the slot cannot be recovered — the footage was not taken. Adjudicate from the booking record. |
 | many slots in `REVIEW` on one field | that field's camera or its network leg | a single field failing is a mount, a cable or a lens |
 | many slots in `REVIEW` across all fields | the network, the disk, or the host | restart the worker; the API only reads what the worker wrote, so the dashboard stays up either way |
-| a verdict that looks wrong | open the three evidence frames | override it — the override is recorded and feeds the retraining loop |
+| a verdict that looks wrong | open the three evidence frames | override it — the override is recorded beside the model's verdict |
 
 **Restarting the dashboard never interrupts sampling.** The worker and the API are separate
 processes sharing a database; `api/` only reads what `worker.py` wrote. That is a design

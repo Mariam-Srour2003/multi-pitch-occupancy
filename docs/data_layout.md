@@ -19,7 +19,7 @@ data/
 ├── processed/                    the labelled dataset
 │   ├── 1_empty/  2_playing/  3_maintenance_non_sporting/
 │   ├── labels.csv                per-frame provenance from the labelling tool
-│   └── manifest.csv              generated — `uv run pitch manifest`
+│   └── manifest.csv              frame index (its builder is on branch `thesis-archive`)
 ├── reference/                    14 annotated screenshots (labels burned into pixels)
 ├── cache/                        cached intermediate results (not read by the product)
 ├── evidence/                     evidence images bound to slot verdicts
@@ -40,11 +40,9 @@ data/
    frames holding **6 real `3_people_not_playing` and 0 real `4_maintenance`**. The split
    was dropped from the prediction path and the folders were merged on disk. `taxonomy.Label.parse` still reads both retired folder names, because every artefact
    older than that date says one of them.
-5. **A manifest rebuild carries rows it cannot name.** `build_manifest` parses filenames, and
-   generated frames (`syn_<batch>_<n>.jpg`) match no pattern. A rebuild used to report them
-   as problems and write the manifest without them — 200 rows, silently, exit code 0. `pitch
-   manifest` now passes the manifest it is replacing as `carry_unparseable`. If you call
-   `build_manifest` directly and intend to overwrite, pass it too.
+5. **The manifest is no longer rebuilt here.** The dataset tooling (manifest, splits, dedup,
+   clip extraction) lives on branch `thesis-archive`; `scripts/evaluate_rules.py` and
+   `scripts/derive_roi.py` only read the existing `manifest.csv`.
 6. **`reference/` screenshots must never be used to evaluate a vision-language model** without
    inpainting first — the class label is burned into the pixels in red text, and the model can
    read it.
@@ -92,8 +90,6 @@ corpus, never tune a threshold, and are redacted like any other frame if reprodu
 
 ## The confound this data still has
 
-Run `uv run pitch manifest --check` to see it live.
-
 `1_empty` exists almost exclusively in one morning recording at one venue. On the currently
 labelled data a rule that reads only the clock — *"if night → ACTIVE_PLAY, else EMPTY"* — scores
 **98.4%**, matching or beating every trained model in the pilot. Accuracy measured here cannot
@@ -109,7 +105,7 @@ supply slot-level ground truth, which highlight clips cannot.
 
 ## After extracting the clips (2026-09-06)
 
-`uv run pitch extract-clips` samples 6 frames from the middle 80% of each clip — 396 frames —
+The clip extractor (now on branch `thesis-archive`) sampled 6 frames from the middle 80% of each clip — 396 frames —
 which were verified as active play and filed into `2_playing` with `labeled_by=bulk`. The
 manifest now holds **1,692 frames across 9 venues**.
 
@@ -151,8 +147,8 @@ own filenames. `provenance.csv` records which frame came from which export.
 **They are new moments, not new places.** Thirteen of the fifteen are venues already in the
 corpus — `playing day 3` and `not playing night` are `clipvenue_g_netting`, `playing day` is
 `clipvenue_b_floodlit_track`, `maint night` is `clipvenue_a_blue_barrier`, six are
-`venue_01`. Each identification is recorded with its evidence in `configs/davinci_venues.csv`
-and was made by looking at frames side by side, because a dHash at 8×8 cannot tell two
+`venue_01`. Each identification (with its evidence, kept on the `thesis-archive` branch)
+was made by looking at frames side by side, because a dHash at 8×8 cannot tell two
 five-a-side pitches apart. Filing them under new names would have put the same camera on both
 sides of a leave-one-venue-out fold. Only `davinci_j_maint_outdoor` and
 `davinci_l_city_pitch` are new.
@@ -168,6 +164,6 @@ so they cannot reach a training set by accident; the whole videos stay here.
 
 Frames are sampled **by difference, not by clock**: a candidate is kept only if its dHash is
 at least 6 bits from every frame already kept from that clip — one past the threshold at
-which `dedup.py` calls two frames the same scene. A four-second clip of people standing still
+which the (archived) dedup step calls two frames the same scene. A four-second clip of people standing still
 yields one frame and a clip with a game in it yields seven. That is deliberate: sampling six
 evenly from each would have produced 90 frames and roughly 15 observations.

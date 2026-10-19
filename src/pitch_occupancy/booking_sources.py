@@ -19,7 +19,7 @@ value -> one of `bookings.STATUSES`), and ``date_format`` / ``time_format`` /
 split into the date and the time, so a table with ``starts_at``/``ends_at`` needs no ``date``
 column at all. Relative paths are resolved against the project root.
 
-**Strictly read-only.** The reasons are `bookings.py`'s and `slots/authority.py`'s: the booking
+**Strictly read-only.** The reasons are `bookings.py`'s: the booking
 system is the facility's financial record, and this project is an instrument pointed at it.
 Every source here has the two methods a reader needs and none a writer would:
 
@@ -63,6 +63,7 @@ from pitch_occupancy.bookings import (
     read_bookings,
 )
 from pitch_occupancy.config import CONFIGS_DIR, PROJECT_ROOT
+from pitch_occupancy.db.schema import open_readonly
 
 __all__ = [
     "DEFAULT_SOURCE_CONFIG",
@@ -500,14 +501,8 @@ class SqliteSource(_MappedSource):
         return str(self.config.get("name") or self.path.stem)
 
     def _open(self) -> sqlite3.Connection:
-        """A connection that cannot write: ``mode=ro`` and ``query_only``, both."""
-        if not self.path.exists():
-            # mode=ro would refuse too, but with "unable to open database file", which
-            # does not tell anyone which file.
-            raise FileNotFoundError(f"no SQLite database at {self.path}")
-        conn = sqlite3.connect(self.path.resolve().as_uri() + "?mode=ro", uri=True)
-        conn.execute("PRAGMA query_only = ON")
-        return conn
+        """A connection that cannot write (`open_readonly`: ``mode=ro`` and ``query_only``)."""
+        return open_readonly(self.path)
 
     def rows(self) -> list[dict]:
         query = check_read_only(self.config["query"])

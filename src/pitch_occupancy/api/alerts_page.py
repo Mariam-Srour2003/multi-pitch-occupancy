@@ -29,7 +29,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from pitch_occupancy import alerts
-from pitch_occupancy.api.layout import page
+from pitch_occupancy.api.layout import CALL_JS, page
 
 __all__ = ["router", "alerts_html"]
 
@@ -239,16 +239,6 @@ ul.ch{margin:0;padding-left:18px;font-size:12.5px}
 """
 
 _SCRIPT = r"""
-const $=id=>document.getElementById(id);
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
-  '"':'&quot;',"'":'&#39;'}[c]));
-async function call(url,opts){
-  const r=await fetch(url,opts);let d=null;
-  try{d=await r.json()}catch(e){}
-  if(!r.ok)throw new Error((d&&d.detail)?(typeof d.detail==='string'?d.detail:
-    JSON.stringify(d.detail)):('HTTP '+r.status));
-  return d;
-}
 const errBox=m=>'<p class="note err">'+esc(m)+'</p>';
 const sev=s=>'<span class="sev '+esc(s)+'">'+esc(s)+'</span>';
 const chans=o=>{const e=Object.entries(o||{});return e.length?'<ul class="ch">'+
@@ -361,7 +351,7 @@ def alerts_html() -> str:
     """The whole page. Built per request: it is small, and `layout` is shared and may change."""
     body = _BODY.replace("EVENTS", _events_html()).replace("EXAMPLES", _examples_html())
     return page("Pitch Occupancy - Alerts", "Alerts", body, active="alerts", css=_CSS,
-                script=_SCRIPT)
+                script=CALL_JS + _SCRIPT)
 
 
 @router.get("/alerts", response_class=HTMLResponse, include_in_schema=False)

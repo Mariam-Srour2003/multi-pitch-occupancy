@@ -256,9 +256,6 @@ _EMPTY = """<div class="card empty" id="nodata"><h3>No recordings yet</h3>
 </div>"""
 
 _SCRIPT = r"""
-const $=id=>document.getElementById(id);
-const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,
-  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const RESULT={USED:'used',NOT_USED:'not used',REVIEW:'please review'};
 const pct=x=>x==null?'-':Math.round(100*x)+'%';
 const hrs=h=>(Math.round((h||0)*10)/10).toFixed(1);

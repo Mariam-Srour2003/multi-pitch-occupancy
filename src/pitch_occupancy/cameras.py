@@ -39,10 +39,8 @@ but has recorded nothing since Tuesday is the failure the test alone cannot show
 from __future__ import annotations
 
 import base64
-import json
 import os
 import re
-import shutil
 import socket
 import sqlite3
 import time
@@ -56,6 +54,7 @@ import cv2
 import numpy as np
 
 from pitch_occupancy.config import CONFIGS_DIR
+from pitch_occupancy.jsonstore import JSONFileError, read_json, write_json_atomic
 
 __all__ = [
     "CONFIG_PATH", "ProbeResult", "STAGES", "list_cameras", "get_url", "save_camera",
@@ -284,14 +283,13 @@ def history_dir(path: Path | None = None) -> Path:
 
 def _read(path: Path | None = None) -> dict:
     target = _path(path)
-    if not target.exists():
-        return {}
     try:
-        raw = json.loads(target.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
+        raw = read_json(target, {})
+    except JSONFileError as exc:
         # Refuse rather than start afresh: overwriting a file someone hand-edited badly
         # would delete every camera it held.
-        raise ValueError(f"{target.name} is not valid JSON (line {exc.lineno}); fix or "
+        where = f" (line {exc.lineno})" if exc.lineno is not None else ""
+        raise ValueError(f"{target.name} is not valid JSON{where}; fix or "
                          f"restore it from {history_dir(path).name}/ before saving") from exc
     if not isinstance(raw, dict):
         raise ValueError(f"{target.name} must hold an object of venues")
@@ -300,21 +298,8 @@ def _read(path: Path | None = None) -> dict:
 
 def _write(data: dict, path: Path | None = None) -> Path | None:
     """Back up the current file, then replace it atomically. Returns the backup, if any."""
-    target = _path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    backup = None
-    if target.exists():
-        backups = history_dir(path)
-        backups.mkdir(parents=True, exist_ok=True)
-        stamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
-        backup = backups / f"{target.stem}.{stamp}.json"
-        shutil.copy2(target, backup)
-        for old in sorted(backups.glob(f"{target.stem}.*.json"))[:-KEEP_VERSIONS]:
-            old.unlink(missing_ok=True)
-    staging = target.with_suffix(".json.new")
-    staging.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    os.replace(staging, target)
-    return backup
+    return write_json_atomic(_path(path), data, history_dir=history_dir(path),
+                             keep=KEEP_VERSIONS)
 
 
 def _kind(url: str) -> str:
@@ -673,8 +658,10 @@ def recording_health(db_path: Path, cams: Iterable[tuple[str, str]], *,
     # Text bound for the index-free scan: two days back covers any timezone offset.
     floor = (since - timedelta(days=2)).date().isoformat()
     try:
-        conn = sqlite3.connect(f"{db.resolve().as_uri()}?mode=ro", uri=True)
-    except sqlite3.Error:
+        from pitch_occupancy.db.schema import open_readonly
+
+        conn = open_readonly(db)
+    except (sqlite3.Error, FileNotFoundError):
         return out
     try:
         for venue, cam in wanted:

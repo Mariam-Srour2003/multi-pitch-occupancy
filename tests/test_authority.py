@@ -3,7 +3,7 @@
 Reconciliation can implicate a named member of staff, so the design constraint is that the
 system produces decision support and takes no automated financial action. That sentence is
 worth very little on its own, so these tests walk the actual surface: the
-advisory type, the HTTP routes and the database layer.
+HTTP routes, the booking module and the database layer.
 
 The point is not that a test stops a determined operator - anyone with the database can do
 what they like. It is that "decision support" describes the artefact rather than the
@@ -19,71 +19,12 @@ from pathlib import Path
 import pytest
 
 from pitch_occupancy.data.taxonomy import SlotStatus
-from pitch_occupancy.slots.authority import (
-    FORBIDDEN,
-    MAX_SEVERITY_WITHOUT_HUMAN,
-    PERMITTED,
-    Action,
-    Advisory,
-    advise,
-)
 from pitch_occupancy.slots.reconcile import Anomaly, Booking, Reconciliation, reconcile
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "pitch_occupancy"
 
 
-# --- the advisory ----------------------------------------------------------------
-
-
-def test_an_advisory_always_requires_a_person() -> None:
-    """Not a policy setting. There is no argument that turns it off."""
-    a = Advisory(field_id="f1", date="2026-07-11", start="10:00", finding="x")
-    assert a.requires_human_confirmation is True
-    assert "requires_human_confirmation" not in Advisory.__dataclass_fields__
-
-
-def test_an_advisory_carries_no_monetary_quantity() -> None:
-    """The absence is the constraint, so it is asserted rather than assumed."""
-    money = re.compile(r"amount|price|charge|invoice|fee|penalt|refund|currenc", re.I)
-    named = [f for f in Advisory.__dataclass_fields__ if money.search(f)]
-    assert not named, f"Advisory grew a monetary field: {named}"
-
-
-def test_a_forbidden_action_cannot_be_constructed() -> None:
-    with pytest.raises(ValueError, match="not a permitted action"):
-        Advisory(field_id="f1", date="d", start="s", finding="x",
-                 actions=("apply_penalty",))  # type: ignore[arg-type]
-
-
-def test_the_permitted_vocabulary_is_small_and_has_no_money_in_it() -> None:
-    """Adding to it should be a design decision. This is what makes it one."""
-    assert {a.value for a in PERMITTED} == {
-        "flag_for_review", "record_observation", "aggregate_by_field"
-    }
-    assert not (FORBIDDEN & {a.value for a in PERMITTED})
-
-
-def test_there_is_no_severity_at_which_a_person_stops_being_required() -> None:
-    assert MAX_SEVERITY_WITHOUT_HUMAN is None
-
-
-def test_an_anomaly_is_flagged_for_a_person_rather_than_acted_on() -> None:
-    booking = Booking(field_id="f1", date="2026-07-11", start="10:00",
-                      booked=True, staff_recorded_used=True)
-    rec = reconcile(booking, SlotStatus.NOTUSED)
-    assert rec.is_anomaly
-    got = advise(rec)
-    assert Action.FLAG_FOR_REVIEW in got.actions
-    assert got.requires_human_confirmation
-
-
-def test_a_consistent_slot_still_produces_an_advisory() -> None:
-    """A caller that has to handle a null is a caller that can forget to."""
-    booking = Booking(field_id="f1", date="2026-07-11", start="10:00",
-                      booked=True, staff_recorded_used=True)
-    got = advise(reconcile(booking, SlotStatus.USED))
-    assert Action.FLAG_FOR_REVIEW not in got.actions
-    assert Action.RECORD_OBSERVATION in got.actions
+# --- reconciliation ------------------------------------------------------------
 
 
 def test_a_review_verdict_never_becomes_an_anomaly() -> None:
@@ -94,7 +35,6 @@ def test_a_review_verdict_never_becomes_an_anomaly() -> None:
     rec = reconcile(booking, SlotStatus.REVIEW)
     assert rec.anomaly is Anomaly.NEEDS_REVIEW
     assert not rec.is_anomaly
-    assert Action.FLAG_FOR_REVIEW not in advise(rec).actions
 
 
 # --- the surfaces that could grow one --------------------------------------------
@@ -169,7 +109,7 @@ def test_the_booking_module_has_no_write_path() -> None:
     guard there rejects write statements in a configured query; this pins that the module's
     own code never opens a source for writing."""
     text = (SRC / "booking_sources.py").read_text(encoding="utf-8")
-    assert "mode=ro" in text
+    assert "open_readonly(" in text
     assert not re.search(r"\.commit\(|open\([^)]*[\"']w", text)
 
 

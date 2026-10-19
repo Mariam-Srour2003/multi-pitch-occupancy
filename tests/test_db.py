@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from pitch_occupancy.data.taxonomy import SlotStatus
-from pitch_occupancy.db.schema import connect, initialise
+from pitch_occupancy.db.schema import connect, initialise, open_db, open_readonly
 from pitch_occupancy.db.store import (
     Sample,
     load_verdict,
@@ -53,6 +53,28 @@ def test_initialise_is_idempotent(tmp_path: Path) -> None:
     initialise(c)
     initialise(c)  # must not raise
     assert load_verdict(c, "nope") is None
+
+
+def test_open_db_creates_and_initialises(tmp_path: Path) -> None:
+    c = open_db(tmp_path / "sub" / "new.db")
+    try:
+        assert c.execute("SELECT COUNT(*) FROM venues").fetchone()[0] == 0
+    finally:
+        c.close()
+
+
+def test_open_readonly_cannot_write_and_never_creates(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        open_readonly(tmp_path / "missing.db")
+    assert not (tmp_path / "missing.db").exists()
+    open_db(tmp_path / "x.db").close()
+    c = open_readonly(tmp_path / "x.db")
+    try:
+        assert c.execute("SELECT COUNT(*) AS n FROM venues").fetchone()["n"] == 0
+        with pytest.raises(sqlite3.OperationalError):
+            c.execute("INSERT INTO venues VALUES ('v', 'V')")
+    finally:
+        c.close()
 
 
 def test_a_field_cannot_have_two_cameras_on_the_same_side(conn) -> None:
@@ -179,27 +201,3 @@ def test_re_recording_a_slot_replaces_its_samples_rather_than_mixing_two_runs(co
     minutes = [r[0] for r in conn.execute(
         "SELECT minute_index FROM frame_samples WHERE slot_id = 's1' ORDER BY minute_index")]
     assert minutes == [0, 1, 2]
-
-
-def test_seed_skips_generated_frames(tmp_path: Path, monkeypatch) -> None:
-    """Generated frames have no slot, date or physical camera; seeding them as a recorded
-    slot failed with `FOREIGN KEY constraint failed`."""
-    from pitch_occupancy.config import settings
-    from pitch_occupancy.db.seed import seed
-
-    header = ("file,label,class3,venue,camera,slot_date,slot_time,slot_id,t_s,source,"
-              "labeled_by,lighting,quality,split_role")
-    rows = [
-        "1_empty/slot_20260711_1000_camA_t000029.jpg,1_empty,C1_EMPTY,venue_01,"
-        "slot_20260711_1000_camA,2026-07-11,10:00,venue_01_2026-07-11_1000,29,regular,"
-        "human,day,unknown,",
-        "1_empty/syn_b1_001.jpg,1_empty,C1_EMPTY,venue_01,syn_b1,,,syn_b1,0,synthetic,"
-        "human,day,unknown,",
-    ]
-    dataset = tmp_path / "processed"
-    dataset.mkdir()
-    (dataset / "manifest.csv").write_text("\n".join([header, *rows]) + "\n", encoding="utf-8")
-    monkeypatch.setattr(settings, "dataset_dir", dataset)
-
-    verdicts = seed(tmp_path / "seed.db")
-    assert list(verdicts) == ["venue_01_2026-07-11_1000"]

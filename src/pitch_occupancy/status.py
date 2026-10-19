@@ -28,17 +28,17 @@ stale card for a minute, losing the slot costs an hour of observation.
 
 from __future__ import annotations
 
-import contextlib
 import json
 import os
 import re
 import threading
-import time
 from collections import deque
 from datetime import date as Date
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from pitch_occupancy.jsonstore import write_json_atomic
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from pitch_occupancy.scheduler import Schedule, ScheduledSlot
@@ -87,23 +87,12 @@ def write_status(state: dict, path: Path | None = None) -> bool:
     doc = dict(state)
     doc.setdefault("pid", os.getpid())
     doc.setdefault("updated_at", _stamp())
-    tmp = target.with_name(f".{target.name}.{os.getpid()}.{threading.get_ident()}.tmp")
     try:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        tmp.write_text(json.dumps(doc, indent=1, default=str), encoding="utf-8")
-        for attempt in range(5):
-            try:
-                os.replace(tmp, target)
-                return True
-            except PermissionError:
-                if attempt == 4:
-                    raise
-                time.sleep(0.05)
+        write_json_atomic(target, doc, indent=1, trailing_newline=False, default=str,
+                          attempts=5)
     except OSError:
-        with contextlib.suppress(OSError):
-            tmp.unlink(missing_ok=True)
         return False
-    return False
+    return True
 
 
 def read_status(path: Path | None = None, *, now: datetime | None = None) -> dict | None:

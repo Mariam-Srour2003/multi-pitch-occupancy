@@ -66,7 +66,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     from pitch_occupancy import alerts, playgrounds
 
     alerts.start_background_checker()
-    # The playground checks (`playgrounds.py`). Always started, idle while no playground is
+    # The playground checks (`playgrounds.runner`). Always started, idle while no playground is
     # on, so switching one on from the Playgrounds page needs no restart.
     playgrounds.start()
     try:

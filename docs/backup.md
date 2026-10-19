@@ -89,12 +89,10 @@ A backup nobody has restored from is a backup nobody knows the state of.
 # 1. restore data/ from the external drive or the cloud copy
 # 2. rebuild everything derived from it
 uv sync
-uv run pitch manifest --check               # the index must match the class folders
-uv run pitch manifest                       # rebuild the index
 uv run pytest                               # the suite must pass on the restored copy
 ```
 
-A restore is successful when the manifest rebuilds with the same frame counts as before. That is a stronger test than "the files are there".
+A restore is successful when the suite passes and `pitch info` finds every expected path.
 
 **Verify the restore once, from the off-site copy, before relying on it.** Restoring from the
 drive you can see proves less than restoring from the copy you cannot.

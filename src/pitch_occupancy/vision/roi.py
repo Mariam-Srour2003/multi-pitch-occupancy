@@ -28,13 +28,11 @@ hand after a clone is exactly the sort of setup nobody repeats identically.
 
 from __future__ import annotations
 
-import json
-import os
-import tempfile
 import threading
-import time
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from pitch_occupancy.jsonstore import JSONFileError, read_json, write_json_atomic
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     import numpy as np
@@ -95,7 +93,7 @@ ALIASES_KEY = "_aliases"
 #: The export's ``file0``/``file1`` keys against the corpus's ``camA``/``camB`` suffixes.
 #:
 #: `frame_source.discover_slots` is right that the ``(1)`` suffix does not name a *physical*
-#: camera - it flips between recording days (`db/seed.py` ``PHYSICAL_CAMERA``). But within one
+#: camera - it flips between recording days. But within one
 #: recording the frames were extracted with ``file0`` as ``camA`` and ``file1`` as ``camB``,
 #: and every derived boundary is keyed that way. Measured on 2026-09-19 by deriving a boundary
 #: from each of the four recordings and matching it against the stored ones: ``file0`` against
@@ -158,11 +156,9 @@ def coverage(polygon: Polygon) -> float:
 
 def _raw(path: Path) -> dict:
     """The store as JSON, or an empty dict. Never raises - see `load_all` for why."""
-    if not path.exists():
-        return {}
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        raw = read_json(path, {})
+    except (OSError, ValueError):
         return {}
     return raw if isinstance(raw, dict) else {}
 
@@ -176,12 +172,11 @@ def _raw_for_update(path: Path) -> dict:
     `_aliases` map. So a store that exists and cannot be read is refused, and the person
     saving is told to fix the file rather than have it silently replaced.
     """
-    if not path.exists():
-        return {}
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = read_json(path, {})
     except (OSError, ValueError) as exc:
-        raise ValueError(f"{path.name} could not be read ({exc}); fix or remove it before "
+        reason = exc.reason if isinstance(exc, JSONFileError) else exc
+        raise ValueError(f"{path.name} could not be read ({reason}); fix or remove it before "
                          f"saving, so the boundaries in it are not overwritten") from exc
     if not isinstance(raw, dict):
         raise ValueError(f"{path.name} is not a JSON object; fix or remove it before saving, "
@@ -396,28 +391,10 @@ def _write(entries: dict[str, object], *, path: Path | None = None,
     another process has the store open for reading, so it is retried briefly.
     """
     path = path or STORE
-    path.parent.mkdir(parents=True, exist_ok=True)
     payload: dict[str, object] = {"_comment": comment or _HAND_COMMENT}
     payload.update({k: v for k, v in entries.items() if k.startswith("_") and k != "_comment"})
     payload.update({k: entries[k] for k in sorted(entries) if not k.startswith("_")})
-    text = json.dumps(payload, indent=2) + "\n"
-    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
-    tmp = Path(tmp_name)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(text)
-            handle.flush()
-            os.fsync(handle.fileno())
-        for attempt in range(20):
-            try:
-                os.replace(tmp, path)
-                break
-            except PermissionError:
-                if attempt == 19:
-                    raise
-                time.sleep(0.05)
-    finally:
-        tmp.unlink(missing_ok=True)
+    write_json_atomic(path, payload)
 
 
 def derive_from_frames(frames, *, hull: bool = True) -> Polygon | None:

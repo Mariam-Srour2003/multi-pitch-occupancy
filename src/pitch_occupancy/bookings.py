@@ -8,9 +8,9 @@ and until now every booking in this repository has been a hand-written fixture.
 :class:`BookingSource` exposes :meth:`~BookingSource.read` and nothing else. There is no write
 path to comment out, no ``dry_run`` flag to leave at the wrong default, and no method that a
 later change could quietly point at a client's production database. The constraint is
-*"READ-ONLY - never write to client systems"*, for the same reasoning as
-`slots/authority.py`: a booking system is the facility's financial record, this project is a
-measurement instrument, and an instrument that can edit what it measures is not one.
+*"READ-ONLY - never write to client systems"*, because a booking system is the facility's
+financial record, this project is a measurement instrument, and an instrument that can edit
+what it measures is not one.
 
 The normalised schema is::
 

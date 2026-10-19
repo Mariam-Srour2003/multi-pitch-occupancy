@@ -16,18 +16,26 @@ Intel Mini-PC with **no discrete GPU**.
 The operational payoff is reconciliation: the booking system holds what *should* have happened
 and what staff *recorded*; the cameras observe what *actually* happened. Cross-checking the three
 surfaces no-shows, unbooked usage and data-entry errors — with a person confirming every anomaly.
-The system never bills or acts on money by itself (`slots/authority.py`).
+The system never bills or acts on money by itself (pinned by `tests/test_authority.py`).
 
 ## How a minute is decided
 
-One model path, assembled in one place (`pipeline.py`) and used by the worker and every page:
-a YOLO detector (`yolov8n` by default; the key in `configs/rules.json`, overridable with
-`PITCH_DEFAULT_MODEL_KEY`) counts people (by their feet) and the ball inside the pitch
-boundary over a short burst of frames, a motion cue is measured between frames, and a written
-decision table (`vision/rules.py`, numbers in `configs/rules.json`) decides: nobody → empty;
-1–4 people → not playing; 5 or more people (with the ball and movement the rule file
-requires) → playing. An unknown model key — an old database row may still name a retired
-model — falls back to the default detector with a warning.
+One model path, assembled in one place (`pipeline.py`) and used by the worker, the playground
+checks and every page.
+
+1. A YOLO detector (`yolo11n` at 960 px by default, named in `configs/rules.json`) counts the
+   people inside the pitch boundary, placing each by their feet, and looks for the ball.
+2. Over a short burst of frames it measures how many people moved and how bright the pitch is.
+3. A written decision table (`vision/rules.py`, numbers in `configs/rules.json`) decides:
+   - nobody inside → empty, or *not sure* when the pitch is too dark to see;
+   - 1–4 people → not playing;
+   - 5 or more people who are moving → playing;
+   - 5 or more people standing still → not playing.
+
+The settings were chosen with `scripts/evaluate_rules.py` on 848 labelled frames. That file's
+comment block records the measurements. On top of the count, an optional free vision-model
+second opinion can be asked about doubtful playground checks (`docs/assist.md`). How the code
+is laid out and how to extend it is in `docs/architecture.md`.
 
 **Every pitch has two cameras**, each seeing about half. A pitch verdict adds the people both
 cameras count, takes the ball from either, and applies the table once (`slots/fusion.py`).
@@ -177,14 +185,14 @@ src/pitch_occupancy/
 ├── pair_analysis.py     two cameras of one pitch -> one timeline
 ├── bookings.py          read-only booking records
 ├── retention.py         deletes sampled frames after 7 days, evidence after 365
-├── data/                manifest, splits, taxonomy
+├── data/                label taxonomy
 ├── vision/              detector, counting, motion, rules, ROI, overlay, redaction
 ├── slots/               two-camera fusion, aggregation, reconciliation, evidence
 ├── db/                  SQLite schema and access
 ├── api/                 FastAPI app and pages — the only part uvicorn serves
 └── cli.py               `pitch` command
-configs/                 rules, pitch boundaries, cameras, slot schedule, splits
-scripts/                 one-off tools: ingest footage, derive boundaries, run a clip
+configs/                 rules, pitch boundaries, cameras, slot schedule
+scripts/                 one-off tools: evaluate rules, derive boundaries, run a clip
 docs/                    runbook, database, data layout, backup
 tests/
 ```
@@ -194,7 +202,7 @@ independently, and `api/` only reads what it wrote. Restarting the dashboard nev
 sampling.
 
 Footage is not distributed with this repository — it shows identifiable people at a client
-facility. The dataset is referenced by manifest rather than stored in git.
+facility. The dataset is not stored in git.
 
 The thesis that produced this system — experiments, results, write-up and defence material — is
 preserved on the `thesis-archive` branch.

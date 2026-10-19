@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from fastapi.responses import HTMLResponse
 
+from pitch_occupancy.api.layout import JS_COMMON
 from pitch_occupancy.api.nav import NAV_CSS, nav_html
 
 __all__ = ["DASHBOARD_HTML"]
@@ -214,8 +215,7 @@ ul.steps code{background:var(--surface-2);padding:2px 6px;border-radius:4px;
 </form></dialog>
 <div class="toast" id="toast" hidden></div>
 
-<script>
-const api = p => fetch("/api/v1" + p).then(r => r.json());
+<script>""" + JS_COMMON + """const api = p => fetch("/api/v1" + p).then(r => r.json());
 let current = null;
 
 function pill(s){ s = esc(s); return `<span class="pill ${s}">${s}</span>`; }
@@ -304,8 +304,8 @@ async function load(){
       <td class="num">${s.n_samples}</td>
       <td class="num">${s.mean_confidence.toFixed(2)}</td>
       <td><button class="act" data-slot="${esc(s.slot_id)}">Evidence</button></td></tr>`).join("")
-    : `<tr><td colspan="7" class="empty">No slots evaluated yet. Populate the database with
-       <code>uv run pitch seed</code>, then reload.</td></tr>`;
+    : `<tr><td colspan="7" class="empty">No slots evaluated yet. They appear here once the
+       worker has recorded a slot.</td></tr>`;
 
   document.querySelectorAll("button[data-slot]").forEach(b => {
     b.onclick = () => openSlot(b.dataset.slot);
@@ -363,8 +363,6 @@ document.getElementById("bNOTUSED").onclick = () => override("NOTUSED");
 // or closes it by hand is remembered - but only for the same overall state, so a step that
 // breaks later opens the card again even if it was closed when everything was fine.
 const SETUP_KEY = "pitch.setup.open";
-const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g,
-  c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const STEP_MARK = {done: "&#10003;", todo: "", warning: "!", optional: "", unknown: "?"};
 const STEP_WORD = {done: "done", todo: "to do", warning: "check", optional: "optional",
   unknown: "unknown"};

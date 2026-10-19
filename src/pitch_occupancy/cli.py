@@ -1,7 +1,7 @@
 """Command-line entry point.
 
-Everything that is not a web request goes through here: dataset building, experiments,
-and running the services. Installed as ``pitch``::
+Everything that is not a web request goes through here: running the services and the
+checks and maintenance around them. Installed as ``pitch``::
 
     uv run pitch --help
     uv run pitch info
@@ -33,56 +33,14 @@ def info() -> None:
     typer.echo(f"pitch-occupancy {__version__}")
     typer.echo(f"  source type   : {settings.source_type.value}")
     typer.echo(f"  sample every  : {settings.sample_interval_s}s")
-    typer.echo(f"  random seed   : {settings.random_seed}")
     typer.echo("")
     for label, path in (
         ("raw footage", settings.raw_dir),
-        ("interim", settings.interim_dir),
         ("processed", settings.dataset_dir),
-        ("reference", settings.reference_dir),
         ("results", settings.results_dir),
     ):
         mark = "ok     " if path.exists() else "missing"
         typer.echo(f"  [{mark}] {label:<14} {path}")
-
-
-@app.command("seed")
-def seed_cmd() -> None:
-    """Fill the database from the real recorded slots, so the dashboard has data."""
-    from pitch_occupancy.db.seed import seed
-
-    verdicts = seed()
-    if not verdicts:
-        typer.secho("no slot recordings found in the manifest", fg=typer.colors.RED)
-        raise typer.Exit(1)
-    for slot, status in sorted(verdicts.items()):
-        typer.echo(f"  {slot:<32} {status}")
-    typer.echo("")
-    typer.echo(f"wrote {settings.db_path}")
-    typer.secho("open http://127.0.0.1:8000/ after `pitch serve`", fg=typer.colors.GREEN)
-
-
-@app.command("coverage")
-def coverage_cmd(
-    out: Path | None = typer.Option(None, help="Defaults to results/coverage.md."),
-) -> None:
-    """Report which cells of the class × lighting × venue matrix are empty."""
-    from pitch_occupancy.data.coverage import empty_cells, render_report
-    from pitch_occupancy.data.manifest import read_manifest
-
-    rows = read_manifest(settings.dataset_dir / "manifest.csv")
-    report = render_report(rows)
-    target = out or (settings.results_dir / "coverage.md")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(report, encoding="utf-8")
-
-    typer.echo(report)
-    gaps = empty_cells(rows)
-    if gaps:
-        typer.secho(
-            f"\n{len(gaps)} empty cell(s) in the collection matrix.", fg=typer.colors.YELLOW
-        )
-    typer.echo(f"wrote {target}")
 
 
 @app.command("fetch-weights")
@@ -104,82 +62,6 @@ def fetch_weights_cmd(
     for key, path, present in fetch_weights(keys or None):
         size = f"{path.stat().st_size / 1e6:.1f} MB" if present else "MISSING"
         typer.echo(f"  {key:<14} {path.name:<20} {size}")
-
-
-@app.command("extract-clips")
-def extract_clips_cmd(
-    per_clip: int = typer.Option(6, help="Frames sampled from each clip's middle 80%."),
-    clips_dir: Path | None = typer.Option(None, help="Defaults to the 2026-09-04 batch."),
-) -> None:
-    """Extract frames from the highlight clips and write the metadata sidecar."""
-    from pitch_occupancy.data.extract import (
-        extract_clip_frames,
-        load_clip_venues,
-        write_sidecar,
-    )
-
-    src = clips_dir or (settings.raw_dir / "highlights_2026-09-04")
-    out = settings.interim_dir / "frames" / "clips"
-    rows = extract_clip_frames(src, out, venues=load_clip_venues(), per_clip=per_clip)
-    path = write_sidecar(rows)
-    typer.echo(f"{len(rows)} frames from {len({r.clip_id for r in rows})} clips -> {out}")
-    typer.echo(f"sidecar -> {path}")
-    typer.secho(
-        "\nThese are not labelled yet. Review them before filing into a class folder.",
-        fg=typer.colors.YELLOW,
-    )
-
-
-@app.command("manifest")
-def build_manifest_cmd(
-    venue: str = typer.Option("venue_01", help="Venue tag for the frames being indexed."),
-    out: Path | None = typer.Option(None, help="Defaults to <dataset>/manifest.csv."),
-    check_only: bool = typer.Option(False, "--check", help="Report only; write nothing."),
-) -> None:
-    """Build data/dataset/manifest.csv from the class folders."""
-    from pitch_occupancy.data.manifest import (
-        build_manifest,
-        confound_warnings,
-        cross_tab,
-        write_manifest,
-    )
-
-    # Carry rows this scan cannot name (generated frames) from the manifest being
-    # replaced, rather than dropping them - see build_manifest.__doc__.
-    rows, problems = build_manifest(settings.dataset_dir, venue=venue,
-                                    carry_unparseable=settings.dataset_dir / "manifest.csv")
-    if not rows:
-        typer.secho(f"no frames found under {settings.dataset_dir}", fg=typer.colors.RED)
-        raise typer.Exit(1)
-
-    typer.echo(f"{len(rows)} frames indexed\n")
-    # venue, not slot_id: with clips extracted there are 60+ slot groups and the table
-    # becomes unreadable. Venue is also the axis that matters for leave-one-venue-out.
-    typer.echo(cross_tab(rows, "class3", "venue"))
-    typer.echo("")
-    typer.echo(cross_tab(rows, "class3", "lighting"))
-    typer.echo("")
-    typer.echo(cross_tab(rows, "class3", "labeled_by"))
-
-    warnings = confound_warnings(rows)
-    if warnings:
-        typer.echo("")
-        typer.secho("CONFOUNDING", fg=typer.colors.YELLOW, bold=True)
-        for w in warnings:
-            typer.secho(f"  ! {w}", fg=typer.colors.YELLOW)
-
-    if problems:
-        typer.echo("")
-        typer.secho(f"{len(problems)} problem(s):", fg=typer.colors.RED, bold=True)
-        for p in problems[:20]:
-            typer.secho(f"  - {p}", fg=typer.colors.RED)
-
-    if check_only:
-        raise typer.Exit(0)
-
-    target = out or (settings.dataset_dir / "manifest.csv")
-    write_manifest(rows, target)
-    typer.echo(f"\nwrote {target}")
 
 
 @app.command("assist-test")
@@ -382,46 +264,6 @@ def bookings_cmd(
         typer.secho(
             "\nThis is the committed example, not a client export. It exists to show the "
             "columns being asked for.", fg=typer.colors.YELLOW,
-        )
-
-
-@app.command("retraining")
-def retraining_cmd(
-    apply_now: bool = typer.Option(
-        False, "--apply", help="actually copy; without this the command only reports"
-    ),
-) -> None:
-    """Stage overridden slots' evidence frames for re-labelling.
-
-    Dry run by default, the same shape as `pitch retention`. Frames are staged **unfiled**:
-    an operator's override is a verdict about the whole slot, not a label for each frame, so
-    a human files them before they can become training data.
-    """
-    from pitch_occupancy.db.schema import connect, initialise
-    from pitch_occupancy.retraining import apply as apply_harvest
-    from pitch_occupancy.retraining import plan as plan_harvest
-
-    connection = connect(settings.db_path)
-    try:
-        # A database nothing has written to yet has no tables; that is "0 overridden
-        # slots", not a traceback.
-        initialise(connection)
-        harvest = plan_harvest(connection)
-    finally:
-        connection.close()
-
-    typer.echo(harvest.describe())
-    if not apply_now:
-        typer.echo("")
-        typer.secho("dry run - nothing copied. Add --apply to stage.", fg=typer.colors.YELLOW)
-        return
-    copied = apply_harvest(harvest, confirm=True)
-    typer.secho(f"staged {copied} frame(s)", fg=typer.colors.GREEN)
-    if copied:
-        typer.secho(
-            "Now look at each one and move it into 1_empty / 2_playing / 3_maintenance. "
-            "Nothing under _incoming/ is indexed by `pitch manifest`.",
-            fg=typer.colors.YELLOW,
         )
 
 

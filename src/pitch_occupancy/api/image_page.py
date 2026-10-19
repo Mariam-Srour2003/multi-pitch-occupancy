@@ -19,6 +19,7 @@ one.
 
 from __future__ import annotations
 
+from pitch_occupancy.api.layout import JS_COMMON
 from pitch_occupancy.api.nav import NAV_CSS, nav_html
 
 __all__ = ["IMAGE_HTML"]
@@ -333,9 +334,7 @@ the fix for a neighbouring pitch showing up in frame.">masks outside the pitch &
   <img id="zimg" alt="Enlarged view"></dialog>
 
 </main>
-<script>
-const $=id=>document.getElementById(id);
-const NL=String.fromCharCode(10);
+<script>""" + JS_COMMON + """const NL=String.fromCharCode(10);
 let files=[],results=[],queue=[],draining=false,delay=900,streamDone=false,redact=false;
 // The outline the operator settled on, normalised [x,y] in 0-1, or null for "whole frame".
 // Null is a *choice* here and not an absence: the step is shown before every run, so a
@@ -443,8 +442,6 @@ async function drain(){
 // Sent once with the meta record; see `vision/rules.rule_table`.
 let RULES=[],CLAUSES=[],DETECTOR='';
 
-const esc=t=>String(t).replace(/[&<>"]/g,c=>
-  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 // C2_ACTIVE_PLAY -> ACTIVE PLAY. The prefix is a folder name, not something to read.
 const stateName=v=>String(v).split('_').slice(1).join(' ')||String(v);
 // Trace lines reporting a clause that could not be checked, as against one that failed.

@@ -14,6 +14,7 @@ ball on B's side - and whether that answer would survive the two views overlappi
 from __future__ import annotations
 
 from pitch_occupancy.api.clip_page import CLIP_HTML
+from pitch_occupancy.api.layout import JS_COMMON
 from pitch_occupancy.api.nav import NAV_CSS, nav_html
 
 __all__ = ["PAIR_HTML"]
@@ -123,13 +124,9 @@ once to the whole pitch. Nothing you upload is kept.</p>
     <tbody id="rows"></tbody></table></div>
 </section>
 </main>
-<script>
-const $=id=>document.getElementById(id);
-const files={A:null,B:null};
+<script>""" + JS_COMMON + """const files={A:null,B:null};
 const NAMES={C1_EMPTY:'empty',C2_ACTIVE_PLAY:'playing',
   C3_MAINTENANCE_NON_SPORTING:'not playing',UNCERTAIN:'uncertain'};
-const esc=s=>String(s).replace(/[&<>"]/g,
-  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const clock=t=>{t=Math.round(t);return Math.floor(t/60)+':'+String(t%60).padStart(2,'0');};
 const pill=s=>s?'<span class="pill '+s+'">'+NAMES[s]+'</span>'
   :'<span class="pill UNCERTAIN">unread</span>';

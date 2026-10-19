@@ -144,8 +144,7 @@ def override_verdict(
     """Record a human correction.
 
     The original verdict is never overwritten - both are kept, because the disagreement is
-    the signal. Overridden slots are the cheapest source of real slot labels the project
-    has (see `retraining.py`).
+    the signal. Overridden slots are also the cheapest source of real slot labels.
     """
     if load_verdict(conn, slot_id) is None:
         raise KeyError(f"no evaluation exists for slot {slot_id!r} to override")

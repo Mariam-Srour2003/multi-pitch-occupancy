@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS reconciliations (
 
 CREATE INDEX IF NOT EXISTS idx_recon_anomaly ON reconciliations(anomaly);
 
--- one row per camera per automatic check (`playgrounds.py`): were there people, and how many.
+-- one row per camera per automatic check (`playgrounds.check`): were there people, and how many.
 -- Separate from the slot tables on purpose: a check belongs to a camera and a moment, not to
 -- a booked slot, so it needs no schedule and no field. `playground_check_id` ties the row to
 -- the playground check it was part of; the timings feed the computer-speed estimate.
@@ -147,7 +147,7 @@ CREATE INDEX IF NOT EXISTS idx_checks_time ON camera_checks(checked_at);
 CREATE INDEX IF NOT EXISTS idx_checks_camera ON camera_checks(venue_id, camera_id);
 
 -- one row per playground per check: its cameras combined into one count (added when they
--- watch different parts, the largest when they watch the same area - see `playgrounds.py`).
+-- watch different parts, the largest when they watch the same area - see `playgrounds`).
 CREATE TABLE IF NOT EXISTS playground_checks (
     check_id       INTEGER PRIMARY KEY AUTOINCREMENT,
     playground_id  TEXT NOT NULL,
@@ -229,6 +229,41 @@ def connect(path: Path | str, *, same_thread: bool = True) -> sqlite3.Connection
     # eight playground threads and the worker write. Kept by the file once set.
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA synchronous = NORMAL")
+    return conn
+
+
+def open_db(path: Path | str | None = None) -> sqlite3.Connection:
+    """The database (``settings.db_path`` by default) read-write, schema brought up to date.
+
+    The caller closes it.
+    """
+    if path is None:
+        from pitch_occupancy.config import settings
+
+        path = settings.db_path
+    conn = connect(path)
+    initialise(conn)
+    return conn
+
+
+def open_readonly(path: Path | str | None = None) -> sqlite3.Connection:
+    """The database (``settings.db_path`` by default) opened so it cannot be written:
+    ``mode=ro`` plus ``query_only``, rows by name. The caller closes it.
+
+    Never creates the file or its directory, and sets no journal pragma - changing the
+    journal mode is a write. Raises `FileNotFoundError` naming the file if it is missing
+    (``mode=ro`` alone would only say "unable to open database file").
+    """
+    if path is None:
+        from pitch_occupancy.config import settings
+
+        path = settings.db_path
+    p = Path(path)
+    if not p.is_file():
+        raise FileNotFoundError(f"no SQLite database at {p}")
+    conn = sqlite3.connect(f"{p.resolve().as_uri()}?mode=ro", uri=True, timeout=30)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA query_only = ON")
     return conn
 
 

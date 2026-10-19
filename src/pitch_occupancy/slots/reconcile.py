@@ -107,7 +107,7 @@ def reconcile(
     the alternative is not a missing comparison but a **confidently wrong one**: a booking
     export that stops last month makes every observed slot look unbooked, and unbooked usage
     is SERIOUS. A stale export would hand an operator a page of serious anomalies against a
-    facility that did nothing wrong, and `authority.py` is explicit that a human confirms
+    facility that did nothing wrong, and the design is explicit that a human confirms
     every one of them - so the cost of that failure is a person's time and a staff member's
     standing, not a wrong cell in a table.
     """

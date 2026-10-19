@@ -7,8 +7,8 @@
   during it (with each camera's count drawn on), which open full screen with arrow keys.
 
 The pictures are the ones the checker saved (one check in ``save_every``) under
-`playgrounds.SNAPSHOT_DIR`, kept under a size cap; a session whose pictures were deleted to
-make room still has its numbers.
+`playgrounds.snapshots.SNAPSHOT_DIR`, kept under a size cap; a session whose pictures were
+deleted to make room still has its numbers.
 """
 
 from __future__ import annotations
@@ -22,7 +22,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, Response
 
 from pitch_occupancy import playgrounds
-from pitch_occupancy.api.simple_pages import _conn, _html
+from pitch_occupancy.api.simple_pages import _html
+from pitch_occupancy.db.schema import open_db
 
 __all__ = ["router"]
 
@@ -294,9 +295,9 @@ def _range(start: str | None, end: str | None) -> tuple[datetime, datetime]:
 
 def _session_rows(start: str | None, end: str | None) -> tuple[datetime, datetime, list[dict]]:
     lo, hi = _range(start, end)
-    conn = _conn()
+    conn = open_db()
     try:
-        rows = playgrounds.sessions(conn, lo, hi)
+        rows = playgrounds.sessions.sessions(conn, lo, hi)
     finally:
         conn.close()
     return lo, hi, rows
@@ -310,7 +311,7 @@ def sessions_json(start: str | None = None, end: str | None = None) -> dict:
         "start": lo.isoformat(timespec="minutes"), "end": hi.isoformat(timespec="minutes"),
         "rows": rows, "sessions": columns, "columns": columns,
         "ends": {r["start"]: r["end"] for r in rows},
-        "playgrounds": playgrounds.load(), "play_min": playgrounds.play_min(),
+        "playgrounds": playgrounds.load(), "play_min": playgrounds.check.play_min(),
         "counting": playgrounds.COUNTING, "counting_short": playgrounds.COUNTING_SHORT,
         "rule": {"played": playgrounds.SESSION_PLAYED, "some": playgrounds.SESSION_SOME},
         "pictures": playgrounds.snapshot_usage(),
@@ -324,7 +325,7 @@ def session_detail(playground: str, start: str) -> dict:
         raise HTTPException(404, f"no playground {playground!r}")
     lo, hi = playgrounds.session_bounds(_when(start, datetime.now().astimezone()))
     args = (playground, lo.isoformat(timespec="seconds"), hi.isoformat(timespec="seconds"))
-    conn = _conn()
+    conn = open_db()
     try:
         checks = [dict(r) for r in conn.execute(
             """SELECT * FROM playground_checks WHERE playground_id = ? AND checked_at >= ?
@@ -341,17 +342,18 @@ def session_detail(playground: str, start: str) -> dict:
     saved_at = {p["checked_at"] for p in pics}
     for c in checks:
         c["saved"] = c["checked_at"] in saved_at
+    folder = playgrounds.snapshots.SNAPSHOT_DIR
     pictures = [{"camera": p["camera_id"], "checked_at": p["checked_at"], "people": p["people"],
                  "total": p["total"], "playing": p["playing"],
                  "url": "/snapshots/" + p["picture_path"]}
-                for p in pics if (playgrounds.SNAPSHOT_DIR / p["picture_path"]).is_file()]
+                for p in pics if (folder / p["picture_path"]).is_file()]
     return {"playground": found, "start": lo.isoformat(timespec="minutes"),
             "end": hi.isoformat(timespec="minutes"), "checks": checks, "pictures": pictures}
 
 
 @router.get("/snapshots/{path:path}", include_in_schema=False)
 def snapshot(path: str) -> FileResponse:
-    root = playgrounds.SNAPSHOT_DIR.resolve()
+    root = playgrounds.snapshots.SNAPSHOT_DIR.resolve()
     target = (root / Path(path)).resolve()
     if root not in target.parents or target.suffix != ".jpg" or not target.is_file():
         raise HTTPException(404, "no such picture")

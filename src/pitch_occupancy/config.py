@@ -79,17 +79,14 @@ class Settings(BaseSettings):
     #: when the temp folder's disk could not hold it.
     testing_max_upload_mb: int = Field(default=16384, ge=1)
 
-    # slot aggregation baseline (see docstring)
-    used_min_playing_ratio: float = Field(default=0.35, ge=0.0, le=1.0)
-    notused_max_playing_ratio: float = Field(default=0.10, ge=0.0, le=1.0)
-    notused_min_empty_ratio: float = Field(default=0.75, ge=0.0, le=1.0)
-
-    # two-tier pipeline confidence bands
-    tier1_confident_above: float = Field(default=0.75, ge=0.0, le=1.0)
-    tier2_escalate_below: float = Field(default=0.40, ge=0.0, le=1.0)
-
-    # reproducibility
-    random_seed: int = 42
+    #: Where the playground checks keep their saved pictures (`PITCH_SNAPSHOT_DIR`).
+    snapshot_dir: Path = DATA_DIR / "snapshots"
+    #: The saved pictures never take more than this many MB (`PITCH_SNAPSHOT_CAP_MB`); the
+    #: oldest are deleted to make room.
+    snapshot_cap_mb: int = 1024
+    #: Camera streams opened at the same time across all playgrounds (`PITCH_PARALLEL_GRABS`).
+    #: Over a slow link, opening many 1080p streams at once times every one of them out.
+    parallel_grabs: int = 2
 
     # api
     api_host: str = "127.0.0.1"

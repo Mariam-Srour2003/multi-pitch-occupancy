@@ -29,8 +29,7 @@ aliases the boundary machinery would be complete and applied to nothing:
 
 `roi.resolve(camera, venue=..., slot_key=...)` tries the most specific key first and looks each
 candidate up through `_aliases`, one hop. `file0 -> camA` is applied only *within* one
-recording, because the physical camera behind each file flips between days (`db/seed.py`
-`PHYSICAL_CAMERA`) - the mapping was measured by IoU on all four recordings before being
+recording, because the physical camera behind each file flips between days - the mapping was measured by IoU on all four recordings before being
 relied on. `roi.get` remains the store's own vocabulary and does none of this; a caller
 holding a production id wants `resolve`.
 

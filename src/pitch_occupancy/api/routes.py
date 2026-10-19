@@ -22,15 +22,15 @@ from pydantic import BaseModel, Field
 
 from pitch_occupancy.config import PROJECT_ROOT, settings
 from pitch_occupancy.data.taxonomy import SlotStatus
-from pitch_occupancy.db.schema import connect, initialise
+from pitch_occupancy.db.schema import open_db
 from pitch_occupancy.db.store import load_verdict, override_verdict
 
 router = APIRouter(prefix="/api/v1", tags=["dashboard"])
 
 
 def get_conn() -> sqlite3.Connection:
-    conn = connect(settings.db_path)
-    initialise(conn)
+    """The FastAPI dependency: `open_db`, closed after the request. Tests override this."""
+    conn = open_db()
     try:
         yield conn
     finally:

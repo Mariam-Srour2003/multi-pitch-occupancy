@@ -66,11 +66,9 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
-import os
 import smtplib
 import sqlite3
 import ssl
-import tempfile
 import threading
 import time as _time
 import urllib.error
@@ -84,6 +82,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from pitch_occupancy.config import CONFIGS_DIR, settings
+from pitch_occupancy.jsonstore import read_json, write_json_atomic
 
 __all__ = [
     "EVENT_TYPES", "Event", "Channel", "AlertConfig", "DeliveryError", "CONFIG_PATH",
@@ -385,12 +384,12 @@ def _local(stamp: Any) -> datetime | None:
 
 def _open_db() -> sqlite3.Connection | None:
     """The database read-only, or ``None`` if there is none yet. Looking never creates it."""
-    db = Path(settings.db_path)
-    if not db.is_file():
+    from pitch_occupancy.db.schema import open_readonly
+
+    try:
+        return open_readonly(settings.db_path)
+    except FileNotFoundError:
         return None
-    conn = sqlite3.connect(f"{db.resolve().as_uri()}?mode=ro", uri=True)
-    conn.row_factory = sqlite3.Row
-    return conn
 
 
 def _anomaly_events(conn: sqlite3.Connection, now: datetime, cfg: AlertConfig) -> list[Event]:
@@ -602,23 +601,15 @@ def _log_path() -> Path:
 
 
 def _read_json(path: Path, default: Any) -> Any:
+    """The file's contents, or ``default`` if it is missing or unreadable."""
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return read_json(path, default)
     except (OSError, ValueError):
         return default
 
 
 def _write_json(path: Path, data: Any) -> None:
-    """Atomic: a temporary file beside the target, moved into place."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(data, fh, indent=1, default=str)
-        os.replace(tmp, path)
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise
+    write_json_atomic(path, data, indent=1, trailing_newline=False, default=str)
 
 
 def _append_log(entries: list[dict]) -> None:

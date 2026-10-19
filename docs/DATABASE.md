@@ -4,8 +4,8 @@
 than an ORM: the schema is small, the queries are straightforward, and the deployment
 target is a Mini-PC that should not carry a dependency it does not need.
 
-Schema in `src/pitch_occupancy/db/schema.py`, access in `store.py`, and
-`uv run pitch seed` fills it from the real recorded slots.
+Schema in `src/pitch_occupancy/db/schema.py`, access in `store.py`; the worker fills it as
+slots are recorded.
 
 ---
 
@@ -132,7 +132,6 @@ thread. The API opens one connection per request in the thread that serves it.
 ## Working with it
 
 ```bash
-uv run pitch seed          # rebuild from the labelled frames
 uv run pitch serve         # then http://127.0.0.1:8000/client
 ```
 
@@ -154,6 +153,5 @@ SELECT slot_id, status, override_status, override_by FROM slot_evaluations
 WHERE is_overridden = 1;
 ```
 
-The database is **regenerable** — `pitch seed` rebuilds it from the labelled frames — so it
-is gitignored along with the rest of `data/`. The frames are not regenerable; the database
-is.
+The database holds the worker's verdicts and operators' overrides — back it up with
+`pitch backup` (docs/backup.md). It is gitignored along with the rest of `data/`.

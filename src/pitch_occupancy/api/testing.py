@@ -799,8 +799,6 @@ only the results.</p>
 """
 
 _HUB_SCRIPT = r"""
-const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,
-  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 fetch('/api/v1/testing/runs').then(r=>r.json()).then(rows=>{
   const box=document.getElementById('runs');
   if(!rows.length){box.innerHTML='<p class="muted">No tests yet.</p>';return;}
@@ -1085,11 +1083,8 @@ maintenance, and whether the slot was used. Nothing you upload is kept - only th
 """
 
 _DAY_SCRIPT = r"""
-const $=id=>document.getElementById(id);
 const files={A:null,B:null};
 let RUN=null;
-const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,
-  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const RESULT={USED:'used',NOT_USED:'not used',REVIEW:'please review'};
 const OUTCOME={booked_and_used:['booked and used','ok'],
   booked_not_used:['booked, not used','bad'],used_not_booked:['used, not booked','bad'],

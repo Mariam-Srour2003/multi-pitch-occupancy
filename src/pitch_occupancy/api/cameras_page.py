@@ -6,7 +6,7 @@ a) **Your cameras** - add, edit, delete and test the URLs in ``configs/cameras.j
    (`pitch_occupancy.cameras`). Every URL this module returns is masked; an edit can leave the
    password out (or as ``***``) to keep the stored one, so the page never needs to show it.
 b) **What is happening now?** - a spot check: one short burst per camera, through the
-   detector-first pipeline the two-camera reviewer uses (`clip_pair._pipeline`), each camera
+   detector-first pipeline the other pages share (`pipeline.shared`), each camera
    inside its stored boundary, the counts added across cameras and the rule applied once.
 c) **Start recording a day** - turns "start 08:00, 90-minute slots, six of them, weekdays"
    into schedule entries and merges them into ``configs/slots_schedule.json`` through
@@ -293,8 +293,8 @@ class PredictIn(BaseModel):
 
 
 def _pipeline():
-    """The detector-first pipeline the two-camera reviewer uses. A function for the tests."""
-    from pitch_occupancy.api.clip_pair import _pipeline as shared
+    """The shared detector-first pipeline (`pipeline.shared`). A function for the tests."""
+    from pitch_occupancy.pipeline import shared
 
     return shared()
 
@@ -966,9 +966,6 @@ every other pitch's. The previous schedule is kept as a backup.</p>
 """
 
 SCRIPT = r"""
-const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g,
-  (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const DAYS = ['mon','tue','wed','thu','fri','sat','sun'];
 let CAMS = [];
 let STATUS = {};

@@ -12,12 +12,32 @@ from html import escape
 from pitch_occupancy.api.clip_page import CLIP_HTML
 from pitch_occupancy.api.nav import NAV, NAV_CSS, nav_html
 
-__all__ = ["FONTS", "STYLE", "NAV", "nav_html", "page"]
+__all__ = ["CALL_JS", "FONTS", "JS_COMMON", "NAV", "STYLE", "nav_html", "page"]
 
 #: The font links, from the clip page.
 FONTS = CLIP_HTML[CLIP_HTML.index('<link rel="preconnect"'):CLIP_HTML.index("<style>")]
 #: The style sheet, from the clip page: colour tokens, light/dark, cards, tiles, tables.
 STYLE = CLIP_HTML[CLIP_HTML.index("<style>"):CLIP_HTML.index("</style>") + len("</style>")]
+
+#: JavaScript every page gets first: ``$`` (element by id) and ``esc`` (text made safe for
+#: HTML, attribute values in either quote included). `page` adds it; the stand-alone pages
+#: put it at the top of their own ``<script>``.
+JS_COMMON = r"""
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
+  '"':'&quot;',"'":'&#39;'}[c]));
+"""
+
+#: ``call(url, opts)``: fetch JSON, throwing the server's ``detail`` (or the HTTP status).
+CALL_JS = r"""
+async function call(url,opts){
+  const r=await fetch(url,opts);let d=null;
+  try{d=await r.json()}catch(e){}
+  if(!r.ok)throw new Error((d&&d.detail)?(typeof d.detail==='string'?d.detail:
+    JSON.stringify(d.detail)):('HTTP '+r.status));
+  return d;
+}
+"""
 
 _EXTRA = """<style>
 .grid2{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
@@ -47,7 +67,8 @@ def page(title: str, subtitle: str, body: str, *, active: str = "", css: str = "
     """A whole page: head, header with navigation, ``body`` inside ``<main>``, ``script``.
 
     ``css`` is extra style rules (without the ``<style>`` tag); ``script`` is JavaScript
-    (without the ``<script>`` tag).
+    (without the ``<script>`` tag), run after `JS_COMMON` - so it must not redeclare ``$``
+    or ``esc``.
     """
     return (
         '<!doctype html>\n<html lang="en"><head>\n<meta charset="utf-8">'
@@ -58,6 +79,6 @@ def page(title: str, subtitle: str, body: str, *, active: str = "", css: str = "
         '<div class="brand">Pitch <span>Occupancy</span></div>'
         f'<div class="sub">{escape(subtitle)}</div>{nav_html(active)}</div></header>\n'
         f"<main>\n{body}\n</main>\n"
-        + (f"<script>\n{script}\n</script>\n" if script else "")
+        + (f"<script>\n{JS_COMMON}{script}\n</script>\n" if script else "")
         + "</body></html>\n"
     )

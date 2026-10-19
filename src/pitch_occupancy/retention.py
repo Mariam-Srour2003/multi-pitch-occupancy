@@ -63,7 +63,7 @@ PROTECTED_ROOTS: tuple[Path, ...] = (
 #: Where frames sampled by the running system belong. Its own directory, because
 #: `data/interim/` itself holds research files that are older than 7 days and must not go:
 #: pointing the 7-day rule at all of it listed 683 files, including `clip_frames.csv`,
-#: without which `pitch manifest` drops every clip frame.
+#: which the frame index needs for every clip frame.
 SAMPLED_DIR: Path = settings.interim_dir / "sampled"
 
 

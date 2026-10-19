@@ -23,7 +23,9 @@ def _isolated_stores(tmp_path_factory, monkeypatch):
     monkeypatch.setattr(settings, "db_path", home / "db" / "pitch_monitor.db")
     monkeypatch.setattr(cameras, "CONFIG_PATH", home / "cameras.json")
     monkeypatch.setattr(alerts, "CONFIG_PATH", home / "alerts.json")
-    monkeypatch.setattr(playgrounds, "CONFIG_PATH", home / "playgrounds.json")
-    monkeypatch.setattr(playgrounds, "SPEED_PATH", home / "computer_speed.json")
-    monkeypatch.setattr(playgrounds, "SNAPSHOT_DIR", home / "snapshots")
+    # On the module that reads each one (see `playgrounds/__init__`).
+    monkeypatch.setattr(playgrounds.store, "CONFIG_PATH", home / "playgrounds.json")
+    monkeypatch.setattr(playgrounds.capacity, "SPEED_PATH", home / "computer_speed.json")
+    monkeypatch.setattr(playgrounds.snapshots, "SNAPSHOT_DIR", home / "snapshots")
+    monkeypatch.setattr(playgrounds.snapshots, "_snap_bytes", None)
     monkeypatch.setattr(assist_config, "CONFIG_PATH", home / "assist.json")

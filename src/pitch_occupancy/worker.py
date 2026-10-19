@@ -153,10 +153,9 @@ def run_slot(
     ``evidence_dir`` turns on **saving the evidence images**, and until 2026-09-09 nothing
     did. `EvidenceFrame.image_path` was populated with a literal ``None`` on every minute, so
     the selection machinery ran, chose three good frames, and recorded three paths to nothing.
-    The dashboard's evidence inspector said "no evidence images bound" and was right; the
-    override harvest (`retraining.py`) would have found every frame missing. A verdict an operator
-    cannot see the evidence for is the one thing this system must not produce, since a human
-    confirming every anomaly is what `slots/authority.py` rests on.
+    The dashboard's evidence inspector said "no evidence images bound" and was right. A
+    verdict an operator cannot see the evidence for is the one thing this system must not
+    produce, since a human confirming every anomaly is what the design rests on.
 
     The winning camera's frame is written for **every** observed minute and the unselected ones
     are deleted once the choice is made, because which three minutes matter is not knowable

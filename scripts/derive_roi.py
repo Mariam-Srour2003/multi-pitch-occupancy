@@ -33,6 +33,7 @@ strictly better than the whole frame.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
 from collections import defaultdict
@@ -41,7 +42,6 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.vision import roi
 
 # The deployed routine lives in the package (`vision/roi_derive.py`), so the worker and the
@@ -156,10 +156,11 @@ def main() -> int:
     # arriving from the other side. The boundary is measured from the generated frames
     # themselves rather than borrowed from the camera that conditioned them, because the
     # generator does not hold the framing exactly.
-    rows = read_manifest(DATASET / "manifest.csv")
+    with (DATASET / "manifest.csv").open(encoding="utf-8", newline="") as fh:
+        rows = list(csv.DictReader(fh))
     by_cam: dict[str, list[Path]] = defaultdict(list)
     for r in rows:
-        by_cam[r.camera].append(DATASET / r.file)
+        by_cam[r["camera"]].append(DATASET / r["file"])
 
     derived: dict[str, list[list[float]]] = {}
     for cam, paths in sorted(by_cam.items()):

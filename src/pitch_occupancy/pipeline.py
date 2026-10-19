@@ -27,6 +27,7 @@ refusal. `require_boundary` is the switch, and `shared()` sets it the interactiv
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 
@@ -223,23 +224,27 @@ def assemble(model_key: str | None = None, *, require_boundary: bool = True,
 
 
 _SHARED: Pipeline | None = None
+_SHARED_LOCK = threading.Lock()
 
 
 def shared() -> Pipeline:
-    """The process-wide pipeline the API surfaces share.
+    """The process-wide pipeline the API surfaces and the playground checks share.
 
     Assembled on first use and reused - the first call pays for loading the detector, later
     ones pay nothing - and assembled *reporting* rather than requiring a boundary, because a page
     a person is reading should show the whole-frame answer labelled as such rather than
-    refuse. The worker builds its own with `assemble` and the default.
+    refuse. Locked: it is called from worker threads, and two first callers arriving together
+    would otherwise each load the detector. The worker builds its own with `assemble`.
     """
     global _SHARED
-    if _SHARED is None:
-        _SHARED = assemble(require_boundary=False)
-    return _SHARED
+    with _SHARED_LOCK:
+        if _SHARED is None:
+            _SHARED = assemble(require_boundary=False)
+        return _SHARED
 
 
 def reset_shared() -> None:
     """Forget the shared pipeline, so a test or a config change can rebuild it."""
     global _SHARED
-    _SHARED = None
+    with _SHARED_LOCK:
+        _SHARED = None

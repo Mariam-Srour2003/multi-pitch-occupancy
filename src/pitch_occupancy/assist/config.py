@@ -7,12 +7,12 @@ file means off. Keys never live here - each provider reads its own environment v
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from pitch_occupancy.assist.providers import PROVIDERS, Provider
 from pitch_occupancy.config import CONFIGS_DIR
+from pitch_occupancy.jsonstore import read_json
 
 __all__ = ["AssistConfig", "CONFIG_PATH", "load"]
 
@@ -58,7 +58,7 @@ def load(path: Path | None = None) -> AssistConfig:
     source = path or CONFIG_PATH
     if not source.exists():
         return AssistConfig()
-    raw = json.loads(source.read_text(encoding="utf-8"))
+    raw = read_json(source)
     if not isinstance(raw, dict):
         raise ValueError(f"{source.name} must hold one JSON object")
     values = {k: v for k, v in raw.items() if not k.startswith("_")}

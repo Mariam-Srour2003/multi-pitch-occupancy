@@ -138,7 +138,7 @@ def test_a_day_outside_the_export_is_reviewed_not_called_unbooked() -> None:
 
     An export that stops last month makes every observed slot look unbooked, and unbooked
     usage is SERIOUS. That hands an operator a page of serious anomalies against a facility
-    that did nothing wrong - and `authority.py` says a human confirms every one, so the cost
+    that did nothing wrong - and a human confirms every one, so the cost
     is a person's time and a staff member's standing.
     """
     booking = Booking(field_id="pitch_1", date="2026-08-01", start="10:00", booked=False)
