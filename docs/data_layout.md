@@ -21,7 +21,7 @@ data/
 │   ├── labels.csv                per-frame provenance from the labelling tool
 │   └── manifest.csv              generated — `uv run pitch manifest`
 ├── reference/                    14 annotated screenshots (labels burned into pixels)
-├── cache/                        frozen-backbone embeddings, keyed by backbone
+├── cache/                        cached intermediate results (not read by the product)
 ├── evidence/                     evidence images bound to slot verdicts
 └── db/                           pitch_monitor.db
 ```

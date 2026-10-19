@@ -106,7 +106,7 @@ def test_the_minute_motion_cue_is_recorded_beside_the_burst_cue_not_instead() ->
 def pipeline_with(det: Detector, **cfg) -> Pipeline:
     rules = RuleConfig(**cfg)
     clf = DetectorFirstClassifier(det, rules)
-    return Pipeline("yolov8n", "detector", clf, rules=rules, classifier=clf,
+    return Pipeline("yolov8n", clf, rules=rules, classifier=clf,
                     boundaries=lambda cam, **_: (SQUARE, "stored"))
 
 

@@ -41,10 +41,13 @@ def ball(x1, y1, x2, y2, conf=0.3) -> Detection:
 # --- the registry -------------------------------------------------------------------------
 
 
-def test_the_default_detector_is_yolov8n_at_1280() -> None:
-    assert DEFAULT_DETECTOR == "yolov8n"
-    assert DETECTORS[DEFAULT_DETECTOR].weights == "yolov8n.pt"
-    assert DETECTORS[DEFAULT_DETECTOR].imgsz == 1280
+def test_the_default_detector_is_yolo11n_and_the_rule_runs_it_at_960() -> None:
+    from pitch_occupancy.vision.rules import RuleConfig
+
+    assert DEFAULT_DETECTOR == "yolo11n"
+    assert DETECTORS[DEFAULT_DETECTOR].weights == "yolo11n.pt"
+    shipped = RuleConfig.load()
+    assert (shipped.detector, shipped.imgsz) == ("yolo11n", 960)
 
 
 def test_every_entry_names_itself_and_segmentation_is_marked() -> None:

@@ -92,20 +92,22 @@ def main() -> int:
     cap.release()
     print(f"{i} frames at {fps:.1f} fps -> {len(frames)} sampled every {args.every:g}s")
 
-    from pitch_occupancy.vision.classifier import load_classifier
+    from pitch_occupancy.pipeline import assemble
 
-    clf = load_classifier(args.model)
-    verdicts = clf.classify_batch(frames, polygon=polygon)
-
-    # Motion against the previous sample, the same cue `motion_cue_probe` measured.
-    small = [cv2.resize(cv2.cvtColor(f, cv2.COLOR_BGR2GRAY), (160, 90)).astype(np.float32)
-             for f in frames]
-    motion = [float("nan")] + [float(np.abs(b - a).mean())
-                               for a, b in zip(small, small[1:])]
+    pipeline = assemble(args.model, require_boundary=False)
+    print(pipeline.describe())
+    verdicts, motion = [], []
+    previous = None
+    for frame in frames:
+        verdict = pipeline.classify_frame(frame, polygon=polygon, previous=previous)
+        previous = frame
+        verdicts.append((verdict.state, verdict.confidence))
+        # Motion against the previous sample, as the rule measured it; nan on the first.
+        motion.append(float("nan") if verdict.motion is None else float(verdict.motion))
 
     rows = []
     print(f"\n{'t':>8}{'verdict':>26}{'conf':>8}{'motion':>9}")
-    for t, (cls, conf), m in zip(times, verdicts, motion):
+    for t, (cls, conf), m in zip(times, verdicts, motion, strict=True):
         name = cls.name if hasattr(cls, "name") else str(cls)
         print(f"{t:>8.1f}{name:>26}{conf:>8.3f}"
               + (f"{m:>9.3f}" if m == m else f"{'-':>9}"))
@@ -129,7 +131,7 @@ def main() -> int:
         tw, th = 300, 170
         n = len(frames)
         sheet = np.zeros((((n - 1) // cols + 1) * (th + 20), cols * tw, 3), np.uint8)
-        for k, (f, (cls, conf), t) in enumerate(zip(frames, verdicts, times)):
+        for k, (f, (cls, conf), t) in enumerate(zip(frames, verdicts, times, strict=True)):
             im = cv2.resize(f, (tw, th))
             if polygon:
                 pts = np.array([[int(x * tw), int(y * th)] for x, y in polygon], np.int32)

@@ -56,7 +56,7 @@ PROTECTED_ROOTS: tuple[Path, ...] = (
     settings.raw_dir,
     settings.dataset_dir,
     settings.reference_dir,
-    settings.feature_cache_dir,
+    settings.data_dir / "cache",
     settings.results_dir,
 )
 
@@ -84,11 +84,11 @@ def free_bytes(path: Path) -> int | None:
     Walks up to the nearest existing parent: the evidence directory for a slot does not
     exist until the slot starts, and the question is about the filesystem it will live on.
     """
-    probe = Path(path)
-    while not probe.exists() and probe != probe.parent:
-        probe = probe.parent
+    existing = Path(path)
+    while not existing.exists() and existing != existing.parent:
+        existing = existing.parent
     try:
-        return shutil.disk_usage(probe).free
+        return shutil.disk_usage(existing).free
     except OSError:
         return None
 

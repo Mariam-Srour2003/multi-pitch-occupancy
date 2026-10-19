@@ -30,6 +30,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 
 from pitch_occupancy.api.layout import page
+from pitch_occupancy.api.limits import read_body
 from pitch_occupancy.api.routes import get_conn
 from pitch_occupancy.booking_check import check
 from pitch_occupancy.booking_sources import (
@@ -142,9 +143,9 @@ async def check_bookings(request: Request) -> dict:
 
     Stores nothing. Returns the `booking_check` report.
     """
-    body = await request.body()
-    if len(body) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "That file is larger than 20 MB; export a shorter period.")
+    # Streamed against the cap, never buffered whole first: a multi-gigabyte body sent
+    # without a length would otherwise sit in memory before any check ran.
+    body = await read_body(request, MAX_UPLOAD_BYTES, what="booking file")
     text = body.decode("utf-8-sig", errors="replace")
     if text.strip():
         try:

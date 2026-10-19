@@ -20,15 +20,14 @@ The system never bills or acts on money by itself (`slots/authority.py`).
 
 ## How a minute is decided
 
-Two classifiers sit behind one seam (`pipeline.py`):
-
-- **Detector-first (`yolov8n`)** — counts people (by their feet) and the ball inside the pitch
-  boundary over a short burst of frames, then applies a written decision table
-  (`vision/rules.py`, numbers in `configs/rules.json`): nobody → empty; 1–4 people → not playing;
-  5 or more people (with the ball and movement the rule file requires) → playing.
-- **DINOv2 probe** — frozen DINOv2 features pooled inside the boundary with a logistic head,
-  then a motion gate and a person gate that may only weaken its verdict. This is still
-  `settings.default_model_key`.
+One model path, assembled in one place (`pipeline.py`) and used by the worker and every page:
+a YOLO detector (`yolov8n` by default; the key in `configs/rules.json`, overridable with
+`PITCH_DEFAULT_MODEL_KEY`) counts people (by their feet) and the ball inside the pitch
+boundary over a short burst of frames, a motion cue is measured between frames, and a written
+decision table (`vision/rules.py`, numbers in `configs/rules.json`) decides: nobody → empty;
+1–4 people → not playing; 5 or more people (with the ball and movement the rule file
+requires) → playing. An unknown model key — an old database row may still name a retired
+model — falls back to the default detector with a warning.
 
 **Every pitch has two cameras**, each seeing about half. A pitch verdict adds the people both
 cameras count, takes the ball from either, and applies the table once (`slots/fusion.py`).
@@ -51,17 +50,20 @@ What a clone does not carry:
 |---|---|---|
 | detector weights (`*.pt`) | third-party binaries, gitignored | `uv run pitch fetch-weights` |
 | `data/` | footage of identifiable people, gitignored | restore from the backup (`docs/backup.md`) |
-| `data/cache/*.npz` | regenerable | `uv run pitch cache dinov2` (~10 min; DINOv2 probe only) |
 
 ## Running it
 
 Serve the API, dashboard and review pages:
 
 ```bash
-uv run pitch serve --reload
-# or directly:
-uv run python -m uvicorn pitch_occupancy.api.app:app --reload
+uv run pitch serve
 ```
+
+Always start it through `pitch serve`: it refuses a network address without a password and a
+password shorter than 10 characters. `--reload` is for development only. To keep it running on
+the Mini-PC, see `docs/service.md`; to reach it from other machines, set `PITCH_ALLOWED_HOSTS`
+and put HTTPS in front (same document). The interactive API docs (`/docs`) are off unless
+`PITCH_API_DOCS=true`.
 
 **Sign-in.** The server listens on this machine only (`127.0.0.1`) by default. To open it to
 the facility's network, set a password first — every page and endpoint then asks for it
@@ -175,8 +177,8 @@ src/pitch_occupancy/
 ├── pair_analysis.py     two cameras of one pitch -> one timeline
 ├── bookings.py          read-only booking records
 ├── retention.py         deletes sampled frames after 7 days, evidence after 365
-├── data/                manifest, splits, taxonomy, feature cache
-├── vision/              detector, counting, rules, ROI, backbones, probe, explanations
+├── data/                manifest, splits, taxonomy
+├── vision/              detector, counting, motion, rules, ROI, overlay, redaction
 ├── slots/               two-camera fusion, aggregation, reconciliation, evidence
 ├── db/                  SQLite schema and access
 ├── api/                 FastAPI app and pages — the only part uvicorn serves

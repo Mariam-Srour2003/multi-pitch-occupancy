@@ -51,7 +51,7 @@ class ScriptedDetector:
 def _pipeline(**rules) -> Pipeline:
     cfg = RuleConfig(burst_frames=1, require_ball=False, **rules)
     classifier = DetectorFirstClassifier(ScriptedDetector(), cfg)
-    return Pipeline("scripted", "detector", classifier, require_boundary=False, rules=cfg,
+    return Pipeline("scripted", classifier, require_boundary=False, rules=cfg,
                     classifier=classifier)
 
 
@@ -84,7 +84,7 @@ def test_requiring_the_ball_is_satisfied_by_either_camera(tmp_path) -> None:
     b = _video(tmp_path / "b.mp4", 80)
     cfg = RuleConfig(burst_frames=1, require_ball=True)
     classifier = DetectorFirstClassifier(ScriptedDetector(), cfg)
-    pipeline = Pipeline("scripted", "detector", classifier, require_boundary=False,
+    pipeline = Pipeline("scripted", classifier, require_boundary=False,
                         rules=cfg, classifier=classifier)
     s = analyse_pair(a, b, pipeline, interval_s=10).samples[0]
     assert s.raw is MinuteState.ACTIVE_PLAY

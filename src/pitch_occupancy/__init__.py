@@ -1,15 +1,17 @@
 """Low-bandwidth, CPU-only occupancy auditing for multi-pitch sports facilities.
 
-One frame per camera per minute is classified as empty, active play, or maintenance /
-non-sporting; a slot's worth of predictions aggregates into a USED / NOTUSED / REVIEW
+Each camera is read for a short burst every minute; a YOLO detector counts the people and
+the ball inside the pitch boundary, and a decision rule (`configs/rules.json`) calls the
+minute empty, active play, or maintenance / non-sporting; a slot's worth of predictions
+aggregates into a USED / NOTUSED / REVIEW
 verdict bound to three evidence images, which is then reconciled against the facility's
 booking records.
 
 Layout::
 
-    data/        manifest, splits, taxonomy, feature cache
-    vision/      ROI, backbones, heads, detector, gates,
-                 and the deployed classifier
+    data/        manifest, splits, taxonomy
+    vision/      ROI, detector, counting, motion, rules,
+                 and the deployed detector-first classifier
     slots/       two-camera fusion, aggregation, reconciliation
     db/          SQLite schema and access
     api/         FastAPI app, served by uvicorn

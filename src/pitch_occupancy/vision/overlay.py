@@ -1,9 +1,7 @@
 """What the detector saw, drawn on the frame.
 
-The probe path's explanation is a heatmap, and it has to be: a logistic regression on pooled
-features has no objects in it, only positions that push the score one way or the other
-(`vision/explain.py`). The detector-first path has objects, so its explanation is the objects -
-people in one colour, the ball in another, the pitch boundary outlined, the count and the rule
+The detector-first path has objects, so its explanation is the objects - people in one
+colour, the ball in another, the pitch boundary outlined, the count and the rule
 that fired written on the frame. A reader checks "five people and a ball, so PLAYING" by
 looking, not by trusting a caption.
 
@@ -23,8 +21,8 @@ only the counted three cannot explain it.
 redacts first and then draws. The overlay is computed from a verdict taken on the *original*
 frame and drawn over the redacted copy, which has identical geometry - so the explanation stays
 faithful while the picture stays publishable: any frame that leaves the room has its people
-redacted. Streamed frames to an operator are
-not redacted, as they are not today (`vision/walkthrough.py`).
+redacted (`vision/redact.py`). Frames streamed to an operator are redacted only when the page
+asks for it.
 """
 
 from __future__ import annotations
@@ -224,7 +222,7 @@ def publishable(
     The overlay is drawn *after* the blur so the outline, the masks and the text stay sharp;
     the frame underneath is what gets destroyed, which is the half that needs to be.
     """
-    from pitch_occupancy.vision.explain import redact_frame
+    from pitch_occupancy.vision.redact import redact_frame
 
     drawn = list(instances) or list(
         (verdict.count.people + verdict.count.balls) if verdict.count else ())
@@ -257,14 +255,9 @@ def detector_pane(
 ) -> tuple[np.ndarray, dict]:
     """One frame through the detector, drawn, with the numbers behind the picture.
 
-    This is what the review pages put **beside** the probe's heatmap, so a reader can see
-    the two models answering the same frame at once. They explain themselves in different
-    currencies and that is the point: a logistic probe on pooled features has no objects in
-    it, only regions that push a score, so its explanation can only ever be a heatmap; the
-    detector has objects, so its explanation is **a box round each person, one at a time,
-    and a ring round the ball**. Put side by side, "the model is reading the floodlights"
-    and "the model found six people and a ball" are distinguishable at a glance, which is
-    what an operator disputing a verdict needs to see.
+    This is what the review pages show for each frame: **a box round each person, one at a
+    time, and a ring round the ball**, so "the model found six people and a ball" can be
+    checked at a glance, which is what an operator disputing a verdict needs to see.
 
     **Every person is boxed separately, on purpose.** A single region covering a group
     would show the same picture for six players and for one player standing near a bag, and
@@ -275,15 +268,14 @@ def detector_pane(
     The detector runs **once** here and the verdict is built from that pass through
     `counting.count_inside` and `rules.decide` - the same public functions `pipeline`
     calls. Going through `Pipeline.classify_frame` instead would mean a second detector pass
-    per frame purely to recover the instances it does not return, and this page already
-    costs a probe pass and a heatmap.
+    per frame purely to recover the instances it does not return.
 
     Returns the drawn frame and a summary a page can render as text.
     """
     from pitch_occupancy.config import settings
     from pitch_occupancy.vision.counting import count_inside
     from pitch_occupancy.vision.detector import DEFAULT_DETECTOR, Detector
-    from pitch_occupancy.vision.explain import redact_frame
+    from pitch_occupancy.vision.redact import redact_frame
     from pitch_occupancy.vision.rules import RuleConfig, decide
 
     cfg = RuleConfig.load(settings.rules_path)
@@ -293,7 +285,7 @@ def detector_pane(
         imgsz=cfg.imgsz, tiles=cfg.tiles)
     if found is None:
         # None is "not checked", which is not "nothing there" - the distinction this
-        # project keeps having to restate (`vision/explain.py`). The pane says so.
+        # project keeps having to restate. The pane says so.
         verdict = decide(None, motion=None, cfg=cfg)
         # Redaction does not depend on the detector having run. This returned the frame
         # untouched whatever ``redact`` said, so the one moment the detector broke was the

@@ -14,7 +14,7 @@ the pipeline actually decided rather than invented demo data.
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pitch_occupancy.config import settings
@@ -22,6 +22,7 @@ from pitch_occupancy.data.manifest import read_manifest
 from pitch_occupancy.data.taxonomy import Class3
 from pitch_occupancy.db.schema import connect, initialise, transaction
 from pitch_occupancy.db.store import Sample, record_slot
+from pitch_occupancy.pipeline import resolve_model_key
 from pitch_occupancy.slots.aggregate import aggregate_slot
 from pitch_occupancy.slots.evidence import select_evidence
 from pitch_occupancy.slots.fusion import fuse
@@ -115,7 +116,7 @@ def seed(db_path: Path | None = None) -> dict[str, str]:
                     camera_id=PHYSICAL_CAMERA.get(cam, cam),
                     minute_index=minute, predicted=cls.value,
                     confidence=conf,
-                    captured_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    captured_at=datetime.now(UTC).isoformat(timespec="seconds"),
                 ))
             fused = fuse(observations)
             states.append(fused.state)
@@ -126,7 +127,7 @@ def seed(db_path: Path | None = None) -> dict[str, str]:
         evidence = select_evidence(evidence_rows, verdict.status)
         record_slot(
             conn, slot_id, verdict, samples,
-            model_key=settings.default_model_key,
+            model_key=resolve_model_key(),
             evidence_paths=[f"minute_{e.minute_index:03d}" for e in evidence],
         )
         verdicts[slot_id] = verdict.status.value
@@ -140,7 +141,7 @@ def seed(db_path: Path | None = None) -> dict[str, str]:
                        (slot_id, anomaly, severity, explanation, created_at)
                        VALUES (?, ?, ?, ?, ?)""",
                     (slot_id, rec.anomaly.value, rec.severity.value, rec.explanation,
-                     datetime.now(timezone.utc).isoformat(timespec="seconds")),
+                     datetime.now(UTC).isoformat(timespec="seconds")),
                 )
 
     conn.close()

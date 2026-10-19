@@ -13,8 +13,8 @@ should be held open. The upload is streamed to temporary files under the same si
 reviewers, then handed to `api.jobs` - one worker, one analysis at a time - and the page polls
 for progress.
 
-**The same system as the reviewers, not a copy of it.** One video goes through the classifier,
-gates and boundary choice of `/api/v1/clip/analyse` (`clip_review._classifier`, `_gates`,
+**The same system as the reviewers, not a copy of it.** One video goes through the classifier
+and boundary choice of `/api/v1/clip/analyse` (`clip_review._classifier`,
 `_derive_boundary`, `roi.resolve`); two go through the detector pipeline of
 `/api/v1/clip/pair/analyse` (`clip_pair._pipeline`). They are looked up on those modules at
 call time, so a test that scripts the reviewers scripts this too.
@@ -93,6 +93,8 @@ _MB = 1024 * 1024
 #: Room kept free on the temp folder's disk beyond the upload itself, so a large upload cannot
 #: fill the disk the database and the live worker also write to.
 _DISK_HEADROOM = 200 * _MB
+#: How often, in bytes received, a streaming upload re-checks the free space.
+_DISK_CHECK_EVERY = 256 * _MB
 #: A booking CSV for one day is kilobytes; this is the most that is read. It used to be the
 #: point the body was *truncated* at, after all of it had been buffered - so a gigabyte body
 #: was held in memory first, and a CSV over the line was silently cut mid-row.
@@ -194,7 +196,7 @@ _PCT = {"ge": 0, "le": 100}
 
 
 def _single(path: Path, *, interval_s: float, camera: str, whole_frame: bool, progress):
-    """One video, chosen and gated exactly as `/api/v1/clip/analyse` does it."""
+    """One video, classified exactly as `/api/v1/clip/analyse` does it."""
     classify = clip_review._classifier()
     if whole_frame:
         polygon, source = None, "whole frame"
@@ -204,17 +206,9 @@ def _single(path: Path, *, interval_s: float, camera: str, whole_frame: bool, pr
         polygon, source = derived, "derived"
     else:
         polygon, source = None, "none"
-    if polygon:
-        inner = classify
-
-        def classify(frame):  # noqa: F811 - the same masking wrapper as clip_review
-            return inner(roi.apply(frame, polygon), polygon=polygon)
-
-    motion_gate, person_gate = clip_review._gates()
     result = analyse_clip(path, classify, interval_s=interval_s, window=DEFAULT_WINDOW,
                           max_samples=MAX_DAY_SAMPLES, polygon=polygon,
-                          motion_gate=motion_gate, person_gate=person_gate,
-                          progress=progress)
+                          play_min=clip_review._play_min(), progress=progress)
     samples = [(s.t_s, s.smoothed) for s in result.samples]
     return samples, result.duration_s, result.interval_s, result.interval_widened, [source]
 
@@ -333,12 +327,20 @@ async def _receive_one(request: Request, path: Path, *, max_bytes: int) -> None:
         raise HTTPException(413, f"The video is {declared // _MB} MB; the limit is "
                                  f"{max_bytes // _MB} MB per video.")
     size = 0
+    checked = 0
     with open(path, "wb") as handle:
         async for chunk in request.stream():
             size += len(chunk)
             if size > max_bytes:
                 raise HTTPException(413, f"The video is over {size // _MB} MB so far; the limit "
                                          f"is {max_bytes // _MB} MB per video.")
+            # A body sent without a length was never checked against the free space, so it
+            # is checked as it arrives: a full disk breaks the database and the snapshots.
+            if size - checked >= _DISK_CHECK_EVERY:
+                checked = size
+                free = retention.free_bytes(path.parent)
+                if free is not None and free < _DISK_HEADROOM:
+                    raise HTTPException(507, "The disk is nearly full; the upload was stopped.")
             handle.write(chunk)
     if size == 0:
         raise HTTPException(422, "no video in the request body")
@@ -421,11 +423,15 @@ async def start_day_test(
                  interval_s=interval_s, offset_s=offset_s, field_id=field_id, day=day,
                  whole_frame=whole_frame, camera=camera, camera_a=camera_a, camera_b=camera_b,
                  name=name, name_b=name_b, rules=rules)
+    if not jobs.has_room():
+        raise HTTPException(429, f"{jobs.MAX_WAITING} tests are already waiting; try again when "
+                                 f"one has finished.")
     _check_disk(request)
     max_each = _max_upload_bytes()
     paths: list[Path] = []
     for _ in range(2 if two else 1):
-        fd, tmp = tempfile.mkstemp(suffix=".upload")
+        # The shared prefix lets `limits.sweep_stale` remove what a restart orphaned.
+        fd, tmp = tempfile.mkstemp(prefix=limits.UPLOAD_PREFIX, suffix=".upload")
         os.close(fd)
         paths.append(Path(tmp))
     submitted = False

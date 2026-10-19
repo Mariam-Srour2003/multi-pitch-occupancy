@@ -233,6 +233,9 @@ def _parse_channel(name: str, raw: Any) -> Channel:
             raise ValueError(f"{where}: host is required (for example smtp.gmail.com)")
         if _security(raw) not in ("starttls", "ssl", "none"):
             raise ValueError(f"{where}: security must be \"starttls\", \"ssl\" or \"none\"")
+        if _security(raw) == "none" and raw.get("password"):
+            raise ValueError(f"{where}: a password over security \"none\" would be sent "
+                             f"unencrypted; use \"starttls\" or \"ssl\"")
         if not _recipients(raw):
             raise ValueError(f"{where}: to must name at least one address")
         if not _sender(raw):

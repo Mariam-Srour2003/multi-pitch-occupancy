@@ -59,7 +59,7 @@ def test_all_abstained_is_review_with_a_reason_that_says_so() -> None:
 
 
 def test_the_four_folder_names_are_accepted_alongside_the_three_classes() -> None:
-    """The detector-first path speaks `MinuteState`; the probe path speaks `Class3`; a
+    """The detector-first path speaks `MinuteState`; a bare classifier speaks `Class3`; a
     caller may hand either, and `3_people_not_playing` and `4_maintenance` both land on C3."""
     verdict = aggregate_slot(["2_playing"] * 5 + ["1_empty"] * 3 + ["3_people_not_playing",
                                                                      "4_maintenance"])

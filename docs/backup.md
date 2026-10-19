@@ -12,10 +12,9 @@ Exactly one thing.
 | | size | replaceable? | where |
 |---|---|---|---|
 | **`data/` — the footage and extracted frames** | ~4.2 GB | **No.** It came from a client facility on one occasion. | one machine, one copy |
-| `data/cache/` — feature caches | ~1.5 GB | Yes — ~25 min per backbone from the frames | same machine |
 | code and configuration | small | Yes | git, GitHub |
 
-Everything derived — manifest, caches, fitted models — is regenerable from `data/`. **`data/`
+Everything derived — the manifest, detection caches — is regenerable from `data/`. **`data/`
 is not regenerable from anything.** If it is lost, the project loses its footage: the 66 clips
 were a one-off export, the two labelled venue_01 days cannot be re-recorded, and the labels
 represent work that would have to be redone by hand.
@@ -92,12 +91,10 @@ A backup nobody has restored from is a backup nobody knows the state of.
 uv sync
 uv run pitch manifest --check               # the index must match the class folders
 uv run pitch manifest                       # rebuild the index
-uv run pitch cache                          # rebuild the feature caches
 uv run pytest                               # the suite must pass on the restored copy
 ```
 
-A restore is successful when the manifest rebuilds with the same frame counts as before and
-the caches rebuild from it. That is a stronger test than "the files are there".
+A restore is successful when the manifest rebuilds with the same frame counts as before. That is a stronger test than "the files are there".
 
 **Verify the restore once, from the off-site copy, before relying on it.** Restoring from the
 drive you can see proves less than restoring from the copy you cannot.

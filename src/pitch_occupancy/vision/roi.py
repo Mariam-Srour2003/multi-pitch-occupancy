@@ -15,13 +15,10 @@ wrong for at least one of them.
 Points are fractions of width and height in 0-1. A camera swapped for a 4K one keeps its
 outline; a polygon in pixels would have quietly masked the wrong region.
 
-**Filling with black is the default and is not obviously right.** It is the simplest and
-hardest edge, so it stays the default - but a large black region is a thing no pretraining set
-contains, and the backbone's response to it is itself a distribution shift. `blur` keeps the
-frame's statistics plausible while destroying the detail a person is made of, and `mean` is the
-gentlest edge. Which is right is an empirical question this module deliberately does not
-answer: it offers the three and the editor shows what each does to the prediction, on the
-user's own frames.
+**The detector counts by the boundary, it does not see a masked frame.** A person counts
+when the foot of their box is inside the outline (`vision/counting.py`). :func:`apply` blanks
+the outside of a frame for a picture that should show only this pitch; nothing in the
+counting path depends on it.
 
 Stored in `configs/roi.json`, keyed by camera. Unlike `configs/cameras.json` - which holds
 RTSP credentials and is gitignored for that reason - a boundary is geometry, carries nothing
@@ -46,7 +43,7 @@ __all__ = [
     "Polygon", "STORE", "DERIVED_STORE", "FILLS", "DEFAULT_FILL", "FILE_KEY_CAMERA",
     "ALIASES_KEY", "MAX_POINTS", "load_all", "load_drawn", "load_aliases", "get", "resolve",
     "resolve_with_key",
-    "save", "save_derived", "remove", "validate", "coverage", "apply", "grid_weights",
+    "save", "save_derived", "remove", "validate", "coverage", "apply",
     "outline", "derive_from_frames", "derive_from_video",
 ]
 
@@ -367,8 +364,8 @@ def remove(camera: str) -> bool:
 _HAND_COMMENT = [
     "Pitch boundaries, one per camera, drawn in the editor at /roi.",
     "Points are [x, y] as fractions of the frame (0-1), so a resolution change does",
-    "not invalidate them. Everything outside the outline is filled before the frame",
-    "reaches the model - see src/pitch_occupancy/vision/roi.py.",
+    "not invalidate them. Only people standing inside the outline are counted -",
+    "see src/pitch_occupancy/vision/roi.py.",
     "Committed on purpose: a boundary is geometry, not a credential, and re-drawing",
     "one by hand after a clone is setup nobody repeats identically.",
     "`_aliases` maps a camera id as production names it (venue/camera, or the worker's",
@@ -450,7 +447,7 @@ def apply(image_bgr: np.ndarray, polygon: Polygon | None, *,
     * ``black`` - zeroes the outside. The default, and the hardest edge.
     * ``blur`` - a heavy Gaussian outside the outline. Destroys the detail a person is made
       of, which is what the neighbouring pitch has to lose, while leaving the frame's
-      statistics closer to something the backbone has seen.
+      overall look intact.
     * ``mean`` - flat fill with the mean colour *inside* the outline, the gentlest edge.
     """
     import cv2
@@ -480,72 +477,6 @@ def apply(image_bgr: np.ndarray, polygon: Polygon | None, *,
         outside = np.full_like(image_bgr, np.array(inside_mean, dtype=np.uint8))
 
     return np.where(mask[:, :, None].astype(bool), image_bgr, outside)
-
-
-def grid_weights(
-    polygon: Polygon | None,
-    size_wh: tuple[int, int],
-    grid: tuple[int, int],
-    processor=None,
-    *,
-    processor_geometry: bool = True,
-) -> np.ndarray | None:
-    """How much of each patch cell lies inside the boundary, as a ``grid``-shaped 0-1 array.
-
-    This is the piece that makes a boundary mean something to the *model* rather than only to
-    the picture. :func:`apply` fills the outside with black, which changes what those pixels
-    contain but not whether the backbone looks at them: a masked frame still produces a patch
-    token per position, and `backbones.embed_batch` pools with a plain mean over **all** of
-    them. So the fill lands in the pooled vector, the probe scores it, and the evidence map
-    shows it - which is exactly the "the model is still reading outside the pitch" that a
-    boundary was drawn to stop. Weighting the pool by this array removes those positions from
-    the average instead of merely darkening them.
-
-    **The geometry is taken from the processor, not re-derived.** Two of the three backbones
-    upscale to 256 and centre-crop back to 224, discarding 23.4% of the frame - and they say
-    so differently, ConvNeXtV2 hiding it behind ``crop_pct`` (see `backbones.PROCESSOR_GEOMETRY`).
-    Reimplementing that here would be a second preprocessing path that can drift from the
-    first, which is this project's most expensive bug repeated on purpose. Instead the polygon
-    is rasterised at the frame's own size and pushed through **the same processor call**, with
-    rescaling and normalisation switched off so what comes back is still a mask. Whatever the
-    processor does to a frame, it has now done to the boundary, including a crop that cuts part
-    of the outline away.
-
-    **Cells are fractional, not in-or-out.** A patch straddling the touchline is half pitch,
-    and `INTER_AREA` gives it 0.5 rather than forcing a choice that would move the boundary by
-    up to half a patch - 16 pixels at ViT's grid, which is a player's width at that distance.
-
-    ``None`` polygon returns ``None``, meaning *pool normally*, so every caller can pass its
-    polygon straight through without branching.
-    """
-    import cv2
-    import numpy as np
-
-    if not polygon:
-        return None
-
-    width, height = size_wh
-    points = np.array([[int(round(x * width)), int(round(y * height))] for x, y in polygon],
-                      dtype=np.int32)
-    mask = np.zeros((height, width, 3), np.uint8)
-    cv2.fillPoly(mask, [points], (255, 255, 255))
-
-    if processor is not None:
-        from PIL import Image
-
-        kwargs: dict[str, object] = {"do_rescale": False, "do_normalize": False}
-        if not processor_geometry:
-            kwargs["do_resize"] = False
-            if getattr(processor, "do_center_crop", False):
-                kwargs["do_center_crop"] = False
-        seen = processor(images=[Image.fromarray(mask)], return_tensors="np", **kwargs)
-        mask = np.asarray(seen["pixel_values"])[0, 0]
-    else:
-        mask = mask[:, :, 0]
-
-    cells = cv2.resize(mask.astype(np.float32), (grid[1], grid[0]),
-                       interpolation=cv2.INTER_AREA)
-    return np.clip(cells / 255.0, 0.0, 1.0)
 
 
 def outline(image_bgr: np.ndarray, polygon: Polygon | None, *,

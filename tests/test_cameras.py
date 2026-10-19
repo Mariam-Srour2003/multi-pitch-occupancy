@@ -135,10 +135,17 @@ def test_mask(url, masked) -> None:
 
 
 def test_blank_or_masked_password_keeps_the_stored_one(config) -> None:
-    cameras.save_camera("venue_01", "camera_A", "rtsp://admin:***@10.0.0.9:554/new/path")
-    assert cameras.get_url("venue_01", "camera_A") == f"rtsp://admin:{SECRET}@10.0.0.9:554/new/path"
-    cameras.save_camera("venue_01", "camera_A", "rtsp://admin@10.0.0.9:554/other")
-    assert cameras.get_url("venue_01", "camera_A") == f"rtsp://admin:{SECRET}@10.0.0.9:554/other"
+    cameras.save_camera("venue_01", "camera_A", "rtsp://admin:***@10.0.0.5:554/new/path")
+    assert cameras.get_url("venue_01", "camera_A") == f"rtsp://admin:{SECRET}@10.0.0.5:554/new/path"
+    cameras.save_camera("venue_01", "camera_A", "rtsp://admin@10.0.0.5:554/other")
+    assert cameras.get_url("venue_01", "camera_A") == f"rtsp://admin:{SECRET}@10.0.0.5:554/other"
+
+
+def test_a_stored_password_does_not_follow_the_camera_to_another_address(config) -> None:
+    # Otherwise anyone who can see the masked address could point it at their own server and
+    # have the real password sent there.
+    with pytest.raises(ValueError, match="hidden"):
+        cameras.save_camera("venue_01", "camera_A", "rtsp://admin:***@10.0.0.9:554/new/path")
 
 
 def test_masked_password_with_nothing_stored_is_refused(config) -> None:

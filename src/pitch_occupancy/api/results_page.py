@@ -216,7 +216,9 @@ async function openSession(key) {
   ].map(([b, s]) => `<div><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join('');
   $('dwhy').textContent = `${r.playing_checks} of ${r.checks - r.checks_without_picture} checks `
     + `had ${D.play_min} or more people (${esc(D.counting_short[d.playground.counting])}).`
-    + (r.checks_without_picture ? ` ${r.checks_without_picture} checks got no picture.` : '');
+    + (r.checks_without_picture ? ` ${r.checks_without_picture} checks got no picture.` : '')
+    + (r.assist_upgrades ? ` ${r.assist_upgrades} of them were judged playing by the second `
+      + `opinion after the detector counted too few.` : '');
   chart(d.checks, D.play_min, r.start, r.end);
   shots = d.pictures;
   $('shots').innerHTML = shots.length ? shots.map((s, i) => `<figure data-i="${i}">
@@ -362,7 +364,7 @@ def sessions_csv(start: str | None = None, end: str | None = None) -> Response:
     buf = io.StringIO()
     fields = ["playground", "start", "end", "verdict", "avg_people", "max_people",
               "playing_share", "minutes_playing", "checks", "checks_without_picture",
-              "saved_pictures"]
+              "saved_pictures", "assist_upgrades"]
     writer = csv.DictWriter(buf, fieldnames=fields, extrasaction="ignore")
     writer.writeheader()
     writer.writerows(rows)

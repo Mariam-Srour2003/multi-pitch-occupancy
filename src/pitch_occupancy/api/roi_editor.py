@@ -5,19 +5,13 @@ create one and, more importantly, **check it before trusting it**.
 
 The checking is the part worth building carefully. A boundary is a claim about what the
 camera should be allowed to see, and the failure it exists to prevent - a match on the
-neighbouring pitch scoring as play on this one - is invisible in the verdict: the model is
-right about what is in frame and wrong about what was asked. So `/roi/preview` runs the
-classifier **twice**, on the frame as it is and on the frame with the outline applied, and
-returns both predictions with both evidence maps. If the boundary is doing its job the two
-disagree on exactly the frames the neighbour was in, and the evidence map moves off the edge
-of the frame and onto the pitch. If they never disagree, the boundary is either unnecessary
-or drawn wrong, and the operator can see which before it goes anywhere near a night's data.
-
-The masking is not free of consequences and the preview is also how that gets noticed: a
-large black region is a thing no pretraining set contains, so masking can move a prediction
-on a frame that had no neighbour in it at all. That is why the fill mode is offered here
-rather than fixed - see the `roi.py` docstring - and why the response reports the prediction
-on the unmasked frame rather than only the masked one.
+neighbouring pitch counting as play on this one - is invisible in the verdict: the detector
+is right about what is in frame and wrong about what was asked. So `/roi/preview` runs the
+rule **twice**, counting inside the outline and over the whole frame, and returns both
+verdicts with the detector's drawing of each. If the boundary is doing its job the two
+disagree on exactly the frames the neighbour was in, and the people outside the outline are
+drawn dimmed. If they never disagree, the boundary is either unnecessary or drawn wrong, and
+the operator can see which before it goes anywhere near a night's data.
 """
 
 from __future__ import annotations
@@ -32,7 +26,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from pitch_occupancy.api import limits
-from pitch_occupancy.api.clip_review import MAX_UPLOAD_BYTES, _classifier
+from pitch_occupancy.api.clip_review import MAX_UPLOAD_BYTES
 from pitch_occupancy.api.clip_walkthrough import _jpeg
 from pitch_occupancy.vision import roi
 
@@ -78,8 +72,8 @@ class PreviewIn(BaseModel):
     image: str
     polygon: list[list[float]] | None = Field(default=None, max_length=roi.MAX_POINTS)
     fill: str = roi.DEFAULT_FILL
-    #: Skips the two classifier passes. The outline and the coverage figure are useful while
-    #: still clicking, and running the backbone on every click would make the editor unusable.
+    #: Skips the two detector passes. The outline and the coverage figure are useful while
+    #: still clicking, and running the detector on every click would make the editor unusable.
     explain: bool = True
 
 
@@ -108,30 +102,26 @@ def _frame(payload: str):
     return frame
 
 
-def _verdict(frame, *, explain: bool) -> dict:
-    """Classify one frame, with its evidence map when asked for.
+def _verdict(frame, polygon) -> dict:
+    """Count one frame inside ``polygon`` (or over the whole frame) and apply the rule.
 
-    Returns the same vocabulary the walkthrough pages use, so a reader moving between
-    `/images` and `/roi` is looking at the same quantities under the same names.
+    The same detector and rule the walkthrough pages draw (`overlay.detector_pane`), so a
+    reader moving between `/images` and `/roi` is looking at the same quantities.
     """
-    from pitch_occupancy.vision.explain import overlay_heatmap
-    from pitch_occupancy.vision.walkthrough import explain_frame
+    from pitch_occupancy.config import settings
+    from pitch_occupancy.pipeline import resolve_model_key
+    from pitch_occupancy.vision.overlay import detector_pane
 
-    classifier = _classifier()
-    if not explain:
-        state, confidence = classifier(frame)
-        return {"predicted": str(state), "confidence": confidence}
-
-    shot = explain_frame(frame, classifier)
-    area = shot["people_area"]
+    drawn, found = detector_pane(
+        frame, polygon=polygon, model_key=resolve_model_key(settings.default_model_key or None))
     return {
-        "predicted": shot["predicted"],
-        "confidence": shot["confidence"],
-        "n_people": shot["n_people"],
-        "score_from_map": shot["score_from_map"],
-        "score_direct": shot["score_direct"],
-        "focus_ratio": (shot["evidence_on_people"] or 0.0) / area if area else None,
-        "heat": _jpeg(overlay_heatmap(shot["frame_bgr"], shot["evidence"])),
+        "predicted": found["state"],
+        "confidence": found["confidence"],
+        "n_people": found["people_inside"],
+        "n_outside": found["people_outside_boundary"],
+        "ball": found["ball"],
+        "checked": found["checked"],
+        "image": _jpeg(drawn),
     }
 
 
@@ -206,10 +196,10 @@ def delete_boundary(camera: str = Query(min_length=1, max_length=MAX_KEY)) -> di
 async def preview(request: Request) -> dict:
     """Apply a boundary to one frame and report what it changed.
 
-    The two verdicts are the point. `inside` is the frame with everything outside the
-    outline filled; `whole` is the frame untouched. A boundary that never changes the
-    verdict is not necessarily wrong - it may simply be a frame with no neighbour in it -
-    but a boundary that changes it on *every* frame is masking something the model needed.
+    The two verdicts are the point. `inside` counts only the people standing inside the
+    outline; `whole` counts the whole frame. A boundary that never changes the verdict is not
+    necessarily wrong - it may simply be a frame with no neighbour in it - but one that
+    changes it on *every* frame is cutting off part of the pitch.
     """
     body = limits.parse_model(PreviewIn, await limits.read_json(request, MAX_PREVIEW_BODY))
     if body.fill not in roi.FILLS:
@@ -218,7 +208,7 @@ async def preview(request: Request) -> dict:
 
 
 def _preview(body: PreviewIn) -> dict:
-    """The work of `preview`, in a worker thread: a decode and two classifier passes."""
+    """The work of `preview`, in a worker thread: a decode and two detector passes."""
     frame = _frame(body.image)
     height, width = frame.shape[:2]
 
@@ -237,11 +227,9 @@ def _preview(body: PreviewIn) -> dict:
         "fill": body.fill,
     }
     if body.explain:
-        out["inside"] = _verdict(masked, explain=True)
-        # The unmasked verdict is reported even though the boundary is the point: masking is
-        # itself a distribution shift, and a reader who only sees the masked answer cannot
-        # tell a neighbour being excluded from the mask having moved the prediction on its own.
-        out["whole"] = _verdict(frame, explain=True)
+        out["inside"] = _verdict(frame, polygon)
+        # The whole-frame verdict beside it, so the reader sees what the outline changed.
+        out["whole"] = _verdict(frame, None)
         out["changed"] = out["inside"]["predicted"] != out["whole"]["predicted"]
     return out
 

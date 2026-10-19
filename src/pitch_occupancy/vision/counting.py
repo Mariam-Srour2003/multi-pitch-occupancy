@@ -44,7 +44,7 @@ import numpy as np
 from pitch_occupancy.vision.detector import PERSON, SPORTS_BALL, VEHICLES, Detection
 
 __all__ = [
-    "PitchCount", "polygon_mask", "inside", "hi_vis_fraction", "spread_of",
+    "PitchCount", "polygon_mask", "inner_mask", "inside", "hi_vis_fraction", "spread_of",
     "count_inside", "persist",
 ]
 
@@ -90,6 +90,13 @@ class PitchCount:
     #: The most balls seen at once in any frame of the burst. Above one, the burst's
     #: frame-to-frame matching is guesswork and the trace says so.
     balls_at_once: int = 0
+    #: People standing inside the boundary but within ``edge_margin`` of it - the touchline,
+    #: the gate, the bench. Not in ``people_inside``; kept so the trace can say so.
+    edge_people: int = 0
+    #: People matched between consecutive burst frames, and how many of them moved
+    #: (`vision/movement.py`). None on a single frame.
+    people_matched: int | None = None
+    people_moved: int | None = None
 
 
 def polygon_mask(polygon: Sequence[Sequence[float]] | None,
@@ -104,6 +111,29 @@ def polygon_mask(polygon: Sequence[Sequence[float]] | None,
     pts = np.array([[int(x * width), int(y * height)] for x, y in polygon], np.int32)
     cv2.fillPoly(mask, [pts], 1)
     return mask
+
+
+def inner_mask(mask: np.ndarray | None, polygon: Sequence[Sequence[float]] | None,
+               margin: float | None) -> np.ndarray | None:
+    """``mask`` shrunk by ``margin`` of the boundary's bounding-box diagonal, or None.
+
+    Someone standing on the touchline has their feet just inside a boundary drawn along it;
+    a substitute, a parent, a coach. The inner mask is where a person has to stand to count
+    as on the pitch. A shrink that would erase the boundary entirely is not applied.
+    """
+    if mask is None or not polygon or not margin or margin <= 0:
+        return None
+    import cv2
+
+    height, width = mask.shape[:2]
+    xs = [x * width for x, _ in polygon]
+    ys = [y * height for _, y in polygon]
+    radius = int(round(margin * float(np.hypot(max(xs) - min(xs), max(ys) - min(ys)))))
+    if radius < 1:
+        return None
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * radius + 1, 2 * radius + 1))
+    shrunk = cv2.erode(mask, kernel)
+    return shrunk if shrunk.any() else None
 
 
 def inside(mask: np.ndarray | None, point: tuple[int, int]) -> bool:
@@ -190,6 +220,7 @@ def count_inside(
     min_height_at: Callable[[int], float] | None = None,
     frame_bgr: np.ndarray | None = None,
     hi_vis_min_fraction: float | None = None,
+    edge_margin: float | None = None,
 ) -> PitchCount:
     """Count people (by foot), the ball (by centre) and vehicles (by foot) inside ``polygon``.
 
@@ -197,9 +228,13 @@ def count_inside(
     their feet at that row of the frame; detections shorter than it are counted in
     ``raw_inside`` and dropped from ``people_inside``. ``hi_vis_min_fraction`` turns on the
     hi-vis count and needs ``frame_bgr``; both default off, since the measurement that would
-    set them does not exist yet.
+    set them does not exist yet. ``edge_margin`` leaves out people standing within that
+    fraction of the boundary's diagonal of its edge (`inner_mask`); they are counted in
+    ``edge_people``.
     """
     mask = polygon_mask(polygon, shape)
+    inner = inner_mask(mask, polygon, edge_margin)
+    edge = 0
     people: list[Detection] = []
     balls: list[Detection] = []
     seen_people = tuple(d for d in detections if d.cls == PERSON)
@@ -216,6 +251,9 @@ def count_inside(
                 continue
             raw_inside += 1
             if min_height_at is not None and det.height < min_height_at(det.foot[1]):
+                continue
+            if inner is not None and not inside(inner, det.foot):
+                edge += 1
                 continue
             people.append(det)
             if (hi_vis_min_fraction is not None and frame_bgr is not None
@@ -246,6 +284,7 @@ def count_inside(
         # One frame cannot tell a ball being played with from one lying on the grass.
         ball_in_play=None,
         balls_at_once=len(balls),
+        edge_people=edge,
     )
 
 
@@ -271,6 +310,9 @@ def persist(counts: Sequence[PitchCount]) -> PitchCount:
     # with movement reported beside it - see `vision/ball.py` for the measurements that
     # prompted both (2026-09-21, reported from use).
     evidence = assess(counts)
+    from pitch_occupancy.vision import movement
+
+    moving = movement.assess([c.people for c in counts])
     return PitchCount(
         people_inside=persisted,
         people_total=max(c.people_total for c in counts),
@@ -288,4 +330,7 @@ def persist(counts: Sequence[PitchCount]) -> PitchCount:
         ball_frames=evidence.frames_seen,
         ball_in_play=evidence.in_play,
         balls_at_once=evidence.most_at_once,
+        edge_people=int(median(c.edge_people for c in counts)),
+        people_matched=moving.matched if moving else None,
+        people_moved=moving.moved if moving else None,
     )

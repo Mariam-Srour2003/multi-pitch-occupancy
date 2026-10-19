@@ -4,9 +4,8 @@ This is the *only* part of the system uvicorn serves. The occupancy pipeline its
 scheduled batch process (``pitch_occupancy.worker``) that runs independently, so a
 dashboard restart never interrupts sampling.
 
-Run it with::
-
-    uv run python -m uvicorn pitch_occupancy.api.app:app --reload
+Run it with ``uv run pitch serve`` (``docs/service.md`` for a permanent install). Going
+through the command matters: it refuses a network address without a password.
 
 Pages:
   - ``/``            the operator dashboard (also at ``/client``)
@@ -31,7 +30,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from pitch_occupancy import __version__
-from pitch_occupancy.api.access import AccessMiddleware
+from pitch_occupancy.api.access import AccessMiddleware, RequestGuard
 from pitch_occupancy.api.alerts_page import router as alerts_router
 from pitch_occupancy.api.bookings_page import router as bookings_router
 from pitch_occupancy.api.cameras_page import router as cameras_router
@@ -44,12 +43,12 @@ from pitch_occupancy.api.dashboard import dashboard_response
 from pitch_occupancy.api.image_page import IMAGE_HTML
 from pitch_occupancy.api.image_walkthrough import router as image_router
 from pitch_occupancy.api.reports_page import router as reports_router
+from pitch_occupancy.api.results_page import router as results_router
 from pitch_occupancy.api.roi_editor import router as roi_router
 from pitch_occupancy.api.roi_page import ROI_HTML
 from pitch_occupancy.api.routes import router
 from pitch_occupancy.api.schedule_editor import router as schedule_router
 from pitch_occupancy.api.setup_api import router as setup_router
-from pitch_occupancy.api.results_page import router as results_router
 from pitch_occupancy.api.simple_pages import router as simple_router
 from pitch_occupancy.api.simulator import router as simulator_router
 from pitch_occupancy.api.testing import router as testing_router
@@ -82,9 +81,17 @@ app = FastAPI(
     version=__version__,
     summary="Occupancy verdicts and booking reconciliation for multi-pitch facilities",
     lifespan=lifespan,
+    # The interactive API docs map every write endpoint; on only when asked for
+    # (`PITCH_API_DOCS=true`), never by default on a production box.
+    docs_url="/docs" if settings.api_docs else None,
+    redoc_url="/redoc" if settings.api_docs else None,
+    openapi_url="/openapi.json" if settings.api_docs else None,
 )
 # A password in front of everything when PITCH_ACCESS_PASSWORD is set (api/access.py).
 app.add_middleware(AccessMiddleware)
+# Added last so it runs first: host check, cross-site writes refused, security headers -
+# before the password, so a refused request never reaches the sign-in.
+app.add_middleware(RequestGuard)
 app.include_router(router)
 # Camera simulator. Disabled unless PITCH_SIMULATOR_TOKEN is set - mounting it is not
 # enabling it.
@@ -98,8 +105,7 @@ app.include_router(clip_router)
 # Two videos of the same pitch, one timeline: the cameras' counts added and the ball shared
 # before the rule is applied, as `slots/fusion.fuse_pitch` does for the worker.
 app.include_router(pair_router)
-# The same clip analysis streamed step by step, with the evidence map `vision/explain.py`
-# produces.
+# The same clip analysis streamed step by step, with the detector's boxes drawn on each frame.
 app.include_router(walkthrough_router)
 # The same explanation over still images. A separate surface rather than a clip of length
 # one: stills have no neighbours, so none of the temporal correction a clip gets applies to

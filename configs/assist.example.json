@@ -1,0 +1,24 @@
+{
+  "_comment": [
+    "Copy to configs/assist.json (gitignored) to turn on the free vision-model second opinion.",
+    "Keys are never written here: set GEMINI_API_KEY, GROQ_API_KEY and/or OPENROUTER_API_KEY",
+    "in .env or the service environment. Use keys from accounts with NO billing attached",
+    "(a Google AI Studio project without billing, a Groq free plan, an OpenRouter account",
+    "with no credits): a free-tier key cannot run up a bill, whatever happens here.",
+    "Pictures of people are sent to the provider. Free tiers may use them to improve their",
+    "models; heads are blurred first (blur_heads). Read the provider's terms first.",
+    "Budget: at most per_window questions per playground every window_minutes, and each",
+    "provider is held to half its free daily limit (assist/budget.py)."
+  ],
+  "enabled": false,
+  "providers": ["gemini", "groq", "openrouter"],
+  "per_window": 3,
+  "window_minutes": 30,
+  "min_gap_minutes": 5,
+  "audit": true,
+  "upgrade_confidence": 0.7,
+  "max_side": 1024,
+  "blur_heads": true,
+  "timeout_s": 30,
+  "models": {}
+}

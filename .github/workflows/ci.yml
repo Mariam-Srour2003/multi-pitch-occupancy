@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Ruff
+        run: uv run --only-group dev ruff check src tests scripts
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install (CPU-only torch, from the lock file)
+        run: uv sync --locked
+      - name: Fetch the detector weights the tests use
+        # Weights are gitignored; fetching is the one deliberate network access.
+        run: uv run pitch fetch-weights yolo11n
+        continue-on-error: true
+      - name: Tests
+        run: uv run python -m pytest -q -m "not slow" -p no:cacheprovider
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Known vulnerabilities in locked dependencies
+        # OSV is queried by name and version, so the CPU torch builds (+cpu), which are not
+        # on PyPI under that version, do not break the audit.
+        run: |
+          uv export --locked --no-emit-project --no-dev --format requirements-txt > requirements.txt
+          uvx pip-audit -r requirements.txt --no-deps --disable-pip --vulnerability-service osv --progress-spinner off

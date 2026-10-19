@@ -7,14 +7,14 @@ stills - they have no order, no neighbours and no duration - so building the sam
 the time parts greyed out would be a worse page, not a smaller one.
 
 What a batch of stills has instead is **comparison**, so that is what this is built around.
-Every image is explained the same way, and the gallery at the end sorts them by confidence
+Every image is checked the same way, and the gallery at the end sorts them by confidence
 with the least confident first - because on a batch the useful question is not "what is the
 verdict" but "which of these should I look at myself". A grid in upload order would bury
 exactly the images the reader opened the page for.
 
 The live stage above it is the clip walkthrough's, unchanged in spirit: one image at a time,
-the frame beside its evidence map, the score decomposition underneath, arriving as the
-backbone finishes each one.
+the detector's boxes and the rule path underneath, arriving as the detector finishes each
+one.
 """
 
 from __future__ import annotations
@@ -198,10 +198,10 @@ dialog .close{position:absolute;top:8px;right:10px}
 </div></header>
 <main>
 
-<h2>Explain one image, or a batch</h2>
-<p class="sub2" title="The same evidence decomposition the clip walkthrough uses, on
-pictures instead of footage. Images are decoded in memory and the copies used for reading
-are deleted as soon as the batch finishes.">classify &rarr; explain &middot; nothing
+<h2>Check one image, or a batch</h2>
+<p class="sub2" title="The same detector and rule the clip walkthrough uses, on pictures
+instead of footage. Images are decoded in memory and the copies used for reading are
+deleted as soon as the batch finishes.">detect &rarr; count &rarr; rule &middot; nothing
 stored</p>
 
 <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose images">
@@ -244,7 +244,7 @@ stored</p>
 </section>
 
 <div class="controls">
-  <div><label for="expn">Explain in detail</label>
+  <div><label for="expn">Draw the detections</label>
     <select id="expn">
       <option value="-1" selected>every image</option>
       <option value="1">first 1</option>
@@ -252,8 +252,8 @@ stored</p>
       <option value="8">first 8</option>
     </select></div>
   <div><label for="speed" title="A pause this page adds between renders - the model runs
-      at the same speed either way. The control that changes the actual work is explain in
-      detail: an explained image costs roughly twice a bare prediction.">Slow motion</label>
+      at the same speed either way. The control that changes the actual work is draw the
+      detections: a drawn image costs a second detector pass.">Slow motion</label>
     <input type="range" id="speed" min="0" max="2500" step="250" value="900"
       style="width:120px"></div>
   <div><label for="camera">Pitch boundary</label>
@@ -261,7 +261,7 @@ stored</p>
       <option value="">whole frame</option>
     </select></div>
   <div><button class="ghost" id="redact" aria-pressed="false">Pixelate people</button></div>
-  <button class="act" id="go" disabled>Explain these</button>
+  <button class="act" id="go" disabled>Check these</button>
 </div>
 <p class="sub2" style="margin-top:9px" title="Masks everything outside the camera's pitch -
 the fix for a neighbouring pitch showing up in frame.">masks outside the pitch &middot;
@@ -282,21 +282,12 @@ the fix for a neighbouring pitch showing up in frame.">masks outside the pitch &
   </div>
 
   <div class="panes">
-    <figure><img id="img-raw" alt="The image as the model received it">
-      <figcaption>The image</figcaption></figure>
-    <figure><img id="img-heat" alt="Evidence map over the image: where the score came from">
-      <figcaption title="Exact rather than a saliency heuristic: the per-position
-        contributions plus a constant sum to the score. The first three tiles are that claim
-        being checked - if the error is not tiny, the decomposition is
-        wrong.">Where the score came from</figcaption></figure>
     <figure><img id="img-boxes" alt="What the detector found: a box round each person, a ring round the ball">
       <figcaption>What the detector found</figcaption></figure>
   </div>
-  <p class="note" id="detnote" style="margin-top:8px" title="Two models, one frame. The
-    probe scores pooled features, so its explanation can only be a heatmap; the detector
-    finds objects, so its explanation is a box round each person and a ring round the ball.
-    Anything found outside the boundary is dimmed, not dropped.">probe &rarr; heatmap
-    &middot; detector &rarr; boxes &middot; outside the boundary dimmed</p>
+  <p class="note" id="detnote" style="margin-top:8px" title="A box round each person and a
+    ring round the ball. Anything found outside the boundary is dimmed, not dropped.">a box
+    round each person &middot; a ring round the ball &middot; outside the boundary dimmed</p>
 
   <div class="verdictbar">
     <span class="pill" id="v-pred">&mdash;</span>
@@ -312,10 +303,7 @@ the fix for a neighbouring pitch showing up in frame.">masks outside the pitch &
       <div class="v sm" id="x-outside">&mdash;</div></div>
     <div class="tile"><div class="k">Ball</div>
       <div class="v sm" id="x-ball">&mdash;</div></div>
-    <div class="tile" id="x-out-tile"><div class="k">Evidence outside boundary</div>
-      <div class="v sm" id="x-out">&mdash;</div></div>
   </div>
-  <div class="note" id="focusnote"></div>
 
   <div class="rules" id="rules" hidden>
     <h3>The rules, applied to this image <span class="mono" id="r-det"
@@ -335,8 +323,8 @@ the fix for a neighbouring pitch showing up in frame.">masks outside the pitch &
   <div class="tiles" id="sum"></div>
   <div class="note warn" id="alone" title="The clip reviewer can overrule an isolated
     misread using the samples either side of it in time; these stills may be minutes or
-    venues apart, and nothing in the upload says which, so the evidence map is the only
-    thing a prediction can be judged by."><b>Each image stands on its own</b> &middot; no
+    venues apart, and nothing in the upload says which, so the people found in each image
+    are the only thing a prediction can be judged by."><b>Each image stands on its own</b> &middot; no
     neighbours &middot; nothing smoothed or corrected</div>
   <div class="gallery" id="gallery" style="margin-top:14px"></div>
 </section>
@@ -483,13 +471,7 @@ function paintRules(det,predicted){
   // clauses it skipped, which are the ones a reader asks about.
   $('r-trace').innerHTML=(det.trace||[]).map(t=>
     '<li class="'+(isSkip(t)?'skip':'')+'">'+esc(t)+'</li>').join('');
-  // Two paths, one frame, and they can differ - the probe scores the whole picture, the
-  // rules count objects inside a boundary. Saying so is the point of showing both: on a
-  // frame with no boundary the rules count the pavement too, and a reader who saw only
-  // the disagreeing number would take it for a bug in one of them.
-  $('r-split').innerHTML=(predicted&&det.state!==predicted)
-    ? 'the probe says <b>'+esc(stateName(predicted))+'</b>, these rules say <b>'+
-      esc(stateName(det.state))+'</b>' : '';
+  $('r-split').innerHTML='';
 }
 
 function paint(s){
@@ -498,19 +480,14 @@ function paint(s){
   $('v-pred').textContent=s.predicted;
   $('v-pred').className='pill '+s.predicted;
   $('v-conf').textContent='confidence '+s.confidence.toFixed(3);
-  $('v-ms').textContent=Math.round(s.elapsed_ms)+' ms'+(s.explained?' (explained)':'');
+  $('v-ms').textContent=Math.round(s.elapsed_ms)+' ms'+(s.explained?' (drawn)':'');
 
-  // See the clip reviewer for why the probe's own audit numbers are gone from here: they
-  // were the decomposition checking itself, and `test_walkthrough.py` checks it instead.
   // A still has no predecessor, so there is no movement tile to give it.
   $('x-ppl').textContent=(s.n_inside===null||s.n_inside===undefined)?'\\u2014':s.n_inside;
   $('x-ball').textContent=s.ball?'yes':'no';
 
   if(s.explained){
-    $('img-raw').src=s.frame;$('img-heat').src=s.heat;
-    // The detector's pane. It is served with the same record, so a frame that has a
-    // heatmap has boxes too; if it ever does not, the pane is blanked rather than left
-    // showing the previous frame's answer next to this frame's heatmap.
+    // Blanked rather than left showing the previous image's drawing if it is ever missing.
     $('img-boxes').src=s.boxes||'';
     const d=s.detector;
     // "not available" is not "found nobody", and the distinction survives the trim as a
@@ -529,26 +506,13 @@ function paint(s){
     $('x-outside').textContent=out==null?'\\u2014':out;
     $('x-outside-tile').className='tile'+(out?' flagged':'');
     if(d&&d.checked&&d.ball){$('x-ball').textContent='yes  '+d.ball_confidence.toFixed(2);}
-    // Zero, or there is no boundary. Anything else means the outline reached the picture
-    // but not the pooling, which is the exact failure this tile exists to make visible.
-    const o=s.evidence_outside;
-    $('x-out').textContent=o==null?'no boundary':(o*100).toFixed(1)+'%';
-    $('x-out-tile').className='tile'+(o!=null&&o>0.001?' flagged':'');
-    // Silent unless something is wrong with it - a note saying nothing went wrong is the
-    // kind of sentence this page is meant to be rid of.
-    const f=s.focus_ratio;
-    $('focusnote').innerHTML=(f!=null&&f<1)
-      ? '<span title="The evidence is spread as though the people the detector found were '+
-        'not there, which for an active-play verdict is worth a look.">the model was not '+
-        'looking at the people it found</span>' : '';
   } else {
     // An unexplained image gets no detector pass, so there is no rule path to draw.
     paintRules(null,null);
-    $('x-outside').textContent='\\u2014';$('x-out').textContent='\\u2014';
-    $('x-outside-tile').className='tile';$('x-out-tile').className='tile';
-    $('focusnote').innerHTML='<span title="explain in detail bounds how many images get '+
-      'a map, because explaining costs about twice a bare prediction">no evidence map for '+
-      'this image</span>';
+    $('x-outside').textContent='\\u2014';$('x-outside-tile').className='tile';
+    $('detnote').innerHTML='<span title="Draw the detections bounds how many images get '+
+      'a drawing, because drawing costs a second detector pass">not drawn for this '+
+      'image</span>';
   }
   results.push(s);
   $('livecount').textContent=results.length+(results.length===1?' image':' images');
@@ -556,8 +520,7 @@ function paint(s){
 
 function card(s){
   const el=document.createElement('div');
-  // Flagged on a disagreement a reader can check against the picture - rather than on the
-  // focus ratio, which needed the method to read.
+  // Flagged on a disagreement a reader can check against the picture.
   //
   // **Both directions, which this checked only one of.** The comment here always claimed
   // "or the reverse" and the condition never implemented it, so a confident EMPTY on a
@@ -573,7 +536,7 @@ function card(s){
   el.className='shot'+(odd?' flagged':'');
   const imgs=document.createElement('div');imgs.className='imgs';
   if(s.explained){
-    [[s.frame,'image'],[s.heat,'evidence map']].forEach(([src,alt])=>{
+    [[s.boxes,'what the detector found']].filter(([src])=>src).forEach(([src,alt])=>{
       const i=document.createElement('img');i.src=src;i.alt=s.name+' \\u2014 '+alt;
       i.onclick=()=>{$('zimg').src=src;$('zimg').alt=i.alt;$('zoom').showModal()};
       imgs.appendChild(i);
@@ -611,7 +574,7 @@ function summarise(){
   const people=results.reduce((a,s)=>a+num(s),0);
   const withBall=results.filter(s=>s.ball).length;
   // The batch's quality flags, and they are disagreements a reader can check against the
-  // picture rather than the focus ratio they replace. Two, not one: a match with nobody
+  // picture. Two, not one: a match with nobody
   // found, and an empty pitch with people found. The second was missing, which is how a
   // batch could report every image as ordinary while containing a confident EMPTY over
   // four visible people.

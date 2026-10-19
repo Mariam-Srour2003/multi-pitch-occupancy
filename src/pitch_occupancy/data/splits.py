@@ -108,7 +108,7 @@ def distinct_rows(rows: list[ManifestRow], *, path: Path | None = None) -> list[
     count *beside* the full one instead of replacing it.
 
     The corpus is 1,881 frames and 290 scenes. On the EMPTY class it is 525 and 28, and the
-    five recorded ones are one venue over two days. Fitting on all of them tells the probe
+    five recorded ones are one venue over two days. Fitting on all of them tells a model
     that those backgrounds are what an empty pitch looks like with a confidence the evidence
     does not carry: refitting on one frame per scene took false-play on unseen footage from
     0.31 to 0.00, against a cost of 0.10 macro-F1 on a test set drawn from the same repeated
@@ -498,11 +498,9 @@ def split_identity(split: Split) -> str:
 
     **A seed does not identify a split here.** `grouped_split(rows, seed=42)` is
     deterministic given the same rows, and that proviso is the whole problem: the row list
-    depends on which feature caches the calling script filtered to.
-    In September one script read the DINOv2 cache and counted 94 distinct scenes while
-    another read all three caches and counted 95 - from the same seed, the same function and
-    the same manifest. Harmless that time. **Not detectable**, which is the part worth
-    fixing: nothing recorded either the divergence or the later return to agreement.
+    depends on which rows the calling script filtered to, and two scripts filtering
+    differently get different splits from the same seed, the same function and the same
+    manifest. **Not detectable** on its own, which is the part worth fixing.
 
     So the identity is the strategy, the group key, the seed **and the ordered row list**.
     Two runs that agree on all four have the same split; two that differ in any of them do

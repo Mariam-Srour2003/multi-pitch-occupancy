@@ -19,8 +19,8 @@ the operator still sees that period rather than a gap.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from pitch_occupancy.data.taxonomy import Class3, SlotStatus
 
@@ -77,7 +77,9 @@ def select_evidence(
         start = lo + span * third // n_thirds
         end = lo + span * (third + 1) // n_thirds
         # the final third absorbs the remainder so the last minute is never dropped
-        in_third = [r for r in rows if start <= r[0] < end or (third == n_thirds - 1 and r[0] >= end)]
+        in_third = [
+            r for r in rows if start <= r[0] < end or (third == n_thirds - 1 and r[0] >= end)
+        ]
         if not in_third:
             continue
 

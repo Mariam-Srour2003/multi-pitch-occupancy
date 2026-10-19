@@ -1,11 +1,9 @@
 """Run a video through the deployed slot path, exactly as the worker would.
 
-Not `classify_batch` with arguments chosen by hand - `worker.run_slot`, with the pipeline the
-worker assembles (`pipeline.assemble`): the same classifier, the same gates, the same
-boundary lookup. The point is to check the wiring, not to re-measure the idea: a run that
-reproduces a result by calling the components directly proves nothing about whether the
-system uses them - and for a while this script *was* the only caller that wired everything,
-while `scheduler.run_due` wired nothing.
+`worker.run_slot`, with the pipeline the worker assembles (`pipeline.assemble`): the same
+detector, the same rule, the same boundary lookup. The point is to check the wiring: a run
+that reproduces a result by calling the components directly proves nothing about whether the
+system uses them.
 
     uv run python scripts/run_slot_on_video.py VIDEO --every 15 --truth 9,12,15
     uv run python scripts/run_slot_on_video.py VIDEO --truth-csv configs/unseen_clip_truth.csv
@@ -74,7 +72,11 @@ def _truth(args) -> set[int]:
     """Sample indices that hold a person, from ``--truth`` or a tracked truth CSV."""
     if args.truth_csv is not None:
         with Path(args.truth_csv).open(encoding="utf-8") as fh:
-            return {int(r["sample"]) for r in csv.DictReader(fh) if r.get("label", r.get("class4")) != "1_empty"}
+            return {
+                int(r["sample"])
+                for r in csv.DictReader(fh)
+                if r.get("label", r.get("class4")) != "1_empty"
+            }
     return {int(x) for x in args.truth.split(",") if x.strip().isdigit()}
 
 
@@ -85,9 +87,8 @@ def main() -> int:
     ap.add_argument("--truth", default="", help="sample indices with a person on the pitch")
     ap.add_argument("--truth-csv", type=Path, default=None,
                     help="a truth file like configs/unseen_clip_truth.csv, instead of --truth")
-    ap.add_argument("--model", default=None, help="model key; the configured default if unset")
-    ap.add_argument("--no-gate", action="store_true", help="drop the motion gate")
-    ap.add_argument("--no-person", action="store_true", help="drop the person gate")
+    ap.add_argument("--model", default=None,
+                    help="detector key; the one configs/rules.json names if unset")
     ap.add_argument("--no-boundary", action="store_true",
                     help="score the whole frame, ignoring any boundary")
     args = ap.parse_args()
@@ -95,10 +96,6 @@ def main() -> int:
     frames, pool = _sample(args.video, args.every)
 
     pipeline = assemble(args.model, require_boundary=not args.no_boundary)
-    if args.no_gate:
-        pipeline.motion_gate = None
-    if args.no_person:
-        pipeline.person_gate = None
 
     # A camera the store has never seen has no boundary, which is what production would find
     # on the first night at a new site. Deriving one from the footage is the step that fixes
@@ -138,15 +135,12 @@ def main() -> int:
     empt = [m for m in range(len(frames)) if m not in person]
     fp = [m for m, t in wrong if t == "empty"]
     right_empty = sum(1 for m, s in seen if m in empt and s is Class3.EMPTY)
-    # What the gates saw, not just what they decided. A minute overruled to EMPTY and a
-    # minute that was EMPTY all along look identical in the column above, and the count
-    # is the difference between them.
+    # What the detector saw, not just what the rule decided.
     if run.people_counts:
         print(f"\npeople inside the boundary, per minute the detector ran: "
               f"{list(run.people_counts)}")
     if run.ball_minutes:
-        print(f"a ball was seen inside the boundary on minutes {list(run.ball_minutes)}"
-              f" - recorded as evidence; it decides nothing, see vision/people.py")
+        print(f"a ball was seen inside the boundary on minutes {list(run.ball_minutes)}")
     if run.minutes_uncertain:
         print(f"{run.minutes_uncertain} minute(s) UNCERTAIN (no boundary)")
 

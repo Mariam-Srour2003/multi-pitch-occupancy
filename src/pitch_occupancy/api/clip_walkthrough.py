@@ -1,23 +1,21 @@
-"""Stream a clip's analysis step by step, showing where the evidence was.
+"""Stream a clip's analysis step by step, showing what the detector found.
 
 `clip_review.py` returns a finished timeline in one response. This returns the same work as
 it happens - one newline-delimited JSON record per sampled frame, flushed before the next is
-computed - so the page renders step *k* while the backbone is still on *k+1*. What a reader
+computed - so the page renders step *k* while the detector is still on *k+1*. What a reader
 watches is the model running, not an animation replayed over an answer that was already
 complete.
 
-That distinction is the reason this exists. A dashboard that produces a verdict in one jump
-asks to be trusted; one that shows the frame, the region the evidence came from, and the
-score those regions add up to, can be argued with. `vision/explain.py` has the machinery, and
-this is where the operator surface shows it.
+A verdict that arrives in one jump asks to be trusted; one that shows the frame with a box
+round each person, a ring round the ball and the boundary they were counted inside can be
+argued with. Each step is classified by the same pipeline as `/clip/analyse`, and an
+explained step carries `overlay.detector_pane`'s drawing and the numbers behind it.
 
 **Pacing is the client's, and the page says so.** The slow motion is a pause the browser adds
-between renders, and its "continue without slow motion" button drops that pause. The backbone
+between renders, and its "continue without slow motion" button drops that pause. The detector
 is working at the same speed either way. The control that changes the actual *work* is
-``explain_n``: an explained frame costs roughly twice a bare prediction, so bounding it is
-what finishes a long clip sooner. Labelling the button honestly matters more than making it
-sound powerful - a reader who thinks they sped the model up has learnt something false about
-the system.
+``explain_n``: an explained frame costs a second detector pass for the drawing, so bounding
+it is what finishes a long clip sooner.
 """
 
 from __future__ import annotations
@@ -26,6 +24,7 @@ import base64
 import json
 import logging
 import os
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -37,12 +36,14 @@ from pitch_occupancy.api.clip_review import (
     MAX_UPLOAD_BYTES,
     _clock,
     _derive_boundary,
-    _gates,
     _parse_polygon,
 )
-from pitch_occupancy.clip_analysis import DEFAULT_INTERVAL_S
+from pitch_occupancy.clip_analysis import DEFAULT_INTERVAL_S, MAX_SAMPLES
 
-__all__ = ["router", "JPEG_WIDTH"]
+__all__ = ["router", "JPEG_WIDTH", "EXPLAIN_ALL"]
+
+#: ``explain_n=EXPLAIN_ALL`` draws every sampled frame.
+EXPLAIN_ALL: int = -1
 
 router = APIRouter(prefix="/api/v1", tags=["clip review"])
 
@@ -50,19 +51,14 @@ router = APIRouter(prefix="/api/v1", tags=["clip review"])
 LOG = logging.getLogger(__name__)
 
 #: Frames reach the browser as JPEGs at this width. 640 keeps a sixty-step walkthrough to a
-#: few megabytes while leaving the heatmap legible. The explanation is always computed on the
-#: frame as decoded - the downscale happens on the way out, never on the way in.
+#: few megabytes while leaving the boxes legible. The detector always runs on the frame as
+#: decoded - the downscale happens on the way out, never on the way in.
 JPEG_WIDTH: int = 640
 
 
 def _classifier():
-    """`clip_review._classifier`, looked up when called rather than bound at import.
-
-    A ``from ... import _classifier`` copied the function, so a test that swapped the
-    classifier on `clip_review` - the seam that function's docstring names - changed nothing
-    here, and the "stubbed" stream quietly loaded the real model. Patching either this name
-    or `clip_review`'s now takes effect.
-    """
+    """`clip_review._classifier`, looked up when called rather than bound at import, so a
+    test that swaps the classifier on `clip_review` swaps it here too."""
     return clip_review._classifier()
 
 
@@ -80,6 +76,48 @@ def _jpeg(image_bgr, width: int = JPEG_WIDTH) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(buf).decode("ascii")
 
 
+def _verdict(result) -> tuple[str, float, int | None, bool | None, float | None]:
+    """``(predicted, confidence, people, ball, motion)`` from a `FrameVerdict`, or from the
+    bare ``(class, confidence)`` pair a scripted classifier returns."""
+    if isinstance(result, tuple):
+        state, confidence = result
+        return str(state), float(confidence), None, None, None
+    predicted = result.class3.value if result.decided else result.state.value
+    return predicted, float(result.confidence), result.people, result.ball, result.motion
+
+
+def sample_frames(path: Path, interval_s: float,
+                  max_samples: int = MAX_SAMPLES) -> Iterator[tuple[int, float, object]]:
+    """``(index, t_s, frame_bgr)`` every ``interval_s`` seconds of a video, skipping frames
+    that cannot be decoded. A long clip is sampled coarser rather than cut short, as
+    `clip_analysis.analyse_clip` does; one of unknown length stops at ``max_samples``."""
+    import cv2
+
+    capture = cv2.VideoCapture(str(path))
+    if not capture.isOpened():
+        capture.release()
+        raise ValueError(f"could not open {Path(path).name} as video")
+    try:
+        fps = capture.get(cv2.CAP_PROP_FPS) or 0.0
+        frames = capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0.0
+        duration_s = frames / fps if fps > 0 and frames > 0 else 0.0
+        if duration_s > 0 and duration_s / interval_s > max_samples:
+            interval_s = duration_s / max_samples
+        index, t = 0, 0.0
+        while (duration_s <= 0 or t < duration_s) and index < max_samples:
+            capture.set(cv2.CAP_PROP_POS_MSEC, t * 1000.0)
+            ok, frame = capture.read()
+            if not ok or frame is None:
+                if duration_s <= 0:
+                    break
+            else:
+                yield index, t, frame
+                index += 1
+            t += interval_s
+    finally:
+        capture.release()
+
+
 def walk_records(path: Path, *, interval_s: float, explain_n: int,
                  redact: bool, camera: str = "", polygon: str = "",
                  whole_frame: bool = False) -> Iterator[str]:
@@ -90,38 +128,30 @@ def walk_records(path: Path, *, interval_s: float, explain_n: int,
     drawn once on frame 0 is correct for the whole recording - which is why the editor takes
     a video and draws on its first frame rather than asking for a separate still.
     """
+    from pitch_occupancy.config import settings
+    from pitch_occupancy.pipeline import resolve_model_key
     from pitch_occupancy.vision import roi
-    from pitch_occupancy.vision.explain import overlay_heatmap
     from pitch_occupancy.vision.overlay import detector_pane
-    from pitch_occupancy.vision.walkthrough import walk_clip
 
-    # Reported rather than assumed, as on the image route: asking for a boundary that does
-    # not exist and silently analysing the whole frame gives back exactly the answers the
-    # boundary was meant to prevent. `resolve` knows production's camera ids; `get` did not.
+    # Reported rather than assumed: asking for a boundary that does not exist and silently
+    # analysing the whole frame gives back exactly the answers the boundary was meant to
+    # prevent. `resolve` knows production's camera ids.
     drawn = _parse_polygon(polygon)
     derived = False
-    # See `/clip/analyse`: pressing *Use the whole frame* used to reach the server as an
-    # absent outline, which is also what never having drawn one looks like, so the fallback
-    # below supplied one anyway and the operator watched the model run inside a boundary they
-    # had explicitly declined.
+    # *Use the whole frame* arrives as its own parameter, because an absent outline is also
+    # what never having drawn one looks like, and that case gets a derived outline.
     polygon = None if whole_frame else (drawn or (roi.resolve(camera) if camera else None))
     if polygon is None and drawn is None and not whole_frame:
         # The same fallback `/clip/analyse` has: an uploaded clip names no camera, and
-        # without an outline the model scores the neighbouring pitch and the car park as if
-        # they were this one. Derived from the footage, which is what the page shows in its
-        # drawing step - so the two tabs agree even when nobody drew anything.
+        # without an outline the detector counts the neighbouring pitch and the car park as
+        # if they were this one. Derived from the footage, which is what the page shows in
+        # its drawing step - so the two tabs agree even when nobody drew anything.
         polygon = _derive_boundary(path)
         derived = polygon is not None
-    classifier = _classifier()
-    # The same two gates the Analyse tab applies, through the same factory, because two tabs
-    # showing different answers for one clip is a defect. Until 2026-09-19
-    # this page passed none of them and streamed the probe alone - reported from use, an
-    # empty floodlit pitch stepped through as ACTIVE_PLAY at 0.999 on almost every frame
-    # while Analyse called the same footage EMPTY and said so.
-    motion_gate, person_gate = _gates()
+    classify = _classifier()
+    detector = resolve_model_key(settings.default_model_key or None)
     yield json.dumps({
-        "type": "meta", "backbone": getattr(classifier, "backbone", "?"),
-        "n_train": getattr(classifier, "n_train", 0), "redacted": redact,
+        "type": "meta", "detector": detector, "redacted": redact,
         "camera": camera or None, "boundary": bool(polygon),
         #: Which of the three it was. "none" and "one I measured myself" are different
         #: claims, and the page and its tests should not have to infer which happened.
@@ -129,54 +159,35 @@ def walk_records(path: Path, *, interval_s: float, explain_n: int,
             ("drawn" if drawn else "stored" if camera and not derived
              else "derived" if derived else "stored") if polygon else "none"),
         "coverage": roi.coverage(polygon) if polygon else 1.0,
-        "gated": motion_gate is not None or person_gate is not None,
     }) + "\n"
 
     seen = 0
-    gated = 0
-    for step in walk_clip(path, classifier, interval_s=interval_s,
-                          explain_n=explain_n, redact=redact, polygon=polygon,
-                          motion_gate=motion_gate, person_gate=person_gate):
-        seen += 1
-        gated += step.probed is not None
+    previous = None
+    for index, t_s, frame in sample_frames(path, interval_s):
+        began = time.perf_counter()
+        predicted, confidence, people, ball, motion = _verdict(
+            classify(frame, polygon=polygon, previous=previous))
+        previous = frame
+        explained = explain_n == EXPLAIN_ALL or index < explain_n
         record = {
-            "type": "step", "index": step.index, "t_s": step.t_s,
-            "clock": _clock(step.t_s), "predicted": step.predicted,
-            "confidence": step.confidence, "elapsed_ms": round(step.elapsed_ms, 1),
-            "explained": step.explained,
-            # What the probe said before a gate overruled it, and what the gate saw. The
-            # page shows the correction rather than silently serving the weakened verdict.
-            "probed": step.probed, "n_inside": step.n_inside, "ball": step.ball,
-            "motion": None if step.motion is None else round(step.motion, 3),
+            "type": "step", "index": index, "t_s": t_s,
+            "clock": _clock(t_s), "predicted": predicted,
+            "confidence": confidence, "explained": explained,
+            "n_inside": people, "ball": ball,
+            "motion": None if motion is None else round(motion, 3),
         }
-        if step.explained:
-            record.update({
-                "frame": _jpeg(step.frame_bgr),
-                "heat": _jpeg(overlay_heatmap(step.frame_bgr, step.evidence,
-                                             polygon=step.polygon)),
-                "grid": list(step.grid or ()),
-                "score_from_map": step.score_from_map,
-                "score_direct": step.score_direct,
-                "reconstruction_error": step.reconstruction_error,
-                "n_people": step.n_people,
-                "evidence_on_people": step.evidence_on_people,
-                "people_area": step.people_area,
-                "focus_ratio": step.focus_ratio,
-                # Zero whenever a boundary is in force, and on the page for exactly
-                # that reason: the doubt this answers is that the evidence map showed
-                # the model reading past the outline.
-                "evidence_outside": step.evidence_outside,
-            })
-            # The other model, on the same frame - a box round each person and a ring
-            # round the ball, beside the probe's heatmap. See image_walkthrough for why
-            # both are on the page.
-            boxes, found = detector_pane(step.raw_bgr, polygon=step.polygon,
+        if explained:
+            # A box round each person and a ring round the ball, the boundary drawn, and
+            # anything found outside it dimmed rather than dropped.
+            boxes, found = detector_pane(frame, polygon=polygon, model_key=detector,
                                          redact=redact)
             record["boxes"] = _jpeg(boxes)
             record["detector"] = found
+        record["elapsed_ms"] = round((time.perf_counter() - began) * 1000, 1)
+        seen += 1
         yield json.dumps(record) + "\n"
 
-    yield json.dumps({"type": "done", "n": seen, "n_gated": gated}) + "\n"
+    yield json.dumps({"type": "done", "n": seen}) + "\n"
 
 
 @router.post("/clip/walkthrough", include_in_schema=False)
@@ -195,7 +206,7 @@ async def walkthrough(
     #: parameter `/clip/analyse` takes, because the two tabs must agree about this clip.
     whole_frame: bool = Query(False),
 ) -> StreamingResponse:
-    """Stream the analysis, with an evidence map for each explained frame.
+    """Stream the analysis, with the detector's drawing for each explained frame.
 
     Same deletion guarantee as `/clip/analyse`, and harder to arrange: a StreamingResponse's
     body runs *after* this function returns, so unlinking here would delete the upload before
@@ -234,10 +245,9 @@ async def walkthrough(
         except Exception as exc:  # noqa: BLE001 - a reporting boundary, not a swallow
             # Broadened from `ValueError` for the reason written out in
             # `image_walkthrough.stream`: the response is already committed as 200 by the
-            # time this generator runs, so an unexpected exception escaped as an unhandled
-            # ASGI error and the client got a truncated body with no `error` record - a page
-            # that spins forever while the console holds the only explanation. The model
-            # load is the likeliest failure here and raises nothing like `ValueError`.
+            # time this generator runs, so an unexpected exception would escape as an
+            # unhandled ASGI error and the client would get a truncated body with no `error`
+            # record. The model load is the likeliest failure here.
             LOG.exception("clip walkthrough failed")
             yield json.dumps({
                 "type": "error",

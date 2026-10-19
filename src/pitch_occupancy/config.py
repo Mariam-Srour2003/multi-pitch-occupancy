@@ -7,6 +7,7 @@ environment (prefix ``PITCH_``) or a local ``.env``, never hard-coded.
 
 from __future__ import annotations
 
+import os
 from enum import StrEnum
 from pathlib import Path
 
@@ -48,11 +49,11 @@ class Settings(BaseSettings):
     source_type: SourceType = SourceType.VIDEO_SIM
     sample_interval_s: int = 60
 
-    #: DINOv2 rather than the early prototype's ConvNeXtV2. Latency measurement showed no
-    #: backbone is close to the sampling budget (20 cameras in 2.5-5.7 s of a 60 s cycle), so
-    #: speed does not discriminate and the choice falls to accuracy under leakage-free
-    #: evaluation, where DINOv2 leads.
-    default_model_key: str = "dinov2"
+    #: The detector to run (a key in `vision/detector.DETECTORS`), from
+    #: `PITCH_DEFAULT_MODEL_KEY`. Empty means the detector `configs/rules.json` names, so the
+    #: rule file stays the one place the deployed model is chosen. An unknown key falls back
+    #: to that default with a warning (`pipeline.resolve_model_key`).
+    default_model_key: str = ""
 
     # paths - see docs/data_layout.md for what belongs in each
     data_dir: Path = DATA_DIR
@@ -63,7 +64,6 @@ class Settings(BaseSettings):
     reference_dir: Path = DATA_DIR / "reference"  # annotated screenshots
     db_path: Path = DATA_DIR / "db" / "pitch_monitor.db"
     evidence_dir: Path = DATA_DIR / "evidence"
-    feature_cache_dir: Path = DATA_DIR / "cache"
     #: The detector-first decision rule's numbers (`vision/rules.RuleConfig`). Committed,
     #: like a boundary: a rule is part of what the deployment *is*.
     rules_path: Path = CONFIGS_DIR / "rules.json"
@@ -114,6 +114,33 @@ class Settings(BaseSettings):
     access_password: SecretStr = SecretStr("")
     #: The user name that goes with it, from `PITCH_ACCESS_USER`.
     access_user: str = "admin"
+    #: Extra host names the pages may be reached by (`PITCH_ALLOWED_HOSTS`, comma separated),
+    #: for example the Mini-PC's address on the venue network. See `api/access.RequestGuard`.
+    allowed_hosts: str = ""
+    #: Serve /docs, /redoc and /openapi.json (`PITCH_API_DOCS`). Off by default.
+    api_docs: bool = False
 
 
 settings = Settings()
+
+
+def env_value(name: str) -> str:
+    """A variable from the environment, else from ``.env`` (this folder's, then the project's).
+
+    For keys the settings object does not own - the free vision providers' API keys keep the
+    names their providers document (`GEMINI_API_KEY`), not a ``PITCH_`` one. Read on every
+    call, so a key added to ``.env`` needs no restart of whatever reads it next.
+    """
+    value = os.environ.get(name, "").strip()
+    if value:
+        return value
+    for env_file in (Path.cwd() / ".env", PROJECT_ROOT / ".env"):
+        try:
+            lines = env_file.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            key, sep, raw = line.strip().removeprefix("export ").partition("=")
+            if sep and key.strip() == name:
+                return raw.strip().strip('"').strip("'")
+    return ""

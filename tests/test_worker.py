@@ -218,7 +218,8 @@ def test_the_worker_passes_the_slot_length_through() -> None:
 # `main` raised NotImplementedError until 2026-09-10, naming the missing classifier. What
 # these check is the wiring, not the model: that the run reaches the scheduler rather than
 # calling `run_slot` behind its back, that a dry run loads nothing and writes nothing, and
-# that evidence images stay off unless asked for. The model itself is `test_classifier.py`.
+# that evidence images stay off unless asked for. The model itself is
+# `test_pitch_classifier.py`.
 
 
 def _recordings(tmp_path):
@@ -242,13 +243,13 @@ def test_a_dry_run_loads_no_model_and_writes_nothing(tmp_path, monkeypatch, caps
     that was asked for, and asking twice costs nothing."""
     import sys
 
-    import pitch_occupancy.vision.classifier as classifier
+    import pitch_occupancy.pipeline as pipeline_module
     from pitch_occupancy import worker
 
     def explode(*a, **k):
-        raise AssertionError("a dry run loaded the backbone")
+        raise AssertionError("a dry run loaded the detector")
 
-    monkeypatch.setattr(classifier, "load_classifier", explode)
+    monkeypatch.setattr(pipeline_module, "assemble", explode)
     monkeypatch.setattr(sys, "argv",
                         ["worker", "--raw-dir", str(_recordings(tmp_path)), "--dry-run"])
     worker.main()
@@ -264,24 +265,22 @@ def test_it_goes_through_the_scheduler_with_the_real_classifier(tmp_path, monkey
     import sys
 
     import pitch_occupancy.scheduler as scheduler
-    import pitch_occupancy.vision.classifier as classifier
     from pitch_occupancy import worker
     from pitch_occupancy.config import settings
+    from pitch_occupancy.pipeline import resolve_model_key
+    from pitch_occupancy.vision.pitch_classifier import DetectorFirstClassifier
 
     seen: dict[str, object] = {}
     sentinel = object()
-    monkeypatch.setattr(classifier, "load_classifier",
-                        lambda key=None, **k: type("C", (), {
-                            "backbone": "dinov2", "n_train": 7, "__call__": lambda *a: None,
-                        })())
 
     def fake_run_due(schedule, now, *, source_for, pipeline=None, classify=None, **kwargs):
         seen["now"] = now
-        # The classifier travels inside the assembled pipeline, with its gates and
-        # its boundary lookup, rather than alone - the shape that let the gates go missing.
+        # The classifier travels inside the assembled pipeline, with its rule and its
+        # boundary lookup, rather than alone.
         seen["pipeline"] = pipeline
         seen["classify"] = pipeline.classify if pipeline is not None else classify
         seen["evidence_dir"] = kwargs.get("evidence_dir", sentinel)
+        seen["model_key"] = kwargs.get("model_key")
         connection = kwargs.get("connection", sentinel)
         seen["connection"] = connection
         # read the schema here: `main` closes the connection on the way out, which is
@@ -298,9 +297,10 @@ def test_it_goes_through_the_scheduler_with_the_real_classifier(tmp_path, monkey
     worker.main()
 
     assert seen["now"].hour == 10, "the clock must stand inside the slot's own window"
-    assert getattr(seen["classify"], "backbone", None) == "dinov2"
     assert seen["pipeline"] is not None, "run_due must receive the assembled pipeline"
-    assert seen["pipeline"].motion_gate is not None and seen["pipeline"].person_gate is not None
+    assert isinstance(seen["classify"], DetectorFirstClassifier)
+    assert seen["pipeline"].model_key == resolve_model_key(None)
+    assert seen["model_key"] == seen["pipeline"].model_key, "the database records the detector"
     assert seen["pipeline"].require_boundary, "the deployed path requires a boundary"
     assert seen["evidence_dir"] is None, "evidence images are opt-in: they show real people"
 
@@ -337,14 +337,8 @@ def test_a_slot_that_cannot_run_is_reported_and_the_others_continue(
     import sys
 
     import pitch_occupancy.scheduler as scheduler
-    import pitch_occupancy.vision.classifier as classifier
     from pitch_occupancy import worker
     from pitch_occupancy.config import settings
-
-    monkeypatch.setattr(classifier, "load_classifier",
-                        lambda key=None, **k: type("C", (), {
-                            "backbone": "dinov2", "n_train": 7, "__call__": lambda *a: None,
-                        })())
 
     def fake_run_due(schedule, now, *, source_for, pipeline=None, classify=None,
                      on_slot=None, **kwargs):
@@ -426,7 +420,7 @@ def test_a_scheduled_venue_with_no_cameras_stops_the_run(
 
     config = tmp_path / "cameras.json"
     config.write_text('{"venue_99": {"camera_A": "rtsp://h/1"}}', encoding="utf-8")
-    args = argparse.Namespace(cameras=config, dry_run=True, yes=True, model="dinov2",
+    args = argparse.Namespace(cameras=config, dry_run=True, yes=True, model="yolov8n",
                               evidence_dir=None, iterations=1)
     with pytest.raises(SystemExit, match="no cameras in the config"):
         worker._run_live(args)
@@ -444,7 +438,7 @@ def test_a_slot_camera_with_no_url_stops_the_run(tmp_path, venue_01_schedule) ->
     config = tmp_path / "cameras.json"
     # venue_01 is scheduled with camera_A and camera_B; only one of them is configured.
     config.write_text('{"venue_01": {"camera_A": "rtsp://h/1"}}', encoding="utf-8")
-    args = argparse.Namespace(cameras=config, dry_run=True, yes=True, model="dinov2",
+    args = argparse.Namespace(cameras=config, dry_run=True, yes=True, model="yolov8n",
                               evidence_dir=None, iterations=1)
     with pytest.raises(SystemExit, match="camera_B"):
         worker._run_live(args)
@@ -481,13 +475,7 @@ def test_live_says_whether_evidence_images_will_be_written(capsys, monkeypatch) 
     assert "identifiable people" in capsys.readouterr().out
 
 
-# --- the boundary and the motion gate, in the serving path ------------------------------
-
-
-def _blank(v: int = 30):
-    import numpy as np
-
-    return np.full((90, 160, 3), v, np.uint8)
+# --- the boundary, in the serving path ---------------------------------------------------
 
 
 def test_run_slot_passes_each_camera_its_own_boundary():
@@ -513,307 +501,6 @@ def test_run_slot_passes_each_camera_its_own_boundary():
     assert any(p is None for p in seen), "a camera without a boundary should get None"
 
 
-def test_the_motion_gate_overrules_play_when_nothing_moved():
-    """Identical frames minute after minute are not a match in progress."""
-    from pitch_occupancy.data.taxonomy import Class3
-    from pitch_occupancy.vision.motion import MotionGate
-    from pitch_occupancy.worker import run_slot
-
-    def classify(image, *, polygon=None):
-        return Class3.ACTIVE_PLAY, 0.99
-
-    source = FakeSource({"camA": [object()] * 4})
-    run = run_slot("s", source, classify, motion_gate=MotionGate())
-    # The first minute has no predecessor and keeps its verdict; later ones are overruled,
-    # so the per-minute samples must contain both answers even though `classify` gave one.
-    predicted = [s.predicted for s in run.samples]
-    assert Class3.EMPTY.value in predicted, predicted
-    assert Class3.ACTIVE_PLAY.value in predicted, predicted
-
-
-def test_the_motion_gate_is_silent_without_a_previous_frame():
-    """The first frame of a camera has no cue, and a guessed one is the gate deciding on
-    evidence it does not have."""
-    from pitch_occupancy.data.taxonomy import Class3
-    from pitch_occupancy.vision.motion import MotionGate
-
-    gate = MotionGate()
-    state, cue = gate.apply(Class3.ACTIVE_PLAY, None, _blank())
-    assert state is Class3.ACTIVE_PLAY
-    assert cue is None
-
-
-def test_the_motion_gate_never_turns_empty_into_play():
-    """Stillness is evidence against a match; movement is not evidence for one - a
-    groundskeeper with a broom moves, and so does a person crossing the pitch."""
-    from pitch_occupancy.data.taxonomy import Class3
-    from pitch_occupancy.vision.motion import MotionGate
-
-    a, b = _blank(0), _blank(255)
-    state, cue = MotionGate().apply(Class3.EMPTY, a, b)
-    assert state is Class3.EMPTY
-    assert cue is not None and cue > 0
-
-
-# --- the person gate ---------------------------------------------------------------------
-
-
-def test_the_person_gate_overrules_play_when_nobody_is_on_the_pitch(monkeypatch):
-    """Measured: 0.4% of recorded ACTIVE_PLAY frames show nobody inside the boundary, against
-    89% of EMPTY frames. Finding nobody is strong evidence against a match."""
-    from pitch_occupancy.data.taxonomy import Class3
-    from pitch_occupancy.vision import people
-
-    monkeypatch.setattr(people, "detect_inside",
-                        lambda *_a, **_k: people.Counted(people=0, ball=False))
-    state, count = people.PersonGate().apply(Class3.ACTIVE_PLAY, _blank())
-    assert state is Class3.EMPTY
-    assert count == 0
-
-
-def test_the_person_gate_never_turns_empty_into_play(monkeypatch):
-    """Finding somebody is not evidence of a match - a groundskeeper counts as somebody."""
-    from pitch_occupancy.data.taxonomy import Class3
-    from pitch_occupancy.vision import people
-
-    monkeypatch.setattr(people, "detect_inside",
-                        lambda *_a, **_k: people.Counted(people=7, ball=True))
-    state, count = people.PersonGate().apply(Class3.EMPTY, _blank())
-    assert state is Class3.EMPTY
-    # The detector is not even run for a verdict the gate cannot change.
-    assert count is None
-
-
-def test_an_unavailable_detector_leaves_the_verdict_alone(monkeypatch):
-    """`None` is "not checked" and must not be read as "found nobody" - that would turn a
-    broken install into a system reporting every pitch empty."""
-    from pitch_occupancy.data.taxonomy import Class3
-    from pitch_occupancy.vision import people
-
-    monkeypatch.setattr(people, "detect_inside", lambda *_a, **_k: None)
-    state, count = people.PersonGate().apply(Class3.ACTIVE_PLAY, _blank())
-    assert state is Class3.ACTIVE_PLAY
-    assert count is None
-
-
-def test_count_inside_uses_the_foot_of_the_box_not_its_centre(monkeypatch):
-    """A person at the touchline has their centre over the pitch and their feet outside it."""
-    import numpy as np
-
-    from pitch_occupancy.vision import explain, people
-
-    # Boundary is the bottom half of the frame.
-    bottom_half = [[0.0, 0.5], [1.0, 0.5], [1.0, 1.0], [0.0, 1.0]]
-    frame = np.zeros((100, 100, 3), np.uint8)
-    # A box whose centre is at y=50 (inside) but whose feet are at y=40 (outside).
-    monkeypatch.setattr(explain, "detect_objects",
-                        lambda *_a, **_k: [(0, (10, 20, 30, 40), 0.9)])
-    assert people.count_inside(frame, bottom_half) == 0
-    # Feet at y=80, inside.
-    monkeypatch.setattr(explain, "detect_objects",
-                        lambda *_a, **_k: [(0, (10, 60, 30, 80), 0.9)])
-    assert people.count_inside(frame, bottom_half) == 1
-
-
-def test_a_ball_is_placed_by_its_centre_and_a_person_by_their_feet(monkeypatch):
-    """The two objects are located differently on purpose.
-
-    A player at the touchline stands outside the pitch while their box straddles the line, so
-    the foot point decides. A ball crossing the same line is genuinely over it while it is in
-    the air, and has no feet; its centre decides. Using the foot of a ball box would put every
-    airborne ball a diameter further down the pitch than it is.
-    """
-    import numpy as np
-
-    from pitch_occupancy.vision import explain, people
-
-    bottom_half = [[0.0, 0.5], [1.0, 0.5], [1.0, 1.0], [0.0, 1.0]]
-    frame = np.zeros((100, 100, 3), np.uint8)
-    # One box, y from 20 to 60: centre at y=40 (outside), foot at y=60 (inside).
-    monkeypatch.setattr(explain, "detect_objects",
-                        lambda *_a, **_k: [(32, (10, 20, 30, 60), 0.5)])
-    assert people.detect_inside(frame, bottom_half).ball is False
-    # y from 60 to 90: centre at y=75, inside.
-    monkeypatch.setattr(explain, "detect_objects",
-                        lambda *_a, **_k: [(32, (10, 60, 30, 90), 0.5)])
-    assert people.detect_inside(frame, bottom_half).ball is True
-
-
-def test_a_ball_never_stops_the_gate_overruling_an_empty_pitch(monkeypatch):
-    """8 of venue_01's 243 recorded EMPTY frames have a ball inside the boundary. A ball lying
-    on an empty pitch is a ball lying on an empty pitch, so it must not veto the overrule."""
-    from pitch_occupancy.data.taxonomy import Class3
-    from pitch_occupancy.vision import people
-
-    monkeypatch.setattr(people, "detect_inside",
-                        lambda *_a, **_k: people.Counted(people=0, ball=True,
-                                                         ball_confidence=0.9))
-    state, counted = people.PersonGate().inspect(Class3.ACTIVE_PLAY, _blank())
-    assert state is Class3.EMPTY
-    assert counted.ball is True
-
-
-def test_the_gate_only_ever_moves_a_verdict_down_the_ladder(monkeypatch):
-    """The safety property the whole design rests on, checked over every combination rather
-    than argued in a comment.
-
-    The three classes form a ladder of how much activity is being claimed - ACTIVE_PLAY above
-    C3 above EMPTY - and every overrule this gate makes is a step *down* it. Nobody on the
-    pitch steps from play to empty, a small group with no ball from play to C3, and nobody from
-    C3 to empty. Nothing steps up, so no amount
-    of detector noise can manufacture a busier pitch than the probe reported.
-
-    `BALL_CONFIDENCE` sits below the person threshold because a football is about 400 square
-    pixels and the detector is unsure of it. A detection that cheap is allowed to withhold a
-    claim and never to make one, which is this property restated.
-    """
-    from pitch_occupancy.data.taxonomy import Class3
-    from pitch_occupancy.vision import people
-
-    assert people.BALL_CONFIDENCE < people.DETECT_CONFIDENCE
-    rung = {Class3.EMPTY: 0, Class3.MAINTENANCE_NON_SPORTING: 1, Class3.ACTIVE_PLAY: 2}
-    gate = people.PersonGate()
-    for count in (0, 1, 4, 5, 11):
-        for ball in (False, True):
-            monkeypatch.setattr(
-                people, "detect_inside",
-                lambda *_a, _c=count, _b=ball, **_k: people.Counted(people=_c, ball=_b))
-            for given in Class3:
-                out, _ = gate.inspect(given, _blank())
-                assert rung[out] <= rung[given], (given, out, count, ball)
-
-
-def test_nobody_on_the_pitch_overrules_a_maintenance_verdict_too(monkeypatch):
-    """Restricting the empty-pitch rule to ACTIVE_PLAY inputs was caution, not evidence,
-    and it was the most expensive thing the gate did: on 243 recorded empty frames at a
-    held-out venue the probe answers ACTIVE_PLAY or C3 and never EMPTY, C3 on 38% of them.
-    Passing those through left total error at 0.4844 where overruling gives 0.1111."""
-    from pitch_occupancy.data.taxonomy import Class3
-    from pitch_occupancy.vision import people
-
-    monkeypatch.setattr(people, "detect_inside",
-                        lambda *_a, **_k: people.Counted(people=0, ball=False))
-    state, counted = people.PersonGate().inspect(Class3.MAINTENANCE_NON_SPORTING, _blank())
-    assert state is Class3.EMPTY
-    assert counted.people == 0
-
-
-def test_an_already_empty_verdict_does_not_pay_for_the_detector(monkeypatch):
-    """EMPTY is the bottom of the ladder, so there is nothing for the gate to do and no reason
-    to spend a fifth of a second finding that out. At 20 cameras a minute it is the difference
-    between an idle site costing nothing and costing a detector pass per camera."""
-    from pitch_occupancy.data.taxonomy import Class3
-    from pitch_occupancy.vision import people
-
-    called = []
-    monkeypatch.setattr(people, "detect_inside",
-                        lambda *_a, **_k: called.append(1) or people.Counted(0, False))
-    state, counted = people.PersonGate().inspect(Class3.EMPTY, _blank())
-    assert state is Class3.EMPTY
-    assert counted is None
-    assert not called, "ran the detector on a verdict it cannot change"
-
-
-def test_a_small_group_with_no_ball_is_not_playing(monkeypatch):
-    """The clause the rule was stated with: 1-4 people *and no ball*. The count alone
-    would call 88 of 278 real matches not-playing; with the ball clause it calls none."""
-    from pitch_occupancy.data.taxonomy import Class3
-    from pitch_occupancy.vision import people
-
-    gate = people.PersonGate()
-    monkeypatch.setattr(people, "detect_inside",
-                        lambda *_a, **_k: people.Counted(people=3, ball=False))
-    state, _ = gate.inspect(Class3.ACTIVE_PLAY, _blank())
-    assert state is Class3.MAINTENANCE_NON_SPORTING
-
-
-def test_a_ball_no_longer_rescues_a_small_group(monkeypatch):
-    """Changed 2026-09-29. This pinned the original clause - three people with a ball is a
-    kickabout,
-    and a kickabout is play. The facility's rule is that play needs five or more people, ball
-    or no ball, and `rules.decide` row 5 has said so since 2026-09-20; this gate, which the
-    review pages run, was the last place three people and a ball could still be play.
-
-    Both directions stay pinned: the default obeys the facility, and the switch still gives
-    the original clause exactly, for re-running the numbers measured with it."""
-    from pitch_occupancy.data.taxonomy import Class3
-    from pitch_occupancy.vision import people
-
-    for n in (1, 3, 4):
-        monkeypatch.setattr(people, "detect_inside",
-                            lambda *_a, _n=n, **_k: people.Counted(people=_n, ball=True))
-        state, _ = people.PersonGate().inspect(Class3.ACTIVE_PLAY, _blank())
-        assert state is Class3.MAINTENANCE_NON_SPORTING, n
-        rescuing = people.PersonGate(ball_rescues_small_group=True)
-        assert rescuing.inspect(Class3.ACTIVE_PLAY, _blank())[0] is Class3.ACTIVE_PLAY
-
-
-def test_the_gate_never_reports_play_below_five_people(monkeypatch):
-    """The facility's rule as an invariant over every count and ball, on the probe path."""
-    from pitch_occupancy.data.taxonomy import Class3
-    from pitch_occupancy.vision import people
-
-    for n in range(0, 12):
-        for ball in (False, True):
-            monkeypatch.setattr(
-                people, "detect_inside",
-                lambda *_a, _n=n, _b=ball, **_k: people.Counted(people=_n, ball=_b))
-            state, _ = people.PersonGate().inspect(Class3.ACTIVE_PLAY, _blank())
-            assert (state is Class3.ACTIVE_PLAY) is (n >= 5), (n, ball, state)
-
-
-def test_a_full_pitch_is_never_called_not_playing(monkeypatch):
-    """The bound on the rule: above `small_group_max` it does not apply at all, whatever the
-    ball says. At the nine unseen venues the median count is 10, which is why the rule is only
-    ever consulted on 9 of 396 genuine play frames."""
-    from pitch_occupancy.data.taxonomy import Class3
-    from pitch_occupancy.vision import people
-
-    monkeypatch.setattr(people, "detect_inside",
-                        lambda *_a, **_k: people.Counted(people=9, ball=False))
-    state, _ = people.PersonGate().inspect(Class3.ACTIVE_PLAY, _blank())
-    assert state is Class3.ACTIVE_PLAY
-
-
-def test_the_c3_rule_can_be_switched_off_leaving_the_empty_overrule_intact(monkeypatch):
-    """`small_group_max=0` is the gate without the small-group rule, so a site that does not
-    accept the C3 rule can decline it without losing the empty-pitch overrule."""
-    from pitch_occupancy.data.taxonomy import Class3
-    from pitch_occupancy.vision import people
-
-    off = people.PersonGate(small_group_max=0)
-    monkeypatch.setattr(people, "detect_inside",
-                        lambda *_a, **_k: people.Counted(people=3, ball=False))
-    assert off.inspect(Class3.ACTIVE_PLAY, _blank())[0] is Class3.ACTIVE_PLAY
-    monkeypatch.setattr(people, "detect_inside",
-                        lambda *_a, **_k: people.Counted(people=0, ball=False))
-    assert off.inspect(Class3.ACTIVE_PLAY, _blank())[0] is Class3.EMPTY
-
-
-def test_run_slot_applies_the_person_gate():
-    from pitch_occupancy.data.taxonomy import Class3
-    from pitch_occupancy.vision import people
-    from pitch_occupancy.worker import run_slot
-
-    class AlwaysEmpty:
-        def inspect(self, state, image_bgr, polygon=None):
-            return Class3.EMPTY, people.Counted(people=0, ball=True, ball_confidence=0.4)
-
-    def classify(image, *, polygon=None):
-        return Class3.ACTIVE_PLAY, 0.99
-
-    run = run_slot("s", FakeSource({"camA": [object()] * 3}), classify,
-                   person_gate=AlwaysEmpty())
-    assert all(s.predicted == Class3.EMPTY.value for s in run.samples), \
-        [s.predicted for s in run.samples]
-    # What the gate saw reaches the caller. It used to be appended to a local list
-    # and then discarded, so nothing downstream could say why a minute was
-    # overruled.
-    assert run.people_counts == (0, 0, 0)
-    assert run.ball_minutes == (0, 1, 2)
-
-
-
 # --- a camera lost mid-slot -------------------------------------------------
 
 
@@ -837,13 +524,19 @@ def test_play_on_the_surviving_half_still_decides() -> None:
 def test_a_camera_read_but_never_scored_is_not_counted_as_seen() -> None:
     """A camera with no boundary is read and stored as UNCERTAIN. Counting it as seen kept
     the "half the pitch is unseen" concern silent."""
-    from types import SimpleNamespace
+    from pitch_occupancy.pipeline import Pipeline
+    from pitch_occupancy.vision.detector import DETECTORS, PERSON, Detection, Detector
+    from pitch_occupancy.vision.pitch_classifier import DetectorFirstClassifier
+    from pitch_occupancy.vision.rules import RuleConfig
 
-    pipeline = SimpleNamespace(
-        classify=lambda image, polygon=None: (PLAY, 0.9), motion_gate=None,
-        person_gate=None, require_boundary=True, burst=(1, 0.0), kind="probe",
-        polygon_for=lambda **_: (lambda cam: [(0, 0), (1, 0), (1, 1)] if cam == "camA"
-                                 else None),
+    detector = Detector(DETECTORS["yolov8n"])
+    detector.detect = lambda image, **_: [Detection(PERSON, (0, 0, 2, 3), 0.9)]
+    rules = RuleConfig(burst_frames=1)
+    clf = DetectorFirstClassifier(detector, rules)
+    pipeline = Pipeline(
+        "yolov8n", clf, rules=rules, classifier=clf,
+        boundaries=lambda cam, **_: (([[0, 0], [1, 0], [1, 1]], "k") if cam == "camA"
+                                     else (None, None)),
     )
     src = FakeSource({"camA": [1] * 10, "camB": [1] * 10})
     run = run_slot("s1", src, None, pipeline=pipeline)

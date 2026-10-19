@@ -9,10 +9,9 @@ the page posts ``new Blob([fileA, fileB])`` and says where A ends with ``size_a`
 would have meant holding the first file on the server while waiting for the second, which is
 exactly the retention this route exists not to have.
 
-**It always runs the detector-first path.** The point of two cameras is adding what they see,
-and only the detector path counts. `pipeline.shared()` follows `settings.default_model_key`,
-which is still the probe; so this assembles its own with the detector `configs/rules.json`
-names, once per process, and says which in the response.
+**It assembles its own pipeline** with the detector `configs/rules.json` names, once per
+process, and says which in the response. The point of two cameras is adding what they see,
+so the cameras' counts are summed before the rule is applied.
 """
 
 from __future__ import annotations

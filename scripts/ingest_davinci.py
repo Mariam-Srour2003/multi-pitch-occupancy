@@ -79,7 +79,7 @@ def find_source(name: str) -> Path | None:
     return None
 
 
-def sample(path: Path, *, min_distance: int, cap_frames: int) -> list[tuple[int, "cv2.Mat"]]:
+def sample(path: Path, *, min_distance: int, cap_frames: int) -> list[tuple[int, cv2.Mat]]:
     """Frames from one clip that differ from each other, newest-first by position."""
     if path.suffix.lower() != ".mp4":
         image = cv2.imread(str(path))
@@ -87,7 +87,7 @@ def sample(path: Path, *, min_distance: int, cap_frames: int) -> list[tuple[int,
     cap = cv2.VideoCapture(str(path))
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
-    kept: list[tuple[int, "cv2.Mat"]] = []
+    kept: list[tuple[int, cv2.Mat]] = []
     hashes: list[int] = []
     step = max(1, int(fps / 4))          # look four times a second
     for i in range(0, total, step):

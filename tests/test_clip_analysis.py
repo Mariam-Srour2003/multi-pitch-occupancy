@@ -88,27 +88,23 @@ def test_the_corrected_sample_is_flagged_not_hidden(tmp_path) -> None:
 
 
 def test_neighbours_never_smooth_a_small_group_into_play(tmp_path) -> None:
-    """Found 2026-09-29. The person gate turns a frame with three people inside into C3, and
-    majority smoothing - which reads only the states - turned it straight back into
-    ACTIVE_PLAY when its neighbours were playing. Fewer than five people is never play, so
-    the frame keeps its own verdict; and a frame with people on it is never smoothed EMPTY.
+    """The rule turns a frame with three people inside into C3, and majority smoothing - which
+    reads only the states - would turn it straight back into ACTIVE_PLAY when its neighbours
+    were playing. Fewer than five people is never play, so the frame keeps its own verdict;
+    and a frame with people on it is never smoothed EMPTY.
     """
-    from pitch_occupancy.vision.people import Counted
-
-    class Scripted:
-        play_min = 5
-
-        def __init__(self, script):
-            self.script = iter(script)
-
-        def inspect(self, state, frame, polygon=None):
-            n, out = next(self.script)
-            return out, Counted(people=n, ball=True)
+    from pitch_occupancy.vision.rules import FrameVerdict, from_class3
 
     # frame 2: three people and a ball among a match; frame 6: two people among empties
-    script = [(9, P), (9, P), (3, M), (9, P), (9, P), (0, E), (2, M), (0, E)] + [(9, P)] * 4
-    result = analyse_clip(_video(tmp_path / "c.mp4"), lambda img, **_kw: (P, 0.9),
-                          interval_s=1.0, window=3, person_gate=Scripted(script))
+    script = iter([(9, P), (9, P), (3, M), (9, P), (9, P), (0, E), (2, M), (0, E)]
+                  + [(9, P)] * 4)
+
+    def classify(img, **_kw):
+        n, state = next(script)
+        return FrameVerdict(from_class3(state), 0.9, people=n, ball=True)
+
+    result = analyse_clip(_video(tmp_path / "c.mp4"), classify,
+                          interval_s=1.0, window=3, play_min=5)
     assert _raw(result).startswith("PPMPP.M.")
     assert _states(result).startswith("PPMPP.M."), _states(result)
     for sample in result.samples:
@@ -285,10 +281,6 @@ def test_the_route_reports_the_segments_and_the_corrections(tmp_path, monkeypatc
     cycle = itertools.chain([P, P, E, P], itertools.repeat(P))
     monkeypatch.setattr("pitch_occupancy.api.clip_review._classifier",
                         lambda: (lambda img, **_kw: (next(cycle), 0.9)))
-    # This test is about the neighbour smoothing, so the gates are off. Left on, the person
-    # gate turns every frame of a generated video EMPTY - correctly, there is nobody in it -
-    # and there is no isolated sample left for the smoothing to correct.
-    monkeypatch.setattr("pitch_occupancy.api.clip_review._gates", lambda: (None, None))
 
     client = TestClient(app)
     body = client.post("/api/v1/clip/analyse?interval_s=1&window=3", content=video,
@@ -298,3 +290,20 @@ def test_the_route_reports_the_segments_and_the_corrections(tmp_path, monkeypatc
     flagged = [s for s in body["samples"] if s["corrected"]]
     assert flagged[0]["raw"] == "C1_EMPTY" and flagged[0]["smoothed"] == "C2_ACTIVE_PLAY"
     assert body["segments"] and body["segments"][0]["state"] == "C2_ACTIVE_PLAY"
+
+
+def test_an_undecided_frame_is_left_out_of_the_timeline(tmp_path) -> None:
+    """A frame the rule declined (the detector did not run) is not a guess about the pitch."""
+    from pitch_occupancy.vision.rules import FrameVerdict, MinuteState
+
+    calls = itertools.count()
+
+    def classify(img, **_kw):
+        if next(calls) == 1:
+            return FrameVerdict(MinuteState.UNCERTAIN, 0.0)
+        return FrameVerdict(MinuteState.ACTIVE_PLAY, 0.9, people=6, ball=True)
+
+    result = analyse_clip(_video(tmp_path / "c.mp4"), classify, interval_s=1.0, window=1)
+    assert len(result.undecided) == 1
+    assert all(s.raw is P for s in result.samples)
+    assert "1 undecided" in result.summary()

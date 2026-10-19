@@ -78,7 +78,7 @@ def counting_detector() -> Detector:
 def pipeline(*, boundary_for=None, **cfg) -> Pipeline:
     rules = RuleConfig(**cfg)
     clf = DetectorFirstClassifier(counting_detector(), rules)
-    return Pipeline("yolov8n", "detector", clf, rules=rules, classifier=clf,
+    return Pipeline("yolov8n", clf, rules=rules, classifier=clf,
                     boundaries=boundary_for or (lambda cam, **_: (SQUARE, "k")))
 
 

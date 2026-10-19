@@ -426,3 +426,86 @@ def test_each_session_gets_one_answer(env) -> None:
     assert env.client.get("/results").status_code == 200
     assert "Playing" in env.client.get("/api/v1/sessions.csv", params={
         "start": "2026-10-18T21:30", "end": "2026-10-19T01:00"}).text
+
+
+# --- the free vision-model second opinion -------------------------------------------------
+
+
+def _assist_on(env, monkeypatch, tmp_path, state: str, confidence: float) -> list:
+    import json as _json
+
+    from pitch_occupancy import config as app_config
+    from pitch_occupancy.assist import budget, providers
+    from pitch_occupancy.assist import config as assist_config
+
+    cfg = tmp_path / "assist.json"
+    cfg.write_text(_json.dumps({"enabled": True, "providers": ["groq"]}), encoding="utf-8")
+    monkeypatch.setattr(assist_config, "CONFIG_PATH", cfg)
+    monkeypatch.setattr(app_config, "env_value",
+                        lambda name: "k" if name == "GROQ_API_KEY" else "")
+    monkeypatch.setattr(budget, "_minute", {})
+    sent: list = []
+
+    class Reply:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self):
+            content = _json.dumps({"state": state, "people_on_pitch": 14,
+                                   "confidence": confidence, "reason": "a game"})
+            return _json.dumps({"choices": [{"message": {"content": content}}]}).encode()
+
+    def urlopen(request, timeout):
+        sent.append(_json.loads(request.data))
+        return Reply()
+
+    monkeypatch.setattr(providers.urllib.request, "urlopen", urlopen)
+    return sent
+
+
+def test_a_doubtful_check_is_upgraded_by_a_confident_second_opinion(env, monkeypatch,
+                                                                   tmp_path) -> None:
+    sent = _assist_on(env, monkeypatch, tmp_path, "playing", 0.9)
+    record = playgrounds.check_playground(_new("Half", ("site/a",)))  # 3 people: doubtful
+    playgrounds.wait_for_second_opinions()
+    assert len(sent) == 1
+    conn = connect(settings.db_path)
+    row = conn.execute("SELECT playing, detector_playing, playing_source FROM "
+                       "playground_checks WHERE check_id = ?", (record["check_id"],)).fetchone()
+    opinions = conn.execute("SELECT COUNT(*) FROM assist_opinions").fetchone()[0]
+    conn.close()
+    assert tuple(row) == (1, 0, "assist") and opinions == 1
+
+
+def test_a_second_opinion_never_turns_a_game_off(env, monkeypatch, tmp_path) -> None:
+    _assist_on(env, monkeypatch, tmp_path, "empty", 1.0)
+    record = playgrounds.check_playground(_new("Big", ("site/a", "site/b")))  # 8 people
+    playgrounds.wait_for_second_opinions()
+    conn = connect(settings.db_path)
+    playing = conn.execute("SELECT playing FROM playground_checks WHERE check_id = ?",
+                           (record["check_id"],)).fetchone()[0]
+    conn.close()
+    assert playing == 1
+
+
+def test_a_broken_second_opinion_never_costs_the_count(env, monkeypatch, tmp_path) -> None:
+    _assist_on(env, monkeypatch, tmp_path, "playing", 0.9)
+    from pitch_occupancy.assist import providers
+
+    def down(request, timeout):
+        raise OSError("network down")
+
+    monkeypatch.setattr(providers.urllib.request, "urlopen", down)
+    record = playgrounds.check_playground(_new("Half", ("site/a",)))
+    playgrounds.wait_for_second_opinions()
+    assert record["people"] == 3 and record["playing"] == 0
+
+
+def test_a_spot_check_from_the_live_page_spends_no_quota(env, monkeypatch, tmp_path) -> None:
+    sent = _assist_on(env, monkeypatch, tmp_path, "playing", 0.9)
+    playgrounds.check_playground(_new("Half", ("site/a",)), with_pictures=True)
+    playgrounds.wait_for_second_opinions()
+    assert sent == []

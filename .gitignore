@@ -82,6 +82,8 @@ desktop.ini
 /configs/alerts.json
 # Playgrounds (playgrounds.py): which cameras, how often, when; and this computer's speed.
 /configs/playgrounds.json
+/configs/playgrounds.before-*.json
+/configs/assist.json
 /configs/computer_speed.json
 /configs/monitor.json
 .env
@@ -94,3 +96,6 @@ config/*.local.json
 # Camera-registry backups (the /cameras page): copies of cameras.json, so they hold credentials.
 /configs/cameras_history/
 data/interim/stage_runs.json
+
+# local rule-evaluation caches (scripts/evaluate_rules.py)
+/data/interim/eval_detections/

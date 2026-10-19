@@ -152,7 +152,7 @@ def compose_slot(
 
     ``frames_by_class`` maps a :class:`Class3` value to the row indices available for it. The
     probability matrix is left as zeros here and filled by :func:`compose_dataset`, because
-    scoring frames is the caller's job - this module must not know what a backbone is.
+    scoring frames is the caller's job - this module must not know what a model is.
 
     Sampling is **with replacement**, which matters and is a limitation rather than a choice:
     the dataset holds 6 MAINTENANCE frames in total, so a maintenance window of fifty minutes
@@ -194,7 +194,7 @@ def compose_dataset(
 
     ``score`` takes an array of manifest row indices and returns their ``(n, 3)`` probability
     matrix under whatever classifier the caller is using. Keeping it a parameter is what
-    lets a caller feed real probe outputs while the tests feed something trivial.
+    lets a caller feed real model outputs while the tests feed something trivial.
 
     Balanced by *template*, which is not balanced by verdict: two templates mean USED and two
     mean REVIEW, so NOTUSED is a quarter of the set. Left that way deliberately - the

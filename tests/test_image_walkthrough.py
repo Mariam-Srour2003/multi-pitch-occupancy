@@ -1,7 +1,7 @@
-"""Explaining still images, one or many.
+"""Checking still images, one or many.
 
-The image reviewer shares its explanation with the clip walkthrough - `explain_frame` is
-called by both - so the tests that matter here are the ones about what is *different*:
+The image reviewer runs the same detector and rule as the clip walkthrough, so the tests that
+matter here are the ones about what is *different*:
 
 * stills have no neighbours, so nothing is smoothed, and the page has to say so rather than
   imply the clip's temporal correction is at work;
@@ -11,9 +11,8 @@ called by both - so the tests that matter here are the ones about what is *diffe
   the page has to reconcile with the number of files submitted - otherwise a skipped upload
   is invisible.
 
-The shared half is asserted once, against the real backbone: if `explain_frame` ever stopped
-agreeing with the deployed classifier, both pages would be wrong together and neither would
-say so.
+The classifier is scripted (`_StubClassifier`) unless a test says otherwise, so nothing here
+loads the detector.
 """
 
 from __future__ import annotations
@@ -30,11 +29,11 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
+from pitch_occupancy.api import image_walkthrough as iw
 from pitch_occupancy.api.app import app
 from pitch_occupancy.api.image_walkthrough import MAX_IMAGES
 from pitch_occupancy.api.limits import WORKSPACE_PREFIX
 from pitch_occupancy.data.taxonomy import Class3
-from pitch_occupancy.vision.walkthrough import Shot, walk_images
 
 E, P = Class3.EMPTY, Class3.ACTIVE_PLAY
 
@@ -48,140 +47,105 @@ def _b64(path: str | Path) -> str:
     return base64.b64encode(Path(path).read_bytes()).decode()
 
 
-def _real_frames(n: int = 2) -> list[str]:
-    """Real labelled frames, or a skip. A synthetic grey square exercises the plumbing but
-    says nothing about whether the explanation is meaningful."""
-    found = sorted(glob.glob("data/processed/2_playing/*.jpg"))[:n]
-    if len(found) < n:
-        pytest.skip("labelled frames not present in this checkout")
-    return found
-
-
 class _StubClassifier:
-    """Enough of `ProbeClassifier` for the unexplained path, which touches only these two.
+    """A scripted classifier that records the outline each image was scored inside."""
 
-    Takes `**_kw` because `walk_images` passes `polygon=` whenever a frame has one - the
-    outline is both filled and pooled out, and the second half arrives as that keyword.
-    """
+    def __init__(self) -> None:
+        self.polygons: list[object] = []
 
-    backbone = "stub"
-    n_train = 0
-
-    class probe:  # noqa: N801 - mimics the attribute, not a class being used as one
-        classes_ = [E.value, P.value]
-
-    def __call__(self, image_bgr, **_kw):
+    def __call__(self, image_bgr, *, polygon=None, **_kw):
+        self.polygons.append(polygon)
         return P, 0.9
 
 
-# --- walk_images ----------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def stub(monkeypatch) -> _StubClassifier:
+    classifier = _StubClassifier()
+    monkeypatch.setattr(iw, "_classifier", lambda: classifier)
+    return classifier
+
+
+def _records(paths, **kwargs) -> list[dict]:
+    names = kwargs.pop("names", [Path(p).name for p in paths])
+    return [json.loads(line) for line in iw.walk_records(
+        list(paths), names=names, explain_n=kwargs.pop("explain_n", 0), redact=False,
+        **kwargs)]
+
+
+def _shots(paths, **kwargs) -> list[dict]:
+    return [r for r in _records(paths, **kwargs) if r["type"] == "shot"]
+
+
+# --- walk_records ---------------------------------------------------------------------
 
 
 def test_shots_carry_their_position_and_name(tmp_path) -> None:
     paths = [_image(tmp_path / f"{i}.jpg") for i in range(3)]
-    shots = list(walk_images(paths, _StubClassifier(), explain_n=0))
-    assert [s.index for s in shots] == [0, 1, 2]
-    assert [s.name for s in shots] == ["0.jpg", "1.jpg", "2.jpg"]
+    shots = _shots(paths)
+    assert [s["index"] for s in shots] == [0, 1, 2]
+    assert [s["name"] for s in shots] == ["0.jpg", "1.jpg", "2.jpg"]
 
 
 def test_shots_carry_the_size_the_image_actually_was(tmp_path) -> None:
     """The page prints it beside the prediction, and a 64x64 thumbnail and a 4K frame are
     not the same evidence even when they score the same."""
     cv2.imwrite(str(tmp_path / "wide.jpg"), np.zeros((90, 160, 3), dtype=np.uint8))
-    shot = next(iter(walk_images([tmp_path / "wide.jpg"], _StubClassifier(), explain_n=0)))
-    assert (shot.width, shot.height) == (160, 90)
+    (shot,) = _shots([tmp_path / "wide.jpg"])
+    assert (shot["width"], shot["height"]) == (160, 90)
 
 
 def test_a_file_that_is_not_an_image_yields_nothing_rather_than_a_guess(tmp_path) -> None:
-    """The same rule `walk_clip` applies to a frame that will not decode.
-
-    Yielding a prediction for a file the decoder rejected would be inventing an observation,
-    which is the one thing this system is built never to do.
-    """
+    """Yielding a prediction for a file the decoder rejected would be inventing an
+    observation, which is the one thing this system is built never to do."""
     (tmp_path / "notes.txt").write_text("this is not an image", encoding="utf-8")
     good = _image(tmp_path / "real.jpg")
-    shots = list(walk_images([tmp_path / "notes.txt", good], _StubClassifier(), explain_n=0))
+    shots = _shots([tmp_path / "notes.txt", good])
     assert len(shots) == 1
-    assert shots[0].name == "real.jpg"
+    assert shots[0]["name"] == "real.jpg"
 
 
-def test_explain_n_bounds_how_many_get_an_evidence_map(tmp_path) -> None:
+def test_explain_n_bounds_how_many_get_the_detectors_drawing(tmp_path) -> None:
     paths = [_image(tmp_path / f"{i}.jpg") for i in range(4)]
-    shots = list(walk_images(paths, _StubClassifier(), explain_n=0))
-    assert not any(s.explained for s in shots)
+    shots = _shots(paths, explain_n=0)
+    assert not any(s["explained"] for s in shots)
+    assert not any("boxes" in s for s in shots)
 
 
 def test_max_images_is_enforced_in_the_generator_not_only_the_route(tmp_path) -> None:
-    """The route rejects an oversized batch, but `walk_images` is importable on its own and
+    """The route rejects an oversized batch, but `walk_records` is importable on its own and
     a caller that bypassed the route should not be able to start an unbounded run."""
     paths = [_image(tmp_path / f"{i}.jpg") for i in range(6)]
-    shots = list(walk_images(paths, _StubClassifier(), explain_n=0, max_images=4))
-    assert len(shots) == 4
-
-
-# --- the shared explanation -----------------------------------------------------------
-
-
-def test_the_image_walkthrough_predicts_what_the_deployed_classifier_predicts() -> None:
-    """`explain_frame` derives its prediction from pre-pooling features rather than calling
-    the classifier again. That halves the cost and is worthless if the two disagree - and it
-    now backs two pages, so a divergence would be wrong in both."""
-    from pitch_occupancy.vision.classifier import load_classifier
-
-    frame_path = _real_frames(1)[0]
-    classifier = load_classifier()
-    shot = next(iter(walk_images([frame_path], classifier)))
-
-    direct_state, direct_conf = classifier(cv2.imread(frame_path))
-    assert shot.predicted == str(direct_state)
-    assert shot.confidence == pytest.approx(direct_conf, abs=1e-6)
-
-
-def test_the_evidence_map_sums_to_the_score() -> None:
-    """The decomposition claims to be exact rather than a saliency heuristic, so the page
-    prints both scores and their difference. If that error is not tiny, the claim is false."""
-    from pitch_occupancy.vision.classifier import load_classifier
-
-    shot = next(iter(walk_images(_real_frames(1), load_classifier())))
-    assert shot.explained
-    assert shot.reconstruction_error == pytest.approx(0.0, abs=1e-6)
-
-
-def test_focus_ratio_is_none_when_nobody_was_detected() -> None:
-    """A ratio over zero area is not a small number - it is not a number, and rendering it
-    as 0.00x would read as "the evidence missed the people" on a frame that has none."""
-    assert Shot(index=0, name="x", predicted=P.value, confidence=1.0, elapsed_ms=0.0,
-                people_area=0.0, evidence_on_people=0.0).focus_ratio is None
+    records = _records(paths, max_images=4)
+    assert len([r for r in records if r["type"] == "shot"]) == 4
+    assert records[-1]["n_unreadable"] == 0
 
 
 # --- one outline per image ---------------------------------------------------------------
 #
 # A folder of stills is routinely a folder of *different cameras* - nothing in an upload says
 # otherwise - so one outline across the batch is right only by luck, and wrong in the
-# direction that matters: an outline drawn round image 1's pitch, applied to image 2, masks
-# image 2's pitch away and scores its car park. `Shot.polygon` is what the model was actually
-# shown, so these assert on it rather than on what was passed in.
+# direction that matters: an outline drawn round image 1's pitch, applied to image 2, counts
+# image 2's car park instead of its pitch. The stub records the outline each image was
+# actually scored inside, so these assert on that rather than on what was passed in.
 
 LEFT = [[0.05, 0.05], [0.45, 0.05], [0.45, 0.95], [0.05, 0.95]]
 RIGHT = [[0.55, 0.05], [0.95, 0.05], [0.95, 0.95], [0.55, 0.95]]
 
 
-def test_each_image_is_scored_inside_its_own_outline(tmp_path) -> None:
+def test_each_image_is_scored_inside_its_own_outline(tmp_path, stub) -> None:
     paths = [_image(tmp_path / "a.jpg"), _image(tmp_path / "b.jpg", 80)]
-    shots = list(walk_images(paths, _StubClassifier(), explain_n=0,
-                             polygons=[LEFT, RIGHT]))
-    assert [shot.polygon for shot in shots] == [LEFT, RIGHT]
+    _shots(paths, polygons=[LEFT, RIGHT])
+    assert stub.polygons == [LEFT, RIGHT]
 
 
-def test_an_image_with_no_outline_of_its_own_falls_back_to_the_batch(tmp_path) -> None:
+def test_an_image_with_no_outline_of_its_own_falls_back_to_the_batch(tmp_path, stub) -> None:
     """Undecided is not the same as declined, and only the second is a choice."""
     paths = [_image(tmp_path / "a.jpg"), _image(tmp_path / "b.jpg", 80)]
-    shots = list(walk_images(paths, _StubClassifier(), explain_n=0,
-                             polygon=RIGHT, polygons=[LEFT, None]))
-    assert [shot.polygon for shot in shots] == [LEFT, RIGHT]
+    _shots(paths, polygon=RIGHT, polygons=[LEFT, None])
+    assert stub.polygons == [LEFT, RIGHT]
 
 
-def test_choosing_the_whole_frame_for_one_image_beats_every_outline(tmp_path) -> None:
+def test_choosing_the_whole_frame_for_one_image_beats_every_outline(tmp_path, stub) -> None:
     """*Use the whole frame* on image 2 has to survive a batch outline and its own.
 
     The complaint this comes from: pressing the button cleared the outline on screen and the
@@ -190,10 +154,8 @@ def test_choosing_the_whole_frame_for_one_image_beats_every_outline(tmp_path) ->
     measuring one. `wholes` says it in a way nothing else can be mistaken for.
     """
     paths = [_image(tmp_path / "a.jpg"), _image(tmp_path / "b.jpg", 80)]
-    shots = list(walk_images(paths, _StubClassifier(), explain_n=0,
-                             polygon=RIGHT, polygons=[LEFT, LEFT],
-                             wholes=[False, True]))
-    assert [shot.polygon for shot in shots] == [LEFT, None]
+    _shots(paths, polygon=RIGHT, polygons=[LEFT, LEFT], wholes=[False, True])
+    assert stub.polygons == [LEFT, None]
 
 
 def test_the_route_carries_the_whole_frame_choice_per_image(tmp_path) -> None:
@@ -239,10 +201,8 @@ def test_a_skipped_file_is_reconcilable_from_the_done_record(tmp_path) -> None:
     records = [json.loads(line) for line in response.text.strip().splitlines()]
     assert records[0]["n_submitted"] == 1
     # Exact, not a subset: the done record is what a page reconciles its counts from, and a
-    # field appearing in it unannounced is a field nobody accounted for. `n_gated` arrived on
-    # 2026-09-19, when the walkthrough endpoints started applying the deployed gates - it is
-    # 0 here because nothing was readable, so there was no verdict for a gate to overrule.
-    assert records[-1] == {"type": "done", "n": 0, "n_unreadable": 1, "n_gated": 0}
+    # field appearing in it unannounced is a field nobody accounted for.
+    assert records[-1] == {"type": "done", "n": 0, "n_unreadable": 1}
 
 
 def test_a_data_url_prefix_is_accepted(tmp_path) -> None:
@@ -354,8 +314,6 @@ def test_a_failure_mid_stream_becomes_a_record_rather_than_a_truncated_body(
     `ImportError` specifically, because the model load is both the likeliest failure here
     and the one furthest from the `ValueError` the handler used to catch.
     """
-    from pitch_occupancy.api import image_walkthrough as iw
-
     def _boom(*args, **kwargs):
         raise ImportError("DLL load failed while importing _C")
 
@@ -376,8 +334,6 @@ def test_a_failure_mid_stream_becomes_a_record_rather_than_a_truncated_body(
 
 def test_the_uploads_are_still_deleted_when_the_stream_fails(tmp_path, monkeypatch) -> None:
     """The cleanup is in a `finally`, and a broadened `except` must not have moved it."""
-    from pitch_occupancy.api import image_walkthrough as iw
-
     def _boom(*args, **kwargs):
         raise ImportError("no model")
 
@@ -395,8 +351,6 @@ def _workspaces() -> set[str]:
 
 
 def _no_model(monkeypatch) -> None:
-    from pitch_occupancy.api import image_walkthrough as iw
-
     def _boom(*args, **kwargs):
         raise ImportError("no model in this test")
 
@@ -421,8 +375,6 @@ def test_the_callers_filename_never_reaches_the_disk(tmp_path, monkeypatch, name
 
 def test_a_batch_that_fails_while_being_written_leaves_nothing(tmp_path, monkeypatch) -> None:
     """UP-6. The workspace is removed on any failure while staging, not only on success."""
-    from pitch_occupancy.api import image_walkthrough as iw
-
     _no_model(monkeypatch)
     real = Path.write_bytes
     calls = []
@@ -474,8 +426,6 @@ def test_an_image_declaring_too_many_pixels_is_refused_before_it_is_decoded(side
 
 def test_the_json_body_is_bounded_before_it_is_parsed(monkeypatch) -> None:
     """UP-8. The image caps applied after FastAPI had buffered and parsed the whole body."""
-    from pitch_occupancy.api import image_walkthrough as iw
-
     monkeypatch.setattr(iw, "MAX_BODY_BYTES", 1024)
     body = {"images": [{"name": "a.jpg", "data": "A" * 4096}]}
     assert TestClient(app).post("/api/v1/images/walkthrough", json=body).status_code == 413
@@ -495,20 +445,13 @@ def test_a_malformed_outline_is_refused_before_anything_streams(tmp_path) -> Non
         headers={"Content-Type": "application/json"}).status_code == 422
 
 
-# --- both models on the same frame ----------------------------------------------------------
+# --- the detector's drawing ------------------------------------------------------------------
 
 
 @pytest.mark.slow
-def test_an_explained_image_carries_the_detectors_boxes_beside_the_probes_heatmap(
-        tmp_path) -> None:
-    """The original complaint was two pages giving opposite answers on one clip.
-
-    The fix was to show the deployed path rather than the probe alone; this is the other
-    half of it. A heatmap can only say *where* a score came from, so "the model is reading
-    the floodlights" and "the model found six people and a ball" look alike on it. The
-    detector's pane says which, in its own currency: a box per person, a ring round the
-    ball, and the rule row that fired.
-    """
+def test_an_explained_image_carries_the_detectors_boxes(tmp_path) -> None:
+    """A box per person, a ring round the ball, and the rule row that fired - so "the model
+    found six people and a ball" can be checked against the picture."""
     client = TestClient(app)
     body = {"images": [{"name": "a.jpg", "data": _b64(_image(tmp_path / "a.jpg"))}]}
     response = client.post("/api/v1/images/walkthrough?explain_n=1", json=body)
@@ -520,7 +463,6 @@ def test_an_explained_image_carries_the_detectors_boxes_beside_the_probes_heatma
     assert explained, "nothing was explained, so there is nothing to check"
     for shot in explained:
         assert shot["boxes"].startswith("data:image/jpeg;base64,"), "a picture, not a promise"
-        assert shot["boxes"] != shot["heat"], "two models, two different explanations"
         found = shot["detector"]
         assert found["model"] and found["state"]
         assert found["rule"] >= 1, "which row of the table fired, so the state is checkable"
@@ -528,13 +470,12 @@ def test_an_explained_image_carries_the_detectors_boxes_beside_the_probes_heatma
         assert found["trace"], "the steps that led to the state, in words"
     for shot in shots:
         if not shot["explained"]:
-            assert "boxes" not in shot, (
-                "a detector pass costs what a heatmap costs; both are bounded by explain_n")
+            assert "boxes" not in shot, "a second detector pass is bounded by explain_n"
 
 
 def test_the_detector_pane_says_not_checked_rather_than_nobody(monkeypatch) -> None:
     """`None` from a detector means it did not run. It has never meant an empty pitch, and
-    this pane is the newest place that distinction could be lost (`vision/explain.py`)."""
+    this pane is the newest place that distinction could be lost."""
     import numpy as np
 
     from pitch_occupancy.vision import detector, overlay
@@ -558,14 +499,9 @@ def test_the_detector_pane_says_not_checked_rather_than_nobody(monkeypatch) -> N
 def _meta(tmp_path, monkeypatch) -> dict:
     """The meta record alone, with nothing heavy loaded.
 
-    `walk_records` yields it before the first image is read, so taking one record off the
-    generator never reaches the backbone - but it does ask the classifier for its name, so
-    the stub stands in for a 15-second model load the table does not depend on.
+    `walk_records` yields it before the first image is read; the autouse stub stands in for
+    a model load the table does not depend on.
     """
-    from pitch_occupancy.api import image_walkthrough as iw
-
-    monkeypatch.setattr(iw, "_classifier", lambda: _StubClassifier())
-    monkeypatch.setattr(iw, "_gates", lambda: (None, None))
     path = tmp_path / "f.jpg"
     cv2.imwrite(str(path), np.full((90, 160, 3), 120, np.uint8))
     record = next(iter(iw.walk_records([path], names=["f.jpg"], explain_n=0, redact=False)))
@@ -610,9 +546,15 @@ def test_the_rows_that_cannot_fire_on_a_still_say_so_rather_than_being_drawn_liv
     """
     meta = _meta(tmp_path, monkeypatch)
 
+    from pitch_occupancy.config import settings
+    from pitch_occupancy.vision.rules import RuleConfig
+
     rows = {r["row"]: r for r in meta["rules"]}
-    assert rows[4]["applies"] is False
-    assert "predecessor" in rows[4]["why_not"]
+    # Row 4 can still fire on a still through its darkness clause when one is configured;
+    # without it, a still has no way to reach the row.
+    if getattr(RuleConfig.load(settings.rules_path), "dark_luma", None) is None:
+        assert rows[4]["applies"] is False
+        assert "predecessor" in rows[4]["why_not"]
     assert rows[2]["applies"] is False
     assert all(rows[n]["applies"] for n in (1, 3, 5, 6, 7))
 
@@ -639,9 +581,7 @@ def test_the_gallery_flags_an_empty_verdict_with_people_found() -> None:
 
     The card's comment always said it flagged "the verdict says nobody is playing and yet
     people were found, or the reverse", and the condition only ever implemented the first.
-    Reported from use on 2026-09-24: `syn_v01b_people_004.jpg` is a labelled
-    MAINTENANCE_NON_SPORTING frame that the probe calls EMPTY at 0.993 while the detector
-    finds four people, and the card showed it as an ordinary result.
+    A confident EMPTY on a frame where the detector found four people has to be flagged.
 
     Asserted on the condition rather than on a rendered card because the flag is one line of
     browser JavaScript; what can go stale here is the claim, and the claim is the `empty`

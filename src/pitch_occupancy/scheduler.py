@@ -203,13 +203,8 @@ def run_due(
     """Run every slot due at ``now`` and persist its verdict. Returns the slot ids run.
 
     ``pipeline`` is the assembled deployment (`pipeline.assemble`) and is what a
-    deployment passes. **Until 2026-09-19 this function passed `run_slot` a bare classifier
-    and nothing else** - no boundary lookup, no motion gate, no person gate - although
-    `run_slot` accepted all three and every measured number for "the system" was taken with
-    them. So ``worker --source video`` and the live path ran the probe alone, the
-    configuration measured at 0.62-0.77 false-play, while the review page ran the gated one.
-    The review page once had the same shape of defect; this was it one layer up, and a test
-    now spies on what reaches `run_slot`.
+    deployment passes: the detector, the rule and the boundary lookup together. A test spies
+    on what reaches `run_slot`, so the deployed path is the one that runs.
 
     ``classify`` alone still works, for tests that script a classifier and want nothing in
     front of it. With a pipeline, the slot's venue and recording key are passed too, so the
@@ -241,7 +236,8 @@ def run_due(
                 on_slot(slot_id, exc)
             continue
         if connection is not None:
-            _persist(connection, slot, day, run, model_key)
+            _persist(connection, slot, day, run,
+                     model_key or getattr(pipeline, "model_key", None))
         ran.append(slot_id)
         if on_slot:
             on_slot(slot_id, run)
@@ -268,6 +264,7 @@ def _execute(slot: ScheduledSlot, day: Date, source, *, classify, pipeline, evid
 def _persist(connection, slot: ScheduledSlot, day: Date, run, model_key: str | None) -> None:
     """Declare the slot and write its verdict with every sample behind it."""
     from pitch_occupancy.db.store import ensure_slot, record_slot
+    from pitch_occupancy.pipeline import resolve_model_key
 
     begins, ends = slot.window(day)
     ensure_slot(
@@ -277,7 +274,7 @@ def _persist(connection, slot: ScheduledSlot, day: Date, run, model_key: str | N
     )
     record_slot(
         connection, slot.slot_id(day), run.verdict, run.samples,
-        model_key=model_key or settings.default_model_key,
+        model_key=model_key or resolve_model_key(),
         evidence_paths=[e.image_path for e in run.evidence if e.image_path],
     )
 
@@ -495,7 +492,8 @@ def run_concurrently(
                            on_minute=minute_cb)
             if connection is not None:
                 with db_lock:
-                    _persist(connection, slot, day, run, model_key)
+                    _persist(connection, slot, day, run,
+                     model_key or getattr(pipeline, "model_key", None))
         except SlotCancelled as exc:
             if heartbeat is not None:
                 heartbeat.slot_finished(slot_id, "CANCELLED")

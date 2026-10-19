@@ -10,7 +10,6 @@ import pytest
 
 from pitch_occupancy.data.taxonomy import Class3, SlotStatus
 from pitch_occupancy.slots.aggregate import (
-    SlotVerdict,
     Thresholds,
     aggregate_slot,
     tune_thresholds,

@@ -1,15 +1,12 @@
-"""Frame preprocessing and classification.
-
-One preprocessing code path is shared by offline runs and the live pipeline - an early
-prototype showed what happens when they drift apart.
+"""Frame classification: one YOLO detector, a count, a motion cue and a decision rule.
 
 Main modules:
-  roi.py          per-camera polygon masking
-  backbones.py    frozen feature extractors; MEAN pooling only
-  heads.py        logistic-regression heads + calibration
-  detector.py     the person/ball detector registry
-
-Feature extraction uses mean pooling, never HF ``pooler_output`` - on a plain ViT that
-is randomly initialised, and it cost an early prototype a false 38% score plus a silent
-production failure. Every saved head carries a ``pooling`` stamp that is asserted on load.
+  roi.py               per-camera pitch boundaries
+  detector.py          the person/ball detector registry
+  counting.py          who stands inside the boundary
+  motion.py            the movement cue between frames
+  rules.py             the decision table (`configs/rules.json`)
+  pitch_classifier.py  the deployed detector-first classifier
+  overlay.py           what the detector saw, drawn on the frame
+  redact.py            pixelation and blur for frames that are shown or saved
 """

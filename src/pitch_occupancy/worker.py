@@ -11,9 +11,9 @@ Run against recorded footage:
 
     uv run python -m pitch_occupancy.worker --source video
 
-The classifier is injected rather than constructed here, so the pipeline can be exercised
-with a stub in tests and with a real probe in production without the orchestration knowing
-which it has.
+The pipeline (`pipeline.assemble`: the YOLO detector, the motion cue and the decision rule)
+is injected rather than constructed here, so the orchestration can be exercised with a
+scripted classifier in tests without the orchestration knowing which it has.
 """
 
 from __future__ import annotations
@@ -34,8 +34,6 @@ from pitch_occupancy.data.taxonomy import Class3
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from pitch_occupancy.pipeline import Pipeline
-    from pitch_occupancy.vision.motion import MotionGate
-    from pitch_occupancy.vision.people import PersonGate
 from pitch_occupancy.db.store import Sample
 from pitch_occupancy.frame_source import FrameSource
 from pitch_occupancy.retention import has_room
@@ -58,8 +56,7 @@ class Classifier(Protocol):
     """Anything that turns one frame into a class and a confidence.
 
     Runtime-checkable so that a caller assembling the pipeline can assert it has one. The
-    check is shallow - it sees a `__call__` and nothing about its signature - so a test
-    that means to pin the contract should compare signatures, as `test_classifier.py` does.
+    check is shallow - it sees a `__call__` and nothing about its signature.
     """
 
     def __call__(self, image_bgr: np.ndarray) -> tuple[Class3, float]: ...
@@ -75,11 +72,9 @@ class SlotRun:
     minutes_missed: int
     conditions: SlotConditions | None = None
     transitions: tuple[Transition, ...] = ()
-    #: What the gates saw, per minute they ran. These were accumulated inside the loop and
-    #: then dropped on the floor, which made "the count is recorded" a claim about a local
-    #: variable. They are cheap - one float and one int per minute - and they are the only
-    #: trace of *why* a verdict was overruled, which is the first thing an operator disputing
-    #: one will ask.
+    #: The motion cue and the people counted, per minute they were measured. Cheap - one
+    #: float and one int per minute - and the first thing an operator disputing a verdict
+    #: will ask about.
     motion_cues: tuple[float, ...] = ()
     people_counts: tuple[int, ...] = ()
     #: Minutes where a ball was seen inside the boundary. This is not only a record: with
@@ -130,8 +125,6 @@ def run_slot(
     on_minute: Callable[[int, Class3], None] | None = None,
     evidence_dir: Path | None = None,
     polygon_for: Callable[[str], list[list[float]] | None] | None = None,
-    motion_gate: MotionGate | None = None,
-    person_gate: PersonGate | None = None,
     pipeline: Pipeline | None = None,
     venue: str | None = None,
     slot_key: str | None = None,
@@ -139,18 +132,18 @@ def run_slot(
     """Sample, classify, fuse and aggregate one slot.
 
     ``pipeline`` is the assembled deployment (`pipeline.assemble`): it supplies the
-    classifier, both gates and the per-camera boundary lookup in one object, so a caller
-    cannot pass one and forget the others - which is exactly what `scheduler.run_due` did
-    for as long as the gates existed. ``venue`` and ``slot_key`` narrow the boundary lookup
-    to the slot being run (`roi.resolve`). The older keyword arguments still work and still
-    win when both are given, so a test can hand this a scripted gate.
+    detector-first classifier, its rule and the per-camera boundary lookup in one object, so
+    a caller cannot pass one and forget the others. ``venue`` and ``slot_key`` narrow the
+    boundary lookup to the slot being run (`roi.resolve`). Without a pipeline, ``classify``
+    is called once per camera-minute and the cameras are fused by `slots/fusion.fuse` - the
+    seam a scripted test uses.
 
     **With a pipeline, the boundary is mandatory.** A camera whose boundary cannot be
     resolved contributes no observation: its minute is recorded as UNCERTAIN, and if no
     camera on the pitch had one the minute counts as missed, which the capture floor turns
-    into REVIEW. Without a boundary the model scores the neighbouring pitch and the car park
-    as if they were this one, measured at 0.74 false-play against 0.38 with one - a
-    verdict produced that way is not one this system should record as its own.
+    into REVIEW. Without a boundary the detector counts the neighbouring pitch and the car
+    park as if they were this one - a verdict produced that way is not one this system
+    should record as its own.
 
     Minutes where no camera produced a frame are counted as missed rather than filled in.
     They lower the capture rate, which is what a verdict's trustworthiness should depend
@@ -174,22 +167,16 @@ def run_slot(
     Left off by default: writing frames of identifiable people to disk is a decision a caller
     makes, not something that happens because a function was called.
     """
-    require_boundary = False
     if pipeline is not None:
         classify = classify or pipeline.classify
-        if motion_gate is None:
-            motion_gate = pipeline.motion_gate
-        if person_gate is None:
-            person_gate = pipeline.person_gate
         if polygon_for is None:
             polygon_for = pipeline.polygon_for(venue=venue, slot_key=slot_key)
-        require_boundary = pipeline.require_boundary
     if classify is None:
         raise TypeError("run_slot needs a classifier or a pipeline that carries one")
-    # The detector-first path reads a burst per camera-minute and fuses counts at pitch
-    # level; the probe path reads one frame and fuses classes, as it always has.
+    # The pipeline reads a burst per camera-minute and fuses counts at pitch level; a bare
+    # classifier reads one frame and its classes are fused.
     burst_n, burst_spacing = pipeline.burst if pipeline is not None else (1, 0.0)
-    detector_first = pipeline is not None and pipeline.kind == "detector"
+    detector_first = pipeline is not None
 
     cameras = source.cameras()
     samples: list[Sample] = []
@@ -224,11 +211,7 @@ def run_slot(
     previous: dict[str, object] = {}
     motion_seen: list[float] = []
     people_seen: list[int] = []
-    # Minutes where a ball was seen inside the boundary. This was written when the ball was
-    # recorded and never consulted - across nine unseen venues a ball is found in 40% of
-    # genuine play frames against the person count's 100%, so absence carried no information.
-    # A ball is now a *requirement* for ACTIVE_PLAY at the facility's instruction, so that
-    # 40% is a recall cost rather than an argument against the rule. See `vision/people.py`.
+    # Minutes where a ball was seen inside the boundary (`vision/ball.py`).
     ball_minutes: list[int] = []
     uncertain_minutes = 0
     uncertain_cameras: set[str] = set()
@@ -253,23 +236,6 @@ def run_slot(
             # all: on an unseen clip the wrong outline bought 0.06 of false-play where the
             # right one bought 0.42.
             polygon = polygon_for(camera) if polygon_for is not None else None
-            if polygon is None and require_boundary and not detector_first:
-                # No boundary, no verdict. Recorded as UNCERTAIN rather than dropped,
-                # so the database shows a camera that was read and not scored, which is a
-                # different fact from a camera that produced nothing.
-                abstained = True
-                uncertain_cameras.add(camera)
-                samples.append(
-                    Sample(
-                        camera_id=camera,
-                        minute_index=minute,
-                        predicted=MinuteState.UNCERTAIN.value,
-                        confidence=0.0,
-                        captured_at=datetime.now(UTC).isoformat(timespec="seconds"),
-                        image_path=frame.source_path,
-                    )
-                )
-                continue
             if detector_first:
                 # The camera's burst is counted inside its boundary and decided by the
                 # table; the pitch is decided again below from every camera's count. The
@@ -309,26 +275,6 @@ def run_slot(
                 state, confidence = classify(frame.image_bgr, polygon=polygon)
             else:
                 state, confidence = classify(frame.image_bgr)
-
-            # The motion gate. This loop is the only place in the system that sees one
-            # camera's frames in order, so it is the only place the rule can live.
-            if motion_gate is not None:
-                state, cue = motion_gate.apply(
-                    state, previous.get(camera), frame.image_bgr, polygon,
-                )
-                if cue is not None:
-                    motion_seen.append(cue)
-            # The person gate. After the motion gate, because it is the more expensive
-            # of the two - it runs a detector - and the cheaper one may already have settled
-            # the answer. Both only ever turn ACTIVE_PLAY into EMPTY, so the order changes
-            # cost and not the verdict.
-            if person_gate is not None:
-                state, counted = person_gate.inspect(state, frame.image_bgr, polygon)
-                if counted is not None:
-                    people_seen.append(counted.people)
-                    if counted.ball:
-                        ball_minutes.append(minute)
-
             previous[camera] = frame.image_bgr
 
             observations[camera] = (state, confidence)
@@ -587,7 +533,9 @@ def _run_live(args) -> None:
     if not args.yes:
         _confirm_live(urls, schedule, args.evidence_dir)
 
-    heartbeat = Heartbeat(model=args.model, schedule=schedule)
+    from pitch_occupancy.pipeline import resolve_model_key
+
+    heartbeat = Heartbeat(model=resolve_model_key(args.model), schedule=schedule)
     heartbeat.start()
     final_state, final_message = "stopped", None
     try:
@@ -648,7 +596,7 @@ def _record_live(args, urls, schedule, heartbeat) -> list[str]:
             source_for=live_sources(urls, sleep=stop.wait),
             pipeline=pipeline,
             connection=connection,
-            model_key=args.model,
+            model_key=pipeline.model_key,
             evidence_dir=args.evidence_dir,
             iterations=args.iterations,
             on_slot=_report,
@@ -736,7 +684,7 @@ def main() -> None:
     live: the same `run_due` a deployment calls, given recordings instead of cameras. The
     live path is `scheduler.live_sources` and it has still never been pointed at a camera.
 
-    ``--dry-run`` lists what would run and exits before the backbone is loaded, which is the
+    ``--dry-run`` lists what would run and exits before the detector is loaded, which is the
     shape `pitch retention` and `pitch schedule` already use: deciding is separable from
     doing, and a run that writes to the database should be something you asked for twice.
     """
@@ -755,7 +703,9 @@ def main() -> None:
              "configs/cameras.json and follows configs/slots_schedule.json in real time",
     )
     parser.add_argument("--raw-dir", type=Path, default=settings.raw_dir / "venue_01")
-    parser.add_argument("--model", default=settings.default_model_key)
+    parser.add_argument("--model", default=settings.default_model_key or None,
+                        help="detector key (vision/detector.DETECTORS); default: the one "
+                             "configs/rules.json names")
     parser.add_argument("--dry-run", action="store_true",
                         help="list the slots and exit, loading no model and writing nothing")
     parser.add_argument("--evidence-dir", type=Path, default=None,
@@ -846,7 +796,8 @@ def main() -> None:
                 begins, _ = slot.window(day)
                 just_ran = run_due(
                     schedule, begins,
-                    source_for=source_for, pipeline=pipeline, model_key=args.model,
+                    source_for=source_for, pipeline=pipeline,
+                    model_key=pipeline.model_key,
                     connection=connection, evidence_dir=args.evidence_dir, on_slot=_report,
                 )
                 seen.update(just_ran)

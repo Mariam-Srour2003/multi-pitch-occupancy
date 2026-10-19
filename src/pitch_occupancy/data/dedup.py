@@ -4,8 +4,8 @@ Frames sampled every fifteen seconds from a fixed camera watching a mostly-stati
 not independent observations. Two frames of the same empty pitch a quarter of a minute apart
 differ by a few pixels of cloud. Counting them as two labelled examples overstates the
 dataset, and putting them on opposite sides of a split turns a memorisation test into an
-apparent generalisation result - which is exactly what happened here when a 16-bin
-colour histogram beat a deep probe under a random split.
+apparent generalisation result - a 16-bin colour histogram can look as good as a deep model
+under a random split.
 
 So this measures how much of the dataset is genuinely distinct, rather than assuming it.
 
@@ -21,9 +21,9 @@ data rather than a number carried in from elsewhere.
 
 from __future__ import annotations
 
+from collections.abc import Hashable
 from dataclasses import dataclass
 from itertools import combinations
-from typing import Hashable, TypeVar
 
 import cv2
 import numpy as np
@@ -34,7 +34,6 @@ __all__ = [
 ]
 
 #: Key type of a hash mapping: frame paths in most callers, row indices in some.
-K = TypeVar("K", bound=Hashable)
 
 #: Hamming distance at or below which two frames are treated as near-duplicates. Chosen from
 #: the measured distribution: consecutive frames from one static slot sit far below it, and
@@ -157,7 +156,7 @@ def duplicate_rate(hashes: dict[str, int], *, threshold: int = DEFAULT_THRESHOLD
     return len(has_twin) / len(hashes)
 
 
-def distinct_subset(
+def distinct_subset[K: Hashable](
     hashes: dict[K, int], *, threshold: int = DEFAULT_THRESHOLD
 ) -> list[K]:
     """Keys of a greedy maximal set of frames that are pairwise *not* near-duplicates.

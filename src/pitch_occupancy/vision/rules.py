@@ -152,13 +152,13 @@ class FrameVerdict:
     ball: bool | None = None
     ball_confidence: float = 0.0
     motion: float | None = None
-    #: What the probe said before any gate spoke, when a probe spoke at all.
-    probed: Class3 | None = None
-    gated: bool = False
+    #: Mean grey level inside the boundary, None when not measured. Kept so the pitch-level
+    #: decision (`slots/fusion.fuse_pitch`) can apply the dark-pitch clause again.
+    brightness: float | None = None
     model_key: str = ""
-    #: The detector path's full count, for the overlay and the fusion; None on the probe path.
+    #: The full count, for the overlay and the fusion; None when the detector did not run.
     count: PitchCount | None = None
-    #: Which row of the table decided; 0 when no table was consulted (the probe path).
+    #: Which row of the table decided; 0 when no table was consulted.
     rule: int = 0
 
     @property
@@ -232,6 +232,16 @@ class RuleConfig:
     #: visibly so.
     motion_play_min: float | None = None
     hi_vis_min_fraction: float | None = None
+    #: People whose feet are within this fraction of the boundary's diagonal of its edge are
+    #: on the touchline, not the pitch (`counting.inner_mask`). None counts the whole boundary.
+    edge_margin: float | None = None
+    #: **And the people moving, one by one.** When at least `play_min` people were matched
+    #: between burst frames and fewer than this fraction of them moved
+    #: (`vision/movement.py`), a crowd is standing, not playing. None turns the clause off.
+    still_max_fraction: float | None = None
+    #: Mean grey level (0-255) inside the boundary below which an empty count is not believed:
+    #: the detector cannot find people it cannot see, so a dark pitch is UNCERTAIN, not EMPTY.
+    dark_luma: float | None = None
     burst_frames: int = 3
     burst_spacing_s: float = 1.0
     frozen_at: str | None = None
@@ -299,10 +309,15 @@ def _validate_rule_values(values: dict[str, object], name: str) -> None:
                             or not 0.0 <= v <= 1.0):
             problems.append(f"{k} must be a number between 0 and 1, not {v!r}")
     for f in ("min_height_intercept", "min_height_slope", "motion_lo", "motion_hi",
-              "cluster_max", "motion_play_min", "hi_vis_min_fraction", "burst_spacing_s"):
+              "cluster_max", "motion_play_min", "hi_vis_min_fraction", "burst_spacing_s",
+              "edge_margin", "still_max_fraction", "dark_luma"):
         v = values.get(f)
         if v is not None and (isinstance(v, bool) or not isinstance(v, int | float)):
             problems.append(f"{f} must be a number or null, not {v!r}")
+    for f in ("edge_margin", "still_max_fraction"):
+        v = values.get(f)
+        if isinstance(v, int | float) and not isinstance(v, bool) and not 0.0 <= v < 1.0:
+            problems.append(f"{f} must be at least 0 and below 1, not {v!r}")
     if problems:
         raise ValueError(f"{name}: " + "; ".join(problems))
 
@@ -317,13 +332,15 @@ def decide(
     motion: float | None,
     cfg: RuleConfig,
     require_boundary: bool = True,
+    brightness: float | None = None,
 ) -> FrameVerdict:
     """The decision table. Pure: a count, a motion cue and a config in, a verdict out.
 
     ``count`` is None when the detector did not run (row 1). ``count.bounded`` False means no
     boundary was applied: row 2 on the deployed path, a labelled whole-frame answer on the
     interactive one (``require_boundary=False``). ``motion`` is the burst motion cue, None
-    on a single frame.
+    on a single frame. ``brightness`` is the mean grey level inside the boundary, None when
+    not measured.
     """
     key = cfg.detector
     if count is None:
@@ -346,18 +363,27 @@ def decide(
            + (f" in {count.ball_frames} of the burst" if count.ball_frames > 1 else "")
            if ball else ", no ball seen")
         + (f", motion {motion:.3f}" if motion is not None else ", motion unmeasured"))
+    if count.edge_people:
+        trace.append(f"{count.edge_people} more on the edge of the boundary, not counted")
+    if count.people_matched:
+        trace.append(f"{count.people_moved} of {count.people_matched} people matched between "
+                     f"burst frames moved")
 
     def verdict(state: MinuteState, confidence: float, rule: int, why: str) -> FrameVerdict:
         trace.append(f"row {rule}: {why} -> {state.name} {confidence:.2f}")
         return FrameVerdict(state, round(confidence, 4), trace=tuple(trace), people=n,
                             ball=ball, ball_confidence=count.ball_confidence, motion=motion,
-                            model_key=key, count=count, rule=rule)
+                            brightness=brightness, model_key=key, count=count, rule=rule)
 
     # --- nobody on the pitch ------------------------------------------------------------
     if n == 0:
         if motion is not None and cfg.motion_hi is not None and motion >= cfg.motion_hi:
             return verdict(MinuteState.UNCERTAIN, 0.0, 4,
                            f"nobody found but motion {motion:.3f} >= {cfg.motion_hi:.3f}")
+        if brightness is not None and cfg.dark_luma is not None and brightness < cfg.dark_luma:
+            return verdict(MinuteState.UNCERTAIN, 0.0, 4,
+                           f"nobody found but the pitch is too dark to see anyone "
+                           f"(brightness {brightness:.0f} < {cfg.dark_luma:.0f})")
         return verdict(MinuteState.EMPTY, _clip(1.0 - 0.15 * count.raw_inside, 0.6, 1.0), 3,
                        "nobody standing inside the boundary and nothing moving")
 
@@ -406,6 +432,12 @@ def decide(
         elif motion < cfg.motion_play_min:
             still = motion
             missing.append(f"motion {motion:.3f} < {cfg.motion_play_min:.3f}")
+    if (cfg.still_max_fraction is not None and count.people_matched is not None
+            and count.people_matched >= cfg.play_min and count.people_moved is not None
+            and count.people_moved / count.people_matched < cfg.still_max_fraction):
+        still = count.people_moved / count.people_matched
+        missing.append(f"only {count.people_moved} of {count.people_matched} people moved "
+                       f"({still:.0%} < {cfg.still_max_fraction:.0%}) - standing, not playing")
     if (still is None and count.spread is not None and cfg.cluster_max is not None
             and count.spread < cfg.cluster_max):
         missing.append(f"clustered, spread {count.spread:.3f} < {cfg.cluster_max:.3f}")
@@ -454,8 +486,9 @@ def rule_table(cfg: RuleConfig, *, motion_available: bool = True,
             applies=require_boundary,
             why_not="the whole frame is counted here, so this cannot fire"),
         row(3, "nobody inside, nothing moving", MinuteState.EMPTY),
-        row(4, "nobody inside, but something moved", MinuteState.UNCERTAIN,
-            applies=motion_available and cfg.motion_hi is not None,
+        row(4, "nobody inside, but something moved or the pitch is too dark to see",
+            MinuteState.UNCERTAIN,
+            applies=(motion_available and cfg.motion_hi is not None) or cfg.dark_luma is not None,
             why_not=("one image has no predecessor to compare with, so movement cannot be "
                      "measured" if not motion_available else
                      "`motion_hi` is unfitted, so the cue is not consulted")),
@@ -463,7 +496,8 @@ def rule_table(cfg: RuleConfig, *, motion_available: bool = True,
             MinuteState.MAINTENANCE_NON_SPORTING),
         row(6, f"{cfg.play_min}+ people inside"
                + (", a ball" if cfg.require_ball else "")
-               + (", and movement" if cfg.require_motion else ""),
+               + (", and movement" if cfg.require_motion else "")
+               + (", and people moving" if cfg.still_max_fraction is not None else ""),
             MinuteState.ACTIVE_PLAY),
         row(7, f"{cfg.play_min}+ people inside, otherwise",
             MinuteState.MAINTENANCE_NON_SPORTING),

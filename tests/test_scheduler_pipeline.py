@@ -1,10 +1,8 @@
 """The pipeline reaches `run_slot` through the scheduler.
 
-Until 2026-09-19 `run_due` passed `run_slot` a bare classifier and nothing else - no
-boundary, no gates - although `run_slot` had accepted all three for some time. So the
-deployed path was the configuration measured at 0.62-0.77 false-play while every table
-described the gated one. These assert on what reaches `run_slot`, because the handover is
-the part that was missing.
+These assert on what reaches `run_slot` - the assembled pipeline (detector, rule and boundary
+lookup) and the slot context the boundary lookup needs - because the handover is the part a
+deployment cannot see go missing.
 """
 
 from __future__ import annotations
@@ -19,6 +17,9 @@ from pitch_occupancy.data.taxonomy import Class3, SlotStatus
 from pitch_occupancy.frame_source import Frame, FrameSource
 from pitch_occupancy.pipeline import Pipeline
 from pitch_occupancy.scheduler import Schedule, ScheduledSlot, run_due, run_forever
+from pitch_occupancy.vision.detector import DETECTORS, PERSON, SPORTS_BALL, Detection, Detector
+from pitch_occupancy.vision.pitch_classifier import DetectorFirstClassifier
+from pitch_occupancy.vision.rules import RuleConfig
 
 MIDDLE = [[0.25, 0.25], [0.75, 0.25], [0.75, 0.75], [0.25, 0.75]]
 
@@ -40,13 +41,19 @@ class Stub(FrameSource):
         return self._minutes
 
     def read(self, camera_id: str, minute_index: int) -> Frame | None:
-        return Frame(camera_id, minute_index, np.zeros((4, 4, 3), np.uint8), "x.mp4")
+        return Frame(camera_id, minute_index, np.zeros((100, 100, 3), np.uint8), "x.mp4")
 
 
-def pipeline(boundary=MIDDLE, *, gates: bool = True, require: bool = True) -> Pipeline:
+def pipeline(boundary=MIDDLE, *, require: bool = True) -> Pipeline:
+    """A detector-first pipeline whose detector sees six people and a ball mid-pitch."""
+    detector = Detector(DETECTORS["yolov8n"])
+    detector.detect = lambda image, **_: (
+        [Detection(PERSON, (40 + i, 30, 45 + i, 60), 0.9) for i in range(6)]
+        + [Detection(SPORTS_BALL, (48, 48, 52, 52), 0.5)])
+    rules = RuleConfig(burst_frames=1)
+    clf = DetectorFirstClassifier(detector, rules)
     return Pipeline(
-        "stub", "probe", lambda image, *, polygon=None: (Class3.ACTIVE_PLAY, 0.9),
-        motion_gate=object() if gates else None, person_gate=object() if gates else None,
+        "yolov8n", clf, rules=rules, classifier=clf,
         require_boundary=require,
         boundaries=lambda cam, *, venue=None, slot_key=None: (
             (boundary, "k") if boundary is not None else (None, None)),
@@ -102,7 +109,7 @@ def test_a_camera_with_no_boundary_reads_uncertain_through_the_scheduler() -> No
     runs: list[object] = []
     run_due(Schedule((slot("10:00", 60),)), datetime(2026, 7, 11, 10, 5),
             source_for=lambda sl, day: Stub(minutes=3),
-            pipeline=pipeline(boundary=None, gates=False),
+            pipeline=pipeline(boundary=None),
             on_slot=lambda sid, run: runs.append(run))
     (run,) = runs
     assert run.minutes_uncertain == 3 and run.minutes_missed == 3
@@ -117,7 +124,7 @@ def test_with_a_boundary_the_same_slot_is_decided() -> None:
     runs: list[object] = []
     run_due(Schedule((slot("10:00", 60),)), datetime(2026, 7, 11, 10, 5),
             source_for=lambda sl, day: Stub(minutes=3),
-            pipeline=pipeline(boundary=MIDDLE, gates=False),
+            pipeline=pipeline(boundary=MIDDLE),
             on_slot=lambda sid, run: runs.append(run))
     (run,) = runs
     assert run.minutes_uncertain == 0 and run.minutes_captured == 3

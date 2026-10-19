@@ -60,7 +60,10 @@ MAX_SAMPLES: int = 360
 
 
 class _Classifier(Protocol):
-    def __call__(self, image_bgr: np.ndarray) -> tuple[Class3, float]: ...
+    """One frame in, a `vision/rules.FrameVerdict` out - what `Pipeline.classify_frame`
+    returns. A bare ``(Class3, confidence)`` pair is accepted too and carries no counts."""
+
+    def __call__(self, image_bgr: np.ndarray, **kwargs: object) -> object: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,46 +75,19 @@ class ClipSample:
     raw: Class3
     confidence: float
     smoothed: Class3
-    #: What the probe said before the gates, when a gate changed it. `raw` is the verdict
-    #: after them, because `raw` is what the smoothing and the segments are built from and a
-    #: reviewer needs those to be the answer the system gives. This is the audit trail: a
-    #: reviewer asking "why does 1:20 say empty when the probe was sure" gets an answer.
-    probed: Class3 | None = None
     #: People inside the boundary, and whether a ball was seen there. ``None`` when the
-    #: detector did not run - the gate skips a verdict it cannot change - which is why the
-    #: dashboard shows a dash rather than a zero. They are different facts. A page wanting a
-    #: count on every frame passes ``PersonGate(always_count=True)``, which reports without
-    #: deciding.
+    #: detector did not run, which is why the page shows a dash rather than a zero. They are
+    #: different facts.
     people: int | None = None
     ball: bool | None = None
     #: The motion cue against the previous sample, or ``None`` on the first, which has no
-    #: predecessor. Recorded because it is the other half of the audit trail: the count says
-    #: what the detector saw, this says what the cheaper gate saw, and the frames where they
-    #: disagree are the ones worth a reviewer's attention.
+    #: predecessor.
     motion: float | None = None
 
     @property
     def corrected(self) -> bool:
         """True when its neighbours overruled it. The flag the reviewer is looking for."""
         return self.raw is not self.smoothed
-
-    @property
-    def gates_disagree(self) -> bool:
-        """EMPTY, and yet the detector found somebody inside the outline.
-
-        Only ever true when the detector was asked to look at a frame the motion gate had
-        already settled (``always_count``) - precisely the frame the default behaviour makes
-        invisible. It is not a contradiction in the verdict: the gates only weaken, so EMPTY
-        stands. It is the motion threshold being wrong, or the detector seeing a goalpost,
-        and `vision/motion.py` records that the threshold was fitted at one venue at a
-        15-second gap and calibrated nowhere else.
-        """
-        return self.raw is Class3.EMPTY and bool(self.people)
-
-    @property
-    def gated(self) -> bool:
-        """True when a gate overruled the probe, which is a different event from `corrected`."""
-        return self.probed is not None and self.probed is not self.raw
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,6 +130,9 @@ class ClipAnalysis:
     samples: list[ClipSample] = field(default_factory=list)
     segments: list[ClipSegment] = field(default_factory=list)
     unreadable: list[float] = field(default_factory=list)
+    #: Times of frames that were read but the rule declined to decide (UNCERTAIN): the
+    #: detector could not run, say. Left out of the timeline rather than guessed.
+    undecided: list[float] = field(default_factory=list)
     interval_widened: bool = False
 
     @property
@@ -174,6 +153,8 @@ class ClipAnalysis:
             parts.append(f"{self.n_corrected} corrected by its neighbours")
         if self.unreadable:
             parts.append(f"{len(self.unreadable)} unreadable")
+        if self.undecided:
+            parts.append(f"{len(self.undecided)} undecided")
         return " · ".join(parts)
 
 
@@ -214,17 +195,17 @@ def _respect_the_count(smoothed: list[Class3], raw: list[Class3],
                        people: list[int | None], play_min: int) -> list[Class3]:
     """Stop the neighbours overruling what the detector counted on the frame itself.
 
-    Majority smoothing looks only at the states, so a frame the person gate turned into C3
-    because three people were inside the boundary came out ACTIVE_PLAY whenever its
-    neighbours were playing - found 2026-09-29, and exactly what the facility's rule forbids:
-    fewer than `play_min` people is never play. The same holds the other way: a frame with
+    Majority smoothing looks only at the states, so a frame the rule called C3 because three
+    people were inside the boundary would come out ACTIVE_PLAY whenever its neighbours were
+    playing - exactly what the facility's rule forbids: fewer than `play_min` people is
+    never play. The same holds the other way: a frame with
     people counted on it is not smoothed to EMPTY, and one with nobody counted is not
     smoothed to anything else - a tied window (C3, EMPTY, PLAY) picks the first state, and
     that made a counted-empty frame C3 in the test that found this.
 
-    Where the neighbours contradict the count, the frame keeps its own gated verdict rather
-    than a new one - so this can only undo a correction, never make a claim the gates did
-    not. Where the count is None nobody looked, and the smoothing stands.
+    Where the neighbours contradict the count, the frame keeps its own verdict rather than
+    a new one - so this can only undo a correction, never make a claim the rule did not.
+    Where the count is None nobody looked, and the smoothing stands.
     """
     out = []
     for state, own, n in zip(smoothed, raw, people, strict=True):
@@ -244,24 +225,15 @@ def analyse_clip(
     window: int = DEFAULT_WINDOW,
     max_samples: int = MAX_SAMPLES,
     polygon: list[list[float]] | None = None,
-    motion_gate: object | None = None,
-    person_gate: object | None = None,
+    play_min: int = 5,
     progress: Callable[[int, int], None] | None = None,
 ) -> ClipAnalysis:
     """Sample ``path`` every ``interval_s`` seconds, classify each frame, and segment it.
 
-    **The gates run here and not in the caller's `classify`, and that is a departure.** A
-    boundary can be applied by wrapping the classifier - a masked frame is still a frame - so
-    `api/clip_review.py` does exactly that and this function stayed unaware of ROI. The gates
-    cannot be wrapped the same way: `MotionGate` compares a frame to the *previous* sample,
-    and only this loop sees the samples in order. A per-frame wrapper would have to keep that
-    state behind the caller's back.
-
-    So they are parameters, and passing neither reproduces the old behaviour exactly. What it
-    cost to leave them out: a 234-second clip of a floodlit pitch with nobody on it came back
-    **24 of 24 ACTIVE_PLAY at confidence 1.000** through this path, while the same footage
-    through `worker.run_slot` - which already had the gates - returned 13 of 13 empty
-    minutes correct. The two paths disagreed because one of them was still the probe alone.
+    Each frame goes to ``classify(frame, polygon=polygon, previous=previous)``, where
+    ``previous`` is the previous sample - only this loop sees the samples in order, and the
+    motion cue needs them. ``play_min`` is the rule's (`RuleConfig.play_min`): smoothing
+    never turns a frame with fewer people than that into play.
 
     A frame that cannot be decoded is recorded in ``unreadable`` and skipped rather than
     filled in, for the same reason `worker.run_slot` counts a missed minute instead of
@@ -300,11 +272,11 @@ def analyse_clip(
             widened = True
 
         raw: list[tuple[float, Class3, float]] = []
-        # Per sample, parallel to `raw`: what the probe said before the gates, and what the
-        # detector found. `None` throughout when no gate ran.
-        probed: list[Class3 | None] = []
-        counted: list[tuple[int | None, bool | None]] = []
+        # Per sample, parallel to `raw`: what the detector found and the motion cue. `None`
+        # where the classifier reported no counts.
+        counted: list[tuple[int | None, bool | None, float | None]] = []
         unreadable: list[float] = []
+        undecided: list[float] = []
         previous = None
         expected = (min(max_samples, max(1, math.ceil(duration_s / interval_s - 1e-9)))
                     if duration_s > 0 else max_samples)
@@ -317,36 +289,33 @@ def analyse_clip(
                     break  # unknown length: the first unreadable point is the end
                 unreadable.append(t)
             else:
-                state, confidence = classify(frame)
-                state = Class3(state)
-                before = state
-                n_people: int | None = None
-                saw_ball: bool | None = None
-                cue: float | None = None
-                # Motion first, then people: the cheaper gate may already have settled it,
-                # and both only ever weaken a verdict, so the order changes cost not outcome.
-                # This mirrors `worker.run_slot` deliberately - two orders would be two
-                # systems.
-                if motion_gate is not None and previous is not None:
-                    state, cue = motion_gate.apply(state, previous, frame, polygon)
-                if person_gate is not None:
-                    state, found = person_gate.inspect(state, frame, polygon)
-                    if found is not None:
-                        n_people, saw_ball = found.people, found.ball
+                result = classify(frame, polygon=polygon, previous=previous)
                 previous = frame
-                raw.append((t, state, float(confidence)))
-                probed.append(before if before is not state else None)
-                counted.append((n_people, saw_ball, cue))
+                if isinstance(result, tuple):
+                    state, confidence = result
+                    n_people, saw_ball, cue = None, None, None
+                elif result.decided:
+                    state, confidence = result.class3, result.confidence
+                    n_people, saw_ball, cue = result.people, result.ball, result.motion
+                else:
+                    undecided.append(t)
+                    state = None
+                if state is not None:
+                    raw.append((t, Class3(state), float(confidence)))
+                    counted.append((n_people, saw_ball, cue))
             if progress is not None:
-                done = len(raw) + len(unreadable)
+                done = len(raw) + len(unreadable) + len(undecided)
                 progress(done, max(expected, done))
             t += interval_s
-            if len(raw) + len(unreadable) >= max_samples and duration_s <= 0:
+            if len(raw) + len(unreadable) + len(undecided) >= max_samples and duration_s <= 0:
                 break
     finally:
         capture.release()
 
     if not raw:
+        if undecided:
+            raise ValueError(
+                f"no frame of {source.name} could be decided: the detector did not run")
         raise ValueError(
             f"no frame of {source.name} could be read; it may be truncated or an "
             f"unsupported codec"
@@ -357,13 +326,12 @@ def analyse_clip(
 
     states = [state for _, state, _ in raw]
     smoothed = _respect_the_count(majority_smooth(states, window), states,
-                                  [n for n, _, _ in counted],
-                                  getattr(person_gate, "play_min", 5))
+                                  [n for n, _, _ in counted], play_min)
     samples = [
         ClipSample(index=i, t_s=t, raw=state, confidence=conf, smoothed=smooth,
-                   probed=was, people=n, ball=b, motion=cue)
-        for i, ((t, state, conf), smooth, was, (n, b, cue))
-        in enumerate(zip(raw, smoothed, probed, counted, strict=True))
+                   people=n, ball=b, motion=cue)
+        for i, ((t, state, conf), smooth, (n, b, cue))
+        in enumerate(zip(raw, smoothed, counted, strict=True))
     ]
     return ClipAnalysis(
         duration_s=duration_s,
@@ -372,5 +340,6 @@ def analyse_clip(
         samples=samples,
         segments=_segments(samples, duration_s, interval_s),
         unreadable=unreadable,
+        undecided=undecided,
         interval_widened=widened,
     )

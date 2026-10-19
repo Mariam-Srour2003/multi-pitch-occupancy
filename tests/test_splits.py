@@ -16,9 +16,9 @@ from pitch_occupancy.data.splits import (
     DEFAULT_FINAL_VENUES,
     DEFAULT_SPLIT_DIR,
     LEGACY_GROUP_KEY,
-    check_split,
     SYNTHETIC_SOURCE,
     Split,
+    check_split,
     development_rows,
     final_test_rows,
     grouped_split,
@@ -30,7 +30,6 @@ from pitch_occupancy.data.splits import (
     temporal_split,
     write_split,
 )
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -105,7 +104,9 @@ def test_a_missing_lock_file_raises_instead_of_unlocking_everything(tmp_path) ->
 
 def test_splits_never_leak_the_locked_venue(rows, monkeypatch) -> None:
     """The guard must hold for every strategy, not just the one that was remembered."""
-    monkeypatch.setattr("pitch_occupancy.data.splits.load_final_venues", lambda *a, **k: frozenset({"v4"}))
+    monkeypatch.setattr(
+        "pitch_occupancy.data.splits.load_final_venues", lambda *a, **k: frozenset({"v4"})
+    )
     for split in (
         grouped_split(rows),
         random_split(rows),
@@ -591,7 +592,7 @@ def test_distinct_rows_keeps_one_frame_per_scene(tmp_path):
         w.writeheader()
         # three scenes: two frames, three frames, one frame
         for f, s in zip([r.file for r in rows],
-                        ["s1", "s1", "s2", "s2", "s2", "s3"]):
+                        ["s1", "s1", "s2", "s2", "s2", "s3"], strict=True):
             w.writerow({"file": f, "scene_id": s})
 
     kept = distinct_rows(rows, path=p)
@@ -668,7 +669,7 @@ def test_the_cap_spends_its_budget_on_scenes_before_second_frames(tmp_path):
     rows = [row(f"f{i}.jpg", slot="one") for i in range(6)]
     # f0..f3 are all the same moment; f4 and f5 are two others
     scenes = _scenes(tmp_path, dict(zip([r.file for r in rows],
-                                        ["s1", "s1", "s1", "s1", "s2", "s3"])))
+                                        ["s1", "s1", "s1", "s1", "s2", "s3"], strict=True)))
     kept = [r.file for r in balanced_rows(rows, per_video=3, path=scenes)]
     assert kept == ["f0.jpg", "f4.jpg", "f5.jpg"], "one per scene first, then seconds"
 
@@ -677,7 +678,8 @@ def test_the_cap_falls_back_to_more_of_a_scene_once_every_scene_has_one(tmp_path
     from pitch_occupancy.data.splits import balanced_rows
 
     rows = [row(f"f{i}.jpg", slot="one") for i in range(4)]
-    scenes = _scenes(tmp_path, dict(zip([r.file for r in rows], ["s1", "s1", "s1", "s2"])))
+    names = ["s1", "s1", "s1", "s2"]
+    scenes = _scenes(tmp_path, dict(zip([r.file for r in rows], names, strict=True)))
     kept = [r.file for r in balanced_rows(rows, per_video=3, path=scenes)]
     assert kept == ["f0.jpg", "f1.jpg", "f3.jpg"], "s1's second frame beats nothing"
 

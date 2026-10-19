@@ -1,16 +1,15 @@
-"""Stream the analysis of one or more still images, showing where the evidence was.
+"""Stream the analysis of one or more still images, showing what the detector found.
 
 The still-image counterpart to `clip_walkthrough.py`, and built to the same shape: one
 newline-delimited JSON record per image, flushed before the next is computed, so the page
-renders image *k* while the backbone is still on *k+1*. What a reader watches is the model
+renders image *k* while the detector is still on *k+1*. What a reader watches is the model
 working rather than an animation over an answer that was already complete.
 
 **Why a separate page rather than a single-frame clip.** A clip carries time, and time is
 what `clip_analysis` uses to correct itself: an isolated disagreeing sample can be overruled
 by the samples either side of it. A set of stills has no neighbours - two uploads may be
 minutes or venues apart, and nothing in the request says which. So every prediction here
-stands on its own evidence, and that is the honest thing for the page to show: the evidence
-map stops being an illustration of a verdict and becomes the only basis for it.
+stands on its own detections, and there is no movement cue: a still has no predecessor.
 
 **JSON with base64, not a multipart form.** `clip_review.py` takes raw bytes for one video
 precisely to avoid the `python-multipart` dependency, and a batch of images needs names and
@@ -32,8 +31,8 @@ import binascii
 import json
 import logging
 import shutil
+import time
 from collections.abc import Iterator
-from dataclasses import replace
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -41,11 +40,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from pitch_occupancy.api import clip_review, limits
-from pitch_occupancy.api.clip_review import _gates
-from pitch_occupancy.api.clip_walkthrough import _jpeg
+from pitch_occupancy.api.clip_walkthrough import EXPLAIN_ALL, _jpeg, _verdict
 from pitch_occupancy.api.limits import parse_model, read_json
 from pitch_occupancy.vision import roi as _roi
-from pitch_occupancy.vision.people import PersonGate
 
 __all__ = ["router", "MAX_IMAGES", "MAX_IMAGE_BYTES", "MAX_TOTAL_BYTES"]
 
@@ -61,7 +58,7 @@ def _classifier():
     for why a name copied at import was the wrong seam."""
     return clip_review._classifier()
 
-#: A batch this size takes a couple of minutes to explain, which is about as long as anyone
+#: A batch this size takes a couple of minutes to run, which is about as long as anyone
 #: watches. Past that the page stops being a walkthrough and becomes a job.
 MAX_IMAGES: int = 32
 
@@ -118,19 +115,24 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
                  redact: bool, camera: str = "",
                  polygon: list[list[float]] | None = None,
                  polygons: list[list[list[float]] | None] | None = None,
-                 wholes: list[bool] | None = None) -> Iterator[str]:
+                 wholes: list[bool] | None = None,
+                 max_images: int = MAX_IMAGES) -> Iterator[str]:
     """One NDJSON line per image. A generator, because streaming it is the whole point.
+
+    At most ``max_images`` are read, here as well as in the route, so a caller that bypasses
+    the route cannot start an unbounded run.
 
     ``names`` carries what the user called each file. The paths on disk are prefixed with an
     index to stop two uploads of the same name from colliding, and reporting that prefixed
     name back would show the reader a filename they never chose.
     """
+    import cv2
+
     from pitch_occupancy.config import settings
+    from pitch_occupancy.pipeline import resolve_model_key
     from pitch_occupancy.vision import roi
-    from pitch_occupancy.vision.explain import overlay_heatmap
     from pitch_occupancy.vision.overlay import detector_pane
     from pitch_occupancy.vision.rules import RuleConfig, clause_status, rule_table
-    from pitch_occupancy.vision.walkthrough import walk_images
 
     # Whether a boundary was actually found is reported rather than assumed. Asking for one
     # that does not exist and silently analysing the whole frame would produce precisely the
@@ -170,21 +172,11 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
     # stored camera would quietly reinstate the boundary image by image.
     if wholes and all(wholes[i] if i < len(wholes) else False for i in range(len(paths))):
         polygon = None
-    classifier = _classifier()
-    # The person gate, which is the one deployed overrule a still can carry: the motion gate
-    # compares a frame to the previous sample of the same camera and a folder of stills has
-    # no such thing. That absence is reported in the meta record rather than left to be
-    # inferred, because on this project's footage the motion gate is what catches most empty
-    # frames - so a still is judged with the weaker half of the deployed path.
-    _, person_gate = _gates()
-    # Stills only: people found on the pitch mean it is not empty. See
-    # `PersonGate.people_overrule_empty` for why this is not on for clips or the worker.
-    if isinstance(person_gate, PersonGate):
-        person_gate = replace(person_gate, people_overrule_empty=True)
+    classify = _classifier()
+    detector = resolve_model_key(settings.default_model_key or None)
     cfg = RuleConfig.load(settings.rules_path)
     yield json.dumps({
-        "type": "meta", "backbone": getattr(classifier, "backbone", "?"),
-        "n_train": getattr(classifier, "n_train", 0), "redacted": redact,
+        "type": "meta", "redacted": redact,
         "n_submitted": len(paths), "camera": camera or None,
         "boundary": bool(polygon) or any(polygons or ()),
         "boundary_source": ("drawn" if drawn else "stored")
@@ -196,8 +188,7 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
         #: the same on a page that only counts outlines, and they are not the same claim.
         "n_whole_frame": sum(1 for one in (wholes or ()) if one),
         "coverage": roi.coverage(polygon) if polygon else 1.0,
-        "gated": person_gate is not None, "motion_gate": False,
-        "detector": cfg.detector,
+        "detector": detector,
         # The decision table with this deployment's numbers in it, sent once rather than
         # typed into the page. `require_boundary=False` because that is what `detector_pane`
         # passes - the whole frame is counted here, so row 2 cannot fire and the page must
@@ -209,54 +200,43 @@ def walk_records(paths: list[Path], *, names: list[str], explain_n: int,
     }) + "\n"
 
     seen = 0
-    gated = 0
-    for shot in walk_images(paths, classifier, explain_n=explain_n, redact=redact,
-                            polygon=polygon, polygons=polygons, wholes=wholes,
-                            person_gate=person_gate):
-        seen += 1
-        gated += shot.probed is not None
+    for index, path in enumerate(paths[:max_images]):
+        image = cv2.imread(str(path), cv2.IMREAD_COLOR)
+        if image is None:
+            continue  # not an image; counted in `n_unreadable` rather than guessed at
+        if wholes and index < len(wholes) and wholes[index]:
+            outline = None
+        elif polygons and index < len(polygons) and polygons[index]:
+            outline = polygons[index]
+        else:
+            outline = polygon
+        began = time.perf_counter()
+        predicted, confidence, people, ball, _ = _verdict(classify(image, polygon=outline))
+        explained = explain_n == EXPLAIN_ALL or seen < explain_n
+        height, width = image.shape[:2]
         record = {
-            "type": "shot", "index": shot.index,
-            "name": names[shot.index] if shot.index < len(names) else shot.name,
-            "predicted": shot.predicted, "confidence": shot.confidence,
-            "elapsed_ms": round(shot.elapsed_ms, 1), "explained": shot.explained,
-            "width": shot.width, "height": shot.height,
-            "probed": shot.probed, "n_inside": shot.n_inside, "ball": shot.ball,
+            "type": "shot", "index": index,
+            "name": names[index] if index < len(names) else path.name,
+            "predicted": predicted, "confidence": confidence, "explained": explained,
+            "width": width, "height": height, "n_inside": people, "ball": ball,
+            "boundary": bool(outline),
         }
-        if shot.explained:
-            record.update({
-                "frame": _jpeg(shot.frame_bgr),
-                "heat": _jpeg(overlay_heatmap(shot.frame_bgr, shot.evidence,
-                                             polygon=shot.polygon)),
-                "grid": list(shot.grid or ()),
-                "score_from_map": shot.score_from_map,
-                "score_direct": shot.score_direct,
-                "reconstruction_error": shot.reconstruction_error,
-                "n_people": shot.n_people,
-                "evidence_on_people": shot.evidence_on_people,
-                "people_area": shot.people_area,
-                "focus_ratio": shot.focus_ratio,
-                # Zero whenever a boundary is in force, and on the page for exactly
-                # that reason: the doubt this answers is that the evidence map showed
-                # the model reading past the outline.
-                "evidence_outside": shot.evidence_outside,
-            })
-            # The other model, on the same frame. The probe explains itself as a heatmap
-            # because a logistic fit on pooled features has no objects in it; the detector
-            # explains itself as a box round each person and a ring round the ball. Both
-            # go on the page, because "it is reading the floodlights" and "it found six
-            # people and a ball" are only distinguishable side by side.
-            boxes, found = detector_pane(shot.raw_bgr, polygon=shot.polygon,
+        if explained:
+            # A box round each person and a ring round the ball, the boundary drawn, and
+            # anything found outside it dimmed rather than dropped.
+            boxes, found = detector_pane(image, polygon=outline, model_key=detector,
                                          redact=redact)
             record["boxes"] = _jpeg(boxes)
             record["detector"] = found
+        record["elapsed_ms"] = round((time.perf_counter() - began) * 1000, 1)
+        seen += 1
         yield json.dumps(record) + "\n"
 
     # `n` and `n_submitted` are both reported because they can differ: a file OpenCV cannot
     # decode yields nothing rather than a guess, and a page that showed only the count it
     # managed would silently drop the difference.
-    yield json.dumps({"type": "done", "n": seen, "n_unreadable": len(paths) - seen,
-                      "n_gated": gated}) + "\n"
+    yield json.dumps({"type": "done", "n": seen,
+                      "n_unreadable": min(len(paths), max_images) - seen}) + "\n"
 
 
 def _stage(batch: BatchIn) -> tuple[Path, list[Path]]:
@@ -310,9 +290,9 @@ async def walkthrough(
     redact: bool = Query(False),
     camera: str = Query("", max_length=120),
 ) -> StreamingResponse:
-    """Stream the analysis of a batch of stills, with an evidence map for each.
+    """Stream the analysis of a batch of stills, with the detector's drawing for each.
 
-    Decoded to a temporary directory rather than held as arrays, so `walk_images` reads them
+    Decoded to a temporary directory rather than held as arrays, so `walk_records` reads them
     the same way every other caller in this project reads a frame - through `cv2.imread`,
     which is also what decides whether a file is an image at all. The directory is removed
     when the response ends, however it ends - `CleanupStreamingResponse` closes the generator
@@ -356,9 +336,8 @@ async def walkthrough(
             # runs, so anything else escaped as an unhandled ASGI error *mid-stream*. The
             # client then saw a truncated NDJSON body with no `error` record in it: the page
             # spun forever, and the only account of what went wrong was in the server
-            # console. Observed for real when Windows Application Control blocked torch's
-            # `_C` DLL and the model failed to load - an `ImportError`, on the very first
-            # record, before a single image had been processed.
+            # console. Observed when Windows Application Control blocked torch's `_C` DLL and
+            # the model failed to load - an `ImportError`, on the very first record.
             #
             # The model load is the most likely thing to fail here and the least likely to
             # raise `ValueError`, so the narrow catch was wrong in exactly the case that
@@ -368,7 +347,7 @@ async def walkthrough(
                 "type": "error",
                 "detail": f"{type(exc).__name__}: {exc}",
                 # The page cannot usefully retry a missing model, and telling someone to
-                # re-upload when the backbone will not load wastes their time.
+                # re-upload when the detector will not load wastes their time.
                 "fatal": isinstance(exc, ImportError),
             }) + "\n"
         finally:

@@ -3,7 +3,7 @@
 When an operator disagrees with a verdict they override it, and that override is the most
 valuable label this system will ever get: a human looked at a real hour of real footage and
 said what actually happened. Those slots' evidence frames are copied back into the dataset
-so the head can be re-fitted on them.
+so the detector settings and the rule can be checked against them.
 
 **Frames are not filed under the corrected class, and it is a correctness argument.**
 Copying straight into ``data/dataset/_incoming/<corrected_class>/`` cannot be done soundly,
@@ -28,23 +28,21 @@ inert unless ``confirm=True``, and a destination that already exists is skipped 
 replaced. The frames being copied are the only copies of evidence for a disputed billing
 decision.
 
-The re-fit itself
------------------
+Using the frames
+----------------
 
-Re-fitting is cheap and that is the point of the frozen-backbone design: features are cached
-per frame, so adding *n* corrected frames costs one embedding pass over *n* images and then a
-logistic regression over the whole cache, which is seconds rather than hours. The loop is::
+The loop is::
 
     pitch retraining --apply      # stage the overridden slots' frames
     <a human files them into 1_empty / 2_playing / 3_maintenance>
     pitch manifest                # re-index
-    pitch cache                   # embed only the new frames
-    <re-fit the head>
+    uv run python scripts/evaluate_rules.py detect   # count the new frames
+    uv run python scripts/evaluate_rules.py score    # re-check the rule
 
 **The feedback loop is worth naming rather than leaving implicit.** Operators override the
 verdicts they notice, and they notice the ones that look wrong, so this pipeline preferentially
-harvests the model's own errors. That is exactly what makes it valuable for training and
-exactly what makes it a biased sample: a head re-fitted on it is fitted on a corrected error
+harvests the model's own errors. That is exactly what makes it valuable for tuning and
+exactly what makes it a biased sample: a rule tuned on it is tuned on a corrected error
 distribution, not on the operating distribution, and its accuracy on that data is not an
 estimate of anything. Any evaluation must stay on the held-out sets, never on harvested
 frames. Recorded here because the temptation to report "accuracy after retraining" on this

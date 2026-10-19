@@ -8,14 +8,10 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Hashable, Sequence
-from typing import TypeVar
 
 __all__ = ["majority_smooth"]
 
-S = TypeVar("S", bound=Hashable)
-
-
-def majority_smooth(states: Sequence[S], window: int) -> list[S]:
+def majority_smooth[S: Hashable](states: Sequence[S], window: int) -> list[S]:
     """Majority vote in a sliding window of ``window`` entries centred on each position.
 
     An isolated disagreeing entry between two agreeing neighbours is replaced by them, which

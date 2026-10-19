@@ -105,7 +105,8 @@ def test_the_badge_names_the_state_and_the_count_and_the_state_sets_its_colour()
     empty = overlay.draw_verdict(frame(), verdict_for([]))
     corner = {tuple(int(c) for c in px) for px in empty[0:3, 0:3].reshape(-1, 3)}
     assert overlay.STATE_COLOURS[MinuteState.EMPTY] in corner
-    assert overlay.STATE_COLOURS[MinuteState.ACTIVE_PLAY] != overlay.STATE_COLOURS[MinuteState.EMPTY]
+    colours = overlay.STATE_COLOURS
+    assert colours[MinuteState.ACTIVE_PLAY] != colours[MinuteState.EMPTY]
 
 
 def test_an_uncertain_verdict_still_draws_and_is_its_own_colour() -> None:
@@ -149,7 +150,7 @@ def test_the_whole_frame_gets_a_floor_of_blur_even_where_nobody_was_found() -> N
 
 
 def test_redact_frame_is_the_shared_two_layer_rule() -> None:
-    from pitch_occupancy.vision.explain import redact_frame
+    from pitch_occupancy.vision.redact import redact_frame
 
     original = noisy()
     out = redact_frame(original, [(20, 100, 60, 180)])
@@ -161,7 +162,7 @@ def test_redact_frame_is_the_shared_two_layer_rule() -> None:
 
 
 def test_an_even_blur_kernel_is_accepted_rather_than_raising() -> None:
-    from pitch_occupancy.vision.explain import redact_frame
+    from pitch_occupancy.vision.redact import redact_frame
 
     assert redact_frame(noisy(), [], floor_kernel=20).shape == (200, 400, 3)
 
@@ -188,7 +189,7 @@ def test_it_draws_at_any_frame_size(size) -> None:
 def test_publishable_pixelates_people_outside_the_boundary_too() -> None:
     """The redaction boxes were the *counted* people only, so everyone outside the outline got
     the floor blur alone - 9 boxes pixelated on a frame with 17 people (audit RX-3)."""
-    from pitch_occupancy.vision.explain import redact_frame
+    from pitch_occupancy.vision.redact import redact_frame
 
     original = noisy()
     inside, outside = person(20, 100, 60, 180), person(300, 20, 360, 180)

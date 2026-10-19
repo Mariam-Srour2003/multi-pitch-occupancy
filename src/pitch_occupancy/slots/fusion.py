@@ -146,6 +146,12 @@ class PitchVerdict:
         return max(pool, key=lambda entry: entry[2])[0]
 
 
+def _total(values) -> int | None:
+    """The sum of the values that were measured, or None when none was."""
+    known = [v for v in values if v is not None]
+    return sum(known) if known else None
+
+
 def fuse_pitch(observations: dict[str, FrameVerdict], cfg: RuleConfig) -> PitchVerdict:
     """Sum the cameras' counts and decide once for the pitch.
 
@@ -192,11 +198,18 @@ def fuse_pitch(observations: dict[str, FrameVerdict], cfg: RuleConfig) -> PitchV
         people=tuple(chain.from_iterable(c.people for c in counts)),
         balls=tuple(chain.from_iterable(c.balls for c in counts)),
         bounded=True,
+        edge_people=sum(c.edge_people for c in counts),
+        # Movement is per person, so the cameras' matches add up like their counts.
+        people_matched=_total(c.people_matched for c in counts),
+        people_moved=_total(c.people_moved for c in counts),
     )
     motions = [v.motion for v in scored.values() if v.motion is not None]
     motion = max(motions) if motions else None
+    # The darkest camera speaks: a pitch half of which is too dark to see is not shown empty.
+    lights = [v.brightness for v in scored.values() if v.brightness is not None]
+    brightness = min(lights) if lights else None
 
-    verdict = decide(merged, motion=motion, cfg=cfg)
+    verdict = decide(merged, motion=motion, cfg=cfg, brightness=brightness)
     trace = [f"{cam}: {v.people} inside" + (", ball seen" if v.ball else "")
              for cam, v in sorted(scored.items())]
     trace += list(verdict.trace)

@@ -33,7 +33,7 @@ class CoverageCell:
 
 def coverage_cells(rows: list[ManifestRow]) -> list[CoverageCell]:
     counts = Counter((r.class3, r.lighting, r.venue) for r in rows)
-    return [CoverageCell(c, l, v, n) for (c, l, v), n in sorted(counts.items())]
+    return [CoverageCell(c, light, v, n) for (c, light, v), n in sorted(counts.items())]
 
 
 def empty_cells(rows: list[ManifestRow]) -> list[tuple[str, str]]:

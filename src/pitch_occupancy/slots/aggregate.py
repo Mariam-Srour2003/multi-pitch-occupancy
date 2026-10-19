@@ -105,7 +105,7 @@ UNCERTAIN = "UNCERTAIN"
 def _as_class3(state: Class3 | str | None) -> Class3 | None:
     """A per-minute state as its reporting class, or None for an abstention.
 
-    Accepts the three-class values the probe path has always written, the four folder names
+    Accepts the three-class values older rows hold, the four folder names
     the detector-first path speaks (`vision/rules.MinuteState`), ``"UNCERTAIN"`` and None.
     """
     if state is None or state == UNCERTAIN:

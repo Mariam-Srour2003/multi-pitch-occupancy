@@ -161,3 +161,65 @@ clearing it now and then is enough. Camera passwords are not printed.
   (`docs/runbook.md`, "Disk full").
 - It does not alert anyone when the worker stops. The status card shows it; checking the card
   is part of the daily check (`docs/cameras.md`).
+
+## The web server (pages and playground checks)
+
+The pages **and the playground checks** run in the web server, `pitch serve`. It has to start
+at boot too, or no playground is checked. Run it the same way as the worker: a restart
+script on Windows, or a systemd unit on Linux. On Linux the unit looks like this:
+
+```ini
+[Unit]
+Description=Pitch occupancy - pages and playground checks
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/pitch-occupancy
+EnvironmentFile=/opt/pitch-occupancy/.env
+ExecStart=/usr/local/bin/uv run pitch serve --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=10
+User=pitch
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+On Windows, save a `run_server.bat` next to `run_worker.bat` with the same restart loop and
+`uv run pitch serve` as its command, and add a second Task Scheduler task for it.
+
+**Never `--reload` in production**, and never start uvicorn directly. `pitch serve` refuses a
+network address without a password and refuses a password under 10 characters.
+
+### Reaching it from other computers safely
+
+The sign-in is HTTP Basic: the password travels with every request, encoded but not encrypted.
+On anything but this machine, put HTTPS in front. With [Caddy](https://caddyserver.com) on the
+same machine, the whole `Caddyfile` is:
+
+```
+pitch.example.local {
+    tls internal
+    reverse_proxy 127.0.0.1:8000
+}
+```
+
+Then set these in `.env`:
+
+```
+PITCH_ACCESS_PASSWORD=<at least 10 characters>
+PITCH_ALLOWED_HOSTS=pitch.example.local
+```
+
+The server keeps listening on `127.0.0.1`, and only Caddy is reachable from the network.
+`PITCH_ALLOWED_HOSTS` lists the names people type to reach it. Without a password, the pages
+answer only to this machine's own names, which protects against DNS rebinding. Ten different
+wrong passwords from one address lock that address out for five minutes. Caddy passes the
+client's address on (`X-Forwarded-For`), and the server trusts it only from 127.0.0.1. A proxy
+that does not pass it would make everyone share one address, so one person guessing would
+lock out everybody.
+

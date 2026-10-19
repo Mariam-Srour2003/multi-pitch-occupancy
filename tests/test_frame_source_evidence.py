@@ -136,9 +136,8 @@ def test_reading_past_the_end_returns_none_rather_than_raising(slot_videos) -> N
 
 
 def test_unknown_camera_raises(slot_videos) -> None:
-    with VideoSlotSource(slot_videos) as src:
-        with pytest.raises(KeyError, match="unknown camera"):
-            src.read("camZ", 0)
+    with VideoSlotSource(slot_videos) as src, pytest.raises(KeyError, match="unknown camera"):
+        src.read("camZ", 0)
 
 
 def test_slot_length_is_the_shortest_camera(tmp_path: Path) -> None:

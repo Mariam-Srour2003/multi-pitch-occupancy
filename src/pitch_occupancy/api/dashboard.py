@@ -296,7 +296,9 @@ async function load(){
   document.getElementById("slots").innerHTML = slots.length ? slots.map(s => `<tr>
       <td class="mono">${esc(s.slot_id)}</td>
       <td>${pill(s.is_overridden ? s.override_status : s.status)}${
-        s.is_overridden ? ' <span class="mono" style="color:var(--ink-3)">corrected</span>' : ""}</td>
+        s.is_overridden
+          ? ' <span class="mono" style="color:var(--ink-3)">corrected</span>'
+          : ""}</td>
       <td class="num">${s.play_ratio.toFixed(2)}</td>
       <td><span class="bar"><i style="width:${(s.play_ratio * 100).toFixed(0)}%"></i></span></td>
       <td class="num">${s.n_samples}</td>

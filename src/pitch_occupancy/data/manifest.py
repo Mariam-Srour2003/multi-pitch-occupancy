@@ -221,7 +221,8 @@ def build_manifest(
             # globally, because the A/B <-> physical view mapping is not stable across
             # days in the source exports.
             hhmm = str(parsed["slot_time"]).replace(":", "")
-            camera_tag = f"slot_{str(parsed['slot_date']).replace('-', '')}_{hhmm}_{parsed['camera']}"
+            slot_date = str(parsed["slot_date"]).replace("-", "")
+            camera_tag = f"slot_{slot_date}_{hhmm}_{parsed['camera']}"
             # Both cameras of one pitch see the SAME scene at the same moment, so they
             # must never straddle a split boundary - the slot id deliberately omits the
             # camera.

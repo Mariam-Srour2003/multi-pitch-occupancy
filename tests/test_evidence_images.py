@@ -282,7 +282,7 @@ def test_a_path_relative_to_the_project_root_resolves(tmp_path, monkeypatch) -> 
                 n_samples, mean_confidence, evidence_paths, evaluated_at, model_key)
                VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
             ("pytest_slot", "USED", "test", 1.0, 0.0, 0.0, 1, 0.9,
-             json.dumps([str(relative)]), "2026-09-11T00:00:00+00:00", "dinov2"),
+             json.dumps([str(relative)]), "2026-09-11T00:00:00+00:00", "yolov8n"),
         )
         conn.commit()
         r = TestClient(app).get("/api/v1/slots/pytest_slot/evidence/0")
@@ -299,7 +299,7 @@ def test_a_path_relative_to_the_project_root_resolves(tmp_path, monkeypatch) -> 
 
 def test_the_saved_frame_is_the_winner_even_when_the_empty_half_is_more_confident(
         tmp_path) -> None:
-    """The probe path picked the most confident camera of *any* class. With the empty half
+    """Picking the most confident camera of *any* class is wrong. With the empty half
     read at 0.97 and the playing half at 0.88, a play minute saved the empty half."""
     def confident_empty(image: np.ndarray) -> tuple[Class3, float]:
         if image[0, 0, 0] > 100:

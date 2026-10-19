@@ -54,7 +54,6 @@ def client(tmp_path, monkeypatch) -> TestClient:
     monkeypatch.setattr(settings, "data_dir", tmp_path / "data")
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
     monkeypatch.setattr(clip_review, "_classifier", lambda: _scripted)
-    monkeypatch.setattr(clip_review, "_gates", lambda: (None, None))
     monkeypatch.setattr(clip_review, "_derive_boundary", lambda path: None)
     app = FastAPI()
     app.include_router(testing.router)
@@ -158,7 +157,7 @@ def test_two_cameras_run_through_the_detector_pipeline(client, tmp_path, monkeyp
     def pipeline() -> Pipeline:
         cfg = RuleConfig(burst_frames=1, require_ball=False)
         classifier = DetectorFirstClassifier(Detector(), cfg)
-        return Pipeline("scripted", "detector", classifier, require_boundary=False,
+        return Pipeline("scripted", classifier, require_boundary=False,
                         rules=cfg, classifier=classifier)
 
     monkeypatch.setattr(clip_pair, "_pipeline", pipeline)

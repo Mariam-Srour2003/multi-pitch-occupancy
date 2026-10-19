@@ -199,15 +199,15 @@ ALLOWED_MUTATING = {
     #: nothing reaches the database. Pinned by `test_the_pair_route_keeps_neither_file` in
     #: test_clip_pair.
     "/clip/pair/analyse",
-    #: The same analysis streamed step by step with its evidence maps. A POST for
+    #: The same analysis streamed step by step with the detector's boxes. A POST for
     #: the same reason and with the same guarantee - the upload is removed in the streaming
     #: generator's `finally` rather than the handler's, because the body outlives the
-    #: handler. Pinned by `test_the_walkthrough_deletes_the_upload_after_streaming`.
+    #: handler. Pinned by the upload tests in test_upload_limits.
     "/clip/walkthrough",
     #: The same analysis over still images. A POST because the body carries the
     #: images, not because it keeps them: they are written to a temp directory, read, and
     #: removed in the streaming generator's `finally`, and nothing reaches the database.
-    #: Pinned by `test_the_uploads_are_deleted_after_streaming` in test_image_walkthrough.
+    #: Pinned by the upload tests in test_upload_limits.
     #:
     #: It was added without ever appearing here, because this check could not see `async def`
     #: routes - see `_http_methods`. That is the entry's own small lesson.
@@ -381,7 +381,7 @@ def test_the_preview_saves_nothing() -> None:
     TestClient(app).post("/api/v1/roi/preview", json={
         "image": base64.b64encode(io.BytesIO(buf).getvalue()).decode(),
         "polygon": [[0.2, 0.2], [0.8, 0.2], [0.8, 0.8], [0.2, 0.8]],
-        # `explain=False` keeps this off the backbone: the property under test is whether
+        # `explain=False` keeps this off the detector: the property under test is whether
         # anything is persisted, and loading a model to establish it would make a guard
         # about writes into the slowest test in the file.
         "explain": False,

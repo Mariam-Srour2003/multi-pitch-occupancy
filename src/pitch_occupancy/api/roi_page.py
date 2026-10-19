@@ -1,23 +1,23 @@
 """The pitch boundary editor. Served at `/roi`; posts to `/api/v1/roi/*`.
 
-Click the corners of the pitch, save it under a camera, and everything outside the outline
-is suppressed before the frame reaches the model. The reason it exists is the neighbouring
+Click the corners of the pitch, save it under a camera, and only people standing inside the
+outline are counted. The reason it exists is the neighbouring
 pitch: five-a-side pitches are built in rows, so a camera watching pitch 2 sees pitches 1 and
 3 down the sides of its frame, and a match on the next pitch over puts real players into
 frames where *this* pitch is empty.
 
 Two decisions shape the layout.
 
-**The preview runs the model twice and shows both answers.** The failure a boundary prevents
-is invisible in the verdict - the model is right about what is in frame and wrong about what
-was asked - so the editor puts the masked and unmasked predictions side by side with their
-evidence maps. That is how an operator sees the boundary working rather than being told it
-does, and it is also how they notice the opposite: masking is a distribution shift in itself,
-and a boundary that changes the verdict on a frame with no neighbour in it is doing harm.
+**The preview runs the rule twice and shows both answers.** The failure a boundary prevents
+is invisible in the verdict - the detector is right about what is in frame and wrong about
+what was asked - so the editor puts the inside-the-outline and whole-frame verdicts side by
+side with the detector's drawing of each. That is how an operator sees the boundary working
+rather than being told it does, and it is also how they notice the opposite: a boundary that
+changes the verdict on a frame with no neighbour in it is cutting off part of the pitch.
 
 **Drawing is instant, classifying is not.** Every click redraws the outline and updates the
 coverage figure locally, on a canvas, with no request at all. The model runs only when asked,
-because a backbone pass per click would make the editor unusable and teach the operator to
+because a detector pass per click would make the editor unusable and teach the operator to
 avoid the one feature that tells them whether the outline is right.
 """
 
@@ -149,7 +149,7 @@ button.ghost{font:600 12px Archivo,sans-serif;padding:7px 11px;border-radius:6px
 neighbours down the sides of the frame &mdash; and a match on the next pitch over puts real
 players into frames where <b>this</b> pitch is empty. The model is right about what it sees
 and wrong about what you asked. Draw the outline of the pitch this camera is responsible
-for, and everything outside it is suppressed before the frame reaches the model.</p>
+for, and only the people standing inside it are counted.</p>
 
 <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a frame or video">
   <strong>Drop a frame or a video from this camera here, or click to choose</strong>
@@ -179,19 +179,6 @@ for, and everything outside it is suppressed before the frame reaches the model.
     </div>
 
     <div class="panel">
-      <h3>Outside the outline</h3>
-      <label for="fill">Fill with</label>
-      <select id="fill">
-        <option value="black" selected>black &mdash; hardest edge</option>
-        <option value="blur">blur &mdash; keeps statistics plausible</option>
-        <option value="mean">mean colour &mdash; gentlest edge</option>
-      </select>
-      <p style="font-size:12px;color:var(--ink-3);margin:8px 0 0">Black is what this project
-      has always done. A large black region is something no pretraining set contains, so try
-      the others if masking moves a verdict it should not.</p>
-    </div>
-
-    <div class="panel">
       <h3>Save it against a camera</h3>
       <label for="camera">Camera</label>
       <input type="text" id="camera" placeholder="venue_01/camera_A" autocomplete="off">
@@ -209,20 +196,20 @@ for, and everything outside it is suppressed before the frame reaches the model.
 
 <section id="result">
   <h2>What the boundary changed</h2>
-  <p class="sub2">The model run twice on this frame: once inside the outline, once on the
-  whole frame. <b>Both are shown on purpose.</b> If the boundary is working, the two differ
-  on exactly the frames a neighbour was in, and the evidence moves off the edge and onto the
-  pitch. If they differ on a frame with no neighbour in it, the mask itself moved the
-  prediction &mdash; which is a reason to try another fill, not to trust the result.</p>
+  <p class="sub2">The rule run twice on this frame: counting only inside the outline, and
+  over the whole frame. <b>Both are shown on purpose.</b> If the boundary is working, the two
+  differ on exactly the frames a neighbour was in, and the people on the neighbouring pitch
+  are drawn dimmed. If they differ on a frame with no neighbour in it, the outline is cutting
+  off part of this pitch.</p>
   <div class="note" id="changed"></div>
   <div class="compare" style="margin-top:12px">
-    <figure class="lead"><img id="i-in" alt="Evidence map inside the boundary">
+    <figure class="lead"><img id="i-in" alt="What the detector found, counting inside the boundary">
       <div class="cap"><div class="t">Inside the boundary</div>
         <div class="row"><span class="pill" id="p-in">&mdash;</span>
           <span class="m" id="c-in"></span></div>
         <div class="row" style="margin-top:6px"><span class="m" id="f-in"></span>
           <span class="m" id="n-in"></span></div></div></figure>
-    <figure><img id="i-wh" alt="Evidence map over the whole frame">
+    <figure><img id="i-wh" alt="What the detector found over the whole frame">
       <div class="cap"><div class="t">Whole frame, as before</div>
         <div class="row"><span class="pill" id="p-wh">&mdash;</span>
           <span class="m" id="c-wh"></span></div>
@@ -418,10 +405,9 @@ function fillSide(side,v){
   $('p-'+side).textContent=v.predicted;
   $('p-'+side).className='pill '+v.predicted;
   $('c-'+side).innerHTML='conf <b>'+v.confidence.toFixed(3)+'</b>';
-  $('f-'+side).innerHTML='focus <b>'+
-    (v.focus_ratio==null?'\\u2014':v.focus_ratio.toFixed(2)+'x')+'</b>';
+  $('f-'+side).innerHTML='ball <b>'+(v.ball?'yes':'no')+'</b>';
   $('n-'+side).innerHTML='people <b>'+(v.n_people==null?'\\u2014':v.n_people)+'</b>';
-  $('i-'+side).src=v.heat;
+  $('i-'+side).src=v.image;
 }
 
 $('check').onclick=async()=>{
@@ -433,7 +419,7 @@ $('check').onclick=async()=>{
   try{
     const r=await fetch('/api/v1/roi/preview',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({image:dataURL,polygon:pts,fill:$('fill').value,explain:true})});
+      body:JSON.stringify({image:dataURL,polygon:pts,explain:true})});
     const b=await r.json();
     if(!r.ok) throw new Error(b.detail||('HTTP '+r.status));
     fillSide('in',b.inside);fillSide('wh',b.whole);
@@ -443,8 +429,7 @@ $('check').onclick=async()=>{
       note.innerHTML='<b>The boundary changed the verdict</b> on this frame: '+
         b.whole.predicted+' over the whole frame, '+b.inside.predicted+' inside the '+
         'outline. If there is a neighbouring pitch in this frame, that is the boundary '+
-        'doing its job. If there is not, the mask moved the prediction on its own \\u2014 '+
-        'try a different fill before trusting it.';
+        'doing its job. If there is not, the outline is cutting off part of this pitch.';
     } else {
       note.className='note';
       note.innerHTML='<b>Same verdict either way</b> on this frame ('+b.inside.predicted+

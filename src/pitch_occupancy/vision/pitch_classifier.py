@@ -1,9 +1,7 @@
-"""The detector-first classifier: frames of one camera in, a per-minute observation out.
+"""The classifier: frames of one camera in, a per-minute observation out.
 
-`vision/classifier.ProbeClassifier` turns one frame into a class by embedding it. This turns a
-*burst* of frames into a count and lets `vision/rules.decide` turn the count into a state. The
-two are behind the same seam (`pipeline.Pipeline`) so the worker, the pages and the
-offline scripts do not know which they have - and the comparison between them is one argument.
+A *burst* of frames becomes a count, and `vision/rules.decide` turns the count into a state.
+It sits behind `pipeline.Pipeline`, so the worker, the pages and the scripts share one path.
 
 **What one observation is.** The detector runs on every frame of the burst (boxes only; the
 counting rule reads feet, not masks). `counting.count_inside` places each detection inside or
@@ -14,10 +12,17 @@ alone - masks change what a reader sees, never what is counted (`vision/detector
 
 **Two motion cues, kept apart.** The burst cue - frames about a second apart - is what the
 rule's thresholds are fitted at. The minute cue - this burst's last frame against the
-previous minute's - is `vision/motion.MotionGate`'s quantity at a different gap again, and is
-recorded for the conditions record without being read by any row. A threshold fitted at one
-gap applied at another is the mistake `motion.py` documents, and mixing the two in one field
-would invite it.
+previous minute's - is measured at a different gap again, and is recorded for the conditions
+record without being read by any row. A threshold fitted at one gap is wrong at another, and
+mixing the two in one field would invite that mistake.
+
+**Per-person movement** (`vision/movement.py`) and the **brightness** of the pitch are measured
+here too and handed to the rule: who moved between burst frames, and whether the picture is
+too dark for an empty count to be believed.
+
+**A burst stops early** once two frames agree on fewer people than a game needs: the count is
+a median, so the remaining frames cannot change the state. Most minutes are an empty pitch,
+so on a small machine this saves about a third of the detector's work.
 
 **`__call__` keeps the old contract, with its limits stated.** `worker.Classifier` returns a
 class and a confidence and cannot say "declined". Called on a still with no boundary this
@@ -62,20 +67,34 @@ class CameraObservation:
         return self.verdict.decided
 
 
+def _settled(counts: list[PitchCount], play_min: int, total: int) -> bool:
+    """Whether the median person count of the burst is already fixed below ``play_min``."""
+    if len(counts) < 2 or len(counts) >= total:
+        return False
+    seen = [c.people_inside for c in counts]
+    return seen[-1] < play_min and seen.count(seen[-1]) > total // 2
+
+
+def brightness(frame: np.ndarray, polygon: list[list[float]] | None) -> float:
+    """Mean grey level inside the boundary (or the whole frame without one), 0-255."""
+    import cv2
+
+    from pitch_occupancy.vision.counting import polygon_mask
+
+    small = cv2.resize(frame, (160, 90), interpolation=cv2.INTER_AREA)
+    grey = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+    mask = polygon_mask(polygon, grey.shape[:2])
+    if mask is not None and mask.any():
+        return float(grey[mask.astype(bool)].mean())
+    return float(grey.mean())
+
+
 class DetectorFirstClassifier:
     """A registered detector and a rule config, behind `worker.Classifier` and more."""
-
-    kind = "detector"
-    n_train = 0
 
     def __init__(self, detector: Detector, cfg: RuleConfig) -> None:
         self.detector = detector
         self.cfg = cfg
-
-    @property
-    def backbone(self) -> str:
-        """The name the pages print where the probe's backbone used to go."""
-        return self.detector.spec.key
 
     # --- the burst ------------------------------------------------------------------
 
@@ -99,6 +118,12 @@ class DetectorFirstClassifier:
 
         counts: list[PitchCount] = []
         for frame in frames:
+            # Not with `require_ball`: there a ball seen in the last frame can still decide.
+            if not cfg.require_ball and _settled(counts, cfg.play_min, len(frames)):
+                # The burst's count is a median, and two frames that agree on fewer people
+                # than a game needs fix it whatever the rest say. On a small CPU most minutes
+                # are an empty pitch, so this skips a third of the detector's work.
+                break
             found = self.detector.detect(frame, confidence=floor, imgsz=cfg.imgsz,
                                          tiles=cfg.tiles)
             if found is None:
@@ -110,6 +135,7 @@ class DetectorFirstClassifier:
                 min_height_at=min_height,
                 frame_bgr=frame if cfg.hi_vis_min_fraction is not None else None,
                 hi_vis_min_fraction=cfg.hi_vis_min_fraction,
+                edge_margin=cfg.edge_margin,
             ))
 
         count = persist(counts)
@@ -120,7 +146,8 @@ class DetectorFirstClassifier:
                         if len(frames) >= 2 else None)
         motion_minute = motion_cue(previous, frames[-1], polygon) if previous is not None else None
 
-        verdict = decide(count, motion=motion_burst, cfg=cfg, require_boundary=require_boundary)
+        verdict = decide(count, motion=motion_burst, cfg=cfg, require_boundary=require_boundary,
+                         brightness=brightness(frames[evidence_index], polygon))
         verdict = replace(verdict, polygon=polygon)
 
         # The overlay draws the evidence frame, so its instances are that frame's own - the
@@ -132,7 +159,8 @@ class DetectorFirstClassifier:
                                               imgsz=cfg.imgsz, tiles=cfg.tiles, masks=True)
             if with_masks:
                 masked = count_inside(with_masks, polygon, shape, person_conf=cfg.person_conf,
-                                      ball_conf=cfg.ball_conf, min_height_at=min_height)
+                                      ball_conf=cfg.ball_conf, min_height_at=min_height,
+                                      edge_margin=cfg.edge_margin)
                 instances = masked.people + masked.balls
         return CameraObservation(camera_id, verdict, frames=len(frames),
                                  evidence_index=evidence_index, instances=instances,

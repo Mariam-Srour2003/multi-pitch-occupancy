@@ -145,6 +145,17 @@ def _ensure_worker() -> None:
         _worker.start()
 
 
+#: Jobs that may wait at once. Each waiting upload holds its video on disk, so an unbounded
+#: queue is an unbounded disk.
+MAX_WAITING = 3
+
+
+def has_room() -> bool:
+    """Whether another job may be queued."""
+    with _lock:
+        return sum(1 for j in _jobs.values() if j.status == "queued") < MAX_WAITING
+
+
 def submit(kind: str, fn: Callable[[Progress], Any], label: str = "",
            on_cancel: Callable[[], None] | None = None) -> str:
     """Queue ``fn(progress)`` and return its job id. ``fn`` must return something JSON-able.

@@ -254,10 +254,7 @@ def analyse_pair(
 ) -> PairAnalysis:
     """Sample both videos at the same moments, observe each camera, and fuse them.
 
-    ``pipeline`` should be the detector-first one (`pipeline.assemble` with a detector key):
-    that path *counts*, so its fusion adds the halves. A probe pipeline is accepted and fuses
-    by strongest-activity-wins instead, which is `Pipeline.fuse`'s documented behaviour and has
-    no counts to add - the overlap check is then silent.
+    ``pipeline`` is `pipeline.assemble`'s: it *counts*, so its fusion adds the halves.
 
     ``progress``, when given, is called as ``progress(done, total)`` after each moment
     sampled, ``total`` being the expected number of moments.
@@ -317,7 +314,7 @@ def analyse_pair(
             if observations:
                 fused = pipeline.fuse(observations)
                 lower = (_if_overlapping(fused, observations, cfg)
-                         if pipeline.kind == "detector" and cfg is not None else None)
+                         if cfg is not None else None)
                 rows.append((t, tuple(sides), fused, lower))
             done += 1
             if progress is not None:

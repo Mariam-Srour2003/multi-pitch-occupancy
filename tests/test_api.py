@@ -34,12 +34,12 @@ def client(tmp_path: Path) -> TestClient:
     record_slot(
         conn, "s1", SlotVerdict(SlotStatus.USED, "play in 90%", 0.9, 0.1, 0.0, 60, 0.94),
         [Sample("camA", i, "C2_ACTIVE_PLAY", 0.94, f"2026-07-11T10:0{i}:00") for i in range(3)],
-        model_key="dinov2", evidence_paths=["a.jpg", "b.jpg", "c.jpg"],
+        model_key="yolov8n", evidence_paths=["a.jpg", "b.jpg", "c.jpg"],
     )
     record_slot(
         conn, "s2", SlotVerdict(SlotStatus.REVIEW, "intermittent", 0.2, 0.6, 0.2, 60, 0.55),
         [Sample("camA", 0, "C1_EMPTY", 0.55, "2026-07-11T11:00:00")],
-        model_key="dinov2",
+        model_key="yolov8n",
     )
     conn.execute(
         """INSERT INTO reconciliations

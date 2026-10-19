@@ -1,11 +1,7 @@
 """One detector behind one registry.
 
-The detector-first path counts what stands on the pitch, so the detector is the model, and a
-model needs the two things `vision/backbones.py` gives the frozen backbones: a registry that
-names the candidates, and a loader that every caller shares. Until now the only detector in
-the repository was the string ``"yolov8n.pt"``, passed around by five callers as a default
-argument, with the thread-local cache that makes it affordable living in `vision/explain.py`
-beside the heatmap code.
+The detector-first path counts what stands on the pitch, so the detector is the model, and it
+needs a registry that names the candidates and a loader that every caller shares.
 
 **What a registry entry says.** The key a run or a setting names it by, the weights
 file ultralytics loads it from, whether it produces instance masks, and the long edge it runs
@@ -15,7 +11,7 @@ key must mean the same model whatever they are set to.
 
 **Detections carry a mask when a segmentation model produced one, and None otherwise.** The
 overlay draws the mask; the count never reads it - a person is placed by the foot of their
-box (`vision/people.py`), so the two model families count identically and differ only in what
+box (`vision/counting.py`), so the two model families count identically and differ only in what
 they can show. That is deliberate: detectors are chosen on counting, and masks are for the
 reader.
 
@@ -29,7 +25,7 @@ hand-counted frames.
 **Failure is None, never an empty list.** A missing weights file, an import error or a
 prediction that raises all return ``None`` - "not checked" - and the rule engine turns that
 into UNCERTAIN. ``[]`` means the frame was examined and nothing was found. Collapsing the two
-is how a broken install comes to report every pitch empty (`vision/explain.py`).
+is how a broken install comes to report every pitch empty.
 
 **Weights are not in the repository** (``*.pt`` is gitignored). ``pitch fetch-weights``
 downloads the registered ones deliberately; nothing here downloads as a side effect of a
@@ -75,10 +71,10 @@ class DetectorSpec:
 DETECTORS: dict[str, DetectorSpec] = {
     "yolov8n": DetectorSpec(
         "yolov8n", "yolov8n.pt", False,
-        note="the person gate's detector; every reference count was measured with it"),
+        note="the previous default; one generation behind yolo11n at the same cost"),
     "yolo11n": DetectorSpec(
         "yolo11n", "yolo11n.pt", False,
-        note="the same size class, one generation on; the like-for-like candidate"),
+        note="the default: the most accurate per CPU second on the labelled frames"),
     "yolov8s": DetectorSpec(
         "yolov8s", "yolov8s.pt", False,
         note="roughly 3x the compute of n; the question is far-side recall"),
@@ -96,8 +92,9 @@ DETECTORS: dict[str, DetectorSpec] = {
         note="instance masks at the s size; the ceiling of what the cycle affords"),
 }
 
-#: What runs until a hand-count audit says otherwise: the detector the reference counts rest on.
-DEFAULT_DETECTOR = "yolov8n"
+#: What runs when nothing names a detector. `configs/rules.json` normally does; both say yolo11n
+#: since 2026-10-20, chosen on accuracy per CPU second (`scripts/evaluate_rules.py`).
+DEFAULT_DETECTOR = "yolo11n"
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,7 +108,7 @@ class Detection:
 
     @property
     def foot(self) -> tuple[int, int]:
-        """Where the object stands: the bottom centre of its box (`vision/people.py`)."""
+        """Where the object stands: the bottom centre of its box (`vision/counting.py`)."""
         x1, _y1, x2, y2 = self.box
         return (x1 + x2) // 2, y2
 
@@ -134,9 +131,9 @@ def weights_path(spec: DetectorSpec) -> Path:
     return WEIGHTS_DIR / spec.weights
 
 
-#: One model per weights file per thread, built on first use. Thread-local for the reason
-#: `vision/explain.py` gives: callers may predict from several threads, and an ultralytics
-#: model is not documented as safe to predict on from more than one.
+#: One model per weights file per thread, built on first use. Thread-local because callers
+#: may predict from several threads, and an ultralytics model is not documented as safe to
+#: predict on from more than one.
 _MODELS = threading.local()
 
 
@@ -209,7 +206,7 @@ class Detector:
         """Every object of ``classes`` at or above ``confidence``, or None if not checked.
 
         ``confidence`` is the floor for the *pass*; callers apply per-class thresholds on top
-        (a ball is held to a lower one than a person, `vision/people.py`). ``masks`` asks a
+        (a ball is held to a lower one than a person, `configs/rules.json`). ``masks`` asks a
         segmentation model for its masks; a detection model ignores it. ``tiles > 1`` runs
         the frame as ``tiles x tiles`` overlapping crops plus the whole and merges them.
         """

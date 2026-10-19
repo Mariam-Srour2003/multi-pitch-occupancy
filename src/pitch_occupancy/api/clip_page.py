@@ -180,8 +180,8 @@ reports when the state changed. The file is deleted as soon as it has been read.
 
 <section id="bstep" style="display:none;margin-top:14px">
   <h2 style="margin:0 0 4px">Draw the pitch</h2>
-  <p class="sub2" style="margin-top:0">Click the corners to redraw. Everything outside the
-  outline is masked before the model sees it.</p>
+  <p class="sub2" style="margin-top:0">Click the corners to redraw. Only people standing
+  inside the outline are counted.</p>
   <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
     <div style="position:relative;line-height:0">
       <img id="bimg" alt="first frame of the clip" style="max-width:560px;border-radius:8px">
@@ -212,7 +212,7 @@ reports when the state changed. The file is deleted as soon as it has been read.
       <option value="5">5 - fix pairs</option>
       <option value="7">7 - fix triples</option>
     </select></div>
-  <div><label for="expn">Explain in detail</label>
+  <div><label for="expn">Draw the detections</label>
     <select id="expn">
       <option value="8">first 8 frames</option>
       <option value="20">first 20</option>
@@ -235,42 +235,33 @@ the pitch &middot; <a href="/roi" style="color:var(--accent)">boundary editor</a
 
 <div id="stage">
   <h2>Watching it work</h2>
-  <p class="sub2" title="Each frame is sampled, embedded by the frozen backbone, scored by
-    the linear probe, then put through the same two gates the Analyse tab applies - so the
-    verdict here is the system's, not the probe's.">sample &rarr; embed &rarr; probe &rarr;
-    gates</p>
+  <p class="sub2" title="Each frame is sampled, the detector finds the people and the ball,
+    they are counted inside the boundary, and the rule decides - the same pipeline the
+    Analyse tab and the worker use.">sample &rarr; detect &rarr; count &rarr; rule</p>
 
   <div class="stagebar">
     <span class="stagenow" id="stage-step">waiting</span>
     <span class="spacer"></span>
     <label for="speed" style="font-size:12px;color:var(--ink-3)" title="A pause this page
-      adds between steps. The backbone runs at the same speed either way - it does not make
+      adds between steps. The detector runs at the same speed either way - it does not make
       the model faster.">slow motion</label>
     <input type="range" id="speed" min="0" max="3000" step="100" value="1200">
     <span class="mono" id="speedtxt">1.2s</span>
     <button class="ghost" id="skip">Continue without slow motion</button>
   </div>
   <div class="panes">
-    <figure><img id="img-raw" alt="sampled frame">
-      <figcaption>the frame as sampled</figcaption></figure>
-    <figure><img id="img-heat" alt="evidence map">
-      <figcaption title="This map is not a saliency heuristic: the probe is linear over
-        mean-pooled features, so the map is the summands of its score. The reconstruction
-        error tile is that claim being checked.">where the score came from</figcaption></figure>
     <figure><img id="img-boxes" alt="What the detector found: a box round each person, a ring round the ball">
       <figcaption>What the detector found</figcaption></figure>
   </div>
-  <p class="note" id="detnote" style="margin-top:8px" title="Two models, one frame. The probe scores pooled features, so its explanation can only be a heatmap; the detector finds objects, so its explanation is a box round each person and a ring round the ball. Anything found outside the boundary is dimmed, not dropped.">probe &rarr; heatmap &middot; detector &rarr; boxes &middot; outside the boundary dimmed</p>
+  <p class="note" id="detnote" style="margin-top:8px" title="A box round each person and a ring round the ball. Anything found outside the boundary is dimmed, not dropped.">a box round each person &middot; a ring round the ball &middot; outside the boundary dimmed</p>
 
   <div class="verdictbar" id="verdictbar">
     <span class="pill" id="v-pred">&mdash;</span>
-    <span class="mono struck" id="v-probed"></span>
     <span class="mono" id="v-conf"></span>
     <span class="spacer"></span>
-    <span class="mono" id="v-gate"></span>
+    <span class="mono" id="v-seen"></span>
     <span class="mono" id="v-ms"></span>
   </div>
-  <p class="note" id="gatenote" style="display:none"></p>
 
   <div class="tiles" style="margin-top:14px">
     <div class="tile"><div class="k">People on the pitch</div>
@@ -281,10 +272,7 @@ the pitch &middot; <a href="/roi" style="color:var(--accent)">boundary editor</a
       <div class="v sm" id="x-ball">&mdash;</div></div>
     <div class="tile"><div class="k">Movement</div>
       <div class="v sm" id="x-motion">&mdash;</div></div>
-    <div class="tile" id="x-out-tile"><div class="k">Evidence outside boundary</div>
-      <div class="v sm" id="x-out">&mdash;</div></div>
   </div>
-  <p class="sub2" id="focusnote" style="margin-top:10px"></p>
 
   <div class="tl" id="livetl" style="margin-top:16px"></div>
   <div class="axis"><span>0:00</span><span id="livecount"></span></div>
@@ -322,13 +310,10 @@ the pitch &middot; <a href="/roi" style="color:var(--accent)">boundary editor</a
   </tr></thead><tbody id="segs"></tbody></table></div>
 
   <h2>Every sample</h2>
-  <p class="sub2"><del>struck</del> <span title="First strike: the probe's verdict before a
-    gate overruled it. Second: this frame's verdict before its neighbours did.">overruled</span>
+  <p class="sub2"><del>struck</del> <span title="This frame's verdict before its neighbours
+    overruled it.">overruled</span>
     &middot; <span title="Rows tinted red were overruled by their neighbours.">red row
-    smoothed</span>
-    &middot; <span class="warnflag">!</span> <span title="The verdict is empty and yet the
-    detector found somebody. Worth a look: the motion threshold was fitted at one venue and
-    calibrated nowhere else.">empty, yet people found</span></p>
+    smoothed</span></p>
   <div style="margin:0 0 10px">
     <button class="ghost" id="toggle" aria-pressed="false">Show raw predictions only</button>
   </div>
@@ -486,7 +471,7 @@ go.onclick=async()=>{
 
 // --- the walkthrough ------------------------------------------------------------------
 // Steps are rendered from a queue rather than as they arrive, because the two rates are
-// different things: the network delivers a step the moment the backbone finishes it, and the
+// different things: the network delivers a step the moment the detector finishes it, and the
 // reader wants to look at it for a beat. Slow motion is this pause and nothing else - the
 // skip button empties the queue, it does not make the model faster, and the copy says so.
 const NL=String.fromCharCode(10);
@@ -519,50 +504,23 @@ function paint(s){
   $('stage-step').textContent='step '+s.index+'  ·  '+s.clock;
   $('v-pred').textContent=s.predicted;
   $('v-pred').className='pill '+s.predicted;
-  // The gated verdict is the headline and the probe's is struck through beside it, the way
-  // the Analyse table shows them. The confidence belongs to the probe either way - it is the
-  // probe's class probability and a gate does not produce one - so it is labelled as the
-  // probe's whenever a gate spoke, rather than reading as the system's confidence in a
-  // verdict the probe never gave.
-  $('v-probed').textContent=s.probed?s.probed:'';
-  $('v-conf').textContent=(s.probed?'probe confidence ':'confidence ')+s.confidence.toFixed(3);
+  $('v-conf').textContent='confidence '+s.confidence.toFixed(3);
   var saw=[];
   if(s.n_inside!==null&&s.n_inside!==undefined){
     saw.push(s.n_inside+' inside'+(s.ball?' + ball':''));
   }
   if(s.motion!==null&&s.motion!==undefined){saw.push('motion '+s.motion.toFixed(2));}
-  $('v-gate').textContent=saw.join('  ·  ');
-  var note=$('gatenote');
-  if(s.probed){
-    var why=(s.n_inside===0)
-      ? 'nobody was inside the outline, and a pitch with nobody on it is not a match'
-      : (s.n_inside>0 ? 'a small group with no ball is present but not playing'
-                      : 'nothing moved between this frame and the previous sample');
-    note.style.display='';
-    // The map keeps decomposing the *probe*, not the gate, which is why an overruled frame
-    // is the one worth looking at. That belongs on the map's own caption, not in a
-    // paragraph the reader meets before the numbers.
-    note.innerHTML='<b>gate overruled the probe</b> &middot; probe said '+s.probed+
-      ' <span title="'+why+'">why?</span>';
-  }else{note.style.display='none';}
-  $('v-ms').textContent=Math.round(s.elapsed_ms)+' ms'+(s.explained?' (explained)':'');
+  $('v-seen').textContent=saw.join('  ·  ');
+  $('v-ms').textContent=Math.round(s.elapsed_ms)+' ms'+(s.explained?' (drawn)':'');
 
-  // The tiles a venue can act on. What the probe scored, what it scored directly, how well
-  // the map reconstructs that score and how tightly the evidence sits on the people were
-  // the decomposition auditing itself - true, and unreadable to anyone who has not read the
-  // method. The audit is not lost: `test_walkthrough.py` asserts the reconstruction on every
-  // explained step, which is a better home for it than a tile nobody can act on. These three
-  // ride on every record rather than only an explained one, so a frame that got no heatmap
-  // still reports who was found.
+  // These three ride on every record rather than only a drawn one, so a frame that got no
+  // drawing still reports who was found.
   $('x-ppl').textContent=(s.n_inside===null||s.n_inside===undefined)?'—':s.n_inside;
   $('x-ball').textContent=s.ball?'yes':'no';
   $('x-motion').textContent=(s.motion===null||s.motion===undefined)?'—':s.motion.toFixed(2);
 
   if(s.explained){
-    $('img-raw').src=s.frame;$('img-heat').src=s.heat;
-    // The detector's pane. It is served with the same record, so a frame that has a
-    // heatmap has boxes too; if it ever does not, the pane is blanked rather than left
-    // showing the previous frame's answer next to this frame's heatmap.
+    // Blanked rather than left showing the previous frame's drawing if it is ever missing.
     $('img-boxes').src=s.boxes||'';
     const d=s.detector;
     // "not available" is not "found nobody", and the distinction survives the trim as a
@@ -580,24 +538,11 @@ function paint(s){
     $('x-outside').textContent=out==null?'—':out;
     $('x-outside-tile').className='tile'+(out?' flagged':'');
     if(d&&d.checked&&d.ball){$('x-ball').textContent='yes  '+d.ball_confidence.toFixed(2);}
-    // Zero, or there is no boundary. Anything else means the outline reached the picture
-    // but not the pooling, which is the exact failure this tile exists to make visible.
-    const o=s.evidence_outside;
-    $('x-out').textContent=o==null?'no boundary':(o*100).toFixed(1)+'%';
-    $('x-out-tile').className='tile'+(o!=null&&o>0.001?' flagged':'');
-    // The focus ratio has no tile any more, but a score spread as though the people were
-    // not there is still worth one line on the frames where it happens.
-    const f=s.focus_ratio;
-    $('focusnote').innerHTML=(f!=null&&f<1)
-      ? '<span title="The evidence is spread as though the people the detector found were '+
-        'not there, which for an active-play verdict is worth a look.">the model was not '+
-        'looking at the people it found</span>' : '';
   } else {
-    $('x-outside').textContent='—';$('x-out').textContent='—';
-    $('x-outside-tile').className='tile';$('x-out-tile').className='tile';
-    $('focusnote').innerHTML='<span title="explain in detail bounds how many frames get '+
-      'a map, because explaining costs about twice a bare prediction">no evidence map '+
-      'for this frame</span>';
+    $('x-outside').textContent='—';$('x-outside-tile').className='tile';
+    $('detnote').innerHTML='<span title="Draw the detections bounds how many frames get '+
+      'a drawing, because drawing costs a second detector pass">not drawn for this '+
+      'frame</span>';
   }
 
   const i=document.createElement('i');
@@ -702,23 +647,13 @@ function render(d){
   for(const s of d.samples){
     const shown=rawOnly?s.raw:s.smoothed;
     const was=(s.corrected&&!rawOnly)?'<del>'+s.raw+'</del>':'';
-    // Two different overrules, kept apart on purpose: `probed` is what the probe said before
-    // a gate, `corrected` is what the neighbours did afterwards. A reviewer chasing one
-    // should never be handed the other.
-    const gate=s.gated?'<del>'+s.probed+'</del> ':'';
-    // A dash here now means the detector could not be loaded at all. The review pages count
-    // on every frame, so "not checked" is no longer a thing a reader has to guess at.
+    // A dash means the detector could not be loaded: "not checked", not "nobody".
     const ppl=(s.people===null||s.people===undefined)?'\u2014'
       :(s.people+(s.ball?' + ball':''));
     const mot=(s.motion===null||s.motion===undefined)?'\u2014':s.motion.toFixed(2);
-    // The verdict stands - the gates only weaken - so this flags the row rather than
-    // changing it. It is the motion threshold and the detector disagreeing about one frame.
-    const flag=s.gates_disagree
-      ? ' <span class="warnflag" title="the verdict is empty and yet the detector found '+
-        s.people+' inside the outline">!</span>' : '';
     rows.insertAdjacentHTML('beforeend','<tr'+((s.corrected&&!rawOnly)?' class="corr"':'')+
       '><td class="num">'+s.index+'</td><td class="mono">'+s.clock+'</td><td class="mono">'+
-      gate+was+'<span class="pill '+shown+'">'+shown+'</span>'+flag+'</td><td class="num">'+
+      was+'<span class="pill '+shown+'">'+shown+'</span></td><td class="num">'+
       s.confidence.toFixed(3)+'</td><td class="num">'+ppl+'</td>'+
       '<td class="num mono">'+mot+'</td></tr>');
   }

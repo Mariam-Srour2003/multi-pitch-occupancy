@@ -41,7 +41,7 @@ def verdict(status: SlotStatus = SlotStatus.USED) -> SlotVerdict:
 
 def samples(n: int = 3) -> list[Sample]:
     return [
-        Sample("camA", i, "C2_ACTIVE_PLAY", 0.9, "2026-07-11T10:0%d:00" % i) for i in range(n)
+        Sample("camA", i, "C2_ACTIVE_PLAY", 0.9, f"2026-07-11T10:0{i}:00") for i in range(n)
     ]
 
 

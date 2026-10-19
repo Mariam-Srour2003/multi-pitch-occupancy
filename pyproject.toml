@@ -13,19 +13,16 @@ dependencies = [
     "opencv-python>=4.10",
     "pillow>=10.4",
     "numpy>=1.26",
-    # models
+    # models: the YOLO detector (ultralytics needs torch and torchvision)
     "torch>=2.4",
     "torchvision>=0.19",
-    "transformers>=4.44",
-    "open-clip-torch>=2.24",
     "ultralytics>=8.3",
-    # data / ml
-    # scikit-learn and scipy are PINNED, not floated. Windows Smart App Control on the
-    # development machine blocks the newer builds' native extensions outright
-    # (`ImportError: ... An Application Control policy has blocked this file` for
-    # sklearn's _flow and scipy's _csparsetools). 1.8.0 / 1.16.3 load fine. Raise these
-    # only after confirming the new build imports on the target machine.
-    "scikit-learn==1.8.0",
+    # data
+    # scipy is not imported by this package; it comes in through imagehash, and is PINNED,
+    # not floated. Windows Smart App Control on the development machine blocks newer builds'
+    # native extensions outright (`ImportError: ... An Application Control policy has
+    # blocked this file` for scipy's _csparsetools). 1.16.3 loads fine. Raise it only after
+    # confirming the new build imports on the target machine.
     "scipy==1.16.3",
     "pandas>=2.2",
     "imagehash>=4.3",
@@ -76,6 +73,13 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+# FastAPI's Query()/Depends() and typer's Option()/Argument() are declared as defaults by
+# design; that is what B008 flags.
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# Embedded HTML/JS strings; wrapping would be awkward.
+"src/pitch_occupancy/api/*_page.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -84,5 +88,5 @@ testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q"
 markers = [
-    "slow: touches a real backbone or real footage; excluded from the fast loop",
+    "slow: touches the real detector or real footage; excluded from the fast loop",
 ]

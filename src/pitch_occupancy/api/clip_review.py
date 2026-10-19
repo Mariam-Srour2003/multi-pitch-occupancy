@@ -54,16 +54,28 @@ router = APIRouter(prefix="/api/v1", tags=["clip review"])
 MAX_UPLOAD_BYTES: int = 600 * 1024 * 1024
 
 def _classifier():
-    """The deployed classifier, from the process-wide pipeline (`pipeline.shared`).
+    """The deployed classifier for one frame, from the process-wide pipeline.
 
-    Until 2026-09-19 this loaded the probe itself, which is how the page came to run a
-    different system from the worker: each surface assembled its own. Now every surface
-    asks the same seam. Kept as a function so a test can swap the classifier for a script
-    without assembling a pipeline; the first real call pays the probe fit once.
+    Returns ``classify(frame, *, polygon=None, previous=None) -> FrameVerdict`` over
+    `pipeline.shared`, so this page runs the same detector and rule as the worker. Kept as a
+    function so a test can swap the classifier for a script without loading the detector.
     """
     from pitch_occupancy.pipeline import shared
 
-    return shared().classify
+    pipeline = shared()
+
+    def classify(frame, *, polygon=None, previous=None):
+        return pipeline.classify_frame(frame, polygon=polygon, previous=previous)
+
+    return classify
+
+
+def _play_min() -> int:
+    """The rule's ``play_min``, read from `configs/rules.json` without loading a detector."""
+    from pitch_occupancy.config import settings
+    from pitch_occupancy.vision.rules import RuleConfig
+
+    return RuleConfig.load(settings.rules_path).play_min
 
 
 class SampleOut(BaseModel):
@@ -74,22 +86,12 @@ class SampleOut(BaseModel):
     smoothed: str
     confidence: float
     corrected: bool
-    #: What the probe said before a gate overruled it, or None when none did. `raw` is the
-    #: verdict after the gates because that is what the system answers; this is why.
-    probed: str | None = None
-    gated: bool = False
     #: People inside the boundary, and whether a ball was there. None means the detector did
-    #: not run, which is a different fact from zero and is why the page shows a dash. The
-    #: review pages count on every frame, so a dash here means the detector could not be
-    #: loaded at all rather than that it was skipped.
+    #: not run, which is a different fact from zero and is why the page shows a dash.
     people: int | None = None
     ball: bool | None = None
     #: The motion cue against the previous sample; None on the first, which has none.
     motion: float | None = None
-    #: EMPTY, and yet somebody was found inside the outline. Not a contradiction - the gates
-    #: only weaken, so EMPTY stands - but the frame where the motion gate and the detector
-    #: disagree, which is the frame worth a reviewer's attention.
-    gates_disagree: bool = False
 
 
 class SegmentOut(BaseModel):
@@ -110,11 +112,9 @@ class ClipOut(BaseModel):
     window: int
     n_samples: int
     n_corrected: int
-    #: How many verdicts a gate weakened. Separate from `n_corrected`, which counts the
-    #: neighbour smoothing: they are different mechanisms and a reviewer chasing one should
-    #: not be handed the other.
-    n_gated: int = 0
     n_unreadable: int
+    #: Frames that were read but not decided (the detector did not run).
+    n_undecided: int = 0
     interval_widened: bool
     summary: str
     dominant: str | None
@@ -163,34 +163,13 @@ def _parse_polygon(raw: str) -> list[list[float]] | None:
         raise HTTPException(422, f"the outline is not usable: {exc}") from exc
 
 
-def _gates():
-    """The gates the route applies, as a factory for the same reason `_classifier` is one.
-
-    A test about neighbour smoothing wants to script a classifier and see the smoothing; with
-    the gates hard-wired it instead sees the person gate turn every frame of a synthetic video
-    EMPTY, because a generated test frame contains no people. Patching this returns the route
-    to the probe alone, which is what such a test means by "the model said".
-
-    **The review pages count on every frame and the worker does not**, and that is the
-    only way these differ from `pipeline.default_gates`. By default the detector is skipped on
-    a verdict already EMPTY, since the gate only weakens - correct for a worker paying a fifth
-    of a second per camera per minute, wrong for a person looking at one clip, where a blank
-    column reads as "nobody was found" when it means "nobody looked". `always_count` reports
-    without deciding: the verdict is the one the worker would reach, pinned by a test.
-    """
-    from pitch_occupancy.vision.motion import MotionGate
-    from pitch_occupancy.vision.people import PersonGate
-
-    return MotionGate(), PersonGate(always_count=True)
-
-
 def _derive_boundary(path: Path) -> list[list[float]] | None:
     """Measure a pitch outline from the clip itself, or None if it cannot be found.
 
-    `roi.derive_from_video` - the routine `scripts/derive_roi.py` runs over the corpus. It is
+    `roi.derive_from_video` - the routine `scripts/derive_roi.py` runs over recordings. It is
     a fallback and not a replacement: a hand-drawn or stored outline is better and is
-    preferred above. What it replaces is *no boundary at all*, which was measured on this
-    exact clip at 0.74 false-play against 0.38 with one.
+    preferred above. What it replaces is *no boundary at all*, where the detector counts the
+    neighbouring pitch as this one.
 
     Failure returns None rather than raising. A clip this cannot find turf in is still worth
     classifying without an outline, and the response says which happened.
@@ -205,11 +184,6 @@ def _analyse_file(path: Path, *, interval_s: float, window: int, camera: str,
     Synchronous on purpose, so the route can hand the whole of it to a worker thread.
     """
     limits.check_video_pixels(path, "clip")
-    # A boundary is applied by wrapping the classifier rather than by teaching
-    # `analyse_clip` about polygons. It takes a `classify` callable precisely so that
-    # what a frame means is the caller's business, and a masked frame is still just a
-    # frame - so the timeline, the smoothing and the segmentation stay unaware of ROI,
-    # and there is one masking call rather than a second code path through them.
     classify = _classifier()
     # `resolve`, not `get`: the camera is named the way production names it, and the
     # store's own keys are not that.
@@ -219,33 +193,18 @@ def _analyse_file(path: Path, *, interval_s: float, window: int, camera: str,
     derived_boundary = False
     if polygon is None and not whole_frame:
         # An uploaded clip usually names no camera, or names one the store has never
-        # seen, and the boundary was simply skipped - which is how a 234-second clip of
-        # an empty floodlit pitch came back 24 of 24 ACTIVE_PLAY at confidence 1.000.
-        # Without an outline the probe scores the neighbouring pitch, the walkway and the
-        # car park as if they were this pitch. `derive_roi` measures one from the footage
-        # itself, which is the same thing `scripts/run_slot_on_video.py` does and the
-        # reason its numbers on this clip were right.
+        # seen. Without an outline the detector counts the neighbouring pitch, the walkway
+        # and the car park as if they were this pitch, so one is measured from the footage
+        # itself - the same thing `scripts/run_slot_on_video.py` does.
         polygon = _derive_boundary(path)
         derived_boundary = polygon is not None
-    if polygon:
-        inner = classify
-
-        def classify(frame):  # noqa: F811 - deliberately shadows, one frame at a time
-            # Both halves, and both are needed. `apply` fills the outside so the pixels
-            # are not the neighbouring pitch; `polygon=` drops those positions from the
-            # pooling so the fill is not scored either. Masking alone left the model
-            # reading a large black region and calling it evidence.
-            return inner(roi.apply(frame, polygon), polygon=polygon)
 
     try:
-        # The same two gates `worker.run_slot` applies, for the same reason: the probe
-        # alone is not the system, and a review page showing the probe alone is showing
-        # something nobody deploys.
-        motion_gate, person_gate = _gates()
+        # The boundary is passed, not painted in: the detector counts people whose feet are
+        # inside it, exactly as `worker.run_slot` does.
         result = analyse_clip(
             path, classify, interval_s=interval_s, window=window,
-            max_samples=MAX_SAMPLES, polygon=polygon,
-            motion_gate=motion_gate, person_gate=person_gate,
+            max_samples=MAX_SAMPLES, polygon=polygon, play_min=_play_min(),
         )
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
@@ -278,7 +237,7 @@ async def analyse(
     if window % 2 == 0:
         raise HTTPException(422, "window must be odd, so each sample has equal neighbours")
     # Before the upload and before the model: a malformed outline is the caller's mistake and
-    # is answered as one, without receiving 600 MB or loading a backbone first.
+    # is answered as one, without receiving 600 MB or loading the detector first.
     drawn = _parse_polygon(polygon)
 
     # Delete on the way out rather than relying on the OS: this is footage of people.
@@ -317,18 +276,16 @@ async def analyse(
         window=result.window,
         n_samples=len(result.samples),
         n_corrected=result.n_corrected,
-        n_gated=sum(1 for s in result.samples if s.gated),
         n_unreadable=len(result.unreadable),
+        n_undecided=len(result.undecided),
         interval_widened=result.interval_widened,
         summary=result.summary(),
         dominant=result.dominant.value if result.dominant else None,
         samples=[
             SampleOut(
                 index=s.index, t_s=s.t_s, clock=_clock(s.t_s), raw=s.raw.value,
-                probed=s.probed.value if s.probed else None, gated=s.gated,
                 people=s.people, ball=s.ball,
                 motion=None if s.motion is None else round(s.motion, 3),
-                gates_disagree=s.gates_disagree,
                 smoothed=s.smoothed.value, confidence=s.confidence, corrected=s.corrected,
             )
             for s in result.samples

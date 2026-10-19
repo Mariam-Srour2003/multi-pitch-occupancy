@@ -22,9 +22,10 @@ re-fit.
 from __future__ import annotations
 
 import sqlite3
+import threading
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
 
 __all__ = ["SCHEMA", "connect", "initialise", "transaction"]
 
@@ -160,6 +161,38 @@ CREATE TABLE IF NOT EXISTS playground_checks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pgchecks ON playground_checks(playground_id, checked_at);
+
+-- the free vision-model second opinion (`assist/`): every question asked, and its answer
+CREATE TABLE IF NOT EXISTS assist_opinions (
+    opinion_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    check_id       INTEGER,           -- playground_checks.check_id
+    playground_id  TEXT NOT NULL,
+    asked_at       TEXT NOT NULL,
+    doubtful       INTEGER NOT NULL,  -- 1 = people seen but fewer than a game needs
+    provider       TEXT,              -- NULL when no provider answered
+    model          TEXT,
+    state          TEXT,              -- 'playing', 'other' or 'empty'
+    people         INTEGER,
+    confidence     REAL,
+    reason         TEXT,
+    tokens         INTEGER,
+    latency_ms     INTEGER,
+    upgraded       INTEGER NOT NULL,  -- 1 = the check was changed to playing
+    problem        TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_assist_pg ON assist_opinions(playground_id, asked_at);
+
+-- each free provider's use per UTC day, so a restart cannot reset the budget
+CREATE TABLE IF NOT EXISTS assist_usage (
+    provider        TEXT NOT NULL,
+    day             TEXT NOT NULL,
+    requests        INTEGER NOT NULL DEFAULT 0,
+    tokens          INTEGER NOT NULL DEFAULT 0,
+    failures        INTEGER NOT NULL DEFAULT 0,
+    cooldown_until  TEXT,
+    PRIMARY KEY (provider, day)
+);
 """
 
 #: Columns added to existing tables after their first release. `CREATE TABLE IF NOT EXISTS`
@@ -169,6 +202,9 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("camera_checks", "playground_check_id", "INTEGER"),
     ("camera_checks", "grab_ms", "INTEGER"),
     ("camera_checks", "detect_ms", "INTEGER"),
+    # What the detector said before a second opinion upgraded the check, and who decided.
+    ("playground_checks", "detector_playing", "INTEGER"),
+    ("playground_checks", "playing_source", "TEXT"),
 )
 
 
@@ -189,17 +225,43 @@ def connect(path: Path | str, *, same_thread: bool = True) -> sqlite3.Connection
     conn = sqlite3.connect(str(p), check_same_thread=same_thread, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # Readers no longer wait for the writer: the pages poll every few seconds while up to
+    # eight playground threads and the worker write. Kept by the file once set.
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA synchronous = NORMAL")
     return conn
 
 
+#: Database files this process has already brought up to date. Every request used to run the
+#: whole schema script again; once per file per process is enough.
+_initialised: set[str] = set()
+_initialised_lock = threading.Lock()
+
+
+def _database_file(conn: sqlite3.Connection) -> str:
+    row = conn.execute("PRAGMA database_list").fetchone()
+    return row[2] if row is not None else ""
+
+
 def initialise(conn: sqlite3.Connection) -> None:
-    """Create the schema. Idempotent - safe on an existing database."""
+    """Create the schema. Idempotent - safe on an existing database, and cheap the second
+    time in a process (an in-memory database is always initialised)."""
+    name = _database_file(conn)
+    # The file may have been replaced since (a restore, a test's fresh database), so a cheap
+    # look for the newest table confirms it before skipping.
+    if name and name in _initialised and conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'assist_usage'"
+    ).fetchone():
+        return
     conn.executescript(SCHEMA)
     for table, column, kind in _ADDED_COLUMNS:
         have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
         if column not in have:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
     conn.commit()
+    if name:
+        with _initialised_lock:
+            _initialised.add(name)
 
 
 @contextmanager

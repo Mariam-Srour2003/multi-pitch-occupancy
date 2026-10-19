@@ -457,6 +457,7 @@ def check_playground(p: dict, *, grab: Callable | None = None, pipeline=None,
     if pipeline is None and any(frame is not None for frame, _, _ in grabbed):
         pipeline = _pipeline()
     per_camera = []
+    pictures: list[tuple] = []  # (frame, person boxes) for the second opinion
     for (ref, venue, camera, _), (frame, problem, grab_ms) in zip(targets, grabbed, strict=True):
         row = {"camera": ref, "venue": venue, "camera_id": camera, "readable": frame is not None,
                "people": None, "state": None, "problem": problem, "grab_ms": grab_ms,
@@ -466,12 +467,19 @@ def check_playground(p: dict, *, grab: Callable | None = None, pipeline=None,
                 counted = _count(pipeline, venue, camera, frame)
                 row.update(people=counted["people"], state=counted["state"],
                            detect_ms=counted["detect_ms"])
+                pictures.append((frame, _person_boxes(counted)))
                 if with_pictures:
                     row["picture"] = _picture(frame, counted)
-                if save:
-                    row["picture_path"] = _save_snapshot(p["id"], camera, when, frame, counted)
             except Exception as exc:  # noqa: BLE001
                 row.update(readable=False, problem=f"Counting failed ({type(exc).__name__}).")
+            else:
+                if save:
+                    # Kept apart from the count: a full disk loses the picture, not the count.
+                    try:
+                        row["picture_path"] = _save_snapshot(p["id"], camera, when, frame,
+                                                             counted)
+                    except OSError as exc:
+                        row["problem"] = f"Picture not saved ({type(exc).__name__})."
         per_camera.append(row)
 
     counts = [r["people"] for r in per_camera if r["readable"] and r["people"] is not None]
@@ -503,8 +511,72 @@ def check_playground(p: dict, *, grab: Callable | None = None, pipeline=None,
                      record["check_id"], r["grab_ms"], r["detect_ms"]))
     finally:
         conn.close()
+    if not with_pictures:  # a spot check from the live page does not spend the free quota
+        _second_opinion(record, pictures, db_path or settings.db_path)
     record["cameras"] = per_camera
     return record
+
+
+def _person_boxes(counted: dict) -> tuple[tuple[int, int, int, int], ...]:
+    count = getattr(counted.get("verdict"), "count", None)
+    people = getattr(count, "seen_people", ()) or ()
+    return tuple(d.box for d in people)
+
+
+#: The second opinion runs on its own thread, so a provider taking 30 s never holds a check
+#: (or the runner's pool) open. At most this many wait; beyond that a question is dropped,
+#: since a backlog of old pictures is worth less than the next check.
+MAX_ASSIST_WAITING = 2
+_assist_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="assist")
+_assist_waiting = 0
+_assist_lock = threading.Lock()
+
+
+def _second_opinion(record: dict, pictures: list[tuple], db_path: Path) -> None:
+    """Queue a question to the free vision model about this check, when
+    `configs/assist.json` says to (off by default, `assist/`). Never fails the check."""
+    global _assist_waiting
+    if not pictures:
+        return
+    try:
+        from pitch_occupancy.assist import config as assist_config
+
+        if not assist_config.load().enabled:
+            return
+    except Exception:  # noqa: BLE001 - a broken settings file means no second opinion
+        log.exception("assist settings could not be read")
+        return
+    with _assist_lock:
+        if _assist_waiting >= MAX_ASSIST_WAITING:
+            return
+        _assist_waiting += 1
+    _assist_pool.submit(_ask_second_opinion, dict(record), pictures, db_path)
+
+
+def _ask_second_opinion(record: dict, pictures: list[tuple], db_path: Path) -> None:
+    global _assist_waiting
+    try:
+        from pitch_occupancy.assist import config as assist_config
+        from pitch_occupancy.assist.reviewer import CameraPicture, review
+        from pitch_occupancy.db.schema import connect
+
+        conn = connect(db_path)
+        try:
+            review(assist_config.load(), conn, record,
+                   [CameraPicture(f, b) for f, b in pictures], now=_now(),
+                   play_min=play_min())
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001 - a second opinion must never cost the first
+        log.exception("second opinion failed for %s", record.get("playground_id"))
+    finally:
+        with _assist_lock:
+            _assist_waiting -= 1
+
+
+def wait_for_second_opinions(timeout: float = 60.0) -> None:
+    """Block until every queued second opinion has finished (for tests and shutdown)."""
+    _assist_pool.submit(lambda: None).result(timeout=timeout)
 
 
 def combine(counting: str, counts: list[int], threshold: int) -> tuple[int | None, int | None]:
@@ -835,6 +907,7 @@ def sessions(conn, start: datetime, end: datetime, *, playground_id: str | None 
             "playing_share": round(share, 2) if share is not None else None,
             "minutes_playing": round(playing * every.get(pid, 0) / 60),
             "saved_pictures": sum(saved.get(r["check_id"], 0) for r in rows),
+            "assist_upgrades": sum(1 for r in rows if r["playing_source"] == "assist"),
             "verdict": _session_verdict(share, mx),
         })
     return out

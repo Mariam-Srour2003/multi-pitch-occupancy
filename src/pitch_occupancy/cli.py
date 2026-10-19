@@ -10,6 +10,7 @@ and running the services. Installed as ``pitch``::
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -39,7 +40,6 @@ def info() -> None:
         ("interim", settings.interim_dir),
         ("processed", settings.dataset_dir),
         ("reference", settings.reference_dir),
-        ("feature cache", settings.feature_cache_dir),
         ("results", settings.results_dir),
     ):
         mark = "ok     " if path.exists() else "missing"
@@ -79,41 +79,10 @@ def coverage_cmd(
     typer.echo(report)
     gaps = empty_cells(rows)
     if gaps:
-        typer.secho(f"\n{len(gaps)} empty cell(s) in the collection matrix.", fg=typer.colors.YELLOW)
+        typer.secho(
+            f"\n{len(gaps)} empty cell(s) in the collection matrix.", fg=typer.colors.YELLOW
+        )
     typer.echo(f"wrote {target}")
-
-
-@app.command("cache")
-def build_cache_cmd(
-    backbones: list[str] = typer.Argument(None, help="Defaults to all registered backbones."),
-    batch_size: int = typer.Option(16, help="Frames per forward pass."),
-    threads: int = typer.Option(0, help="torch CPU threads; 0 leaves the default."),
-) -> None:
-    """Embed every manifest frame once per backbone into data/cache."""
-    import time
-
-    import torch
-
-    from pitch_occupancy.data.feature_cache import build_cache
-    from pitch_occupancy.data.manifest import read_manifest
-    from pitch_occupancy.vision.backbones import BACKBONES
-
-    if threads:
-        torch.set_num_threads(threads)
-    rows = read_manifest(settings.dataset_dir / "manifest.csv")
-    chosen = backbones or sorted(BACKBONES)
-    typer.echo(f"{len(rows)} frames x {len(chosen)} backbone(s)\n")
-
-    for key in chosen:
-        t0 = time.perf_counter()
-        cached = build_cache(
-            rows, key, settings.dataset_dir, settings.feature_cache_dir, batch_size=batch_size
-        )
-        dt = time.perf_counter() - t0
-        typer.echo(
-            f"  {key:<12} {len(cached):>5} x {cached.dim:<5} "
-            f"{dt:>6.0f}s  ({dt / max(len(cached), 1) * 1000:.0f} ms/frame)"
-        )
 
 
 @app.command("fetch-weights")
@@ -213,6 +182,62 @@ def build_manifest_cmd(
     typer.echo(f"\nwrote {target}")
 
 
+@app.command("assist-test")
+def assist_test_cmd(
+    image: Path = typer.Argument(..., exists=True, dir_okay=False, help="A picture of a pitch."),
+    provider: str = typer.Option(None, "--provider", help="Ask only this provider."),
+) -> None:
+    """Ask the free vision model(s) about one picture, to check a key works (docs/assist.md).
+
+    Counts against the free budget like any other question: one request per provider tried.
+    """
+    import cv2
+
+    from pitch_occupancy.assist import budget, config, providers
+    from pitch_occupancy.assist.reviewer import CameraPicture, prepare
+    from pitch_occupancy.db.schema import connect, initialise
+
+    frame = cv2.imread(str(image))
+    if frame is None:
+        raise typer.BadParameter("could not read that picture")
+    cfg = config.load()
+    chain = [p for p in cfg.chain() if provider in (None, p.name)]
+    if not chain:
+        raise typer.BadParameter(f"unknown provider; known: {sorted(providers.PROVIDERS)}")
+    images = prepare([CameraPicture(frame)], cfg)
+    conn = connect(settings.db_path)
+    initialise(conn)
+    now = datetime.now().astimezone()
+    try:
+        for p in chain:
+            if not p.configured:
+                typer.echo(f"  {p.name:<11} no key - set {p.key_env}")
+                continue
+            ok, why = budget.reserve(conn, p, now)
+            if not ok:
+                typer.echo(f"  {p.name:<11} skipped: {why}")
+                continue
+            try:
+                o = providers.ask(p, images, people=None, timeout_s=cfg.timeout_s)
+            except providers.ProviderError as exc:
+                budget.settle(conn, p, now, tokens=0, failed=True)
+                typer.secho(f"  {p.name:<11} failed: {exc}", fg=typer.colors.RED)
+                continue
+            budget.settle(conn, p, now, tokens=o.tokens)
+            typer.secho(f"  {p.name:<11} {o.state} ({o.confidence:.2f}), about {o.people} "
+                        f"people - {o.reason} [{o.model}, {o.latency_ms} ms]",
+                        fg=typer.colors.GREEN)
+    finally:
+        conn.close()
+    if not cfg.enabled:
+        typer.echo("configs/assist.json does not turn the second opinion on yet "
+                   "(see configs/assist.example.json).")
+
+
+#: The shortest sign-in password `serve` accepts.
+MIN_PASSWORD_LENGTH = 10
+
+
 @app.command()
 def serve(
     host: str = typer.Option(settings.api_host, help="Bind address."),
@@ -239,9 +264,18 @@ def serve(
             f"or the environment), or pass --no-password if this network is trusted.",
             fg=typer.colors.RED, err=True)
         raise typer.Exit(2)
-    if settings.access_password.get_secret_value():
+    password = settings.access_password.get_secret_value()
+    if password and len(password) < MIN_PASSWORD_LENGTH:
+        typer.secho(f"PITCH_ACCESS_PASSWORD is shorter than {MIN_PASSWORD_LENGTH} characters; "
+                    f"choose a longer one.", fg=typer.colors.RED, err=True)
+        raise typer.Exit(2)
+    if password:
         typer.echo(f"sign-in required: user {settings.access_user!r}, password from "
                    f"PITCH_ACCESS_PASSWORD")
+    elif host not in LOCAL_HOSTS and not settings.allowed_hosts:
+        typer.secho("no password, so the pages answer only to this machine's own names; set "
+                    "PITCH_ALLOWED_HOSTS to the address people will type (for example "
+                    "192.168.1.20) to reach them from the network.", fg=typer.colors.YELLOW)
     uvicorn.run("pitch_occupancy.api.app:app", host=host, port=port, reload=reload)
 
 

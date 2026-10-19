@@ -201,8 +201,13 @@ def merge_password(new_url: str, stored_url: str | None) -> str:
 
     Lets the page edit a camera without ever showing its password: the form holds the masked
     URL, the person changes the path, and the stored password is kept - provided the user name
-    is unchanged. Applies to secret query parameters too. Raises when a password is left as
-    ``***`` with nothing stored to keep: saving the literal ``***`` would be worse than refusing.
+    **and the scheme, host and port** are unchanged. Applies to secret query parameters too.
+    Raises when a password is left as ``***`` with nothing stored to keep: saving the literal
+    ``***`` would be worse than refusing.
+
+    The address check is what keeps the mask meaningful: without it, anyone who could see the
+    masked address could point it at their own server, leave ``***`` in place and have this
+    fill in the real password for them to read off the wire.
     """
     text = new_url.strip()
     if _USB_RE.match(text.lower()):
@@ -213,7 +218,8 @@ def merge_password(new_url: str, stored_url: str | None) -> str:
     scheme, user, password, rest = split
     old_user = old_password = None
     old_items: dict[str, str | None] = {}
-    if stored_url and (old := _split(stored_url)) is not None:
+    if (stored_url and (old := _split(stored_url)) is not None
+            and _same_endpoint(text, stored_url)):
         _, old_user, old_password, old_rest = old
         old_items = dict(_query_items(old_rest)[1])
 
@@ -223,7 +229,7 @@ def merge_password(new_url: str, stored_url: str | None) -> str:
         elif password == _MASK:
             raise ValueError(
                 "the password is hidden (***) and there is no saved password for this user "
-                "name to keep; type the password")
+                "name and address to keep; type the password")
         else:
             password = password or None
     base, items = _query_items(rest)
@@ -237,6 +243,16 @@ def merge_password(new_url: str, stored_url: str | None) -> str:
                                  f"type it")
         merged.append((k, v))
     return _join(scheme, user, password, _rebuild(base, merged))
+
+
+def _same_endpoint(a: str, b: str) -> bool:
+    """Whether two camera addresses reach the same scheme, host and port."""
+    sa, sb = _split(a), _split(b)
+    if sa is None or sb is None or sa[0].lower() != sb[0].lower():
+        return False
+    host_a, port_a = _host_port(a)
+    host_b, port_b = _host_port(b)
+    return bool(host_a) and (host_a or "").lower() == (host_b or "").lower() and port_a == port_b
 
 
 def _host_port(url: str) -> tuple[str | None, int | None]:

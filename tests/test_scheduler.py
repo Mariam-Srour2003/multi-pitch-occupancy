@@ -221,12 +221,12 @@ def test_the_loop_forwards_the_model_key_and_the_evidence_dir(tmp_path) -> None:
             source_for=lambda sl, day: Stub(), classify=always(Class3.EMPTY),
             clock=lambda: datetime(2026, 7, 11, 10, 5),
             sleep=lambda _: None, iterations=1,
-            model_key="dinov2", evidence_dir=tmp_path,
+            model_key="yolov8n", evidence_dir=tmp_path,
         )
     finally:
         sched.run_due = original
 
-    assert seen["model_key"] == "dinov2"
+    assert seen["model_key"] == "yolov8n"
     assert seen["evidence_dir"] == tmp_path
 
 
