@@ -1,0 +1,31 @@
+
+details.g{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  margin:0 0 8px;padding:0 16px}
+details.g summary{cursor:pointer;font-weight:600;padding:12px 0;list-style-position:inside}
+details.g[open] summary{border-bottom:1px solid var(--line);margin-bottom:10px}
+details.g > div{padding:0 0 14px;font-size:14px;color:var(--ink-2)}
+details.g table{min-width:0}
+.snaps{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  margin-top:12px}
+.snaps figure{margin:0;background:var(--surface);border:1px solid var(--line);
+  border-radius:10px;overflow:hidden}
+.snaps img{display:block;width:100%;background:var(--surface-2)}
+.snaps figcaption{padding:10px 13px;font-size:13px;color:var(--ink-2)}
+.snaps figcaption b{color:var(--ink)}
+.pill.UNCERTAIN,.pill.UNAVAILABLE{background:var(--surface-2);color:var(--ink-3)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.controls input.wide{width:min(520px,100%)}
+.controls input[type=checkbox]{width:auto}
+.days label{display:inline-flex;gap:4px;align-items:center;margin-right:10px;
+  text-transform:none;letter-spacing:0;font:13px Archivo,sans-serif;color:var(--ink-2)}
+.days input{width:auto}
+.result{margin-top:12px}
+td .ghost{margin-right:4px}
+td.status{min-width:150px;font-size:13px}
+td.status .hint{display:block;color:var(--ink-2);font-size:12px;max-width:340px}
+td.last{white-space:nowrap;font-size:13px}
+.big{font:700 22px Archivo,sans-serif}
+#recstatus .head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+#recstatus table{min-width:0}
+#recstatus h4{margin:12px 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--ink-2)}

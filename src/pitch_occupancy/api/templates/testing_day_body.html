@@ -1,0 +1,158 @@
+
+<h2>Booking-day test</h2>
+<p class="sub2">Upload a video of a pitch, tell us what time it starts and how long your
+booking slots are. For every slot you get how long the pitch was played on, empty or used for
+maintenance, and whether the slot was used. Nothing you upload is kept - only the results.</p>
+
+<div id="setup">
+<div class="srcpick" role="radiogroup" aria-label="Where the video comes from">
+  <label><input type="radio" name="src" value="upload" checked> Upload a video</label>
+  <label><input type="radio" name="src" value="local"> Use a recording on this computer</label>
+</div>
+<div id="localBox" class="card" hidden>
+  <div class="form" style="margin-top:0">
+    <div class="field"><label for="recA">Recording</label><select id="recA"></select></div>
+    <div class="field"><label for="recB">Second camera's recording (optional)</label>
+      <select id="recB"></select></div>
+  </div>
+  <p class="sub2" id="recHint" style="margin:0"></p>
+</div>
+<div class="pair" id="uploadBox">
+  <label class="drop" id="dropA"><span class="cam">VIDEO</span><br>
+    <strong id="nameA">Drop or choose a video</strong><p>the pitch, recorded over the day</p>
+    <input type="file" accept="video/*" id="fileA" hidden></label>
+  <label class="drop" id="dropB"><span class="cam">SECOND CAMERA (OPTIONAL)</span><br>
+    <strong id="nameB">Drop or choose a video</strong>
+    <p>only if the pitch has two cameras: the other half, same time</p>
+    <input type="file" accept="video/*" id="fileB" hidden></label>
+</div>
+
+<div class="form">
+  <div class="field"><label for="start">Video starts at</label>
+    <input id="start" type="time" value="08:00" required></div>
+  <div class="field"><label for="slot">Slot length (minutes)</label>
+    <input id="slot" type="number" min="1" max="600" value="90"></div>
+  <div class="field"><label for="first"
+      title="Leave empty if the first slot starts when the video starts">First slot starts at
+      (optional)</label><input id="first" type="time"></div>
+  <div class="field"><label for="interval"
+      title="How often the video is checked. Smaller is more detailed but slower.">Check every
+      (seconds)</label><input id="interval" type="number" min="5" step="1" value="60"></div>
+  <div class="field" id="offsetBox" style="display:none"><label for="offset"
+      title="If the second camera started recording later than the first, how many seconds
+      later. Negative if it started earlier.">Second camera starts after the first
+      (seconds)</label><input id="offset" type="number" step="1" value="0"></div>
+  <div class="field"><label for="field">Pitch / field id (optional)</label>
+    <input id="field" placeholder="e.g. field_01"></div>
+  <div class="field"><label for="day">Date of the video (optional)</label>
+    <input id="day" type="date"></div>
+</div>
+<details><summary>More options</summary>
+  <div class="form">
+    <div class="field"><label for="camA" title="A camera name with a saved pitch outline">
+      Camera name (optional)</label><input id="camA" placeholder="optional"></div>
+    <div class="field"><label for="camB" title="The second camera's name">
+      Second camera name (optional)</label><input id="camB" placeholder="optional"></div>
+    <div class="field"><label for="whole">Use the whole picture</label>
+      <input id="whole" type="checkbox"></div>
+  </div>
+  <p class="sub2" style="margin:4px 0 0">How a slot is judged. The defaults suit most
+  clubs; change them only if you want a different line.</p>
+  <div class="form" style="margin-top:6px">
+    <div class="field"><label for="minSeen"
+        title="A slot where less than this was seen is marked please review, never not used">
+        Minimum part of a slot that must be seen (%) - default 50</label>
+      <input id="minSeen" type="number" min="0" max="100" step="1" value="50"></div>
+    <div class="field"><label for="closeLow"
+        title="Playing for between these two shares of the time seen is a close call">
+        Close call from (% playing) - default 40</label>
+      <input id="closeLow" type="number" min="0" max="100" step="1" value="40"></div>
+    <div class="field"><label for="closeHigh">Close call to (% playing) - default 60</label>
+      <input id="closeHigh" type="number" min="0" max="100" step="1" value="60"></div>
+  </div>
+</details>
+<div class="btnrow"><button class="act" id="go" disabled>Start</button></div>
+<p class="note" id="status"></p>
+</div>
+
+<section id="prog" class="card" style="margin-top:18px">
+  <p id="progText" style="margin:0 0 8px">Uploading...</p>
+  <div class="progrow"><div class="bar"><i id="progBar"></i></div>
+    <button class="ghost" id="cancel" hidden>Cancel</button></div>
+</section>
+
+<section id="res">
+  <h2>Result</h2>
+  <p class="sub2" id="summary"></p>
+  <p class="sub2" id="rulesLine"></p>
+  <p class="note warn" id="note"></p>
+  <div class="tiles" id="tiles"></div>
+
+  <h2>Slots</h2>
+  <div class="slots" id="slotbar"></div>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--play)"></i>used</span>
+    <span><i class="sw" style="background:var(--empty-soft)"></i>not used</span>
+    <span><i class="sw" style="background:var(--flag-soft)"></i>please review</span>
+  </div>
+
+  <h2>Over the whole video</h2>
+  <div class="tl" id="timeline"></div>
+  <div class="axis" id="axis"></div>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--play)"></i>playing</span>
+    <span><i class="sw" style="background:var(--empty-soft)"></i>empty</span>
+    <span><i class="sw" style="background:var(--maint)"></i>maintenance / not playing</span>
+    <span><i class="sw" style="background:var(--line)"></i>could not tell</span>
+  </div>
+
+  <h2>Slot by slot</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Slot</th><th>Main activity</th><th class="num">Playing</th>
+      <th class="num">Empty</th><th class="num">Maintenance</th><th class="num">Seen</th>
+      <th>Result</th><th>Why</th><th class="bk" id="bkHead">Bookings</th></tr></thead>
+    <tbody id="rows"></tbody></table></div>
+  <div class="btnrow"><a class="act" id="csv" href="#">Download CSV</a>
+    <button class="ghost" id="print">Print / save as PDF</button>
+    <button class="ghost" id="again">Test another video</button></div>
+
+  <details class="rejudge"><summary>Judge again with other rules</summary>
+    <p class="sub2" style="margin:6px 0 0">Uses the saved results - the video is not needed
+    again. A comparison with bookings is redone too.</p>
+    <div class="form" style="margin-top:6px">
+      <div class="field"><label for="rMinSeen">Minimum part seen (%)</label>
+        <input id="rMinSeen" type="number" min="0" max="100" step="1" value="50"></div>
+      <div class="field"><label for="rLow">Close call from (%)</label>
+        <input id="rLow" type="number" min="0" max="100" step="1" value="40"></div>
+      <div class="field"><label for="rHigh">Close call to (%)</label>
+        <input id="rHigh" type="number" min="0" max="100" step="1" value="60"></div>
+    </div>
+    <div class="btnrow" style="margin-top:4px"><button class="act" id="rGo">Judge
+      again</button></div>
+    <p class="note" id="rStatus"></p>
+  </details>
+
+  <div id="cBox">
+  <h2>Compare with bookings</h2>
+  <p class="sub2">Check the slots against your booking records: a booked slot nobody played
+  in may be a no-show, and play in a slot nobody booked may be unbooked use. Slots marked
+  "please review" are never counted against anyone.</p>
+  <div class="card">
+    <div class="form">
+      <div class="field"><label for="cField">Pitch / field id</label>
+        <input id="cField" placeholder="e.g. field_01"></div>
+      <div class="field"><label for="cDay">Date of the video</label>
+        <input id="cDay" type="date"></div>
+      <div class="field"><label for="cFile"
+          title="Columns: field_id, date, start, end, customer_ref, status, entered_by">
+          Booking file (CSV)</label><input id="cFile" type="file" accept=".csv,text/csv"></div>
+    </div>
+    <div class="btnrow">
+      <button class="act" id="cUpload">Compare with this file</button>
+      <button class="ghost" id="cConfigured">Use our booking system</button>
+    </div>
+    <p class="note" id="cStatus"></p>
+    <div class="tiles" id="cTiles" style="margin-top:14px"></div>
+  </div>
+  </div>
+</section>

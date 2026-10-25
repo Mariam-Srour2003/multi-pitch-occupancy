@@ -1,0 +1,20 @@
+
+.grid2{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.card h3{margin:0 0 4px;font-size:15px}
+.card p{margin:0;color:var(--ink-2);font-size:13px}
+a.card{display:block;text-decoration:none;color:inherit;transition:border-color .15s}
+a.card:hover{border-color:var(--accent)}
+.field{display:block;margin:0 0 12px}
+.field label{display:block;font:500 10.5px 'JetBrains Mono',monospace;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-3);margin-bottom:5px}
+.field input,.field select,.field textarea{font:13px 'JetBrains Mono',monospace;
+  padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--ground);
+  color:var(--ink);width:100%;max-width:520px}
+.ok{color:var(--play)}.bad{color:var(--flag)}.muted{color:var(--ink-3)}
+.bar{height:8px;border-radius:4px;background:var(--surface-2);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+code{font-family:'JetBrains Mono',monospace;font-size:12.5px;background:var(--surface-2);
+  padding:1px 5px;border-radius:4px}
+pre{font:12.5px/1.5 'JetBrains Mono',monospace;background:var(--surface-2);padding:12px 14px;
+  border-radius:8px;overflow-x:auto}
+@media (max-width:640px){main{padding:20px 16px 60px}.hin{padding:14px 16px}}

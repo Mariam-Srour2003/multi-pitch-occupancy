@@ -31,6 +31,6 @@ def test_stand_alone_pages_carry_it_once(html: str) -> None:
 
 
 def test_no_page_defines_its_own_esc() -> None:
-    own = [p.name for p in API.glob("*.py")
-           if p.name != "layout.py" and "const esc" in p.read_text(encoding="utf-8")]
+    files = [*API.glob("*.py"), *(API / "templates").iterdir()]
+    own = [p.name for p in files if "const esc" in p.read_text(encoding="utf-8")]
     assert not own

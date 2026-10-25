@@ -1,0 +1,14 @@
+
+details summary{cursor:pointer}
+details pre{margin:8px 0 6px;white-space:pre-wrap;word-break:break-word}
+.sev{display:inline-block;font:600 11px 'JetBrains Mono',monospace;padding:2px 8px;
+  border-radius:5px}
+.sev.serious{background:var(--flag-soft);color:var(--flag)}
+.sev.warning{background:var(--maint-soft);color:var(--maint)}
+.sev.info{background:var(--surface-2);color:var(--ink-2)}
+.chan{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:0 0 10px}
+.chan h3{margin:0 0 6px;font-size:14px}
+dl.kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:0 0 8px;
+  font-size:13.5px}
+dl.kv dt{color:var(--ink-3)}dl.kv dd{margin:0;word-break:break-word}
+ul.ch{margin:0;padding-left:18px;font-size:12.5px}

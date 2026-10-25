@@ -1,0 +1,25 @@
+<style>
+.pair{display:grid;gap:14px;grid-template-columns:1fr 1fr}
+@media (max-width:700px){.pair{grid-template-columns:1fr}}
+.drop .cam{font:700 12px 'JetBrains Mono',monospace;letter-spacing:.1em;color:var(--accent)}
+.drop.has{border-style:solid;border-color:var(--accent)}
+.rowlab{font:500 10.5px 'JetBrains Mono',monospace;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);margin:14px 0 5px}
+.tl i.UNCERTAIN{border-right:1px solid var(--surface);
+  background:repeating-linear-gradient(45deg,var(--surface-2) 0 4px,var(--line) 4px 8px)}
+.tl i.blind{background:var(--flag-soft);border-right:1px solid var(--surface)}
+.pill.UNCERTAIN{background:var(--surface-2);color:var(--ink-3)}
+.flag{display:inline-block;font:600 10.5px 'JetBrains Mono',monospace;padding:2px 7px;
+  border-radius:4px;margin:1px 3px 1px 0;background:var(--surface-2);color:var(--ink-2);
+  white-space:nowrap}
+.flag.hot{background:var(--flag-soft);color:var(--flag)}
+.sum{font-weight:700}
+.rules{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));margin:0}
+.rules div{background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  padding:11px 13px;font-size:13px;color:var(--ink-2)}
+.rules b{color:var(--ink);display:block;margin-bottom:2px}
+tr.open td{background:var(--accent-soft)}
+tr.trace td{font:12px 'JetBrains Mono',monospace;color:var(--ink-2);background:var(--surface-2)}
+.controls input[type=checkbox]{width:auto}
+#status{min-height:20px}
+</style>

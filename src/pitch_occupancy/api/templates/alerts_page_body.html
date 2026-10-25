@@ -1,0 +1,44 @@
+
+<p class="note"><b>What alerts are for.</b> You should not have to keep this dashboard open to
+find out something is wrong. When something needs attention, the system sends one short
+message to Slack, Microsoft Teams, Discord, email, or - through an automation service -
+WhatsApp, Telegram or SMS. It checks every few minutes while the server is running.</p>
+
+<h2>What you are told about</h2>
+EVENTS
+<p class="sub2">The same problem is not repeated on a channel for a few hours (6 by default),
+so a camera that stays dark sends one message, not one every five minutes. An anomaly and a
+daily summary are only ever sent once. During quiet hours nothing is sent; whatever is still a
+problem when they end is sent then.</p>
+
+<h2>Where alerts go</h2>
+<p class="sub2">The settings live in a file on this computer, <code>configs/alerts.json</code>,
+which is never shared or uploaded: a webhook address works like a password for its channel,
+and an email login has a password. Addresses are shown here as their first part only.</p>
+<div class="card" id="cfgCard"><span class="muted">Loading...</span></div>
+
+<details class="card" style="margin-top:12px" id="howto">
+<summary><b>How to set up alerts</b></summary>
+<p>Create <code>configs/alerts.json</code> with one or more of these channels (several can sit
+side by side under <code>channels</code>), restart the server, and press <b>Send a test
+alert</b>. <code>events</code> chooses which alerts go to that channel;
+<code>min_severity</code> can be <code>info</code>, <code>warning</code> or
+<code>serious</code>.</p>
+<div class="grid2" style="margin-top:10px">EXAMPLES</div>
+</details>
+
+<h2>Check now</h2>
+<p class="sub2">Runs the same checks the background checker runs, and shows what it would send
+right now and to which channel. Nothing is sent unless you tick the box.</p>
+<div class="controls" style="margin-top:0">
+  <label style="display:flex;gap:6px;align-items:center;font-size:13px">
+    <input type="checkbox" id="sendToo" style="width:auto"> Also send them</label>
+  <button class="act" id="checkBtn">Check now</button>
+</div>
+<div id="checkOut" style="margin-top:14px"></div>
+
+<h2>Recent alerts</h2>
+<p class="sub2">The last 200 messages sent (and any that failed), newest first.</p>
+<div class="controls" style="margin-top:0">
+  <button class="ghost" id="logBtn">Refresh</button></div>
+<div id="logOut" style="margin-top:14px"><span class="muted">Loading...</span></div>

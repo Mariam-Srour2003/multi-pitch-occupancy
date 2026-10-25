@@ -9,6 +9,8 @@ drawn boundary, and a small rule turns the count into *empty*, *playing*, *other
 ```
 api/            web pages and JSON endpoints (FastAPI). Thin: reads requests, calls below.
   access.py       sign-in, host check, cross-site refusal, security headers
+  templates/      each page's HTML, CSS and JS, filled by templating.render
+  static/         style sheet, fonts and scripts every page shares (layout.py)
 playgrounds/    pitches checked on a timer inside the web server (the main live path)
   store / capacity / check / snapshots / runner / sessions
 worker.py       slot-schedule recorder (separate process) + scheduler.py, timetable.py
@@ -69,6 +71,10 @@ Then add it to `providers` in `configs/assist.json`.
 **A page.**
 1. Create a router module in `api/`. Use `layout.page(...)` for the shell and the shared JS
    helpers (escape every value placed in HTML).
+   Put the body, CSS and script in `api/templates/` and load them with
+   `templating.template(...)` (or `render(...)` when `{{slot}}`s are filled from Python); keep
+   markup out of the module. Pages inline these files, so nothing extra is served and the
+   sign-in and security headers cover them like any other response.
 2. Open the database with `db.schema.open_db()` / `open_readonly()`.
 3. Register the router in `api/app.py` and the link in `api/nav.py`.
 4. Writes must be POST/PUT/DELETE. `RequestGuard` refuses them when they come from another

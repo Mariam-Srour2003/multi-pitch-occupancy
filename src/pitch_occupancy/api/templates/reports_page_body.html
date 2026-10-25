@@ -1,0 +1,88 @@
+
+<h2>Reports</h2>
+<p class="sub2">What the cameras recorded, added up: how much each pitch was played, which
+booking slots were used, no-shows and the busiest hours.</p>
+__EMPTY__
+<div id="reports"__HIDE__>
+<div class="card">
+  <div class="controls">
+    <div><label for="from">From</label><input id="from" type="date" value="__START__"></div>
+    <div><label for="to">To</label><input id="to" type="date" value="__END__"></div>
+    <div><label for="pitch">Pitch</label><select id="pitch">
+      <option value="">All pitches</option>__OPTIONS__</select></div>
+    <div><button class="act" id="show">Show</button></div>
+  </div>
+  <p class="note" id="status"></p>
+</div>
+
+<h2>At a glance</h2>
+<div class="tiles" id="tiles"></div>
+
+<h2>Day by day</h2>
+<div class="scroll"><table>
+  <thead><tr><th>Date</th><th>Pitch</th><th class="num">Slots</th><th class="num">Used</th>
+    <th class="num">Not used</th><th class="num">To review</th><th class="num">Hours played</th>
+    <th class="num" title="Hours played out of hours scheduled">Utilisation</th>
+    <th class="num">No-shows</th><th class="num">Unbooked play</th></tr></thead>
+  <tbody id="days"></tbody></table></div>
+<div class="btnrow"><a class="act" id="csvSummary" href="#">Download CSV</a></div>
+
+<h2>Busy hours</h2>
+<p class="sub2">How much of the watched time was being played, by day of the week and hour.
+Darker is busier. Striped cells were not watched at all - that is "no data", not "empty".</p>
+<div class="scroll"><table class="heat" id="heat"></table></div>
+<div class="legend">
+  <span><i class="sw" style="background:var(--surface)"></i>not played</span>
+  <span><i class="sw" style="background:color-mix(in srgb,var(--play) 50%,var(--surface))">
+    </i>played half the time</span>
+  <span><i class="sw" style="background:var(--play)"></i>played all the time</span>
+  <span><i class="sw" style="background:repeating-linear-gradient(45deg,var(--surface-2) 0 3px,
+    var(--surface) 3px 6px)"></i>not observed</span>
+</div>
+<div class="btnrow"><a class="act" id="csvBusy" href="#">Download CSV</a></div>
+
+<h2>Cut a recorded day into slots</h2>
+<p class="sub2">Pick a pitch and a day, and say when your first booking slot starts and how
+long your slots are. You get the same slot-by-slot table as the booking-day test, built from
+what the cameras recorded that day.</p>
+<div class="card">
+  <div class="controls">
+    <div><label for="cPitch">Pitch</label><select id="cPitch">__OPTIONS__</select></div>
+    <div><label for="cDay">Date</label><input id="cDay" type="date" value="__END__"></div>
+    <div><label for="cFirst">First slot starts at</label>
+      <input id="cFirst" type="time" value="08:00"></div>
+    <div><label for="cLen">Slot length (minutes)</label>
+      <input id="cLen" type="number" min="1" max="600" value="90"></div>
+    <div><button class="act" id="cut">Cut into slots</button></div>
+  </div>
+  <p class="note" id="cStatus"></p>
+</div>
+<section id="res" class="hide">
+  <p class="sub2" id="summary" style="margin-top:14px"></p>
+  <div class="tiles" id="cTiles"></div>
+  <h2>Slots</h2>
+  <div class="slots" id="slotbar"></div>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--play)"></i>used</span>
+    <span><i class="sw" style="background:var(--empty-soft)"></i>not used</span>
+    <span><i class="sw" style="background:var(--flag-soft)"></i>please review</span>
+  </div>
+  <h2>Over the day</h2>
+  <div class="tl" id="timeline"></div>
+  <div class="axis" id="axis"></div>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--play)"></i>playing</span>
+    <span><i class="sw" style="background:var(--empty-soft)"></i>empty</span>
+    <span><i class="sw" style="background:var(--maint)"></i>maintenance / not playing</span>
+    <span><i class="sw" style="background:var(--line)"></i>could not tell</span>
+    <span><i class="sw" style="background:var(--surface-2)"></i>not recorded</span>
+  </div>
+  <h2>Slot by slot</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Slot</th><th>Main activity</th><th class="num">Playing</th>
+      <th class="num">Empty</th><th class="num">Maintenance</th><th class="num">Seen</th>
+      <th>Result</th><th>Why</th></tr></thead>
+    <tbody id="rows"></tbody></table></div>
+  <div class="btnrow"><a class="act" id="csvDay" href="#">Download CSV</a></div>
+</section>
+</div>

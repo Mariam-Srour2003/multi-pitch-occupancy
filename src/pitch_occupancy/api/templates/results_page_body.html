@@ -1,0 +1,26 @@
+{{CSS_EXTRA}}
+<div class="top"><h1>Results</h1>
+  <div class="row">
+    <label class="hint">From <input type="datetime-local" class="plain" id="from"></label>
+    <label class="hint">to <input type="datetime-local" class="plain" id="to"></label>
+    <a class="small" id="csv" href="#">Download</a></div></div>
+
+<div class="how" id="how"></div>
+
+<h2 style="font-size:18px;margin:22px 0 4px">Every 1.5 hours, one answer per playground</h2>
+<div class="legend" id="legend"></div>
+<div class="card scroll" id="gridbox"><div class="empty">Loading…</div></div>
+
+<div class="card" id="detail" style="margin-top:18px" hidden>
+  <div class="row" style="justify-content:space-between"><h3 id="dtitle"></h3>
+    <button class="small" id="play">Show pictures full screen</button></div>
+  <div class="stats" id="dstats"></div>
+  <p class="hint" id="dwhy"></p>
+  <svg class="chart" id="chart" viewBox="0 0 900 220" role="img"
+    aria-label="People at each check during the session"></svg>
+  <div class="shots" id="shots"></div>
+</div>
+
+<div id="box"><button class="x" title="Close (Esc)">✕</button>
+  <button class="prev" title="Previous (←)">‹</button><img alt="">
+  <div class="cap"></div><button class="next" title="Next (→)">›</button></div>

@@ -1,0 +1,50 @@
+
+<div class="top"><h1>Playgrounds</h1>
+  <button class="act" id="newbtn">+ New playground</button></div>
+
+<div class="card" style="margin-bottom:18px">
+  <div class="row" style="justify-content:space-between"><b>This computer</b>
+    <button class="small" id="measure">Measure speed</button></div>
+  <div class="meter" id="meter"><i id="meterbar"></i></div>
+  <div id="captext" class="hint"></div>
+</div>
+
+<div class="card" id="editcard" hidden style="margin-bottom:18px">
+  <h3 id="edittitle">New playground</h3>
+  <div class="form" style="margin-top:12px">
+    <div><label for="pname">Name</label><input id="pname" placeholder="e.g. Playground 1"></div>
+    <div><label for="pevery">Check every</label><select id="pevery"></select></div>
+    <div><label for="psaveevery">Save pictures</label><select id="psaveevery">
+      <option value="0">Never</option><option value="1">Every check</option>
+      <option value="2">1 check in 2</option><option value="5">1 check in 5</option>
+      <option value="10">1 check in 10</option><option value="30">1 check in 30</option>
+    </select></div>
+  </div>
+  <div style="margin-top:14px"><span class="lbl">Cameras</span>
+    <div class="choices" id="pcams"></div></div>
+  <div style="margin-top:14px"><span class="lbl">The cameras see…</span>
+    <div class="choices">
+      <label><input type="radio" name="counting" value="add" checked> different parts of the
+        playground - add their counts</label>
+      <label><input type="radio" name="counting" value="largest"> the same area - use the
+        biggest count</label>
+      <label><input type="radio" name="counting" value="average"> the same area - use the
+        average count</label>
+      <label><input type="radio" name="counting" value="vote"> each camera decides - playing
+        when at least half say playing</label></div>
+    <div class="hint" style="margin-top:6px">Adding counts each person once only if each
+      camera counts its own part. Draw each camera's part under More → Pitch boundaries so
+      the parts do not overlap.</div></div>
+  <div style="margin-top:14px"><span class="lbl">When</span>
+    <div class="row"><label class="row" style="font-weight:400;gap:6px">
+      <input type="checkbox" id="allday" checked style="width:auto"> All day</label>
+      <span id="hoursbox" hidden>from <input type="time" class="plain" id="hfrom"
+        value="08:00"> to <input type="time" class="plain" id="hto" value="23:00"></span>
+    </div></div>
+  <div class="hint" id="cost" style="margin-top:12px"></div>
+  <div class="row" style="margin-top:14px"><button class="act" id="psave">Save</button>
+    <button class="small" id="pcancel">Cancel</button></div>
+  <div class="msg" id="pmsg"></div>
+</div>
+
+<div class="card scroll" id="list"><div class="empty">Loading…</div></div>

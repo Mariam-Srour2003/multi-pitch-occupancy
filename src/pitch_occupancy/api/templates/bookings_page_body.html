@@ -1,0 +1,59 @@
+
+<p class="note"><b>What booking data is for.</b> The cameras say whether each pitch was
+actually played on. Your booking records say whether it was <i>sold</i>. Putting the two side
+by side shows games nobody booked, bookings nobody turned up for, and records that disagree.
+Booking data is <b>optional</b> - without it you still get the camera verdicts - and it is
+<b>read-only</b>: this system never changes anything in your booking system.</p>
+
+<h2>Your booking source</h2>
+<p class="sub2">Where the bookings are read from. The settings live in a file on this machine,
+<code>configs/bookings_source.json</code>, which is never shared or uploaded because it can
+contain a database password.</p>
+<div class="card" id="srcCard"><span class="muted">Loading...</span></div>
+
+<details class="card" style="margin-top:12px" id="howto">
+<summary><b>How to connect your bookings</b></summary>
+<p>Create <code>configs/bookings_source.json</code> with one of these, then reload this page.
+Your own column names and status words can be kept - <code>columns</code> says which of your
+columns holds each value (ours are <code>field_id</code>, <code>date</code>,
+<code>start</code>, <code>end</code>, <code>customer_ref</code>, <code>status</code>,
+<code>entered_by</code>), and <code>status_map</code> translates your status words into ours:
+<code>confirmed</code>, <code>cancelled</code>, <code>no_show</code>, <code>maintenance</code>,
+<code>blocked</code>. If your start and end columns hold a full date and time, the date is
+taken from them. <code>date_format</code> / <code>time_format</code> handle other formats
+(for example <code>%d/%m/%Y</code>).</p>
+<p><b>Databases:</b> only a single <code>SELECT</code> query is accepted, but that check only
+catches mistakes. The real protection is to give this system its own database login that can
+<b>only read</b> the bookings table. Ask whoever runs your booking system for one. Databases
+other than SQLite also need two extra packages installed (for example
+<code>uv add sqlalchemy psycopg2-binary</code> for PostgreSQL).</p>
+<div class="grid2" style="margin-top:10px">EXAMPLES</div>
+</details>
+
+<h2>Test the connection</h2>
+<p class="sub2">Reads your booking source once and shows the first rows, so you can see the
+columns came through correctly.</p>
+<div class="controls" style="margin-top:0">
+  <button class="act" id="testBtn">Test the connection</button></div>
+<div id="testOut" style="margin-top:14px"></div>
+
+<h2>Check booking data</h2>
+<p class="sub2">Looks for problems that would make the comparison with the cameras wrong:
+missing or unreadable values, bookings that end before they start, unknown statuses,
+duplicates, double bookings, gaps. Every problem is listed at once. Nothing is saved.</p>
+<div class="controls" style="margin-top:0">
+  <div><label for="csvFile">A CSV file</label><input type="file" id="csvFile" accept=".csv,text/csv"
+    style="width:auto"></div>
+  <button class="act" id="checkFile" disabled>Check this file</button>
+  <button class="ghost" id="checkSource">Check my booking source instead</button>
+</div>
+<div id="checkOut" style="margin-top:14px"></div>
+
+<h2>Compare with what the cameras saw</h2>
+<p class="sub2">For one day: each slot the cameras watched, what they decided, and what the
+bookings say.</p>
+<div class="controls" style="margin-top:0">
+  <div><label for="day">Day</label><input type="date" id="day" style="width:auto"></div>
+  <button class="act" id="cmpBtn">Compare</button>
+</div>
+<div id="cmpOut" style="margin-top:14px"></div>

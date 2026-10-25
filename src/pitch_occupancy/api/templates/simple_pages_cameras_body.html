@@ -1,0 +1,33 @@
+
+<div class="top"><h1>Cameras</h1>
+  <div class="row"><button class="small" id="testall">Test all</button>
+    <button class="act" id="addbtn">+ Add camera</button></div></div>
+
+<div class="card" id="addcard" hidden style="margin-bottom:18px">
+  <div class="form">
+    <div><label for="name">Name</label><input id="name" placeholder="e.g. gate"></div>
+    <div><label for="ip">Camera IP</label><input id="ip" placeholder="192.168.10.157"></div>
+    <div><label for="pass">Password</label>
+      <input id="pass" type="password" autocomplete="new-password"></div>
+  </div>
+  <details class="opts"><summary>More options</summary>
+    <div class="form" style="margin-top:10px">
+      <div><label for="user">Username</label>
+        <input id="user" value="admin" autocomplete="off"></div>
+      <div><label for="port">Port</label><input id="port" value="554"></div>
+      <div><label for="stream">Stream</label><select id="stream">
+        <option value="/1/1">Best quality</option>
+        <option value="/1/2">Lighter (slow connection)</option></select></div>
+      <div><label for="place">Group</label><input id="place" list="places">
+        <datalist id="places"></datalist></div>
+      <div style="grid-column:1/-1"><label for="full">Or paste a full camera link</label>
+        <input id="full" placeholder="rtsp://user:password@192.168.10.157:554/1/1"></div>
+    </div>
+  </details>
+  <div class="row" style="margin-top:14px">
+    <button class="act" id="savebtn">Save</button>
+    <button class="small" id="cancelbtn">Cancel</button></div>
+  <div class="msg" id="msg"></div>
+</div>
+
+<div class="card scroll" id="list"><div class="empty">Loading…</div></div>

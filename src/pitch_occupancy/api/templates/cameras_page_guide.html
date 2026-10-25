@@ -1,0 +1,96 @@
+
+<details class="g"><summary>What you need before you start</summary><div>
+<ul>
+<li>The camera on the <b>same network</b> as the Mini-PC that runs this system (same switch,
+router or VLAN), or reachable over a VPN.</li>
+<li>The camera's <b>IP address</b> (from its app, the router's device list, or the NVR).</li>
+<li>A <b>username and password</b> that is allowed to view live video. A separate
+"viewer" user is better than the admin account.</li>
+<li><b>RTSP turned on</b> in the camera's settings (often under Network &gt; Advanced, or
+"Integration protocol" / "ONVIF").</li>
+</ul></div></details>
+
+<details class="g"><summary>Which address to use for your camera</summary><div>
+<p>Replace <code>user</code>, <code>pass</code> and <code>IP</code> with your own. If the
+password contains <code>@</code>, <code>/</code>, <code>?</code> or <code>#</code>, write them
+as <code>%40</code>, <code>%2F</code>, <code>%3F</code>, <code>%23</code>.</p>
+<div class="scroll"><table>
+<thead><tr><th>Camera</th><th>Address pattern</th><th>Notes</th></tr></thead><tbody>
+<tr><td>Hikvision (and HiLook)</td>
+<td><code>rtsp://user:pass@IP:554/Streaming/Channels/101</code></td>
+<td>101 = main stream, <b>102 = sub-stream</b> (enough for this system)</td></tr>
+<tr><td>Dahua, Amcrest</td>
+<td><code>rtsp://user:pass@IP:554/cam/realmonitor?channel=1&amp;subtype=0</code></td>
+<td>subtype=0 main, subtype=1 sub-stream</td></tr>
+<tr><td>Axis</td><td><code>rtsp://user:pass@IP/axis-media/media.amp</code></td>
+<td>add <code>?resolution=1280x720</code> to ask for a smaller picture</td></tr>
+<tr><td>Reolink</td><td><code>rtsp://user:pass@IP:554/h264Preview_01_main</code></td>
+<td><code>h264Preview_01_sub</code> for the sub-stream</td></tr>
+<tr><td>Uniview</td><td><code>rtsp://user:pass@IP:554/unicast/c1/s0/live</code></td>
+<td>s1 = sub-stream</td></tr>
+<tr><td>TP-Link Tapo</td><td><code>rtsp://user:pass@IP:554/stream1</code></td>
+<td>create a "camera account" in the Tapo app first; stream2 = sub-stream</td></tr>
+<tr><td>Other ONVIF cameras</td><td>varies</td>
+<td>use the free <b>ONVIF Device Manager</b> on a PC on the same network: it finds the camera
+and shows its stream address</td></tr>
+<tr><td>Through an NVR / DVR</td>
+<td><code>rtsp://user:pass@NVR-IP:554/Streaming/Channels/301</code></td>
+<td>one address per camera; on a Hikvision NVR channel 3 is <code>301</code> (main) /
+<code>302</code> (sub). Dahua NVR: <code>channel=3</code></td></tr>
+<tr><td>HTTP snapshot or MJPEG</td><td><code>http://user:pass@IP/path/to/snapshot.jpg</code></td>
+<td>works when the camera offers no RTSP; use the Test button to make sure a picture
+arrives</td></tr>
+<tr><td>USB webcam (bench tests)</td><td><code>usb:0</code></td>
+<td><code>usb:1</code> for a second webcam on the same PC</td></tr>
+<tr><td>Cloud-only cameras (Ring, Nest, Arlo, most Wi-Fi "app" cameras)</td><td>-</td>
+<td><b>Not supported directly.</b> They need RTSP/ONVIF switched on, or to be recorded
+by a local NVR whose stream this system can read</td></tr>
+</tbody></table></div></div></details>
+
+<details class="g"><summary>Recommended camera settings</summary><div>
+<ul>
+<li><b>Sub-stream is enough.</b> One picture a minute is all this system takes;
+720p or even 640x360 works and is lighter on the network.</li>
+<li>Use <b>H.264</b> rather than H.265 (H.265+) if pictures fail to arrive.</li>
+<li>Give each camera a <b>fixed IP</b> (or a DHCP reservation in the router) so the address
+does not change after a power cut.</li>
+<li>Keep the camera's <b>clock synced</b> (NTP) so its on-screen time matches the records.</li>
+</ul></div></details>
+
+<details class="g"><summary>Where to point the cameras</summary><div>
+<ul>
+<li>Two cameras per pitch, <b>each seeing about half</b>. A small overlap in the middle is
+fine; a big one counts the same people twice.</li>
+<li>Include the touchlines and goal areas; avoid looking straight into floodlights or the
+low sun.</li>
+<li>Once a camera works, <b>draw the pitch boundary</b> for it on the
+<a href="/roi">Boundaries</a> page, so people on the next pitch are not counted.</li>
+</ul></div></details>
+
+<details class="g"><summary>Checking the network</summary><div>
+<ul>
+<li>Check the address in <b>VLC</b>: Media &gt; Open Network Stream, paste the address.
+If VLC shows video, this system can read it.</li>
+<li>Firewalls: the Mini-PC must reach the camera on its RTSP port (usually
+<b>554</b>).</li>
+<li>Remote sites: connect them over a <b>VPN</b>. <b>Never</b> forward the RTSP port to the
+internet - anyone could watch the pitch and try the password.</li>
+</ul></div></details>
+
+<details class="g"><summary>When the test fails</summary><div>
+<div class="scroll"><table><thead><tr><th>What the test says</th><th>What to do</th></tr>
+</thead><tbody>{TROUBLE_ROWS}</tbody></table></div>
+<p>If a camera stops working during a recorded day, the slot is recorded as partly or not
+observed rather than guessed - see the runbook, <code>docs/runbook.md</code>
+("Camera offline").</p>
+</div></details>
+
+<details class="g"><summary>Privacy</summary><div>
+<ul>
+<li>The cameras film <b>identifiable people</b>. Put up signs and follow your local rules
+for CCTV.</li>
+<li>Camera addresses and passwords stay in <code>configs/cameras.json</code> on this
+computer only; this page never shows a saved password.</li>
+<li>Pictures are not stored unless the live worker is started with
+<code>--evidence-dir</code>; this page's snapshots are not saved at all.</li>
+</ul></div></details>

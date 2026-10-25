@@ -1,0 +1,105 @@
+
+<h2>Recording status</h2>
+<p class="sub2">Whether the live recording program is running on this computer and what it is
+recording now. Refreshes every 30 seconds.</p>
+<div class="card" id="recstatus"><p class="muted">Loading...</p></div>
+
+<h2>Your cameras</h2>
+<p class="sub2">Each pitch has two cameras, each seeing about half of it. Add each camera's
+address here and press <b>Test</b> to check it sends a picture.</p>
+<div id="camproblem" class="note err" hidden></div>
+<div class="row" style="margin:0 0 10px">
+  <button class="act" id="testall">Test all cameras</button>
+  <span id="testallsum" class="muted">Checks each camera answers now (a few seconds each).
+  "Last picture" is when the recording last saved one.</span>
+</div>
+<div class="scroll"><table>
+<thead><tr><th>Venue</th><th>Camera</th><th>Address (password hidden)</th>
+<th>Boundary</th><th>Status now</th><th>Last picture</th><th></th></tr></thead>
+<tbody id="camrows"><tr><td colspan="7" class="muted">Loading...</td></tr></tbody>
+</table></div>
+
+<div class="card" style="margin-top:14px">
+<h3 id="formtitle">Add a camera</h3>
+<div class="controls">
+  <div><label for="f_venue">Venue</label><input id="f_venue" placeholder="venue_01"></div>
+  <div><label for="f_cam">Camera</label><input id="f_cam" placeholder="camera_A"></div>
+  <div style="flex:1"><label for="f_url">Address</label>
+    <input id="f_url" class="wide"
+      placeholder="rtsp://user:password@192.168.1.64:554/Streaming/Channels/102"></div>
+</div>
+<p class="sub2" id="f_hint" style="margin-top:8px">When editing, the password shows as
+<code>***</code>: leave it as it is to keep the saved password.</p>
+<div class="row" style="margin-top:6px">
+  <button class="act" id="f_save">Save camera</button>
+  <button class="ghost" id="f_test">Test before saving</button>
+  <button class="ghost" id="f_clear">Clear</button>
+</div>
+<div id="f_msg" class="result"></div>
+</div>
+
+<div class="card" style="margin-top:14px">
+<h3>Test an address without saving it</h3>
+<div class="controls">
+  <div style="flex:1"><label for="t_url">Address</label>
+    <input id="t_url" class="wide" placeholder="rtsp://user:password@IP:554/..."></div>
+  <div><button class="ghost" id="t_go">Test</button></div>
+</div>
+</div>
+<div id="testout" class="result"></div>
+
+<h2>What is happening now?</h2>
+<p class="sub2">Takes a picture from each camera of one pitch right now and says whether the
+pitch is empty, being played on, or used for something else. People seen by both cameras are
+added together; a ball seen by either camera counts.</p>
+<div class="card">
+<div class="controls">
+  <div><label for="p_venue">Venue</label><select id="p_venue" style="width:180px"></select></div>
+  <div><label>Cameras</label><div id="p_cams" class="days"></div></div>
+  <div><button class="act" id="p_go">Check now</button></div>
+  <div><label class="days"><input type="checkbox" id="p_auto">
+    Repeat every minute</label></div>
+</div>
+<p class="note">This is a <b>spot check</b>: nothing here is recorded. The history on the
+dashboard comes only from the live schedule below. A check takes a few seconds per camera.</p>
+</div>
+<div id="busy"><span class="spin"></span><span>Reading the cameras...</span></div>
+<div id="predout" class="result"></div>
+
+<h2>Start recording a day</h2>
+<p class="sub2">Tell the system when the pitch's slots run. Every slot is watched one picture
+per camera per minute, and the result (empty / playing / other use) is saved at the end of
+the slot.</p>
+<div class="card">
+<div class="controls">
+  <div><label for="s_venue">Venue</label><select id="s_venue" style="width:180px"></select></div>
+  <div><label for="s_field">Pitch id</label><input id="s_field" placeholder="field_01"></div>
+  <div><label>Cameras</label><div id="s_cams" class="days"></div></div>
+</div>
+<div class="controls">
+  <div><label for="s_start">First slot starts</label><input id="s_start" type="time"
+    value="08:00"></div>
+  <div><label for="s_len">Slot length (min)</label><input id="s_len" type="number"
+    min="5" max="720" value="90"></div>
+  <div><label for="s_mode">Until</label><select id="s_mode" style="width:160px">
+    <option value="count">a number of slots</option><option value="end">an end time</option>
+  </select></div>
+  <div id="s_countbox"><label for="s_count">Slots</label><input id="s_count" type="number"
+    min="1" max="96" value="6"></div>
+  <div id="s_endbox" hidden><label for="s_end">Last slot ends by</label><input id="s_end"
+    type="time" value="23:00"></div>
+</div>
+<div class="controls"><div><label>Days</label><div class="days" id="s_days"></div></div></div>
+<div class="row" style="margin-top:12px">
+  <button class="ghost" id="s_preview">Preview slots</button>
+  <button class="act" id="s_save" disabled>Save schedule</button>
+</div>
+<p class="sub2" style="margin-top:8px">Saving replaces this pitch's existing slots and keeps
+every other pitch's. The previous schedule is kept as a backup.</p>
+</div>
+<div id="schedout" class="result"></div>
+
+<h2>How to connect a camera</h2>
+<p class="sub2">A step-by-step guide for whoever installs the cameras. The same guide is in
+<code>docs/cameras.md</code>.</p>
+{GUIDE}

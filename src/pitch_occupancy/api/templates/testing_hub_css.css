@@ -1,0 +1,9 @@
+
+ul.runs{list-style:none;margin:0;padding:0}
+ul.runs li{padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+ul.runs li:last-child{border-bottom:none}
+ul.runs a{color:var(--accent);font-weight:600;text-decoration:none}
+ul.jobs li{display:flex;gap:14px;align-items:center}
+ul.jobs .jl{flex:1;min-width:0}
+ul.jobs .bar{margin-top:7px}
+button.ghost[disabled]{opacity:.55;cursor:not-allowed}

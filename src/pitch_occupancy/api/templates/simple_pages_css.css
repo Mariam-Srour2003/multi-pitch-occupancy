@@ -1,0 +1,72 @@
+
+h1{font-size:26px;margin:4px 0 16px;letter-spacing:-.02em}
+h3{margin:0}
+.top{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  margin-bottom:6px}
+.top h1{margin:4px 0}
+.cards{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+a.cam{display:block;padding:16px 18px;border:1px solid var(--line);border-radius:12px;
+  background:var(--surface);text-decoration:none;color:var(--ink);transition:border-color .15s}
+a.cam:hover{border-color:var(--accent)}
+a.cam b{display:block;font-size:16px}
+a.cam .n{font:700 30px Archivo,sans-serif;margin-top:8px;line-height:1.1}
+a.cam .w{color:var(--ink-3);font-size:13px;margin-top:4px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;
+  background:var(--ink-3);vertical-align:middle}
+.dot.many{background:var(--play)}.dot.few{background:var(--maint)}
+.tag{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;
+  background:var(--surface-2);color:var(--ink-2)}
+.tag.play{background:var(--play-soft);color:var(--play)}
+.tag.off{background:var(--flag-soft);color:var(--flag)}
+.empty{padding:28px;text-align:center;color:var(--ink-2)}
+.form{display:grid;gap:12px 16px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.form label,.lbl{display:block;font-weight:600;font-size:13.5px;margin-bottom:5px}
+.form input,.form select,select.plain,input.plain{font:14px Archivo,sans-serif;
+  padding:9px 11px;border:1px solid var(--line);border-radius:7px;background:var(--ground);
+  color:var(--ink);width:100%}
+select.plain,input.plain{width:auto}
+.choices{display:flex;flex-wrap:wrap;gap:8px}
+.choices label{display:flex;gap:6px;align-items:center;padding:7px 11px;
+  border:1px solid var(--line);border-radius:8px;background:var(--ground);font-size:14px;
+  cursor:pointer}
+.choices label.used{opacity:.45;cursor:not-allowed}
+.choices input{width:auto;margin:0}
+details.opts{margin-top:12px}
+details.opts summary{cursor:pointer;color:var(--ink-2);font-size:13.5px}
+.msg{margin-top:10px;font-size:14px}.msg.good{color:var(--play)}.msg.bad{color:var(--flag)}
+table.simple{width:100%;border-collapse:collapse;font-size:14.5px}
+table.simple th{text-align:left;font-size:12.5px;color:var(--ink-3);font-weight:600;
+  padding:8px 10px;border-bottom:1px solid var(--line)}
+table.simple td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.simple img{width:160px;border-radius:6px;display:block}
+.scroll{overflow-x:auto}
+.yes{color:var(--play);font-weight:700}.no{color:var(--ink-3)}
+.bad{color:var(--flag)}.good{color:var(--play)}
+button.small,a.small{font:600 12.5px Archivo,sans-serif;padding:6px 12px;border-radius:6px;
+  cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);
+  text-decoration:none;display:inline-block}
+button.small.red{border-color:var(--flag);color:var(--flag);background:transparent}
+.toggle{font:700 14px Archivo,sans-serif;padding:7px 16px;border-radius:999px;cursor:pointer;
+  border:1px solid var(--line);background:var(--surface-2);color:var(--ink-2)}
+.toggle.on{background:var(--play);border-color:var(--play);color:#fff}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.meter{height:12px;border-radius:6px;background:var(--surface-2);overflow:hidden;margin:8px 0}
+.meter i{display:block;height:100%;background:var(--play);width:0;transition:width .3s}
+.meter.warn i{background:var(--maint)}.meter.over i{background:var(--flag)}
+.camgrid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  margin-top:16px}
+.camtile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px}
+.camtile img{width:100%;border-radius:6px;display:block;margin-top:8px;
+  background:var(--surface-2)}
+.live{display:grid;gap:20px;grid-template-columns:minmax(0,2fr) minmax(200px,1fr);
+  align-items:start}
+.live img{width:100%;border-radius:10px;display:block;background:var(--surface-2);
+  min-height:200px}
+.big{font:700 72px Archivo,sans-serif;line-height:1;letter-spacing:-.03em}
+.word{font-size:20px;font-weight:600;margin-top:6px}
+.hint{color:var(--ink-3);font-size:13px}
+@media (max-width:760px){.live{grid-template-columns:1fr}}
+.morelist a{display:block;padding:14px 0;border-bottom:1px solid var(--line);
+  text-decoration:none;color:var(--ink)}
+.morelist a b{color:var(--accent)}
+.morelist a span{display:block;color:var(--ink-2);font-size:13.5px}

@@ -1,12 +1,13 @@
 """The site's navigation bar, in one place.
 
-Kept apart from `layout.py` because the clip page, whose style sheet `layout.py` borrows, needs
-the bar too - and a module both imports would otherwise be a cycle.
+Kept apart from `layout.py` so the pages that build their own head can take the bar alone.
 """
 
 from __future__ import annotations
 
 from html import escape
+
+from pitch_occupancy.api.templating import static_text
 
 __all__ = ["NAV", "NAV_CSS", "SECTIONS", "nav_html"]
 
@@ -35,12 +36,7 @@ SECTIONS: dict[str, tuple[str, str]] = {
 }
 
 #: The bar's own rules. Pages that build their head by hand include this after their sheet.
-NAV_CSS = """<style>
-.hin nav{margin-left:auto;display:flex;gap:16px;flex-wrap:wrap}
-.hin nav a{margin-left:0!important;color:var(--accent);font-size:13px;text-decoration:none}
-.hin nav a.on{color:var(--ink);font-weight:600;text-decoration:underline;
-  text-underline-offset:5px;text-decoration-color:var(--accent)}
-</style>"""
+NAV_CSS = "<style>" + static_text("nav.css") + "</style>"
 
 
 def nav_html(active: str = "") -> str:

@@ -1,0 +1,5 @@
+
+.hin nav{margin-left:auto;display:flex;gap:16px;flex-wrap:wrap}
+.hin nav a{margin-left:0!important;color:var(--accent);font-size:13px;text-decoration:none}
+.hin nav a.on{color:var(--ink);font-weight:600;text-decoration:underline;
+  text-underline-offset:5px;text-decoration-color:var(--accent)}
