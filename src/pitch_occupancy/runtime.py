@@ -46,6 +46,10 @@ def shared_pipeline():
     return shared()
 
 
+#: The longest one read from a camera may block; the whole grab is held to its own deadline.
+READ_TIMEOUT_S = 30.0
+
+
 def grab_whole(url: str, timeout_s: float):
     """One whole picture from a camera URL: ``(frame | None, problem | None, wall_ms)``.
 
@@ -58,13 +62,14 @@ def grab_whole(url: str, timeout_s: float):
     from pitch_occupancy.frame_source import read_whole
 
     started = time.monotonic()
-    capture = cameras.open_capture(url, int(timeout_s * 1000))
+    # Each blocking read is held to READ_TIMEOUT_S, so the deadline below is checked often.
+    capture = cameras.open_capture(url, int(min(timeout_s, READ_TIMEOUT_S) * 1000))
     try:
         if not bool(getattr(capture, "isOpened", lambda: True)()):
             return None, "The camera did not answer.", int((time.monotonic() - started) * 1000)
         get = getattr(capture, "get", None)
         fps = float(get(cv2.CAP_PROP_FPS) or 25.0) if get is not None else 25.0
-        ok, frame = read_whole(capture, fps)
+        ok, frame = read_whole(capture, fps, deadline=started + timeout_s)
     finally:
         capture.release()
     wall = int((time.monotonic() - started) * 1000)

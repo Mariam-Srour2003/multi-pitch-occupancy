@@ -200,15 +200,22 @@ def is_incomplete(image: np.ndarray) -> bool:
 WHOLE_FRAME_WAIT_S = 5.0
 
 
-def read_whole(capture, fps: float):
+def read_whole(capture, fps: float, *, deadline: float | None = None):
     """The next frame that is fully drawn, or ``(False, None)`` if none comes in time.
 
-    Reads up to ``fps * WHOLE_FRAME_WAIT_S`` frames, skipping half-drawn ones (`is_incomplete`).
+    Reads up to ``fps * whole_frame_wait_s`` frames, skipping half-drawn ones
+    (`is_incomplete`), and stops at ``deadline`` (a `time.monotonic` value) whatever is left:
+    over a slow link each read can take seconds, and a frame count alone let one camera hold
+    a grab slot for ten minutes.
     """
+    import time
+
     from pitch_occupancy.config import settings
 
     wait_s = max(WHOLE_FRAME_WAIT_S, settings.whole_frame_wait_s)
     for _ in range(max(1, int(fps * wait_s))):
+        if deadline is not None and time.monotonic() > deadline:
+            return False, None
         ok, image = capture.read()
         if not ok or image is None:
             return False, None
