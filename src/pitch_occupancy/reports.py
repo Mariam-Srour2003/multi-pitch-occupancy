@@ -42,6 +42,11 @@ timeline and lowers a slot's seen share; it is not counted as empty.
 minute), capped at the slot length. Multiplying by the full slot length instead would credit
 play to minutes nobody saw.
 
+* :func:`playground_summary` - the playground checks (`playgrounds`), per playground per
+  day or week: sessions and their verdicts, minutes playing, checks without a picture and
+  second-opinion upgrades. Built from `playgrounds.sessions.sessions`, so a session's verdict
+  is the one the Results page shows; a session belongs to the day it starts on.
+
 Everything here only reads. Functions take an open ``sqlite3`` connection.
 """
 
@@ -61,7 +66,8 @@ from pitch_occupancy.slots.fusion import fuse
 __all__ = [
     "ANOMALY_NAMES", "DayRow", "daily_summary", "summary_to_csv", "BusyCell", "busy_hours",
     "busy_hours_to_csv", "PitchMinute", "minute_states", "RecordedDay", "recorded_day",
-    "recorded_day_to_csv", "WEEKDAYS",
+    "recorded_day_to_csv", "WEEKDAYS", "PLAYGROUND_VERDICTS", "playground_summary",
+    "playground_summary_to_csv",
 ]
 
 UNDECIDED = "UNCERTAIN"
@@ -478,3 +484,77 @@ def recorded_day(conn: sqlite3.Connection, *, field_id: str, day: date, first_sl
 def recorded_day_to_csv(rec: RecordedDay) -> str:
     """The re-cut day's slot table, in the booking-day test's CSV layout."""
     return timetable.to_csv(rec.results)
+
+
+# --- 4. playground sessions -------------------------------------------------------------------
+
+#: Session verdict -> column name, in the order `playgrounds.sessions.VERDICTS` lists them.
+PLAYGROUND_VERDICTS: dict[str, str] = {
+    "Playing": "playing", "Played a little": "played_a_little",
+    "Mostly empty": "mostly_empty", "Some people, no game": "some_people_no_game",
+    "Empty": "empty", "No pictures": "no_pictures",
+}
+_PG_COUNTS = ("sessions", *PLAYGROUND_VERDICTS.values(), "minutes_playing", "checks",
+              "checks_without_picture", "assist_upgrades")
+
+
+def _local_midnight(day: date) -> datetime:
+    return datetime.combine(day, time()).astimezone()
+
+
+def playground_summary(conn: sqlite3.Connection, *, start: date, end: date,
+                       playground_id: str | None = None, group: str = "day",
+                       ) -> dict[str, object]:
+    """Per playground per day (or ISO week, ``group="week"``) between ``start`` and ``end``.
+
+    Each row counts the sessions and their verdicts, minutes playing, checks, checks without
+    a picture and checks a second opinion upgraded to playing; ``totals`` adds them up. A
+    week is named by its Monday. A session is counted whole on the day it starts, so one
+    that crosses midnight is not split.
+    """
+    from pitch_occupancy.playgrounds import sessions as pg_sessions
+
+    if group not in ("day", "week"):
+        raise ValueError("group must be 'day' or 'week'")
+    lo = pg_sessions.session_bounds(_local_midnight(start))[0]
+    hi = pg_sessions.session_bounds(_local_midnight(end + timedelta(days=1)))[1]
+    found = pg_sessions.sessions(conn, lo, hi, playground_id=playground_id)
+    rows: dict[tuple[str, str], dict[str, object]] = {}
+    for s in found:
+        day = date.fromisoformat(s["start"][:10])
+        if not start <= day <= end:
+            continue
+        period = day if group == "day" else day - timedelta(days=day.weekday())
+        key = (period.isoformat(), s["playground_id"])
+        row = rows.get(key)
+        if row is None:
+            row = rows[key] = {"period": key[0], "playground_id": s["playground_id"],
+                               "playground": s["playground"], **dict.fromkeys(_PG_COUNTS, 0)}
+        row["sessions"] += 1  # type: ignore[operator]
+        verdict = PLAYGROUND_VERDICTS.get(s["verdict"])
+        if verdict:
+            row[verdict] += 1  # type: ignore[operator]
+        for k in ("minutes_playing", "checks", "checks_without_picture", "assist_upgrades"):
+            row[k] += s[k]  # type: ignore[operator]
+    ordered = [rows[k] for k in sorted(rows)]
+    totals: dict[str, object] = {"period": "total", "playground_id": "total",
+                                 "playground": "All playgrounds"}
+    for k in _PG_COUNTS:
+        totals[k] = sum(int(r[k]) for r in ordered)  # type: ignore[call-overload]
+    for r in (*ordered, totals):
+        r["hours_playing"] = _hours(float(r["minutes_playing"]))  # type: ignore[arg-type]
+    return {"start": start.isoformat(), "end": end.isoformat(),
+            "playground_id": playground_id, "group": group, "rows": ordered, "totals": totals}
+
+
+_PG_COLUMNS = ("period", "playground_id", "playground", *_PG_COUNTS, "hours_playing")
+
+
+def playground_summary_to_csv(summary: dict[str, object]) -> str:
+    """The playground table as CSV, totals last."""
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerow(_PG_COLUMNS)
+    for d in [*summary["rows"], summary["totals"]]:  # type: ignore[misc]
+        writer.writerow([d.get(c) for c in _PG_COLUMNS])
+    return buf.getvalue()

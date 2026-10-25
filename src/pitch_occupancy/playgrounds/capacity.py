@@ -12,6 +12,7 @@ import json
 import time
 from pathlib import Path
 
+from pitch_occupancy import runtime
 from pitch_occupancy.config import CONFIGS_DIR
 from pitch_occupancy.playgrounds import check, store
 
@@ -74,9 +75,9 @@ def measure_speed(path: Path | None = None, *, samples: int = 3) -> dict:
 
     from pitch_occupancy import cameras
 
-    pipeline = check._pipeline()
+    pipeline = runtime.shared_pipeline()
     blank = np.zeros((1080, 1920, 3), np.uint8)
-    with check.detect_lock:
+    with runtime.detect_lock:
         pipeline.observe_minute("speed-test", [blank], None)  # warm the model up
     costs: list[float] = []
     for cam in cameras.list_cameras()[: samples * 3]:
@@ -84,16 +85,16 @@ def measure_speed(path: Path | None = None, *, samples: int = 3) -> dict:
             break
         url = cameras.get_url(cam["venue"], cam["camera_id"])
         cpu = time.process_time()
-        frame, _, _ = check._grab(url, check.GRAB_TIMEOUT_S)
+        frame, _, _ = runtime.grab_whole(url, check.GRAB_TIMEOUT_S)
         if frame is None:
             continue
-        check._count(pipeline, cam["venue"], cam["camera_id"], frame)
+        runtime.count_camera(pipeline, cam["venue"], cam["camera_id"], frame)
         costs.append(time.process_time() - cpu)
     if costs:
         per_picture, how = sorted(costs)[len(costs) // 2], f"{len(costs)} camera(s)"
     else:
         cpu = time.process_time()
-        with check.detect_lock:
+        with runtime.detect_lock:
             pipeline.observe_minute("speed-test", [blank], None)
         per_picture, how = (time.process_time() - cpu) + 0.5, "counting only, no camera answered"
     result = {"seconds_per_picture": round(max(per_picture, 0.02), 3), "how": how,

@@ -90,21 +90,11 @@ def should_ask(cfg: AssistConfig, conn: sqlite3.Connection, record: dict, now: d
     return Decision(False, False, "nothing doubtful")
 
 
-#: Blur applied to every picture sent, after shrinking: at 1024 pixels across a face is a few
-#: pixels, and this makes it unrecognisable while bodies, kit and the ball stay readable.
-FLOOR_BLUR = 5
-
-
 def prepare(pictures: Sequence[CameraPicture], cfg: AssistConfig) -> list[bytes]:
-    """Shrink, redact and encode the pictures to send.
-
-    **Two layers, always** (the rule in `vision/redact.py`): the heads of the people the
-    detector found are pixelated, and the whole picture is blurred lightly - because the far
-    players the detector missed, the very reason for asking, have heads too.
-    """
+    """Shrink, redact (`vision/redact.redact_heads`) and encode the pictures to send."""
     import cv2
 
-    from pitch_occupancy.vision.redact import pixelate_boxes
+    from pitch_occupancy.vision.redact import redact_heads
 
     out = []
     for pic in pictures:
@@ -115,13 +105,8 @@ def prepare(pictures: Sequence[CameraPicture], cfg: AssistConfig) -> list[bytes]
             frame = cv2.resize(frame, (max(1, int(w * scale)), max(1, int(h * scale))),
                                interpolation=cv2.INTER_AREA)
         if cfg.blur_heads:
-            heads = [(int(x1 * scale), int(y1 * scale), int(x2 * scale),
-                      int((y1 + max(1, (y2 - y1) // 3)) * scale))
-                     for x1, y1, x2, y2 in pic.people_boxes]
-            heads = [(x1, y1, max(x2, x1 + 1), max(y2, y1 + 1)) for x1, y1, x2, y2 in heads]
-            if heads:
-                frame = pixelate_boxes(frame, heads, blocks=3)
-            frame = cv2.GaussianBlur(frame, (FLOOR_BLUR, FLOOR_BLUR), 0)
+            boxes = [tuple(int(v * scale) for v in box) for box in pic.people_boxes]
+            frame = redact_heads(frame, boxes)
         ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
         if ok:
             out.append(buf.tobytes())

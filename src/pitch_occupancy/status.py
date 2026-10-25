@@ -24,13 +24,18 @@ error messages are scrubbed of anything that looks like a URL before they are st
 **A heartbeat write never stops a recording.** Every write swallows its own failure (a reader
 holding the file open on Windows, a full disk): losing one status update costs an operator a
 stale card for a minute, losing the slot costs an hour of observation.
+
+The other live path, the playground checks, has no heartbeat file: it is a thread of the
+server. :func:`playground_runner` reports it (and :func:`overview` both paths) for the pages.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
+import sqlite3
 import threading
 from collections import deque
 from datetime import date as Date
@@ -44,7 +49,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     from pitch_occupancy.scheduler import Schedule, ScheduledSlot
 
 __all__ = ["STATUS_FILE", "ALIVE_WITHIN_S", "status_path", "write_status", "read_status",
-           "upcoming", "Heartbeat"]
+           "upcoming", "Heartbeat", "playground_runner", "overview"]
 
 STATUS_FILE = "worker_status.json"
 #: How fresh ``updated_at`` must be for the worker to count as alive. The worker writes at
@@ -125,6 +130,57 @@ def read_status(path: Path | None = None, *, now: datetime | None = None) -> dic
     doc["alive"] = bool(age is not None and age < ALIVE_WITHIN_S
                         and doc.get("state") in _LIVE_STATES)
     return doc
+
+
+def playground_runner(*, now: datetime | None = None) -> dict:
+    """The playground checks' state: ``running`` (`playgrounds.runner.status`) and each saved
+    playground's last check, its age, the runner's last error for it and ``overdue``.
+
+    The runner is a thread of the server, so ``running`` is only meaningful when called inside
+    the server process; the ages come from the database and are true from anywhere.
+    """
+    from pitch_occupancy import playgrounds
+    from pitch_occupancy.alerts import playground_overdue
+    from pitch_occupancy.db.schema import open_readonly
+
+    current = (now or datetime.now()).astimezone()
+    runner = playgrounds.status()
+    latest: dict[str, dict] = {}
+    try:
+        conn = open_readonly()
+    except (FileNotFoundError, sqlite3.Error):
+        conn = None
+    if conn is not None:
+        try:
+            latest = playgrounds.latest(conn)
+        except sqlite3.Error:
+            pass  # a database from before the playground tables: nothing checked yet
+        finally:
+            conn.close()
+    items = []
+    for p in playgrounds.load():
+        stamp = (latest.get(p["id"]) or {}).get("checked_at")
+        age = None
+        if stamp:
+            with contextlib.suppress(ValueError):
+                at = datetime.fromisoformat(stamp)
+                age = round((current - (at if at.tzinfo else at.astimezone()))
+                            .total_seconds(), 1)
+        st = runner["playgrounds"].get(p["id"], {})
+        items.append({"id": p["id"], "name": p["name"], "enabled": p["enabled"],
+                      "in_hours": playgrounds.in_hours(p, current),
+                      "every_seconds": p["every_seconds"], "last_checked_at": stamp,
+                      "age_s": age, "overdue": playground_overdue(p, stamp, current) is not None,
+                      "checking": bool(st.get("checking")), "error": st.get("error")})
+    return {"running": runner["running"],
+            "enabled": sum(1 for i in items if i["enabled"]),
+            "active": sum(1 for i in items if i["enabled"] and i["in_hours"]),
+            "playgrounds": items}
+
+
+def overview(*, now: datetime | None = None) -> dict:
+    """Both live paths at once: the slot worker's heartbeat and the playground checks."""
+    return {"worker": read_status(now=now), "playgrounds": playground_runner(now=now)}
 
 
 def upcoming(schedule: Schedule, now: datetime, n: int = 5) -> list[dict]:

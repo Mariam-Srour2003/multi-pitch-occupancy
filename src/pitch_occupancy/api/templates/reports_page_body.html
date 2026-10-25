@@ -1,20 +1,45 @@
 
 <h2>Reports</h2>
-<p class="sub2">What the cameras recorded, added up: how much each pitch was played, which
-booking slots were used, no-shows and the busiest hours.</p>
+<p class="sub2">What the cameras recorded, added up: how much each playground and pitch was
+played, which booking slots were used, no-shows and the busiest hours.</p>
 __EMPTY__
-<div id="reports"__HIDE__>
-<div class="card">
+<div class="card" id="range"__HIDE_ANY__>
   <div class="controls">
     <div><label for="from">From</label><input id="from" type="date" value="__START__"></div>
     <div><label for="to">To</label><input id="to" type="date" value="__END__"></div>
-    <div><label for="pitch">Pitch</label><select id="pitch">
+    <div id="pitchBox"__HIDE__><label for="pitch">Pitch</label><select id="pitch">
       <option value="">All pitches</option>__OPTIONS__</select></div>
     <div><button class="act" id="show">Show</button></div>
   </div>
   <p class="note" id="status"></p>
 </div>
 
+<section id="pgReports"__HIDE_PG__>
+<h2>Playground sessions</h2>
+<p class="sub2">Each playground's 1.5-hour sessions, as the Results page judges them, added up
+by day or by week.</p>
+<div class="card">
+  <div class="controls">
+    <div><label for="pg">Playground</label><select id="pg">
+      <option value="">All playgrounds</option>__PG_OPTIONS__</select></div>
+    <div><label for="pgGroup">Add up by</label><select id="pgGroup">
+      <option value="day">day</option><option value="week">week</option></select></div>
+  </div>
+</div>
+<div class="tiles" id="pgTiles"></div>
+<div class="scroll"><table>
+  <thead><tr><th>Period</th><th>Playground</th><th class="num">Sessions</th>
+    <th class="num">Playing</th><th class="num">Played a little</th>
+    <th class="num" title="Mostly empty, some people but no game, or empty">Not played</th>
+    <th class="num">No pictures</th><th class="num">Hours playing</th>
+    <th class="num" title="Checks in which no camera gave a picture">Checks without picture</th>
+    <th class="num" title="Checks a second opinion changed to playing">Second-opinion upgrades</th>
+    </tr></thead>
+  <tbody id="pgRows"></tbody></table></div>
+<div class="btnrow"><a class="act" id="csvPg" href="#">Download CSV</a></div>
+</section>
+
+<div id="reports"__HIDE__>
 <h2>At a glance</h2>
 <div class="tiles" id="tiles"></div>
 

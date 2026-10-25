@@ -121,7 +121,8 @@ _EXAMPLES: dict[str, dict] = {
         "events": _ALL}}},
     "WhatsApp, Telegram or SMS (through Zapier, Make or n8n)": {"channels": {"phone": {
         "type": "webhook", "url": "https://hooks.zapier.com/hooks/catch/000000/xxxxxx/",
-        "events": ["anomaly", "worker_down", "worker_error"], "min_severity": "warning"}}},
+        "events": ["anomaly", "worker_down", "worker_error", "playground_stalled"],
+        "min_severity": "warning"}}},
     "Gmail": {"channels": {"email": {
         "type": "email", "host": "smtp.gmail.com", "port": 587, "security": "starttls",
         "username": "you@gmail.com", "password": "your 16-letter app password",
@@ -132,7 +133,8 @@ _EXAMPLES: dict[str, dict] = {
         "to": ["manager@example.com"], "events": _ALL}}},
     "Everything else (thresholds, quiet hours, daily summary)": {
         "channels": {"...": "one or more of the channels above"},
-        "camera_silent_minutes": 10, "cooldown_hours": 6, "check_interval_minutes": 5,
+        "camera_silent_minutes": 10, "playground_dark_checks": 3, "cooldown_hours": 6,
+        "check_interval_minutes": 5,
         "anomaly_lookback_hours": 48, "quiet_hours": {"start": "23:00", "end": "07:00"},
         "daily_summary": "07:30"},
 }

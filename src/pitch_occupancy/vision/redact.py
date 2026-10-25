@@ -12,7 +12,8 @@ from collections.abc import Sequence
 
 import numpy as np
 
-__all__ = ["FLOOR_BLUR_KERNEL", "pixelate_boxes", "redact_frame"]
+__all__ = ["FLOOR_BLUR_KERNEL", "LIGHT_BLUR_KERNEL", "pixelate_boxes", "redact_frame",
+           "redact_heads"]
 
 #: The blur applied to the whole frame regardless of what the detector found. Chosen so a face
 #: at this footage's scale is unrecoverable while the pitch, the lines and the crowd/turf
@@ -46,6 +47,33 @@ def redact_frame(image_bgr: np.ndarray, boxes: Sequence[tuple[int, int, int, int
     out = pixelate_boxes(image_bgr, list(boxes or []), blocks=blocks)
     kernel = floor_kernel if floor_kernel % 2 else floor_kernel + 1
     return cv2.GaussianBlur(out, (kernel, kernel), 0)
+
+
+#: The lighter floor for pictures an operator has to read (saved checks, evidence, pictures
+#: sent for a second opinion): bodies, kit and the ball stay clear; a face a few pixels
+#: across does not.
+LIGHT_BLUR_KERNEL = 5
+
+
+def redact_heads(image_bgr: np.ndarray, boxes: Sequence[tuple[int, int, int, int]],
+                 *, floor_kernel: int = LIGHT_BLUR_KERNEL) -> np.ndarray:
+    """Pixelate the top third of each person box (the head), then blur the frame lightly.
+
+    For pictures that must stay readable as evidence. Both layers, as `redact_frame`: the
+    light floor covers the people the detector missed.
+    """
+    import cv2
+
+    h, w = image_bgr.shape[:2]
+    heads = []
+    for x1, y1, x2, y2 in boxes or []:
+        x1, x2 = max(0, min(w, x1)), max(0, min(w, x2))
+        top, bottom = max(0, min(h, y1)), max(0, min(h, y1 + max(1, (y2 - y1) // 3)))
+        if x2 > x1 and bottom > top:
+            heads.append((x1, top, x2, bottom))
+    out = pixelate_boxes(image_bgr, heads, blocks=3) if heads else image_bgr.copy()
+    kernel = floor_kernel if floor_kernel % 2 else floor_kernel + 1
+    return cv2.GaussianBlur(out, (kernel, kernel), 0) if kernel > 1 else out
 
 
 def _pixelate(patch: np.ndarray, blocks: int) -> np.ndarray:

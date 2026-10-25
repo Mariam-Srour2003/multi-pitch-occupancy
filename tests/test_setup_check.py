@@ -83,7 +83,7 @@ def _complete(cfg: Path, tmp_path: Path, monkeypatch) -> None:
 def test_a_fresh_install_lists_what_is_missing(cfg) -> None:
     steps = _steps()
     assert list(steps) == ["cameras", "boundaries", "schedule", "detector", "bookings",
-                           "password", "worker", "alerts"]
+                           "password", "worker", "playgrounds", "assist", "alerts"]
     assert steps["cameras"].state == "todo" and steps["cameras"].link == "/cameras"
     assert steps["boundaries"].state == "todo" and steps["boundaries"].link == "/roi"
     assert steps["schedule"].state == "todo"
@@ -93,6 +93,8 @@ def test_a_fresh_install_lists_what_is_missing(cfg) -> None:
     assert steps["password"].state == "optional" and not steps["password"].required
     assert steps["worker"].state == "unknown"
     assert steps["alerts"].state == "optional"
+    assert steps["playgrounds"].state == "optional" and not steps["playgrounds"].required
+    assert steps["assist"].state == "optional" and not steps["assist"].required
     assert setup_check.summary()["required_done"] is False
 
 
@@ -180,7 +182,7 @@ def test_broken_configs_are_warnings_never_errors(cfg, monkeypatch) -> None:
     assert steps["schedule"].state == "warning" and "missing" in steps["schedule"].detail
     assert steps["bookings"].state == "warning"
     assert steps["worker"].state == "warning" and "unreadable" in steps["worker"].detail
-    assert len(steps) == 8
+    assert len(steps) == 10
 
 
 def test_the_endpoint_answers_even_when_broken(cfg) -> None:
@@ -190,7 +192,7 @@ def test_the_endpoint_answers_even_when_broken(cfg) -> None:
     r = TestClient(app).get("/api/v1/setup/checklist")
     assert r.status_code == 200
     body = r.json()
-    assert len(body["steps"]) == 8 and body["required_done"] is False
+    assert len(body["steps"]) == 10 and body["required_done"] is False
     assert body["steps"][0]["state"] == "warning"
     assert {"key", "title", "state", "detail", "required", "link", "hint"} <= set(
         body["steps"][0])

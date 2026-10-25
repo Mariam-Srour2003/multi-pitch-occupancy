@@ -3,7 +3,7 @@
 A new installation fails quietly. With no cameras the worker has nothing to open, with no
 schedule it never wakes, with no detector weights every minute is "not sure" - and the
 dashboard just looks empty, which reads as "nothing happened" rather than "nothing is set up".
-:func:`checklist` turns that into eight plain steps, each worked out from the real
+:func:`checklist` turns that into ten plain steps, each worked out from the real
 configuration on this machine, so the dashboard can say what is still missing and where to fix
 it.
 
@@ -20,8 +20,9 @@ not connect to a camera. The page can load this on every visit.
 
 **Optional is not the same as to do.** Booking records and alerts make the product more
 useful but are not needed to record. The sign-in password is required only once the server is
-opened to the network (``settings.api_host`` not a local address). Only required steps decide
-whether the card collapses itself.
+opened to the network (``settings.api_host`` not a local address). The playground checks and
+the second opinion are required only once switched on. Only required steps decide whether the
+card collapses itself.
 """
 
 from __future__ import annotations
@@ -228,6 +229,62 @@ def _step_worker() -> Step:
                 "recorded until it is started again.", True, "/cameras")
 
 
+def _step_playgrounds() -> Step:
+    from pitch_occupancy import playgrounds
+
+    title = "Playground checks running"
+    saved = playgrounds.load()
+    if not saved:
+        return Step("playgrounds", title, "optional", "No playgrounds yet. Group a pitch's "
+                    "cameras into a playground to have it checked on its own timer.", False,
+                    "/playgrounds")
+    on = [p for p in saved if p["enabled"]]
+    if not on:
+        return Step("playgrounds", title, "optional", f"{_plural(len(saved), 'playground')}, "
+                    f"all switched off.", False, "/playgrounds")
+    cams = {f"{c['venue']}/{c['camera_id']}" for c in _cameras()}
+    if not cams:
+        return Step("playgrounds", title, "todo", "Playgrounds are switched on but no camera "
+                    "is saved, so nothing can be checked. Add the cameras first.", True,
+                    "/cameras/add")
+    missing = sorted({c for p in on for c in p["cameras"] if c not in cams})
+    if missing:
+        return Step("playgrounds", title, "warning", f"Switched-on playgrounds use cameras "
+                    f"that are no longer saved: {_listing(missing)}.", True, "/playgrounds")
+    from pitch_occupancy.status import playground_runner
+
+    state = playground_runner()
+    if not state["running"]:
+        return Step("playgrounds", title, "warning", f"{_plural(len(on), 'playground')} "
+                    f"switched on, but the checks are not running in this server. Restart "
+                    f"the server.", True, "/playgrounds")
+    late = [p["name"] for p in state["playgrounds"] if p["overdue"]]
+    if late:
+        return Step("playgrounds", title, "warning", f"Not checked for longer than three "
+                    f"times their interval: {_listing(late)}.", True, "/playgrounds")
+    return Step("playgrounds", title, "done", f"{_plural(len(on), 'playground')} switched "
+                f"on, {state['active']} within {'its' if len(on) == 1 else 'their'} hours "
+                f"now.", True, "/playgrounds")
+
+
+def _step_assist() -> Step:
+    from pitch_occupancy.assist import config as assist_config
+
+    title = "Second opinion has a key"
+    cfg = assist_config.load()
+    if not cfg.enabled:
+        return Step("assist", title, "optional", "The free second opinion is off "
+                    "(configs/assist.json).", False)
+    chain = cfg.chain()
+    ready = [p.name for p in chain if p.configured]
+    if not ready:
+        keys = ", ".join(p.key_env for p in chain) or "a provider in configs/assist.json"
+        return Step("assist", title, "warning", f"The second opinion is switched on but no "
+                    f"provider has a key, so it never answers. Set {keys}.", True,
+                    hint="configs/assist.example.json")
+    return Step("assist", title, "done", f"On, asking {_listing(ready)}.", True)
+
+
 def _step_alerts() -> Step:
     title = "Alerts configured"
     if ALERTS_PATH.exists():
@@ -245,6 +302,8 @@ _STEPS: tuple[tuple[str, str, bool, str | None, Callable[[], Step]], ...] = (
     ("bookings", "Booking records connected", False, "/bookings", _step_bookings),
     ("password", "Sign-in password set", False, None, _step_password),
     ("worker", "Recording program running", True, "/cameras", _step_worker),
+    ("playgrounds", "Playground checks running", False, "/playgrounds", _step_playgrounds),
+    ("assist", "Second opinion has a key", False, None, _step_assist),
     ("alerts", "Alerts configured", False, None, _step_alerts),
 )
 

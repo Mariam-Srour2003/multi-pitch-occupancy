@@ -48,12 +48,22 @@ def drawn(frame, counted):
         return frame
 
 
+def _redacted(frame, counted):
+    """The frame with heads pixelated and a light blur: saved pictures show identifiable
+    people and stay on disk for days (`vision/redact.redact_heads`)."""
+    from pitch_occupancy.vision.redact import redact_heads
+
+    count = getattr(counted.get("verdict"), "count", None)
+    boxes = [d.box for d in getattr(count, "seen_people", ()) or ()]
+    return redact_heads(frame, boxes)
+
+
 def save_snapshot(pid: str, camera: str, when: datetime, frame, counted) -> str | None:
     """Draw the count on the picture and keep it; returns the path relative to SNAPSHOT_DIR."""
     global _snap_bytes
     import cv2
 
-    picture = drawn(frame, counted)
+    picture = drawn(_redacted(frame, counted), counted)
     h, w = picture.shape[:2]
     if w > 1280:
         picture = cv2.resize(picture, (1280, max(1, int(h * 1280 / w))),

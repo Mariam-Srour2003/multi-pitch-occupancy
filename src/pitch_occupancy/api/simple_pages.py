@@ -77,6 +77,7 @@ def _json_block(element_id: str, data: dict) -> str:
 HOME_BODY = """
 <div class="top"><h1>Playgrounds</h1>
   <a class="small" href="/playgrounds">Change playgrounds</a></div>
+<p class="msg bad" id="runner" hidden></p>
 <div class="cards" id="cards"><div class="empty">Loading…</div></div>
 """
 
@@ -215,8 +216,11 @@ def _saved_cameras() -> list[dict]:
 
 @router.get("/api/v1/playgrounds")
 def list_playgrounds() -> dict:
+    from pitch_occupancy.alerts import playground_overdue
+
     items = playgrounds.load()
-    state = playgrounds.status()["playgrounds"]
+    runner = playgrounds.status()
+    state = runner["playgrounds"]
     conn = open_db()
     try:
         latest = playgrounds.latest(conn)
@@ -230,8 +234,11 @@ def list_playgrounds() -> dict:
         cams.append({"ref": ref, "venue": c["venue"], "camera_id": c["camera_id"],
                      "playground": home.get("id"), "playground_name": home.get("name")})
     return {
-        "playgrounds": [{**p, "latest": latest.get(p["id"]), "status": state.get(p["id"], {})}
+        "playgrounds": [{**p, "latest": latest.get(p["id"]), "status": state.get(p["id"], {}),
+                         "overdue": playground_overdue(
+                             p, (latest.get(p["id"]) or {}).get("checked_at")) is not None}
                         for p in items],
+        "running": runner["running"],
         "cameras": cams,
         "capacity": playgrounds.capacity.capacity(items),
         "every_choices": list(playgrounds.EVERY_CHOICES),

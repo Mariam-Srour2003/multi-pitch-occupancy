@@ -8,13 +8,15 @@ cameras' counts are combined - the part that decides whether one person is count
 * ``add``: the cameras watch *different parts*. Each counts only the people inside its own
   drawn area (`vision/roi.py`) and the counts are added. Nobody is counted twice **provided
   the drawn areas do not overlap**; drawing them edge to edge is the fix.
+  Playing is decided by the slot worker's pitch rule (`runtime.combine_pitch`): a pitch too
+  dark to see is not sure (stored as NULL), a standing crowd is not playing.
 * ``largest``: the cameras watch *the same area*; the largest single count is used.
 * ``average``: the same area, one camera sometimes missing people; the counts are averaged.
 * ``vote``: each camera decides; playing when at least half say so. The count is the largest.
 
 Matching the same person across cameras without areas (re-identification) would need the
-cameras calibrated to each other, so it is not attempted. A playground with ``play_min``
-(`configs/rules.json`) or more people is **playing**.
+cameras calibrated to each other, so it is not attempted. In the other modes a playground
+with ``play_min`` (`configs/rules.json`) or more people is **playing**.
 
 Modules: `store` (the saved settings), `capacity` (what this computer can do), `check` (one
 check, and the second opinion), `snapshots` (saved pictures), `runner` (the background
@@ -22,11 +24,12 @@ thread), `sessions` (the stored checks, grouped for the pages).
 
 The functions most callers need are re-exported here. Settings a test redirects - ``CONFIG_PATH``
 (store), ``SPEED_PATH`` (capacity), ``SNAPSHOT_DIR``/``SNAPSHOT_CAP_BYTES`` (snapshots) - and
-seams it swaps - ``check._grab``, ``check._pipeline``, ``check.play_min``,
-``check.check_playground`` - are deliberately *not* re-exported: each is read from its own
-module at call time, so patch it there (``playgrounds.store.CONFIG_PATH``) and one patch
-reaches every caller. ``capacity()`` and ``sessions()`` share their module's name; call them
-as ``playgrounds.capacity.capacity()`` and ``playgrounds.sessions.sessions()``.
+seams it swaps - ``runtime.grab_whole`` and ``runtime.shared_pipeline`` (on
+`pitch_occupancy.runtime`), ``check.play_min``, ``check.check_playground`` - are deliberately
+*not* re-exported: each is read from its own module at call time, so patch it there
+(``playgrounds.store.CONFIG_PATH``) and one patch reaches every caller. ``capacity()`` and
+``sessions()`` share their module's name; call them as ``playgrounds.capacity.capacity()`` and
+``playgrounds.sessions.sessions()``.
 """
 
 from __future__ import annotations

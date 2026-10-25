@@ -1,7 +1,7 @@
 """One check of one playground: a picture from every camera at once, counted, combined, stored.
 
-Counting is done one picture at a time (:data:`detect_lock`), because the detector is the part
-that uses the processor; picture-taking across all playgrounds is limited to
+Grabbing, counting and combining are the shared live step (`runtime`); this module adds the
+playground's own parts. Picture-taking across all playgrounds is limited to
 ``settings.parallel_grabs`` streams at once, since a slow link times out when many open together.
 
 After a check is stored, a second opinion from a free vision model may be queued
@@ -14,78 +14,26 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from pitch_occupancy import runtime
 from pitch_occupancy.config import settings
 from pitch_occupancy.playgrounds import snapshots, store
+from pitch_occupancy.runtime import combine_counts as combine
+from pitch_occupancy.runtime import detect_lock, play_min
 
 __all__ = ["check_playground", "combine", "play_min", "wait_for_second_opinions",
-           "GRAB_TIMEOUT_S", "MAX_ASSIST_WAITING"]
+           "detect_lock", "GRAB_TIMEOUT_S", "MAX_ASSIST_WAITING"]
 
 log = logging.getLogger(__name__)
 
 #: Longest wait for one camera's picture in a check, whatever the interval.
 GRAB_TIMEOUT_S = 20.0
 _grab_slots = threading.BoundedSemaphore(max(1, settings.parallel_grabs))
-#: Held while the detector counts one picture.
-detect_lock = threading.Lock()
 
 
-def play_min() -> int:
-    """People at or above which a playground counts as playing - the rule's own number."""
-    try:
-        from pitch_occupancy.vision.rules import RuleConfig
-
-        return int(RuleConfig.load(settings.rules_path).play_min)
-    except Exception:  # noqa: BLE001 - a broken rule file must not stop the counting
-        return 5
-
-
-def _grab(url: str, timeout_s: float):
-    """One whole picture from a camera: ``(frame | None, problem | None, wall_ms)``."""
-    import cv2
-
-    from pitch_occupancy import cameras
-    from pitch_occupancy.frame_source import _read_whole
-
-    started = time.monotonic()
-    capture = cameras.open_capture(url, int(timeout_s * 1000))
-    try:
-        if not bool(getattr(capture, "isOpened", lambda: True)()):
-            return None, "The camera did not answer.", int((time.monotonic() - started) * 1000)
-        get = getattr(capture, "get", None)
-        fps = float(get(cv2.CAP_PROP_FPS) or 25.0) if get is not None else 25.0
-        ok, frame = _read_whole(capture, fps)
-    finally:
-        capture.release()
-    wall = int((time.monotonic() - started) * 1000)
-    if not ok or frame is None:
-        return None, "No whole picture arrived in time.", wall
-    return frame, None, wall
-
-
-def _pipeline():
-    """The shared detector-first pipeline (`pipeline.shared`). A function so tests can swap it."""
-    from pitch_occupancy.pipeline import shared
-
-    return shared()
-
-
-def _count(pipeline, venue: str, camera: str, frame) -> dict:
-    """People inside the camera's drawn area (the whole picture when none is drawn)."""
-    with detect_lock:
-        started = time.perf_counter()
-        obs = pipeline.observe_minute(camera, [frame], None, venue=venue)
-        took = time.perf_counter() - started
-    v = obs.verdict
-    return {"people": v.people, "state": str(getattr(v.state, "value", v.state)),
-            "detect_ms": int(took * 1000),
-            "instances": getattr(obs, "instances", ()), "verdict": v}
-
-
-def check_playground(p: dict, *, grab: Callable | None = None, pipeline=None,
+def check_playground(p: dict, *, grab=None, pipeline=None,
                      db_path: Path | None = None, with_pictures: bool = False,
                      save: bool = False) -> dict:
     """Take one picture from every camera of ``p`` at the same moment, count, combine, store.
@@ -93,11 +41,12 @@ def check_playground(p: dict, *, grab: Callable | None = None, pipeline=None,
     Returns the stored playground row, with each camera's result under ``cameras`` - and
     each camera's picture (base64 JPEG, drawn) when ``with_pictures`` is set, for the live
     page. With ``save`` the drawn pictures are also kept (`snapshots.save_snapshot`).
+    ``playing`` is NULL when the rule could not decide (`runtime.combine_pitch`).
     """
     from pitch_occupancy import cameras
     from pitch_occupancy.db.schema import connect, initialise, transaction
 
-    grab = grab or _grab
+    grab = grab or runtime.grab_whole
     started = time.monotonic()
     when = store.now()
     timeout = min(GRAB_TIMEOUT_S, max(3.0, p["every_seconds"] * 0.4))
@@ -124,8 +73,9 @@ def check_playground(p: dict, *, grab: Callable | None = None, pipeline=None,
         grabbed = list(pool.map(take, targets))
 
     if pipeline is None and any(frame is not None for frame, _, _ in grabbed):
-        pipeline = _pipeline()
+        pipeline = runtime.shared_pipeline()
     per_camera = []
+    verdicts: dict[str, object] = {}  # each counted camera's verdict
     pictures: list[tuple] = []  # (frame, person boxes) for the second opinion
     for (ref, venue, camera, _), (frame, problem, grab_ms) in zip(targets, grabbed, strict=True):
         row = {"camera": ref, "venue": venue, "camera_id": camera, "readable": frame is not None,
@@ -133,7 +83,7 @@ def check_playground(p: dict, *, grab: Callable | None = None, pipeline=None,
                "detect_ms": None, "picture": None, "picture_path": None}
         if frame is not None:
             try:
-                counted = _count(pipeline, venue, camera, frame)
+                counted = runtime.count_camera(pipeline, venue, camera, frame)
                 row.update(people=counted["people"], state=counted["state"],
                            detect_ms=counted["detect_ms"])
                 pictures.append((frame, _person_boxes(counted)))
@@ -142,6 +92,7 @@ def check_playground(p: dict, *, grab: Callable | None = None, pipeline=None,
             except Exception as exc:  # noqa: BLE001
                 row.update(readable=False, problem=f"Counting failed ({type(exc).__name__}).")
             else:
+                verdicts[ref] = counted["verdict"]
                 if save:
                     # Kept apart from the count: a full disk loses the picture, not the count.
                     try:
@@ -152,7 +103,8 @@ def check_playground(p: dict, *, grab: Callable | None = None, pipeline=None,
         per_camera.append(row)
 
     counts = [r["people"] for r in per_camera if r["readable"] and r["people"] is not None]
-    total, playing = combine(p["counting"], counts, play_min())
+    rules = getattr(pipeline, "rules", None) or runtime.load_rules()
+    total, playing = runtime.combine_pitch(p["counting"], verdicts, rules)
     duration = int((time.monotonic() - started) * 1000)
     record = {"playground_id": p["id"], "checked_at": when.isoformat(timespec="seconds"),
               "people": total, "playing": playing, "cameras_read": len(counts),
@@ -190,22 +142,6 @@ def _person_boxes(counted: dict) -> tuple[tuple[int, int, int, int], ...]:
     count = getattr(counted.get("verdict"), "count", None)
     people = getattr(count, "seen_people", ()) or ()
     return tuple(d.box for d in people)
-
-
-def combine(counting: str, counts: list[int], threshold: int) -> tuple[int | None, int | None]:
-    """The playground's people and playing (1/0) from its cameras' counts; ``None`` without any."""
-    if not counts:
-        return None, None
-    if counting == "largest":
-        total = max(counts)
-    elif counting == "average":
-        total = round(sum(counts) / len(counts))
-    elif counting == "vote":
-        yes = sum(1 for n in counts if n >= threshold)
-        return max(counts), int(2 * yes >= len(counts))
-    else:
-        total = sum(counts)
-    return total, int(total >= threshold)
 
 
 def _picture(frame, counted) -> str | None:

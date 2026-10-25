@@ -29,3 +29,18 @@ def test_a_frame_with_no_boxes_still_gets_the_floor_of_blur() -> None:
     image = rng.integers(0, 255, (60, 60, 3), dtype=np.uint8)
     out = redact_frame(image, [])
     assert out.shape == image.shape and out.std() < image.std()
+
+
+def test_heads_are_pixelated_and_the_frame_lightly_blurred() -> None:
+    import numpy as np
+
+    from pitch_occupancy.vision.redact import redact_heads
+
+    rng = np.random.default_rng(1)
+    frame = rng.integers(0, 255, (120, 160, 3), dtype=np.uint8)
+    out = redact_heads(frame, [(40, 20, 70, 110)])
+    head, body = out[20:50, 40:70], out[60:110, 40:70]
+    # The head region is blocky (few distinct values per row); the body only softened.
+    assert len(np.unique(head[5, :, 0])) < len(np.unique(body[5, :, 0]))
+    assert out.shape == frame.shape and not np.array_equal(out, frame)
+    assert redact_heads(frame, [(-5, -5, 2000, 2000)]).shape == frame.shape

@@ -351,6 +351,11 @@ def save_camera(venue: str, camera_id: str, url: str, path: Path | None = None) 
         raise ValueError(f"venue {venue!r} in the camera file is not a list of cameras")
     stored = (current or {}).get(camera_id)
     clean = validate_url(merge_password(validate_url(url), stored))
+    if not _USB_RE.match(clean):
+        host, port = _host_port(clean)
+        refused = unsafe_target(host or "", port or 0) if host and port else None
+        if refused:
+            raise ValueError(refused)
     if not data:
         data = {"_comment": list(_NEW_FILE_COMMENT)}
     data.setdefault(venue, {})[camera_id] = clean
@@ -455,6 +460,43 @@ class ProbeResult:
         return out
 
 
+#: Host names that are never a camera: cloud metadata services, the classic target of a
+#: request a server is tricked into making on someone's behalf.
+_NEVER_CAMERA_HOSTS = frozenset({"metadata.google.internal", "metadata", "instance-data"})
+
+
+def unsafe_target(host: str, port: int) -> str | None:
+    """Why ``host:port`` must not be connected to as a camera, or None when it may.
+
+    Refused: cloud metadata names, link-local addresses (169.254.x.x - where cloud metadata
+    lives - and fe80::), unspecified and multicast addresses, and this service's own port on
+    this machine. Private and public addresses are allowed: cameras sit on the venue network
+    or behind a remote link. Loopback on another port is allowed too, for a local RTSP relay.
+    A name that does not resolve is left to the network stage to report.
+    """
+    import ipaddress
+
+    from pitch_occupancy.config import settings
+
+    name = host.strip("[]").lower().rstrip(".")
+    if name in _NEVER_CAMERA_HOSTS:
+        return f"{host} is a cloud metadata service, not a camera"
+    try:
+        infos = socket.getaddrinfo(name, port, proto=socket.IPPROTO_TCP)
+    except (socket.gaierror, UnicodeError, OSError):
+        return None
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0].split("%", 1)[0])
+        except ValueError:
+            continue
+        if ip.is_link_local or ip.is_unspecified or ip.is_multicast:
+            return f"{host} ({ip}) is not an address a camera can have"
+        if ip.is_loopback and port == settings.api_port:
+            return f"{host}:{port} is this service itself, not a camera"
+    return None
+
+
 def probe(
     url: str,
     *,
@@ -498,6 +540,10 @@ def probe(
         host, port = _host_port(clean)
         if not host or not port or port < 0:
             return done("address", detail="no host or port")
+        refused = unsafe_target(host, port)
+        if refused:
+            steps.append(refused)
+            return done("address", detail=refused, host=host, port=port)
         try:
             tcp(host, port, max(0.5, timeout_ms / 1000))
         except ConnectionRefusedError:
@@ -532,12 +578,12 @@ def probe(
             ok, image = capture.read()
             # A half-drawn first frame (stream stalled mid-picture) is not the picture to
             # show: read on for a whole one, as the recorder does (`frame_source`).
-            from pitch_occupancy.frame_source import _read_whole, is_incomplete
+            from pitch_occupancy.frame_source import is_incomplete, read_whole
 
             if ok and image is not None and is_incomplete(image):
                 get = getattr(capture, "get", None)
                 fps = float(get(cv2.CAP_PROP_FPS) or 25.0) if get is not None else 25.0
-                ok, image = _read_whole(capture, fps)
+                ok, image = read_whole(capture, fps)
         except Exception as exc:  # noqa: BLE001
             steps.append(f"reading failed ({type(exc).__name__})")
             return done("frame", host=host, port=port)

@@ -393,3 +393,23 @@ def test_rtsp_is_read_over_tcp_unless_the_operator_chose_otherwise(monkeypatch) 
     monkeypatch.setenv("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;udp")
     cameras.open_capture(URL, 1000)
     assert os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] == "rtsp_transport;udp"
+
+
+@pytest.mark.parametrize("url", [
+    "http://169.254.169.254/latest/meta-data/",
+    "http://metadata.google.internal/computeMetadata/v1/",
+    "rtsp://0.0.0.0:554/x",
+])
+def test_a_cloud_metadata_or_impossible_address_is_never_a_camera(config, url) -> None:
+    result = cameras.probe(url, connect=lambda *a: pytest.fail("must not connect"))
+    assert not result.ok and result.stage == "address"
+    with pytest.raises(ValueError):
+        cameras.save_camera("venue_01", "evil", url)
+
+
+def test_a_local_relay_on_another_port_is_still_allowed() -> None:
+    assert cameras.unsafe_target("127.0.0.1", 8554) is None
+    assert cameras.unsafe_target("10.0.0.5", 554) is None
+    from pitch_occupancy.config import settings
+
+    assert cameras.unsafe_target("127.0.0.1", settings.api_port) is not None

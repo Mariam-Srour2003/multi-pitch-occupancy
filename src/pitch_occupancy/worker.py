@@ -19,9 +19,8 @@ scripted classifier in tests without the orchestration knowing which it has.
 from __future__ import annotations
 
 import argparse
-import json
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, time
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
@@ -29,7 +28,8 @@ from urllib.parse import urlparse
 
 import numpy as np
 
-from pitch_occupancy.config import CONFIGS_DIR, settings
+from pitch_occupancy import runtime
+from pitch_occupancy.config import settings
 from pitch_occupancy.data.taxonomy import Class3
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -46,6 +46,7 @@ from pitch_occupancy.slots.evidence import (
     select_evidence_around_transitions,
 )
 from pitch_occupancy.slots.fusion import fuse
+from pitch_occupancy.vision.redact import redact_heads
 from pitch_occupancy.vision.rules import MinuteState, from_class3
 
 __all__ = ["Classifier", "SlotRun", "run_slot", "main"]
@@ -142,29 +143,16 @@ def run_slot(
     resolved contributes no observation: its minute is recorded as UNCERTAIN, and if no
     camera on the pitch had one the minute counts as missed, which the capture floor turns
     into REVIEW. Without a boundary the detector counts the neighbouring pitch and the car
-    park as if they were this one - a verdict produced that way is not one this system
-    should record as its own.
+    park as if they were this one.
 
-    Minutes where no camera produced a frame are counted as missed rather than filled in.
-    They lower the capture rate, which is what a verdict's trustworthiness should depend
-    on - a slot evaluated from ten of sixty minutes is not the same claim as one evaluated
-    from all sixty.
+    Minutes where no camera produced a frame are counted as missed rather than filled in, so
+    they lower the capture rate a verdict's trustworthiness depends on.
 
-    ``evidence_dir`` turns on **saving the evidence images**, and until 2026-09-09 nothing
-    did. `EvidenceFrame.image_path` was populated with a literal ``None`` on every minute, so
-    the selection machinery ran, chose three good frames, and recorded three paths to nothing.
-    The dashboard's evidence inspector said "no evidence images bound" and was right. A
-    verdict an operator cannot see the evidence for is the one thing this system must not
-    produce, since a human confirming every anomaly is what the design rests on.
-
-    The winning camera's frame is written for **every** observed minute and the unselected ones
-    are deleted once the choice is made, because which three minutes matter is not knowable
-    until the whole slot has been seen. Sixty small JPEGs written and fifty-seven removed is
-    cheaper than holding sixty full-resolution frames in memory, which at 1080p is most of a
-    gigabyte per slot.
-
-    Left off by default: writing frames of identifiable people to disk is a decision a caller
-    makes, not something that happens because a function was called.
+    ``evidence_dir`` turns on saving evidence images: the winning camera's frame is written
+    for every decided minute and the unselected ones are deleted once the slot's evidence is
+    chosen, since which minutes matter is only knowable at the end and holding sixty full
+    frames in memory is not affordable. Off by default: writing frames of identifiable people
+    to disk is a decision a caller makes.
     """
     if pipeline is not None:
         classify = classify or pipeline.classify
@@ -172,261 +160,281 @@ def run_slot(
             polygon_for = pipeline.polygon_for(venue=venue, slot_key=slot_key)
     if classify is None:
         raise TypeError("run_slot needs a classifier or a pipeline that carries one")
-    # The pipeline reads a burst per camera-minute and fuses counts at pitch level; a bare
-    # classifier reads one frame and its classes are fused.
-    burst_n, burst_spacing = pipeline.burst if pipeline is not None else (1, 0.0)
-    detector_first = pipeline is not None
 
     cameras = source.cameras()
-    samples: list[Sample] = []
-    fused_states: list[Class3] = []
-    fused_conf: list[float] = []
-    evidence_rows: list[tuple[int, Class3, float, str | None]] = []
-    disagreements: list[bool] = []
-    written: list[Path] = []
-    missed = 0
-
-    slot_dir = None
-    if evidence_dir is not None:
-        # Runbook row 7. `retention.py` bounds what this system keeps and says nothing about
-        # a disk filled by something else, and nothing checked before writing. A slot that
-        # runs out of space mid-write leaves a verdict backed by a *partial* set of evidence
-        # images, which is worse than one backed by none: the inspector cannot tell a slot
-        # that was never configured to save frames from one whose frames stopped at minute
-        # nineteen. So the choice is made once, before the first write, and the verdict is
-        # produced either way - a full disk must not cost an hour of observation.
-        room, why = has_room(Path(evidence_dir))
-        if not room:
-            evidence_dir = None
-            if on_minute is None:  # the loop below has no other channel to report on
-                print(f"  evidence images disabled for {slot_id}: {why}")
-        else:
-            slot_dir = Path(evidence_dir) / slot_id
-            slot_dir.mkdir(parents=True, exist_ok=True)
-
-
-    # One frame per camera, the previous minute's. Held only until the next frame replaces
-    # it, so the memory cost is one frame per camera rather than one per minute.
+    tally = _SlotTally()
+    slot_dir = _evidence_folder(evidence_dir, slot_id, quiet=on_minute is not None)
+    keep_images = slot_dir is not None
+    # The previous minute's frame per camera, for the motion cue; one frame per camera.
     previous: dict[str, object] = {}
-    motion_seen: list[float] = []
-    people_seen: list[int] = []
-    # Minutes where a ball was seen inside the boundary (`vision/ball.py`).
-    ball_minutes: list[int] = []
-    uncertain_minutes = 0
-    uncertain_cameras: set[str] = set()
-    minute_states_out: list[str] = []
 
     for minute in range(source.n_minutes):
-        observations: dict[str, tuple[Class3, float]] = {}
-        camera_observations: dict[str, object] = {}
-        images: dict[str, object] = {}
-        abstained = False
-        for camera in cameras:
-            if burst_n > 1:
-                frames = source.read_burst(camera, minute, n=burst_n, spacing_s=burst_spacing)
-            else:
-                single = source.read(camera, minute)
-                frames = [single] if single is not None else []
-            if not frames:
-                continue  # a gap; never a fabricated observation
-            frame = frames[-1]
-            # The pitch boundary. Passed per camera because a boundary belongs to
-            # one, and applying another camera's outline is measurably worse than none at
-            # all: on an unseen clip the wrong outline bought 0.06 of false-play where the
-            # right one bought 0.42.
-            polygon = polygon_for(camera) if polygon_for is not None else None
-            if detector_first:
-                # The camera's burst is counted inside its boundary and decided by the
-                # table; the pitch is decided again below from every camera's count. The
-                # stored sample carries the three-class value the dashboard reads, or
-                # UNCERTAIN; the four-class state travels on the run. A camera with no
-                # boundary abstains here too (row 2, the detector never runs) - but as an
-                # observation the fusion can see, so the other half decides at half the
-                # confidence rather than as if it were the whole pitch.
-                observation = pipeline.observe_minute(
-                    camera, [f.image_bgr for f in frames], previous.get(camera),
-                    polygon=polygon,
-                )
-                verdict = observation.verdict
-                if verdict.rule == 2:
-                    uncertain_cameras.add(camera)
-                samples.append(
-                    Sample(
-                        camera_id=camera,
-                        minute_index=minute,
-                        predicted=(verdict.class3.value if verdict.decided
-                                   else MinuteState.UNCERTAIN.value),
-                        confidence=verdict.confidence,
-                        captured_at=datetime.now(UTC).isoformat(timespec="seconds"),
-                        image_path=frame.source_path,
-                    )
-                )
-                if verdict.motion is not None:
-                    motion_seen.append(verdict.motion)
-                previous[camera] = frame.image_bgr
-                camera_observations[camera] = observation
-                if not verdict.decided:
-                    abstained = True
-                if slot_dir is not None:
-                    images[camera] = frames[observation.evidence_index].image_bgr
-                continue
-            if polygon_for is not None:
-                state, confidence = classify(frame.image_bgr, polygon=polygon)
-            else:
-                state, confidence = classify(frame.image_bgr)
-            previous[camera] = frame.image_bgr
-
-            observations[camera] = (state, confidence)
-            if slot_dir is not None:
-                images[camera] = frame.image_bgr
-            samples.append(
-                Sample(
-                    camera_id=camera,
-                    minute_index=minute,
-                    predicted=state.value,
-                    confidence=confidence,
-                    captured_at=datetime.now(UTC).isoformat(timespec="seconds"),
-                    image_path=frame.source_path,
-                )
-            )
-
-        if detector_first:
-            if not camera_observations:
-                missed += 1
-                if abstained:
-                    uncertain_minutes += 1
-                continue
-            pitch = pipeline.fuse(camera_observations)
-            if not pitch.decided:
-                # The pitch as a whole abstained - no camera could be scored, or movement
-                # with nobody found. It counts against the capture floor like a minute with
-                # no frame, and is recorded as the reason.
-                missed += 1
-                uncertain_minutes += 1
-                continue
-            state, confidence, disagreed = pitch.class3, pitch.confidence, pitch.disagreed
-            winner = pitch.winning_camera
-            if pitch.people_inside is not None:
-                people_seen.append(pitch.people_inside)
-            if pitch.ball_seen:
-                ball_minutes.append(minute)
-            minute_states_out.append(pitch.state.value)
+        if pipeline is not None:
+            outcome = _pipeline_minute(pipeline, source, cameras, minute, polygon_for,
+                                       previous, tally, keep_images)
         else:
-            if not observations:
-                missed += 1
-                if abstained:
-                    uncertain_minutes += 1
-                continue
-            fused = fuse(observations)
-            if fused.state is Class3.EMPTY and len(observations) < len(cameras):
-                # EMPTY needs every half seen (slots/fusion.py). With one camera dead or
-                # unscored, the other half's EMPTY says nothing about the half where the
-                # match may be, and deciding from it turned a lost camera into a confident
-                # NOTUSED with no concern raised. Play on the seen half still decides - it
-                # needs only one half - but an empty-looking minute abstains and counts
-                # against the capture floor, so a slot that lost a camera goes to REVIEW.
-                missed += 1
-                uncertain_minutes += 1
-                continue
-            state, confidence, disagreed = fused.state, fused.confidence, fused.disagreed
-            # The frame from the camera whose observation won the fusion - the one that
-            # actually justifies the minute's state. Saving an averaged or arbitrary camera
-            # would hand an operator a picture of an empty half to explain a verdict of
-            # "play on the other one" - which is what picking the most confident camera of
-            # any class did whenever the empty half was read more confidently.
-            winner = fused.winning_camera or None
-            minute_states_out.append(from_class3(state).value)
-        fused_states.append(state)
-        fused_conf.append(confidence)
-        disagreements.append(disagreed)
+            outcome = _classifier_minute(classify, source, cameras, minute, polygon_for,
+                                         tally, keep_images)
+        if outcome is None:
+            continue
+        decided, images = outcome
+        tally.fused_states.append(decided.state)
+        tally.fused_conf.append(decided.confidence)
+        tally.disagreements.append(decided.disagreed)
 
         path = None
-        if slot_dir is not None and winner is not None and winner in images:
-            path = _write_evidence(slot_dir, minute, winner, images[winner])
+        if slot_dir is not None and decided.winner is not None and decided.winner in images:
+            path = _write_evidence(slot_dir, minute, decided.winner, images[decided.winner])
             if path is not None:
-                written.append(path)
-        evidence_rows.append((minute, state, confidence, str(path) if path else None))
+                tally.written.append(path)
+        tally.evidence_rows.append((minute, decided.state, decided.confidence,
+                                    str(path) if path else None))
         if on_minute is not None:
-            on_minute(minute, state)
+            on_minute(minute, decided.state)
 
-    # The slot's real length, so a slot that lost most of its minutes is downgraded to
-    # REVIEW rather than decided from the fragment that survived.
-    verdict = aggregate_slot(
-        fused_states, fused_conf, thresholds, minutes_expected=source.n_minutes
-    )
-    evidence = select_evidence_around_transitions(
-        evidence_rows, fused_states, verdict.status
+    return _finish_slot(slot_id, source.n_minutes, tally, thresholds,
+                        prune=slot_dir is not None)
+
+
+@dataclass(slots=True)
+class _SlotTally:
+    """What `run_slot` accumulates minute by minute; turned into a `SlotRun` at the end."""
+
+    samples: list[Sample] = field(default_factory=list)
+    fused_states: list[Class3] = field(default_factory=list)
+    fused_conf: list[float] = field(default_factory=list)
+    disagreements: list[bool] = field(default_factory=list)
+    evidence_rows: list[tuple[int, Class3, float, str | None]] = field(default_factory=list)
+    written: list[Path] = field(default_factory=list)
+    motion_seen: list[float] = field(default_factory=list)
+    people_seen: list[int] = field(default_factory=list)
+    ball_minutes: list[int] = field(default_factory=list)
+    minute_states: list[str] = field(default_factory=list)
+    uncertain_cameras: set[str] = field(default_factory=set)
+    missed: int = 0
+    uncertain_minutes: int = 0
+
+    def miss(self, *, uncertain: bool) -> None:
+        """A minute that produced no decision; ``uncertain`` when it was an abstention."""
+        self.missed += 1
+        if uncertain:
+            self.uncertain_minutes += 1
+
+
+@dataclass(frozen=True, slots=True)
+class _Decided:
+    """One decided pitch-minute, and the camera whose frame justifies it."""
+
+    state: Class3
+    confidence: float
+    disagreed: bool
+    winner: str | None
+
+
+def _evidence_folder(evidence_dir: Path | None, slot_id: str, *, quiet: bool) -> Path | None:
+    """The slot's evidence folder, created; None when off or the disk has no room.
+
+    Decided once, before the first write: a slot that runs out of space mid-write would leave
+    a verdict backed by a partial set of images, which the inspector cannot tell from a slot
+    that never saved any (runbook row 7). The verdict is produced either way.
+    """
+    if evidence_dir is None:
+        return None
+    room, why = has_room(Path(evidence_dir))
+    if not room:
+        if not quiet:  # without `on_minute` there is no other channel to report on
+            print(f"  evidence images disabled for {slot_id}: {why}")
+        return None
+    slot_dir = Path(evidence_dir) / slot_id
+    slot_dir.mkdir(parents=True, exist_ok=True)
+    return slot_dir
+
+
+def _read_frames(source: FrameSource, camera: str, minute: int, burst: tuple[int, float]):
+    """One camera's frames for one minute: a burst, or the single frame; [] on a gap."""
+    n, spacing = burst
+    if n > 1:
+        return source.read_burst(camera, minute, n=n, spacing_s=spacing)
+    single = source.read(camera, minute)
+    return [single] if single is not None else []
+
+
+def _sample(camera: str, minute: int, predicted: str, confidence: float, frame) -> Sample:
+    return Sample(
+        camera_id=camera,
+        minute_index=minute,
+        predicted=predicted,
+        confidence=confidence,
+        captured_at=datetime.now(UTC).isoformat(timespec="seconds"),
+        image_path=frame.source_path,
     )
 
-    # Which three minutes matter is only knowable once the whole slot has been seen, so every
-    # observed minute was written and the rest are removed now. Deleting only files this call
-    # created, by identity rather than by pattern: a glob would also sweep up a frame an
-    # operator had already been shown and disputed.
-    if slot_dir is not None:
+
+def _pipeline_minute(pipeline: Pipeline, source: FrameSource, cameras: list[str], minute: int,
+                     polygon_for, previous: dict, tally: _SlotTally, keep_images: bool):
+    """One minute on the detector-first path: each camera's burst counted inside its boundary
+    (`runtime.observe_camera`), then the pitch decided once from every count (`Pipeline.fuse`).
+
+    Returns ``(_Decided, images)``, or None for a missed or abstained minute (already tallied).
+    Each camera's sample carries its three-class value or UNCERTAIN; a camera with no boundary
+    abstains as an observation the fusion can see, so the other half decides at half the
+    confidence rather than as if it were the whole pitch.
+    """
+    observations: dict[str, object] = {}
+    images: dict[str, object] = {}
+    abstained = False
+    for camera in cameras:
+        frames = _read_frames(source, camera, minute, pipeline.burst)
+        if not frames:
+            continue  # a gap; never a fabricated observation
+        frame = frames[-1]
+        # Per camera: another camera's outline is measurably worse than none at all.
+        polygon = polygon_for(camera) if polygon_for is not None else None
+        observation = runtime.observe_camera(pipeline, camera, [f.image_bgr for f in frames],
+                                             previous.get(camera), polygon=polygon)
+        verdict = observation.verdict
+        if verdict.rule == 2:
+            tally.uncertain_cameras.add(camera)
+        tally.samples.append(_sample(
+            camera, minute,
+            verdict.class3.value if verdict.decided else MinuteState.UNCERTAIN.value,
+            verdict.confidence, frame))
+        if verdict.motion is not None:
+            tally.motion_seen.append(verdict.motion)
+        previous[camera] = frame.image_bgr
+        observations[camera] = observation
+        if not verdict.decided:
+            abstained = True
+        if keep_images:
+            seen = getattr(verdict.count, "seen_people", ()) or ()
+            images[camera] = redact_heads(frames[observation.evidence_index].image_bgr,
+                                          [d.box for d in seen])
+
+    if not observations:
+        tally.miss(uncertain=abstained)
+        return None
+    pitch = pipeline.fuse(observations)
+    if not pitch.decided:
+        # No camera could be scored, or movement with nobody found: counted against the
+        # capture floor like a minute with no frame, and recorded as the reason.
+        tally.miss(uncertain=True)
+        return None
+    if pitch.people_inside is not None:
+        tally.people_seen.append(pitch.people_inside)
+    if pitch.ball_seen:
+        tally.ball_minutes.append(minute)
+    tally.minute_states.append(pitch.state.value)
+    return _Decided(pitch.class3, pitch.confidence, pitch.disagreed,
+                    pitch.winning_camera), images
+
+
+def _classifier_minute(classify: Classifier, source: FrameSource, cameras: list[str],
+                       minute: int, polygon_for, tally: _SlotTally, keep_images: bool):
+    """One minute with a bare classifier: one frame per camera, classes fused by
+    `slots/fusion.fuse`. Same return as `_pipeline_minute`.
+
+    EMPTY needs every half seen: with a camera dead, the other half's EMPTY says nothing about
+    the half where the match may be, so that minute abstains and counts against the capture
+    floor. Play on the seen half still decides.
+    """
+    observations: dict[str, tuple[Class3, float]] = {}
+    images: dict[str, object] = {}
+    for camera in cameras:
+        frames = _read_frames(source, camera, minute, (1, 0.0))
+        if not frames:
+            continue
+        frame = frames[-1]
+        if polygon_for is not None:
+            state, confidence = classify(frame.image_bgr, polygon=polygon_for(camera))
+        else:
+            state, confidence = classify(frame.image_bgr)
+        observations[camera] = (state, confidence)
+        if keep_images:
+            images[camera] = redact_heads(frame.image_bgr, [])
+        tally.samples.append(_sample(camera, minute, state.value, confidence, frame))
+
+    if not observations:
+        tally.miss(uncertain=False)
+        return None
+    fused = fuse(observations)
+    if fused.state is Class3.EMPTY and len(observations) < len(cameras):
+        tally.miss(uncertain=True)
+        return None
+    tally.minute_states.append(from_class3(fused.state).value)
+    # The winning camera's frame justifies the minute; a picture of the empty half would not
+    # explain "play on the other one".
+    return _Decided(fused.state, fused.confidence, fused.disagreed,
+                    fused.winning_camera or None), images
+
+
+def _finish_slot(slot_id: str, minutes_expected: int, tally: _SlotTally,
+                 thresholds: Thresholds | None, *, prune: bool) -> SlotRun:
+    """Aggregate the slot, choose its evidence, delete the unchosen images, build the run.
+
+    Aggregated against the slot's real length, so a slot that lost most of its minutes is
+    REVIEW rather than decided from the fragment that survived. Only files this slot wrote are
+    deleted, by identity: a glob could sweep up a frame an operator was already shown.
+    """
+    verdict = aggregate_slot(tally.fused_states, tally.fused_conf, thresholds,
+                             minutes_expected=minutes_expected)
+    evidence = select_evidence_around_transitions(tally.evidence_rows, tally.fused_states,
+                                                  verdict.status)
+    if prune:
         keep = {e.image_path for e in evidence if e.image_path}
-        for path in written:
+        for path in tally.written:
             if str(path) not in keep:
                 path.unlink(missing_ok=True)
 
     return SlotRun(
         slot_id=slot_id,
         verdict=verdict,
-        samples=samples,
-        # a slot that changed state is better explained by the moment it changed than by
-        # three frames from its thirds; thirds still apply when nothing changed
+        samples=tally.samples,
         evidence=evidence,
-        minutes_captured=len(fused_states),
-        minutes_missed=missed,
+        minutes_captured=len(tally.fused_states),
+        minutes_missed=tally.missed,
         conditions=summarise_conditions(
-            minutes_expected=source.n_minutes,
-            confidences=fused_conf,
-            disagreements=disagreements,
-            # Cameras that produced a *decided* observation. Counting any camera with a
-            # sample let a camera that was read but never scored (UNCERTAIN rows) pass as
-            # seen, which kept the "half the pitch is unseen" concern silent.
-            cameras_seen=len({s.camera_id for s in samples
+            minutes_expected=minutes_expected,
+            confidences=tally.fused_conf,
+            disagreements=tally.disagreements,
+            # Cameras that produced a *decided* observation: a camera read but never scored
+            # must not pass as seen, or the "half the pitch is unseen" concern stays silent.
+            cameras_seen=len({s.camera_id for s in tally.samples
                               if s.predicted != MinuteState.UNCERTAIN.value}),
         ),
         transitions=tuple(
-            find_transitions(fused_states, minutes=[r[0] for r in evidence_rows])
+            find_transitions(tally.fused_states, minutes=[r[0] for r in tally.evidence_rows])
         ),
-        motion_cues=tuple(motion_seen),
-        people_counts=tuple(people_seen),
-        ball_minutes=tuple(ball_minutes),
-        minutes_uncertain=uncertain_minutes,
-        uncertain_cameras=tuple(sorted(uncertain_cameras)),
-        minute_states=tuple(minute_states_out),
+        motion_cues=tuple(tally.motion_seen),
+        people_counts=tuple(tally.people_seen),
+        ball_minutes=tuple(tally.ball_minutes),
+        minutes_uncertain=tally.uncertain_minutes,
+        uncertain_cameras=tuple(sorted(tally.uncertain_cameras)),
+        minute_states=tuple(tally.minute_states),
     )
 
 
-CAMERA_CONFIG: Path = CONFIGS_DIR / "cameras.json"
-
-
 def load_camera_urls(path: Path | None = None) -> dict[str, dict[str, str]]:
-    """Read `configs/cameras.json`: venue id -> camera id -> RTSP URL.
+    """The camera config (`cameras.CONFIG_PATH`): venue id -> camera id -> raw RTSP URL.
 
-    Keys beginning with an underscore are dropped, so the example file's `_comment` block
-    can explain the format in the file people actually open rather than in a docstring they
-    would have to go looking for.
-
-    Raises with the copy-this instruction rather than returning an empty mapping: a live run
-    that finds no cameras and proceeds would report every slot as unobserved, and "no camera
-    was configured" and "no camera responded" are different facts that must not arrive as the
-    same verdict.
+    Read through `cameras`, so comment keys (``_comment``) are dropped as they are on the
+    `/cameras` page. Raises with the copy-this instruction rather than returning an empty
+    mapping: "no camera was configured" and "no camera responded" must not arrive as the same
+    verdict.
     """
-    path = path or CAMERA_CONFIG
+    from pitch_occupancy import cameras
+
+    path = path or cameras.CONFIG_PATH
     if not path.exists():
         raise SystemExit(
             f"{path} does not exist. Copy configs/cameras.example.json to it and fill in one "
             f"RTSP URL per camera. It is gitignored, because an RTSP URL usually carries the "
             f"credentials for a camera watching identifiable people."
         )
-    raw = json.loads(path.read_text(encoding="utf-8"))
-    urls = {
-        venue: {cam: url for cam, url in cameras.items() if not cam.startswith("_")}
-        for venue, cameras in raw.items()
-        if not venue.startswith("_") and isinstance(cameras, dict)
-    }
+    try:
+        venues = dict.fromkeys(c["venue"] for c in cameras.list_cameras(path))
+        urls = {venue: cameras.venue_urls(venue, path) for venue in venues}
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     if not urls:
         raise SystemExit(f"{path} defines no cameras")
     return urls

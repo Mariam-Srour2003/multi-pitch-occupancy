@@ -21,19 +21,60 @@ function tile(k,v,hot,title){return '<div class="tile'+(hot?' flagged':'')+'"'+
   (title?' title="'+esc(title)+'"':'')+'><div class="k">'+esc(k)+'</div><div class="v">'+
   esc(v)+'</div></div>';}
 
+const shown=id=>!$(id).classList.contains('hide');
+
+async function loadSlots(){
+  const q=filters();
+  const [rs,rb]=await Promise.all([fetch('/api/v1/reports/summary?'+q),
+    fetch('/api/v1/reports/busy-hours?'+q)]);
+  if(!rs.ok)throw new Error(await detail(rs));
+  if(!rb.ok)throw new Error(await detail(rb));
+  renderSummary(await rs.json());renderBusy(await rb.json());
+  const qc=new URLSearchParams(q);qc.set('format','csv');
+  $('csvSummary').href='/api/v1/reports/summary?'+qc;
+  $('csvBusy').href='/api/v1/reports/busy-hours?'+qc;
+}
+
+async function loadPlaygrounds(){
+  const q=new URLSearchParams();
+  if($('from').value)q.set('start',$('from').value);
+  if($('to').value)q.set('end',$('to').value);
+  if($('pg').value)q.set('playground_id',$('pg').value);
+  q.set('group',$('pgGroup').value);
+  const r=await fetch('/api/v1/reports/playgrounds?'+q);
+  if(!r.ok)throw new Error(await detail(r));
+  renderPlaygrounds(await r.json());
+  q.set('format','csv');$('csvPg').href='/api/v1/reports/playgrounds?'+q;
+}
+
 async function load(){
-  const q=filters();setStatus('status','Loading...');
+  setStatus('status','Loading...');
   try{
-    const [rs,rb]=await Promise.all([fetch('/api/v1/reports/summary?'+q),
-      fetch('/api/v1/reports/busy-hours?'+q)]);
-    if(!rs.ok)throw new Error(await detail(rs));
-    if(!rb.ok)throw new Error(await detail(rb));
-    renderSummary(await rs.json());renderBusy(await rb.json());
-    const qc=new URLSearchParams(q);qc.set('format','csv');
-    $('csvSummary').href='/api/v1/reports/summary?'+qc;
-    $('csvBusy').href='/api/v1/reports/busy-hours?'+qc;
+    await Promise.all([shown('reports')?loadSlots():null,
+      shown('pgReports')?loadPlaygrounds():null]);
     setStatus('status','');
   }catch(err){setStatus('status',err.message,true);}
+}
+
+function renderPlaygrounds(d){
+  const t=d.totals;
+  $('pgTiles').innerHTML=[
+    tile('sessions',t.sessions),tile('playing',t.playing),
+    tile('hours playing',hrs(t.hours_playing),false,'Playing checks times the check interval'),
+    tile('no pictures',t.no_pictures,t.no_pictures>0,'Sessions in which no camera gave a picture'),
+    tile('checks without picture',t.checks_without_picture,t.checks_without_picture>0),
+    tile('second-opinion upgrades',t.assist_upgrades)].join('');
+  if(!d.rows.length){$('pgRows').innerHTML='<tr><td colspan="10" class="muted">No '+
+    'playground checks in these dates.</td></tr>';return;}
+  const label=r=>d.group==='week'?'week of '+r.period:r.period;
+  const row=(r,total)=>'<tr'+(total?' style="font-weight:600"':'')+'><td class="mono">'+
+    esc(total?'Total':label(r))+'</td><td>'+esc(total?'':r.playground)+'</td><td class="num">'+
+    r.sessions+'</td><td class="num">'+r.playing+'</td><td class="num">'+r.played_a_little+
+    '</td><td class="num">'+(r.mostly_empty+r.some_people_no_game+r.empty)+
+    '</td><td class="num">'+r.no_pictures+'</td><td class="num">'+hrs(r.hours_playing)+
+    '</td><td class="num">'+r.checks_without_picture+' / '+r.checks+
+    '</td><td class="num">'+r.assist_upgrades+'</td></tr>';
+  $('pgRows').innerHTML=d.rows.map(r=>row(r,false)).join('')+row(t,true);
 }
 
 function renderSummary(d){
@@ -123,6 +164,8 @@ function renderDay(run){
 
 if($('show')){
   $('show').addEventListener('click',load);
+  for(const id of ['pg','pgGroup'])$(id).addEventListener('change',
+    ()=>loadPlaygrounds().catch(err=>setStatus('status',err.message,true)));
   $('pitch').addEventListener('change',()=>{if($('pitch').value)$('cPitch').value=$('pitch').value;
     load();});
   $('cut').addEventListener('click',cut);

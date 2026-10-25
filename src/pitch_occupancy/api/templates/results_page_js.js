@@ -1,6 +1,6 @@
 
 const VERDICTS = ['Playing', 'Played a little', 'Mostly empty', 'Some people, no game',
-                  'Empty', 'No pictures'];
+                  'Empty', 'Not sure', 'No pictures'];
 const vcls = v => 'v-' + String(v).replace(/[^A-Za-z]+/g, '-').replace(/-$/, '');
 const pad = n => String(n).padStart(2, '0');
 const localIso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${

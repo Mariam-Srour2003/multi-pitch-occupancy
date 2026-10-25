@@ -29,7 +29,7 @@ import cv2
 import numpy as np
 
 __all__ = ["Frame", "FrameSource", "VideoSlotSource", "RTSPSource", "discover_slots",
-           "is_incomplete"]
+           "is_incomplete", "read_whole", "WHOLE_FRAME_WAIT_S"]
 
 #: `StatBox_Replay_<venue>_2026-07-11_10-00 (1).mp4` -> date, time, and which camera
 _VIDEO_RE = re.compile(r"(?P<d>\d{4}-\d{2}-\d{2})_(?P<t>\d{2}-\d{2})(?P<second>\s*\(1\))?")
@@ -186,8 +186,11 @@ def is_incomplete(image: np.ndarray) -> bool:
 WHOLE_FRAME_WAIT_S = 5.0
 
 
-def _read_whole(capture, fps: float):
-    """The next frame that is fully drawn, or ``(False, None)`` if none comes in time."""
+def read_whole(capture, fps: float):
+    """The next frame that is fully drawn, or ``(False, None)`` if none comes in time.
+
+    Reads up to ``fps * WHOLE_FRAME_WAIT_S`` frames, skipping half-drawn ones (`is_incomplete`).
+    """
     for _ in range(max(1, int(fps * WHOLE_FRAME_WAIT_S))):
         ok, image = capture.read()
         if not ok or image is None:
@@ -196,6 +199,8 @@ def _read_whole(capture, fps: float):
             return True, image
     return False, None
 
+
+#: The former private name, still imported by `cameras.probe`.
 
 class RTSPSource(FrameSource):
     """One snapshot per camera per minute from live streams.
@@ -315,7 +320,7 @@ class RTSPSource(FrameSource):
             capture = self._open(url)
             try:
                 fps = float(getattr(capture, "get", lambda _p: 0.0)(cv2.CAP_PROP_FPS) or 25.0)
-                ok, image = _read_whole(capture, fps)
+                ok, image = read_whole(capture, fps)
             finally:
                 capture.release()
             if ok and image is not None:
@@ -350,7 +355,7 @@ class RTSPSource(FrameSource):
                             if not capture.grab():
                                 break
                     # A half-drawn frame is skipped, not counted: see `is_incomplete`.
-                    ok, image = _read_whole(capture, fps)
+                    ok, image = read_whole(capture, fps)
                     if not ok or image is None:
                         break
                     out.append(Frame(camera_id, minute_index, image, _shown(url)))

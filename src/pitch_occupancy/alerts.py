@@ -1,7 +1,7 @@
 """Alerts: telling the facility when something needs attention, without anyone watching a page.
 
 The dashboard answers questions when somebody asks them. The client also wants to be *told*,
-on the phone they already carry, when one of four things happens:
+on the phone they already carry, when one of these happens:
 
 * ``anomaly`` - a slot's reconciliation disagrees with the records: booked but not played
   (a possible no-show), played but not booked, played but not checked in, sold while closed.
@@ -16,9 +16,22 @@ on the phone they already carry, when one of four things happens:
   through `pitch_occupancy.status.read_status`, imported lazily because the status file is
   written by another part of the system; when it is not there the check is skipped and the
   notes say so;
+* ``playground_no_picture`` - a camera of a playground that is on and within its hours has
+  given no picture for ``playground_dark_checks`` checks in a row (default 3) *and* for longer
+  than ``camera_silent_minutes``. Both, so a 5-second playground does not alert after 15
+  seconds and an hourly one not after a single miss. Read from ``camera_checks``;
+* ``playground_stalled`` - a playground that is on and within its hours has not been checked
+  for more than three times its interval (at least two minutes), counted from when its hours
+  began today if that is later. Read from ``playground_checks``, so it works from any process;
+  a playground never checked at all is not reported (it may have just been made). While it
+  is raised, that playground's cameras are not reported as dark - the stall explains them;
 * ``daily_summary`` (optional) - once a day, at the configured time, yesterday in one line:
   slots used / not used / to review, no-shows and unbooked play, from
-  `reports.daily_summary`, so it agrees with the Reports page by construction.
+  `reports.daily_summary`, plus the playground sessions from `reports.playground_summary`,
+  so it agrees with the Reports page by construction.
+
+A session verdict ("Playing") is not an event: it is not a problem, and the Results page
+already shows it.
 
 Two channels, both from the standard library so nothing new is installed:
 
@@ -88,7 +101,7 @@ __all__ = [
     "EVENT_TYPES", "Event", "Channel", "AlertConfig", "DeliveryError", "CONFIG_PATH",
     "load_config", "describe_config", "mask_url", "check", "preview", "dispatch", "send_test",
     "run_once", "run_checker", "start_background_checker", "stop_background_checker",
-    "read_log", "send_webhook", "send_email",
+    "read_log", "send_webhook", "send_email", "playground_overdue",
 ]
 
 log = logging.getLogger(__name__)
@@ -106,8 +119,12 @@ EVENT_TYPES: dict[str, str] = {
                      "the threshold.",
     "worker_down": "The recording program is not running while a slot is in progress.",
     "worker_error": "The recording program reports an error.",
+    "playground_no_picture": "A camera of a playground that is on has given no picture for "
+                             "several checks in a row.",
+    "playground_stalled": "A playground that is on has not been checked for more than three "
+                          "times its interval.",
     "daily_summary": "Once a day: yesterday's slots used, not used and to review, no-shows and "
-                     "unbooked play.",
+                     "unbooked play, and the playground sessions.",
 }
 
 SEVERITIES = ("info", "warning", "serious")
@@ -127,6 +144,10 @@ SMTP_TIMEOUT_S = 20
 #: Pause before the one webhook retry. Tests set it to 0.
 RETRY_DELAY_S = 3.0
 LOG_KEEP = 200
+#: A playground is stalled after this many of its intervals without a check ...
+STALL_INTERVALS = 3
+#: ... and never sooner than this, so a 5-second playground on a busy computer is not "stalled".
+STALL_FLOOR_S = 120
 #: Once-ever keys (anomalies, summaries) are forgotten after this long. It is far longer than
 #: the anomaly look-back, so a forgotten key can never be sent again.
 ONCE_KEEP_DAYS = 60
@@ -179,6 +200,7 @@ class AlertConfig:
     anomaly_lookback_hours: float = 48.0
     quiet_hours: tuple[time, time] | None = None
     daily_summary_at: time | None = None
+    playground_dark_checks: int = 3
 
     @property
     def enabled_channels(self) -> list[Channel]:
@@ -271,6 +293,7 @@ def parse_config(raw: Any) -> AlertConfig:
         anomaly_lookback_hours=_positive(raw, "anomaly_lookback_hours", 48),
         quiet_hours=quiet_hours,
         daily_summary_at=_hhmm(summary, "daily_summary") if summary else None,
+        playground_dark_checks=int(_positive(raw, "playground_dark_checks", 3)),
     )
 
 
@@ -327,6 +350,7 @@ def describe_config(path: Path | None = None) -> dict:
                              "end": f"{cfg.quiet_hours[1]:%H:%M}"}
                             if cfg.quiet_hours else None),
             "daily_summary": f"{cfg.daily_summary_at:%H:%M}" if cfg.daily_summary_at else None,
+            "playground_dark_checks": cfg.playground_dark_checks,
         },
     }
 
@@ -429,23 +453,38 @@ def _anomaly_events(conn: sqlite3.Connection, now: datetime, cfg: AlertConfig) -
 
 
 def _summary_event(conn: sqlite3.Connection, now: datetime) -> Event:
-    from pitch_occupancy.reports import daily_summary
+    from pitch_occupancy.reports import daily_summary, playground_summary
 
     day = now.date() - timedelta(days=1)
     summary = daily_summary(conn, start=day, end=day)
     t = summary["totals"]
-    if not t["scheduled"]:
+    try:
+        pg = playground_summary(conn, start=day, end=day)
+    except sqlite3.OperationalError:  # a database from before the playground tables
+        pg = {"rows": [], "totals": {"sessions": 0}}
+    pt = pg["totals"]
+    if not t["scheduled"] and not pt["sessions"]:
         text = (f"Daily summary for {day:%A %d %B}: no slots were recorded. If the pitches were "
                 f"open, check that the recording program was running.")
     else:
-        text = (f"Daily summary for {day:%A %d %B}: {t['scheduled']} slot(s) - {t['used']} used, "
-                f"{t['not_used']} not used, {t['review']} to review"
+        parts = []
+        if t["scheduled"]:
+            parts.append(
+                f"{t['scheduled']} slot(s) - {t['used']} used, {t['not_used']} not used, "
+                f"{t['review']} to review"
                 + (f", {t['not_checked']} not checked" if t["not_checked"] else "")
                 + f"; {t['no_shows']} possible no-show(s), {t['unbooked_play']} played but not "
-                f"booked; {t['hours_played']} hour(s) played.")
+                f"booked; {t['hours_played']} hour(s) played")
+        if pt["sessions"]:
+            parts.append(
+                f"playgrounds: {pt['sessions']} session(s) - {pt['playing']} playing, "
+                f"{pt['played_a_little']} played a little, {pt['no_pictures']} without "
+                f"pictures; {pt['hours_playing']} hour(s) playing")
+        text = f"Daily summary for {day:%A %d %B}: " + "; ".join(parts) + "."
     return Event(type="daily_summary", key=f"daily_summary:{day.isoformat()}", severity="info",
                  text=text, time=_stamp(now), once=True,
-                 details={"date": day.isoformat(), "totals": t, "pitches": summary["rows"]})
+                 details={"date": day.isoformat(), "totals": t, "pitches": summary["rows"],
+                          "playground_totals": pt, "playgrounds": pg["rows"]})
 
 
 #: The status fields copied into an alert's details.
@@ -498,6 +537,11 @@ def check(now: datetime | None = None, *, config: AlertConfig | None = None,
         except sqlite3.Error as exc:
             notes.append(f"The database could not be read ({exc}), so anomalies were not "
                          f"checked.")
+        try:
+            events += _playground_events(conn, now, cfg)
+        except sqlite3.Error as exc:
+            notes.append(f"The playground checks could not be read ({exc}), so playgrounds "
+                         f"were not checked.")
         finally:
             conn.close()
 
@@ -547,6 +591,107 @@ def check(now: datetime | None = None, *, config: AlertConfig | None = None,
     if running and not program_alerted:
         events += _camera_events(running, now, cfg)
     return events
+
+
+def _hours_began(p: Mapping[str, Any], now: datetime) -> datetime | None:
+    """When the playground's hours that contain ``now`` began; ``None`` for all day."""
+    hours = p.get("hours")
+    if not hours:
+        return None
+    began = datetime.combine(now.date(), time.fromisoformat(hours["from"]))
+    return began if began <= now else began - timedelta(days=1)
+
+
+def playground_overdue(p: Mapping[str, Any], last_checked_at: Any,
+                       now: datetime | None = None) -> float | None:
+    """Seconds playground ``p`` has gone unchecked while it should have been checked, when
+    that is more than ``STALL_INTERVALS`` of its intervals (and ``STALL_FLOOR_S``); else
+    ``None`` - also when it is off, out of hours or was never checked."""
+    from pitch_occupancy.playgrounds import store
+
+    now = _now(now)
+    if now.tzinfo is not None:
+        now = now.astimezone().replace(tzinfo=None)
+    last_at = _local(last_checked_at)
+    if last_at is None or not p["enabled"] or not store.in_hours(p, now):
+        return None
+    began = _hours_began(p, now)
+    idle_s = (now - (max(last_at, began) if began else last_at)).total_seconds()
+    allowed = max(STALL_INTERVALS * p["every_seconds"], STALL_FLOOR_S)
+    return idle_s if idle_s > allowed else None
+
+
+def _playground_events(conn: sqlite3.Connection, now: datetime,
+                       cfg: AlertConfig) -> list[Event]:
+    """Stalled playgrounds and dark playground cameras (see the module docstring)."""
+    from pitch_occupancy.playgrounds import store
+    from pitch_occupancy.playgrounds.sessions import every_text, latest
+
+    active = [p for p in store.load() if p["enabled"] and store.in_hours(p, now)]
+    if not active:
+        return []
+    last = latest(conn)
+    out = []
+    for p in active:
+        stamp = (last.get(p["id"]) or {}).get("checked_at")
+        if stamp is None:
+            continue  # never checked: possibly made a moment ago
+        idle_s = playground_overdue(p, stamp, now)
+        if idle_s is not None:
+            minutes = int(idle_s // 60)
+            out.append(Event(
+                type="playground_stalled", key=f"playground_stalled:{p['id']}",
+                severity="serious", time=_stamp(now), pitch=p["id"],
+                text=f"Playground {p['name']} has not been checked for {minutes} minutes, but "
+                     f"it is on and should be checked every {every_text(p['every_seconds'])}. "
+                     f"The playground checks may have stopped: restart the server.",
+                details={"playground": p["name"], "every_seconds": p["every_seconds"],
+                         "last_checked_at": stamp, "minutes_since": minutes}))
+            continue
+        out += _dark_playground_cameras(conn, p, now, cfg)
+    return out
+
+
+def _dark_playground_cameras(conn: sqlite3.Connection, p: Mapping[str, Any], now: datetime,
+                             cfg: AlertConfig) -> list[Event]:
+    need = cfg.playground_dark_checks
+    out = []
+    for ref in p["cameras"]:
+        venue, _, cam = ref.partition("/")
+        recent = conn.execute(
+            """SELECT check_id, problem, readable FROM camera_checks
+               WHERE venue_id = ? AND camera_id = ? AND playground_check_id IS NOT NULL
+               ORDER BY check_id DESC LIMIT ?""", (venue, cam, need)).fetchall()
+        if len(recent) < need or any(r["readable"] for r in recent):
+            continue
+        good = conn.execute(
+            """SELECT MAX(check_id) FROM camera_checks
+               WHERE venue_id = ? AND camera_id = ? AND readable = 1""",
+            (venue, cam)).fetchone()[0]
+        first_dark = conn.execute(
+            """SELECT checked_at FROM camera_checks
+               WHERE venue_id = ? AND camera_id = ? AND playground_check_id IS NOT NULL
+                 AND check_id > ? ORDER BY check_id LIMIT 1""",
+            (venue, cam, good or 0)).fetchone()
+        dark_since = _local(first_dark["checked_at"]) if first_dark else None
+        if dark_since is None:
+            continue
+        minutes = int((now - dark_since).total_seconds() // 60)
+        if minutes < cfg.camera_silent_minutes:
+            continue
+        problem = recent[0]["problem"]
+        out.append(Event(
+            type="playground_no_picture", key=f"playground_no_picture:{p['id']}:{ref}",
+            severity="warning", time=_stamp(now), pitch=p["id"],
+            text=f"Camera {cam} of playground {p['name']} has given no picture for {minutes} "
+                 f"minutes"
+                 + (f" ({str(problem).rstrip('.')})" if problem else "")
+                 + ". Check its power and network.",
+            details={"playground": p["name"], "venue": venue, "camera": cam,
+                     "minutes_dark": minutes, "dark_since": _stamp(dark_since),
+                     "threshold_minutes": cfg.camera_silent_minutes,
+                     "threshold_checks": need, "problem": problem}))
+    return out
 
 
 def _camera_events(running: Iterable[Any], now: datetime, cfg: AlertConfig) -> list[Event]:

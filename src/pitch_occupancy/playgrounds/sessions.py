@@ -5,7 +5,8 @@
   :data:`SESSION_ANCHOR` (the Results page).
 
 "Minutes playing" is the number of playing checks times the playground's check interval, so
-it is an estimate whose step is that interval.
+it is an estimate whose step is that interval. A check whose ``playing`` is NULL (no picture,
+or the rule was not sure) counts as neither playing nor not playing.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from datetime import time as dtime
 from pitch_occupancy.playgrounds import store
 
 __all__ = ["latest", "records", "session_bounds", "sessions", "every_text", "PERIOD_CHOICES",
-           "SESSION_MINUTES", "SESSION_ANCHOR", "SESSION_PLAYED", "SESSION_SOME"]
+           "SESSION_MINUTES", "SESSION_ANCHOR", "SESSION_PLAYED", "SESSION_SOME", "VERDICTS"]
 
 #: Sessions: 1.5 hours each, on a grid that passes through 09:30 (..., 08:00, 09:30, 11:00, ...
 #: 21:30, 23:00, 00:30, ...).
@@ -26,6 +27,9 @@ SESSION_ANCHOR = "09:30"
 SESSION_PLAYED = 0.5
 #: ... and below which, if any were playing, it was played only a little.
 SESSION_SOME = 0.15
+#: Every verdict a session can get, busiest first (see :func:`sessions`).
+VERDICTS: tuple[str, ...] = ("Playing", "Played a little", "Mostly empty", "Some people, no game",
+                             "Empty", "No pictures")
 #: Periods the Records page groups checks into, in minutes; 90 is the default.
 PERIOD_CHOICES: tuple[int, ...] = (15, 30, 60, 90, 120, 180)
 
@@ -86,9 +90,11 @@ def session_bounds(when: datetime) -> tuple[datetime, datetime]:
     return start, start + length
 
 
-def _session_verdict(share: float | None, max_people: int | None) -> str:
+def _session_verdict(share: float | None, max_people: int | None,
+                     not_sure: int = 0) -> str:
     if share is None:
-        return "No pictures"
+        # Pictures came in, but none could be judged (too dark, for instance).
+        return "Not sure" if not_sure else "No pictures"
     if share >= SESSION_PLAYED:
         return "Playing"
     if share >= SESSION_SOME:
@@ -127,20 +133,23 @@ def sessions(conn, start: datetime, end: datetime, *, playground_id: str | None 
     for (pid, s), rows in sorted(groups.items()):
         counted = [r["people"] for r in rows if r["people"] is not None]
         playing = sum(1 for r in rows if r["playing"])
-        share = playing / len(counted) if counted else None
+        # A check the rule could not decide (playing NULL) is not counted either way.
+        decided = sum(1 for r in rows if r["people"] is not None and r["playing"] is not None)
+        share = playing / decided if decided else None
         mx = max(counted) if counted else None
         out.append({
             "playground_id": pid, "playground": names.get(pid, pid),
             "start": s.isoformat(timespec="minutes"),
             "end": (s + timedelta(minutes=SESSION_MINUTES)).isoformat(timespec="minutes"),
             "checks": len(rows), "checks_without_picture": len(rows) - len(counted),
+            "checks_not_sure": len(counted) - decided,
             "avg_people": round(sum(counted) / len(counted), 1) if counted else None,
             "max_people": mx, "playing_checks": playing,
             "playing_share": round(share, 2) if share is not None else None,
             "minutes_playing": round(playing * every.get(pid, 0) / 60),
             "saved_pictures": sum(saved.get(r["check_id"], 0) for r in rows),
             "assist_upgrades": sum(1 for r in rows if r["playing_source"] == "assist"),
-            "verdict": _session_verdict(share, mx),
+            "verdict": _session_verdict(share, mx, len(counted) - decided),
         })
     return out
 

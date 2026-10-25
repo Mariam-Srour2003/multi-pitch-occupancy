@@ -9,6 +9,9 @@ draws them:
   played (`reports.busy_hours`). Unwatched hours are "not observed", never 0%.
 * ``GET /api/v1/reports/day`` - one recorded day cut into the client's own slot length,
   in the same table the video booking-day test gives (`reports.recorded_day`).
+* ``GET /api/v1/reports/playgrounds`` - the playground checks, per playground per day or week:
+  sessions by verdict, minutes playing, checks without a picture, second-opinion upgrades
+  (`reports.playground_summary`).
 
 Everything here only reads the database; there is no POST. The connection comes from
 `routes.get_conn`, so a test overrides one dependency for the whole API.
@@ -25,7 +28,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
-from pitch_occupancy import reports
+from pitch_occupancy import playgrounds, reports
 from pitch_occupancy.api.layout import page
 from pitch_occupancy.api.routes import get_conn
 from pitch_occupancy.api.templating import template
@@ -127,6 +130,25 @@ def day_api(
     return rec.to_dict()
 
 
+@router.get("/api/v1/reports/playgrounds", response_model=None)
+def playgrounds_api(
+    conn: Conn,
+    start: date | None = None,
+    end: date | None = None,
+    playground_id: str | None = Query(None, max_length=120),
+    group: str = Query("day", pattern="^(day|week)$"),
+    format: str = Query("json", pattern="^(json|csv)$"),
+) -> dict | PlainTextResponse:
+    """Playground sessions per playground per ``group`` (day or week, named by its Monday)."""
+    s, e = _range(start, end)
+    pid = _field(playground_id)
+    data = reports.playground_summary(conn, start=s, end=e, playground_id=pid, group=group)
+    if format == "csv":
+        return _csv(reports.playground_summary_to_csv(data),
+                    f"playground-sessions-by-{group}_{_span(s, e, pid)}.csv")
+    return data
+
+
 # --- the page ---------------------------------------------------------------------------------
 
 
@@ -136,8 +158,17 @@ _BODY = template("reports_page_body.html")
 
 _EMPTY = """<div class="card empty" id="nodata"><h3>No recordings yet</h3>
 <p>Reports are built from what the cameras record. Start recording from the
-<a href="/cameras">Cameras page</a>, and the reports will fill in as slots are checked.</p>
+<a href="/cameras">Cameras page</a>, or switch a playground on from the
+<a href="/playgrounds">Playgrounds page</a>, and the reports will fill in as it is checked.</p>
 </div>"""
+
+
+def _exists(conn: sqlite3.Connection, sql: str) -> bool:
+    """``sql`` (an EXISTS query) on a database that may predate the table it reads."""
+    try:
+        return bool(conn.execute(sql).fetchone()[0])
+    except sqlite3.OperationalError:
+        return False
 
 _SCRIPT = template("reports_page_script.js")
 
@@ -146,19 +177,24 @@ _SCRIPT = template("reports_page_script.js")
 def reports_page(conn: Conn) -> HTMLResponse:
     fields = conn.execute(
         "SELECT field_id, name FROM fields ORDER BY name, field_id").fetchall()
-    recorded = conn.execute(
-        "SELECT EXISTS(SELECT 1 FROM frame_samples) OR EXISTS(SELECT 1 FROM slot_evaluations)"
-    ).fetchone()[0]
+    recorded = _exists(conn, "SELECT EXISTS(SELECT 1 FROM frame_samples) "
+                             "OR EXISTS(SELECT 1 FROM slot_evaluations)")
+    checked = _exists(conn, "SELECT EXISTS(SELECT 1 FROM playground_checks)")
     end = date.today()
     start = end - timedelta(days=6)
     options = "".join(
         f'<option value="{escape(f["field_id"])}">{escape(f["name"] or f["field_id"])}'
         "</option>" for f in fields)
-    body = (_BODY.replace("__EMPTY__", "" if recorded else _EMPTY)
-            .replace("__HIDE__", "" if recorded else ' class="hide"')
+    pg_options = "".join(f'<option value="{escape(p["id"])}">{escape(p["name"])}</option>'
+                         for p in playgrounds.load())
+    hide = ' class="hide"'
+    body = (_BODY.replace("__EMPTY__", "" if recorded or checked else _EMPTY)
+            .replace("__HIDE_ANY__", "" if recorded or checked else hide)
+            .replace("__HIDE__", "" if recorded else hide)
+            .replace("__HIDE_PG__", "" if checked else hide)
             .replace("__START__", start.isoformat()).replace("__END__", end.isoformat())
-            .replace("__OPTIONS__", options))
-    script = _SCRIPT if recorded else ""
+            .replace("__OPTIONS__", options).replace("__PG_OPTIONS__", pg_options))
+    script = _SCRIPT if recorded or checked else ""
     return HTMLResponse(page("Pitch Occupancy - Reports", "Reports", body, active="reports",
                              css=_CSS, script=script))
 
