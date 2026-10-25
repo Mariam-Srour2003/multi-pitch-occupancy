@@ -29,7 +29,7 @@ __all__ = ["check_playground", "combine", "play_min", "wait_for_second_opinions"
 log = logging.getLogger(__name__)
 
 #: Longest wait for one camera's picture in a check, whatever the interval.
-GRAB_TIMEOUT_S = 20.0
+GRAB_TIMEOUT_S = settings.grab_timeout_s
 _grab_slots = threading.BoundedSemaphore(max(1, settings.parallel_grabs))
 
 

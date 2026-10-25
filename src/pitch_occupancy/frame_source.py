@@ -205,7 +205,10 @@ def read_whole(capture, fps: float):
 
     Reads up to ``fps * WHOLE_FRAME_WAIT_S`` frames, skipping half-drawn ones (`is_incomplete`).
     """
-    for _ in range(max(1, int(fps * WHOLE_FRAME_WAIT_S))):
+    from pitch_occupancy.config import settings
+
+    wait_s = max(WHOLE_FRAME_WAIT_S, settings.whole_frame_wait_s)
+    for _ in range(max(1, int(fps * wait_s))):
         ok, image = capture.read()
         if not ok or image is None:
             return False, None

@@ -87,6 +87,12 @@ class Settings(BaseSettings):
     #: Camera streams opened at the same time across all playgrounds (`PITCH_PARALLEL_GRABS`).
     #: Over a slow link, opening many 1080p streams at once times every one of them out.
     parallel_grabs: int = 2
+    #: Longest wait for one camera's picture in a playground check, in seconds
+    #: (`PITCH_GRAB_TIMEOUT_S`). Over a slow link a whole 1080p picture can take minutes.
+    grab_timeout_s: float = Field(default=20.0, gt=0, le=600)
+    #: How long to keep reading past half-drawn frames for a whole one, in seconds of video
+    #: (`PITCH_WHOLE_FRAME_WAIT_S`); past the cameras' keyframe interval.
+    whole_frame_wait_s: float = Field(default=5.0, gt=0, le=120)
 
     # api
     api_host: str = "127.0.0.1"
