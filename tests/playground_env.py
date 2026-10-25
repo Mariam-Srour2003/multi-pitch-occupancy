@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from pitch_occupancy import cameras, playgrounds, runtime
-from pitch_occupancy.api import cameras_page, results_page, simple_pages
+from pitch_occupancy.api import cameras_page, pictures_page, results_page, simple_pages
 from pitch_occupancy.config import settings
 from pitch_occupancy.vision.counting import PitchCount
 from pitch_occupancy.vision.rules import FrameVerdict, RuleConfig, decide
@@ -86,6 +86,7 @@ def make_env(tmp_path, monkeypatch) -> SimpleNamespace:
     app.include_router(cameras_page.router)
     app.include_router(simple_pages.router)
     app.include_router(results_page.router)
+    app.include_router(pictures_page.router)
     return SimpleNamespace(client=TestClient(app), tmp=tmp_path, pipeline=pipeline)
 
 

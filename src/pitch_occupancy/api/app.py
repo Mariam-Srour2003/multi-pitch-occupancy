@@ -42,6 +42,7 @@ from pitch_occupancy.api.clip_walkthrough import router as walkthrough_router
 from pitch_occupancy.api.dashboard import dashboard_response
 from pitch_occupancy.api.image_page import IMAGE_HTML
 from pitch_occupancy.api.image_walkthrough import router as image_router
+from pitch_occupancy.api.pictures_page import router as pictures_router
 from pitch_occupancy.api.reports_page import router as reports_router
 from pitch_occupancy.api.results_page import router as results_router
 from pitch_occupancy.api.roi_editor import router as roi_router
@@ -134,6 +135,8 @@ app.include_router(setup_router)
 # The simple front end - Home at `/`, Playgrounds, Cameras, Records - over the same APIs.
 app.include_router(simple_router)
 app.include_router(results_router)
+# Every saved picture with its label, counts and reason (`api/pictures_page.py`).
+app.include_router(pictures_router)
 
 
 @app.get("/client", response_class=HTMLResponse, include_in_schema=False)

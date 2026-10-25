@@ -34,7 +34,9 @@ function openForm(p) {
   $('edittitle').textContent = p ? 'Change ' + p.name : 'New playground';
   $('pname').value = p ? p.name : 'Playground ' + (D.playgrounds.length + 1);
   $('pevery').value = p ? p.every_seconds : 30;
-  $('psaveevery').value = p ? p.save_every : 5;
+  $('psaveon').checked = !!(p && p.save_minutes);
+  $('psavemin').value = p && p.save_minutes ? p.save_minutes : 10;
+  $('psavebox').hidden = !$('psaveon').checked;
   document.querySelector(`input[name=counting][value=${p ? p.counting : 'add'}]`).checked = true;
   $('allday').checked = !(p && p.hours);
   $('hoursbox').hidden = $('allday').checked;
@@ -56,12 +58,13 @@ function openForm(p) {
 $('newbtn').onclick = () => openForm(null);
 $('pcancel').onclick = () => { $('editcard').hidden = true; };
 $('allday').onchange = () => { $('hoursbox').hidden = $('allday').checked; };
+$('psaveon').onchange = () => { $('psavebox').hidden = !$('psaveon').checked; };
 $('pevery').onchange = updateCost;
 $('psave').onclick = async () => {
   const body = {
     name: $('pname').value.trim(), cameras: selectedCams(), every_seconds: +$('pevery').value,
     counting: document.querySelector('input[name=counting]:checked').value,
-    save_every: +$('psaveevery').value,
+    save_minutes: $('psaveon').checked ? Math.max(1, Math.round(+$('psavemin').value || 0)) : 0,
     hours: $('allday').checked ? null : {from: $('hfrom').value, to: $('hto').value},
   };
   $('psave').disabled = true;
@@ -93,7 +96,7 @@ $('measure').onclick = async () => {
 function row(p, i) {
   return `<tr><td><b>${esc(p.name)}</b>
       <div class="hint">${esc(D.counting_short[p.counting] || p.counting)}${
-        p.save_every ? ' · saves 1 in ' + p.save_every : ''}</div></td>
+        p.save_minutes ? ' · picture every ' + p.save_minutes + ' min' : ''}</div></td>
     <td>${p.cameras.map(c => esc(c.split('/').pop())).join(', ')}</td>
     <td>${every(p.every_seconds)}</td>
     <td>${p.hours ? esc(p.hours.from) + '–' + esc(p.hours.to) : 'All day'}</td>

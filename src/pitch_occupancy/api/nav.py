@@ -19,6 +19,7 @@ NAV: tuple[tuple[str, str, str], ...] = (
     ("playgrounds", "Playgrounds", "/playgrounds"),
     ("cameras-simple", "Cameras", "/cameras/add"),
     ("results", "Results", "/results"),
+    ("pictures", "Pictures", "/pictures"),
     ("records", "Records", "/records"),
     ("more", "More", "/more"),
 )

@@ -6,7 +6,7 @@
   over time against the playing line, how the verdict was reached, and the pictures saved
   during it (with each camera's count drawn on), which open full screen with arrow keys.
 
-The pictures are the ones the checker saved (one check in ``save_every``) under
+The pictures are the ones the checker saved (every ``save_minutes``) under
 `playgrounds.snapshots.SNAPSHOT_DIR`, kept under a size cap; a session whose pictures were
 deleted to make room still has its numbers.
 """

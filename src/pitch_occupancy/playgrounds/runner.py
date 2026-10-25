@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
@@ -25,7 +26,7 @@ _thread: threading.Thread | None = None
 _stop: threading.Event | None = None
 _running: set[str] = set()
 _forced: set[str] = set()
-#: Checks run per playground since the server started, for ``save_every``.
+#: Checks run per playground since the server started.
 _counter: dict[str, int] = {}
 
 
@@ -35,12 +36,32 @@ def _due_after(now: datetime, every: int) -> datetime:
     return datetime.fromtimestamp((epoch // every + 1) * every, tz=now.tzinfo)
 
 
+#: The clock the picture spacing is measured on (replaced in tests).
+_clock = time.monotonic
+#: When each playground last saved its pictures (``_clock`` seconds), for ``save_minutes``.
+_last_saved: dict[str, float] = {}
+
+
+def _save_due(pid: str, minutes: int, now: float) -> bool:
+    """Whether this check should save its pictures; the first check of a run always does,
+    so a fresh start shows a picture at once."""
+    if not minutes:
+        return False
+    with _lock:
+        last = _last_saved.get(pid)
+        # A few seconds of slack: checks land on a grid, and a check that starts a moment
+        # early must not push the next picture a whole interval later.
+        if last is not None and now - last < minutes * 60 - 5:
+            return False
+        _last_saved[pid] = now
+        return True
+
+
 def _run_one(p: dict) -> None:
     try:
-        n = _counter[p["id"]] = _counter.get(p["id"], 0) + 1
-        every = p.get("save_every", 0)
-        # The first check of a run saves too, so a fresh start shows a picture at once.
-        record = check.check_playground(p, save=bool(every) and (n - 1) % every == 0)
+        _counter[p["id"]] = _counter.get(p["id"], 0) + 1
+        save = _save_due(p["id"], p.get("save_minutes", 0), _clock())
+        record = check.check_playground(p, save=save)
         with _lock:
             st = _state.setdefault(p["id"], {})
             st.update(last=_summary(record), error=None)
@@ -59,8 +80,36 @@ def _summary(record: dict) -> dict:
             "cameras_total": record["cameras_total"], "duration_ms": record["duration_ms"]}
 
 
+def _stay_awake(on: bool) -> None:
+    """Ask Windows not to idle-sleep while playgrounds are being checked (on this thread).
+
+    The same request a video player makes: it changes no setting, and it ends when the
+    server stops. A closed lid still sleeps. Does nothing elsewhere.
+    """
+    import sys
+
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        continuous, system_required = 0x80000000, 0x00000001
+        ctypes.windll.kernel32.SetThreadExecutionState(
+            continuous | (system_required if on else 0))
+    except Exception:  # noqa: BLE001 - staying awake is a courtesy, never a failure
+        log.debug("could not change the sleep request", exc_info=True)
+
+
 def _loop(stop: threading.Event) -> None:
     due: dict[str, datetime] = {}
+    awake = False
+    try:
+        _run_loop(stop, due, awake)
+    finally:
+        _stay_awake(False)
+
+
+def _run_loop(stop: threading.Event, due: dict[str, datetime], awake: bool) -> None:
     with ThreadPoolExecutor(max_workers=8, thread_name_prefix="playground") as pool:
         while not stop.is_set():
             now = store.now()
@@ -68,6 +117,10 @@ def _loop(stop: threading.Event) -> None:
                 items = store.load()
             except Exception:  # noqa: BLE001
                 items = []
+            wanted = any(p["enabled"] for p in items)
+            if wanted != awake:
+                _stay_awake(wanted)
+                awake = wanted
             for p in items:
                 forced = p["id"] in _forced
                 if not forced and (not p["enabled"] or not store.in_hours(p, now)):

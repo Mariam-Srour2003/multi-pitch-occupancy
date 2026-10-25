@@ -11,7 +11,7 @@ function howCards(d) {
   const modes = d.counting;
   const pgs = d.playgrounds.map(p => `<p><b>${esc(p.name)}</b> - ${p.cameras.length} camera${
     p.cameras.length === 1 ? '' : 's'}, ${esc(d.counting_short[p.counting])}, every ${
-    every(p.every_seconds)}${p.save_every ? ', picture saved 1 check in ' + p.save_every : ''}</p>`
+    every(p.every_seconds)}${p.save_minutes ? ', pictures saved every ' + p.save_minutes + ' min' : ''}</p>`
   ).join('');
   const u = d.pictures;
   $('how').innerHTML = `

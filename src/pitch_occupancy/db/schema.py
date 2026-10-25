@@ -205,6 +205,12 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # What the detector said before a second opinion upgraded the check, and who decided.
     ("playground_checks", "detector_playing", "INTEGER"),
     ("playground_checks", "playing_source", "TEXT"),
+    # What each camera's answer rests on, kept beside the saved picture.
+    ("camera_checks", "ball", "INTEGER"),
+    ("camera_checks", "ball_confidence", "REAL"),
+    ("camera_checks", "people_seen", "INTEGER"),
+    ("camera_checks", "rule", "INTEGER"),
+    ("camera_checks", "reason", "TEXT"),
 )
 
 
@@ -278,15 +284,22 @@ def _database_file(conn: sqlite3.Connection) -> str:
     return row[2] if row is not None else ""
 
 
+def _has_newest(conn: sqlite3.Connection) -> bool:
+    """Whether the newest table and the newest added column are both there."""
+    table, column, _ = _ADDED_COLUMNS[-1]
+    have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+    return column in have and conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'assist_usage'"
+    ).fetchone() is not None
+
+
 def initialise(conn: sqlite3.Connection) -> None:
     """Create the schema. Idempotent - safe on an existing database, and cheap the second
     time in a process (an in-memory database is always initialised)."""
     name = _database_file(conn)
     # The file may have been replaced since (a restore, a test's fresh database), so a cheap
-    # look for the newest table confirms it before skipping.
-    if name and name in _initialised and conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'assist_usage'"
-    ).fetchone():
+    # look for the newest addition confirms it before skipping.
+    if name and name in _initialised and _has_newest(conn):
         return
     conn.executescript(SCHEMA)
     for table, column, kind in _ADDED_COLUMNS:

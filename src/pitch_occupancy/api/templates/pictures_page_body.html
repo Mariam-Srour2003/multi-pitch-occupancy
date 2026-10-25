@@ -1,0 +1,29 @@
+{{CSS_EXTRA}}
+<style>
+.pics{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  margin-top:12px}
+.pic{background:var(--surface);border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.pic img{width:100%;display:block;cursor:zoom-in;background:var(--surface-2);aspect-ratio:16/9;
+  object-fit:cover}
+.pic .gone{aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;
+  color:var(--ink-3);font-size:12.5px;background:var(--surface-2)}
+.pic .meta{padding:8px 10px;font-size:12.5px;color:var(--ink-2);line-height:1.45}
+.pic .meta b{color:var(--ink)}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;font-weight:600}
+.counts{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+</style>
+<div class="top"><h1>Pictures</h1>
+  <div class="row">
+    <label class="hint">Day <select class="plain" id="day"></select></label>
+    <label class="hint">Playground <select class="plain" id="pg"><option value="">All</option>
+      </select></label>
+    <label class="hint">Label <select class="plain" id="lab"><option value="">All</option>
+      </select></label>
+    <a class="small" id="csv" href="#">Download</a></div></div>
+<p class="hint" id="usage"></p>
+<div class="counts" id="counts"></div>
+<div class="pics" id="pics"><div class="empty">Loading…</div></div>
+
+<div id="box"><button class="x" title="Close (Esc)">✕</button>
+  <button class="prev" title="Previous (←)">‹</button><img alt="">
+  <div class="cap"></div><button class="next" title="Next (→)">›</button></div>

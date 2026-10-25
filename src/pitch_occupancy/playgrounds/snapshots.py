@@ -1,7 +1,7 @@
 """Saved pictures: drawn copies of checked frames, per playground and day, under a size cap.
 
-The runner saves one check in ``save_every`` (`runner`). The pictures never take more than
-:data:`SNAPSHOT_CAP_BYTES`: when a new one would pass it, the oldest are deleted first, so a
+The runner saves a check's pictures every ``save_minutes`` (`runner`). They never take more
+than :data:`SNAPSHOT_CAP_BYTES`: when a new one would pass it, the oldest are deleted first, so a
 long run keeps the most recent pictures instead of filling the disk.
 """
 

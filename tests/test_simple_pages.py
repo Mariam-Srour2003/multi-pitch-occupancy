@@ -34,7 +34,7 @@ def test_every_simple_page_renders_with_the_short_menu(env, path, text) -> None:
     nav = r.text[r.text.index("<nav>"):r.text.index("</nav>")]
     labels = ("Home", "Playgrounds", "Cameras", "Results", "Records", "More")
     assert [label for label in labels if f">{label}</a>" in nav] == list(labels)
-    assert nav.count("</a>") == 6
+    assert nav.count("</a>") == 7
 
 
 @pytest.mark.parametrize("old", ["/live", "/cameras/test"])

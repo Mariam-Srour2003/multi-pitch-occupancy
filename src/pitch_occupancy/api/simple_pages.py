@@ -198,7 +198,8 @@ class PlaygroundIn(BaseModel):
     every_seconds: int
     counting: str = "add"
     hours: dict[str, str] | None = None
-    save_every: int = 5
+    #: Minutes between saved pictures; 0 = no pictures.
+    save_minutes: int = 0
 
 
 class EnabledIn(BaseModel):

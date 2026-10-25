@@ -14,11 +14,10 @@
   <div class="form" style="margin-top:12px">
     <div><label for="pname">Name</label><input id="pname" placeholder="e.g. Playground 1"></div>
     <div><label for="pevery">Check every</label><select id="pevery"></select></div>
-    <div><label for="psaveevery">Save pictures</label><select id="psaveevery">
-      <option value="0">Never</option><option value="1">Every check</option>
-      <option value="2">1 check in 2</option><option value="5">1 check in 5</option>
-      <option value="10">1 check in 10</option><option value="30">1 check in 30</option>
-    </select></div>
+    <div><label><input type="checkbox" id="psaveon"> Save pictures</label>
+      <span id="psavebox" hidden> every <input id="psavemin" type="number" min="1" max="1440"
+        step="1" value="10" style="width:5em"> minutes</span>
+      <div class="hint">Kept under 1 GB in total; the oldest are deleted first.</div></div>
   </div>
   <div style="margin-top:14px"><span class="lbl">Cameras</span>
     <div class="choices" id="pcams"></div></div>

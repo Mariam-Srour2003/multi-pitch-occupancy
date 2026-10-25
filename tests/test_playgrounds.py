@@ -248,12 +248,29 @@ def test_saved_pictures_stay_under_the_cap(env, monkeypatch) -> None:
     assert usage["bytes"] <= one * 2.5 and usage["files"] >= 1
 
 
-def test_the_runner_saves_one_check_in_save_every(env) -> None:
-    p = _new("Big", ("site/a",), save_every=3)
-    playgrounds.runner._counter.pop(p["id"], None)
+def test_the_runner_saves_pictures_every_so_many_minutes(env, monkeypatch) -> None:
+    p = _new("Big", ("site/a",), save_minutes=10)
+    playgrounds.runner._last_saved.pop(p["id"], None)
+    clock = iter([0, 120, 300, 595, 600, 900, 1200])  # seconds since the first check
+    monkeypatch.setattr(playgrounds.runner, "_clock", lambda: next(clock))
     for _ in range(7):
         playgrounds.runner._run_one(p)
-    assert playgrounds.snapshot_usage()["files"] == 3, "checks 1, 4 and 7"
+    assert playgrounds.snapshot_usage()["files"] == 3, "at 0 s, 10 min and 20 min"
+
+
+def test_no_pictures_are_saved_when_the_box_is_unticked(env) -> None:
+    p = _new("Big", ("site/a",), save_minutes=0)
+    for _ in range(3):
+        playgrounds.runner._run_one(p)
+    assert playgrounds.snapshot_usage()["files"] == 0
+
+
+def test_an_older_file_saying_one_check_in_n_becomes_minutes() -> None:
+    from pitch_occupancy.playgrounds.store import _normalise
+
+    old = {"id": "a", "name": "A", "cameras": [], "every_seconds": 300, "save_every": 2}
+    assert _normalise(old)["save_minutes"] == 10
+    assert _normalise({**old, "save_every": 0})["save_minutes"] == 0
 
 
 def test_sessions_run_every_hour_and_a_half_through_half_past_nine() -> None:

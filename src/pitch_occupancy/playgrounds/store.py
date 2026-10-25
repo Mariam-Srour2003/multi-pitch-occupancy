@@ -43,6 +43,9 @@ _lock = threading.RLock()
 changed = threading.Event()
 
 
+#: The longest gap between saved pictures a playground may ask for: one a day.
+MAX_SAVE_MINUTES = 24 * 60
+
 def now() -> datetime:
     """The local time, aware. One function so a test can move the clock."""
     return datetime.now().astimezone()
@@ -80,8 +83,19 @@ def _normalise(p: dict) -> dict:
         "counting": p.get("counting") if p.get("counting") in COUNTING else "add",
         "hours": hours,
         "enabled": bool(p.get("enabled", True)),
-        "save_every": max(0, int(p.get("save_every", 5) or 0)),
+        "save_minutes": _save_minutes(p),
     }
+
+
+def _save_minutes(p: dict) -> int:
+    """Minutes between saved pictures, 0 = off. Older files said "one check in N"
+    (``save_every``); that becomes the same spacing in minutes."""
+    if "save_minutes" in p:
+        return max(0, int(p.get("save_minutes") or 0))
+    every = int(p.get("save_every", 0) or 0)
+    if not every:
+        return 0
+    return max(1, -(-every * int(p.get("every_seconds") or 30) // 60))
 
 
 def _hhmm(value: str, what: str) -> dtime:
@@ -124,13 +138,14 @@ def _validate(p: dict, others: list[dict], saved_cameras: set[str]) -> dict:
         hours = {"from": start.strftime("%H:%M"), "to": end.strftime("%H:%M")}
     else:
         hours = None
-    save_every = p.get("save_every", 5)
-    if (isinstance(save_every, bool) or not isinstance(save_every, int)
-            or not 0 <= save_every <= 1000):
-        raise ValueError("Save pictures must be a whole number: 0 (off), 1 (every check), "
-                         "5 (one check in five)...")
+    save_minutes = p.get("save_minutes", 0)
+    if (isinstance(save_minutes, bool) or not isinstance(save_minutes, int)
+            or not 0 <= save_minutes <= MAX_SAVE_MINUTES):
+        raise ValueError(f"Save pictures every ... minutes must be a whole number from 0 (off) "
+                         f"to {MAX_SAVE_MINUTES}.")
     return {"name": name, "cameras": cams, "every_seconds": int(every), "counting": counting,
-            "hours": hours, "enabled": bool(p.get("enabled", True)), "save_every": save_every}
+            "hours": hours, "enabled": bool(p.get("enabled", True)),
+            "save_minutes": save_minutes}
 
 
 def _saved_cameras() -> set[str]:

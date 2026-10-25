@@ -80,12 +80,14 @@ def check_playground(p: dict, *, grab=None, pipeline=None,
     for (ref, venue, camera, _), (frame, problem, grab_ms) in zip(targets, grabbed, strict=True):
         row = {"camera": ref, "venue": venue, "camera_id": camera, "readable": frame is not None,
                "people": None, "state": None, "problem": problem, "grab_ms": grab_ms,
-               "detect_ms": None, "picture": None, "picture_path": None}
+               "detect_ms": None, "picture": None, "picture_path": None,
+               "label": None, "confidence": None, "ball": None, "ball_confidence": None,
+               "people_seen": None, "rule": None, "reason": None}
         if frame is not None:
             try:
                 counted = runtime.count_camera(pipeline, venue, camera, frame)
                 row.update(people=counted["people"], state=counted["state"],
-                           detect_ms=counted["detect_ms"])
+                           detect_ms=counted["detect_ms"], **_details(counted["verdict"]))
                 pictures.append((frame, _person_boxes(counted)))
                 if with_pictures:
                     row["picture"] = _picture(frame, counted)
@@ -125,17 +127,41 @@ def check_playground(p: dict, *, grab=None, pipeline=None,
                 conn.execute(
                     """INSERT INTO camera_checks (venue_id, camera_id, checked_at, readable,
                            people, state, label, confidence, picture_path, problem,
-                           playground_check_id, grab_ms, detect_ms)
-                       VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?)""",
+                           playground_check_id, grab_ms, detect_ms, ball, ball_confidence,
+                           people_seen, rule, reason)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (r["venue"], r["camera_id"], record["checked_at"], int(r["readable"]),
-                     r["people"], r["state"], r["picture_path"], r["problem"],
-                     record["check_id"], r["grab_ms"], r["detect_ms"]))
+                     r["people"], r["state"], r["label"], r["confidence"], r["picture_path"],
+                     r["problem"], record["check_id"], r["grab_ms"], r["detect_ms"],
+                     r["ball"], r["ball_confidence"], r["people_seen"], r["rule"],
+                     r["reason"]))
     finally:
         conn.close()
     if not with_pictures:  # a spot check from the live page does not spend the free quota
         _second_opinion(record, pictures, db_path or settings.db_path)
     record["cameras"] = per_camera
     return record
+
+
+#: The words the pages and the database use for each state.
+LABELS = {"C1_EMPTY": "Empty", "C2_ACTIVE_PLAY": "Playing",
+          "C3_MAINTENANCE_NON_SPORTING": "People, not playing", "UNCERTAIN": "Not sure"}
+
+
+def _details(verdict) -> dict:
+    """What a camera's verdict rests on, for the database: label, confidence, ball,
+    everyone detected (inside the area or not), the rule row and its reason."""
+    state = str(getattr(verdict.state, "value", verdict.state))
+    count = verdict.count
+    return {
+        "label": LABELS.get(state, state),
+        "confidence": round(float(verdict.confidence), 3),
+        "ball": None if count is None else int(bool(count.ball_seen)),
+        "ball_confidence": None if count is None else round(float(count.ball_confidence), 3),
+        "people_seen": None if count is None else len(count.seen_people),
+        "rule": verdict.rule or None,
+        "reason": verdict.trace[-1] if verdict.trace else None,
+    }
 
 
 def _person_boxes(counted: dict) -> tuple[tuple[int, int, int, int], ...]:

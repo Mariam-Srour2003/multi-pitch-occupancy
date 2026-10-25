@@ -162,23 +162,37 @@ def _shown(url: str) -> str:
 
 
 def is_incomplete(image: np.ndarray) -> bool:
-    """Whether a decoded frame is only partly drawn: a flat, near-white band at the bottom.
+    """Whether a decoded frame is only partly drawn.
 
-    When a stream stalls mid-frame (seen on the first real site, 2026-10-17: H.265 cameras over
-    a VPN), FFmpeg still returns the frame, with everything after the stall filled in as a
-    flat pale band. Counted as it is, the band hides the people in it - one café camera read
-    18 people, then 10, then 0 within two minutes. Measured on 64x48 rows: a row is "undrawn"
-    when it is almost uniform (std < 8), very bright (V > 225) and nearly colourless (S < 40);
-    two or more such rows touching the bottom edge mean the frame is incomplete. Checked
-    against 25 evidence frames and 383 labelled frames without one false alarm.
+    When a stream stalls mid-frame, FFmpeg still returns the frame with everything after the
+    stall filled in. Counted as it is, the filled part hides the people in it. Three fills
+    are seen from these cameras, all reaching the bottom edge (checked on 64x48 rows):
+
+    - **a flat pale band**: rows almost uniform (std < 8), very bright (V > 225), colourless
+      (S < 40); two such rows at the bottom;
+    - **a flat magenta or green band** (missing colour data): rows almost uniform with a
+      strongly coloured mean (S > 90, hue magenta or green); two such rows at the bottom;
+    - **a smear**: the last good row copied downwards, so the rows have detail across but
+      none down - neighbouring rows differ by under 1.5 grey levels while each row's own
+      std is above 8; six such rows at the bottom. A dark or empty night frame has no detail
+      across, so it is not taken for a smear.
     """
     if image is None or getattr(image, "ndim", 0) != 3 or image.shape[0] < 48:
         return False
     small = cv2.resize(image, (64, 48), interpolation=cv2.INTER_AREA)
     hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV).astype(np.float32)
     std = small.astype(np.float32).std(axis=1).max(axis=1)
-    undrawn = (std < 8) & (hsv[:, :, 2].mean(axis=1) > 225) & (hsv[:, :, 1].mean(axis=1) < 40)
-    return bool(undrawn[-1] and undrawn[-2])
+    sat, val = hsv[:, :, 1].mean(axis=1), hsv[:, :, 2].mean(axis=1)
+    hue = np.median(hsv[:, :, 0], axis=1)
+    flat = std < 8
+    pale = flat & (val > 225) & (sat < 40)
+    coloured = flat & (sat > 90) & (((hue > 135) & (hue < 170)) | ((hue > 45) & (hue < 75)))
+    if (pale[-1] and pale[-2]) or (coloured[-1] and coloured[-2]):
+        return True
+    grey = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    still = np.abs(np.diff(grey, axis=0)).mean(axis=1) < 1.5  # row i vs row i+1
+    smear = still & (std[1:] > 8)
+    return bool(smear[-6:].all())
 
 
 #: How long to keep reading for a whole frame when the stream gives a half-drawn one: past the
@@ -199,8 +213,6 @@ def read_whole(capture, fps: float):
             return True, image
     return False, None
 
-
-#: The former private name, still imported by `cameras.probe`.
 
 class RTSPSource(FrameSource):
     """One snapshot per camera per minute from live streams.
